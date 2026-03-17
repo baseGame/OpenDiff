@@ -1,0 +1,21 @@
+[package]
+name = "diff-engine"
+version.workspace = true
+edition.workspace = true
+description = "Core diff algorithms: Myers, Patience, Histogram"
+license.workspace = true
+
+[dependencies]
+serde = { workspace = true }
+rayon = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+regex = { workspace = true }
+
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
+
+# [[bench]]
+# name = "diff_bench"
+# harness = false
+# Uncomment and add benches/diff_bench.rs when benchmarks are needed

@@ -1,0 +1,92 @@
+[workspace]
+members = [
+    ".",
+    "crates/diff-engine",
+    "crates/vfs",
+    "crates/parsers",
+    "crates/session",
+    "crates/script-engine",
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["OpenDiff Contributors"]
+license = "Apache-2.0"
+repository = "https://github.com/baseGame/OpenDiff"
+
+[workspace.dependencies]
+# Tauri
+tauri = { version = "2.5", features = ["tray-icon"] }
+tauri-build = { version = "2.0", features = [] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# Parallel
+rayon = "1.10"
+
+# Error handling
+anyhow = "1"
+thiserror = "2"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Database
+sqlx = { version = "0.8", features = ["sqlite", "runtime-tokio", "macros"] }
+
+# Regex
+regex = "1"
+
+# File watching
+notify = "7"
+
+[package]
+name = "opendiff"
+version.workspace = true
+edition.workspace = true
+description = "OpenDiff — Beyond Compare 1:1 open source clone"
+authors.workspace = true
+license.workspace = true
+default-run = "opendiff"
+
+[lib]
+name = "opendiff_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build.workspace = true
+
+[dependencies]
+tauri.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+diff-engine = { path = "crates/diff-engine" }
+vfs = { path = "crates/vfs" }
+parsers = { path = "crates/parsers" }
+session = { path = "crates/session" }
+script-engine = { path = "crates/script-engine" }
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

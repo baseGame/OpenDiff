@@ -1,0 +1,122 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ── Rust tests ─────────────────────────────────────────────────────
+  rust-test:
+    name: Rust Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install system deps (Linux)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev
+
+      - name: Cargo fmt
+        run: cargo fmt --all --check
+        working-directory: src-tauri
+
+      - name: Cargo clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings
+        working-directory: src-tauri
+
+      - name: Cargo test (diff-engine)
+        run: cargo test -p diff-engine --all-features
+        working-directory: src-tauri
+
+      - name: Cargo test (vfs)
+        run: cargo test -p vfs --all-features
+        working-directory: src-tauri
+
+      - name: Cargo test (session)
+        run: cargo test -p session
+        working-directory: src-tauri
+
+  # ── Vue / TypeScript ───────────────────────────────────────────────
+  frontend:
+    name: Frontend (Vue 3)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript check
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests
+        run: npm run test:unit
+
+      - name: Build
+        run: npm run build
+
+  # ── Tauri build (release) ──────────────────────────────────────────
+  tauri-build:
+    name: Tauri Build (${{ matrix.os }})
+    needs: [rust-test, frontend]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install Linux deps
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev libgtk-3-dev \
+            libayatana-appindicator3-dev librsvg2-dev
+
+      - name: Install macOS universal targets
+        if: matrix.os == 'macos-latest'
+        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+
+      - name: npm install
+        run: npm ci
+
+      - name: Tauri build
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          args: ${{ matrix.os == 'macos-latest' && '--target universal-apple-darwin' || '' }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: opendiff-${{ matrix.os }}
+          path: src-tauri/target/release/bundle/
+          retention-days: 7

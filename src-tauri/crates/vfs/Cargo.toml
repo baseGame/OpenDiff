@@ -1,0 +1,45 @@
+[package]
+name = "vfs"
+version.workspace = true
+edition.workspace = true
+description = "Virtual File System abstraction: local, FTP, SFTP, S3, WebDAV, archive"
+license.workspace = true
+
+[dependencies]
+serde = { workspace = true }
+tokio = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+notify = { workspace = true }
+async-trait = "0.1"
+futures = "0.3"
+bytes = "1"
+
+# SSH/SFTP
+ssh2 = { version = "0.9", optional = true }
+
+# HTTP (WebDAV, OneDrive)
+reqwest = { version = "0.12", features = ["json", "stream"], optional = true }
+
+# S3
+aws-sdk-s3 = { version = "1", optional = true }
+aws-config = { version = "1", optional = true }
+
+# Archives
+zip = { version = "2", optional = true }
+tar = { version = "0.4", optional = true }
+flate2 = { version = "1", optional = true }
+
+# FTP
+suppaftp = { version = "6", features = ["async-secure"], optional = true }
+
+[features]
+default = ["local"]
+local = []
+sftp = ["dep:ssh2"]
+ftp = ["dep:suppaftp"]
+s3 = ["dep:aws-sdk-s3", "dep:aws-config", "dep:reqwest"]
+webdav = ["dep:reqwest"]
+archive = ["dep:zip", "dep:tar", "dep:flate2"]
+all = ["sftp", "ftp", "s3", "webdav", "archive"]

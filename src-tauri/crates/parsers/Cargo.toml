@@ -1,0 +1,29 @@
+[package]
+name = "parsers"
+version.workspace = true
+edition.workspace = true
+description = "File format parsers: CSV, Excel, Word, PDF, images, audio tags"
+license.workspace = true
+
+[dependencies]
+serde = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+
+# CSV/TSV
+csv = "1"
+
+# Excel
+calamine = "0.26"
+
+# PDF
+lopdf = "0.34"
+
+# Word (.docx)
+docx-rs = "0.4"
+
+# Images
+image = { version = "0.25", features = ["png", "jpeg", "bmp", "gif", "webp", "tiff", "ico"] }
+
+# Audio tags (MP3, FLAC, etc.)
+lofty = "0.22"

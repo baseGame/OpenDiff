@@ -1,0 +1,39 @@
+# Rust
+/target/
+src-tauri/target/
+
+# Node
+node_modules/
+dist/
+
+# Build artifacts
+*.exe
+*.dmg
+*.AppImage
+*.deb
+*.rpm
+src-tauri/target/
+
+# IDE
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env
+.env
+.env.local
+*.env
+
+# Database (dev only)
+*.db
+*.db-shm
+*.db-wal
+
+# Logs
+*.log
+npm-debug.log*

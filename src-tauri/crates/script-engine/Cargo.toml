@@ -1,0 +1,16 @@
+[package]
+name = "script-engine"
+version.workspace = true
+edition.workspace = true
+description = "BCS-compatible script interpreter and CLI interface"
+license.workspace = true
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+clap = { version = "4", features = ["derive"] }
+diff-engine = { path = "../diff-engine" }
+vfs = { path = "../vfs" }
