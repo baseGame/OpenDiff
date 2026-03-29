@@ -5,6 +5,16 @@ edition.workspace = true
 description = "Virtual File System abstraction: local, FTP, SFTP, S3, WebDAV, archive"
 license.workspace = true
 
+[features]
+default = ["local"]
+local = []
+sftp = ["dep:ssh2"]
+ftp = ["dep:suppaftp", "dep:native-tls"]
+s3 = ["dep:aws-sdk-s3", "dep:aws-config", "dep:reqwest"]
+webdav = ["dep:reqwest", "dep:url", "dep:chrono"]
+archive = ["dep:zip", "dep:tar", "dep:flate2"]
+all = ["sftp", "ftp", "s3", "webdav", "archive"]
+
 [dependencies]
 serde = { workspace = true }
 tokio = { workspace = true }
@@ -15,31 +25,28 @@ notify = { workspace = true }
 async-trait = "0.1"
 futures = "0.3"
 bytes = "1"
+url = { version = "2", optional = true }
+chrono = { version = "0.4", optional = true }
 
-# SSH/SFTP
+# SSH/SFTP (optional)
 ssh2 = { version = "0.9", optional = true }
 
-# HTTP (WebDAV, OneDrive)
+# HTTP (WebDAV, OneDrive) (optional)
 reqwest = { version = "0.12", features = ["json", "stream"], optional = true }
 
-# S3
+# S3 (optional)
 aws-sdk-s3 = { version = "1", optional = true }
 aws-config = { version = "1", optional = true }
 
-# Archives
+# Archives (optional)
 zip = { version = "2", optional = true }
 tar = { version = "0.4", optional = true }
 flate2 = { version = "1", optional = true }
 
-# FTP
+# FTP TLS (optional)
+native-tls = { version = "0.2", optional = true }
 suppaftp = { version = "6", features = ["async-secure"], optional = true }
 
-[features]
-default = ["local"]
-local = []
-sftp = ["dep:ssh2"]
-ftp = ["dep:suppaftp"]
-s3 = ["dep:aws-sdk-s3", "dep:aws-config", "dep:reqwest"]
-webdav = ["dep:reqwest"]
-archive = ["dep:zip", "dep:tar", "dep:flate2"]
-all = ["sftp", "ftp", "s3", "webdav", "archive"]
+[dev-dependencies]
+tempfile = "3"
+tokio = { workspace = true }

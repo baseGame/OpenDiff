@@ -7569,6 +7569,7 @@ dependencies = [
  "ssh2",
  "suppaftp",
  "tar",
+ "tempfile",
  "thiserror 2.0.18",
  "tokio",
  "tracing",
