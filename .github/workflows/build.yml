@@ -72,13 +72,16 @@ jobs:
         with:
           workspaces: src-tauri -> target
 
-      - name: Download frontend
+      - name: Download frontend dist
         uses: actions/download-artifact@v4
         with:
           name: dist
-          path: .
+          path: dist/
 
-      - name: Build Tauri
+      - name: Install npm deps (for beforeBuildCommand)
+        run: npm ci
+
+      - name: Build Tauri (Linux)
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -112,14 +115,14 @@ jobs:
           cache: 'npm'
           cache-dependency-path: package-lock.json
 
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Download frontend
+      - name: Download frontend dist
         uses: actions/download-artifact@v4
         with:
           name: dist
-          path: .
+          path: dist/
+
+      - name: Install npm deps (for beforeBuildCommand)
+        run: npm ci
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -131,9 +134,16 @@ jobs:
         with:
           workspaces: src-tauri -> target
 
-      # Note: macOS code signing requires a paid Apple Developer account.
-      # Sign with: security code-signing-dev-id (requires certificate setup)
-      - name: Build Tauri (unsigned)
+      # Note: macOS code signing requires a paid Apple Developer account + certificate.
+      # Uncomment and configure below to enable signed builds.
+      # - name: Import signing certificate
+      #   env:
+      #     BUILD_CERTIFICATE_DEVELOPMENT_CERT: ${{ secrets.BUILD_CERTIFICATE_DEVELOPMENT_CERT }}
+      #     BUILD_CERTIFICATE_PRODUCTION_CERT: ${{ secrets.BUILD_CERTIFICATE_PRODUCTION_CERT }}
+      #     BUILD_PROVISION_PROFILE_APPLE: ${{ secrets.BUILD_PROVISION_PROFILE_APPLE }}
+      #   run: |
+      #     # See: https://github.com/cAbi/code-signing-docs
+      - name: Build Tauri (macOS, unsigned)
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -164,14 +174,14 @@ jobs:
           cache: 'npm'
           cache-dependency-path: package-lock.json
 
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Download frontend
+      - name: Download frontend dist
         uses: actions/download-artifact@v4
         with:
           name: dist
-          path: .
+          path: dist/
+
+      - name: Install npm deps (for beforeBuildCommand)
+        run: npm ci
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -183,7 +193,7 @@ jobs:
         with:
           workspaces: src-tauri -> target
 
-      - name: Build Tauri
+      - name: Build Tauri (Windows)
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
