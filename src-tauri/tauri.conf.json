@@ -49,13 +49,6 @@
     }
   },
   "plugins": {
-    "dialog": {},
-    "fs": {
-      "scope": {
-        "allow": ["$HOME/**", "$APPDATA/**", "$DOCUMENT/**", "$DESKTOP/**"],
-        "deny": []
-      }
-    },
     "shell": {
       "open": true
     }
