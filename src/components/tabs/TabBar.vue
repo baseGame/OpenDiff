@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useTabStore } from '@/stores/tabs'
 import { useRouter } from 'vue-router'
+import { Home, FileText, FolderTree, Table, Binary, Image, X, Plus, Circle } from 'lucide-vue-next'
 
 const tabStore = useTabStore()
 const router = useRouter()
@@ -22,6 +23,17 @@ function handleClick(id: string) {
   tabStore.setActive(id)
   router.push(tabStore.KIND_ROUTE[tab.kind])
 }
+
+const getIcon = (kind: string) => {
+  const icons: Record<string, any> = {
+    text_diff: FileText, 
+    folder_diff: FolderTree, 
+    table_diff: Table,
+    hex_diff: Binary, 
+    image_diff: Image
+  }
+  return icons[kind] ?? FileText
+}
 </script>
 
 <template>
@@ -32,11 +44,9 @@ function handleClick(id: string) {
       :class="{ active: !tabStore.activeTabId && $route.path === '/' }"
       @click="router.push('/')"
     >
-      <span class="tab-icon">⌂</span>
+      <Home :size="14" class="tab-icon" />
       <span>Home</span>
     </div>
-
-    <div class="divider divider-v" style="height:20px;" />
 
     <!-- Dynamic tabs -->
     <div
@@ -46,55 +56,132 @@ function handleClick(id: string) {
       :class="{ active: tab.id === tabStore.activeTabId }"
       @click="handleClick(tab.id)"
     >
-      <span class="tab-icon">{{ kindIcon(tab.kind) }}</span>
-      <span class="truncate" style="max-width:160px">{{ tab.title }}</span>
-      <span v-if="tab.isDirty" class="tab-dirty">●</span>
-      <button class="tab-close btn-icon btn" @click="handleClose(tab.id, $event)">✕</button>
+      <component :is="getIcon(tab.kind)" :size="14" class="tab-icon" />
+      <span class="truncate tab-title">{{ tab.title }}</span>
+      
+      <div class="tab-actions flex items-center justify-center">
+        <Circle v-if="tab.isDirty" :size="8" class="tab-dirty" fill="currentColor" />
+        <button class="tab-close flex items-center justify-center" @click="handleClose(tab.id, $event)">
+          <X :size="14" />
+        </button>
+      </div>
     </div>
 
     <!-- New tab button -->
-    <button class="btn btn-icon tab-new" @click="router.push('/')">＋</button>
+    <button class="tab-new flex items-center justify-center" @click="router.push('/')">
+      <Plus :size="16" />
+    </button>
   </div>
 </template>
 
-<script lang="ts">
-function kindIcon(kind: string) {
-  const icons: Record<string, string> = {
-    text_diff: '📄', folder_diff: '📁', table_diff: '📊',
-    hex_diff: '🔢', image_diff: '🖼️'
-  }
-  return icons[kind] ?? '📄'
-}
-</script>
-
 <style scoped>
 .tab-bar {
-  background: var(--color-bg3);
+  background: var(--color-bg2);
+  min-height: 38px;
+  padding: 0 8px;
+  gap: 4px;
+  flex-shrink: 0;
   border-bottom: 1px solid var(--color-border);
-  min-height: 36px;
-  padding: 0 4px;
-  gap: 2px;
+}
+
+.tab-bar::-webkit-scrollbar {
+  height: 0px; /* Hide scrollbar for tab bar */
+}
+
+.tab-item {
+  display: flex; 
+  align-items: center; 
+  gap: 8px;
+  padding: 0 12px; 
+  height: 30px;
+  border-radius: var(--radius-sm);
+  cursor: pointer; 
+  font-size: 13px; 
+  color: var(--color-text-muted);
+  transition: all var(--transition); 
+  white-space: nowrap;
+  user-select: none;
+  background: transparent;
+  border: 1px solid transparent;
+  max-width: 200px;
+}
+
+.tab-item:hover { 
+  background: var(--color-surface); 
+  color: var(--color-text); 
+}
+
+.tab-item.active {
+  background: var(--color-bg); 
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  box-shadow: 0 1px 0 var(--color-bg) inset;
+}
+
+.tab-icon { 
+  color: var(--color-text-muted);
   flex-shrink: 0;
 }
-.tab-item {
-  display: flex; align-items: center; gap: 5px;
-  padding: 6px 10px; border-radius: 4px 4px 0 0;
-  cursor: pointer; font-size: 13px; color: var(--color-text-muted);
-  border: 1px solid transparent; border-bottom: none;
-  transition: all var(--transition); white-space: nowrap;
-  user-select: none;
+
+.tab-item.active .tab-icon {
+  color: var(--color-accent);
 }
-.tab-item:hover { background: var(--color-surface); color: var(--color-text); }
-.tab-item.active {
-  background: var(--color-bg); color: var(--color-text);
-  border-color: var(--color-border); border-bottom-color: var(--color-bg);
+
+.tab-title {
+  flex: 1;
 }
-.tab-icon { font-size: 12px; }
-.tab-dirty { color: var(--color-accent); font-size: 10px; }
+
+.tab-actions {
+  width: 16px;
+  height: 16px;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.tab-dirty { 
+  color: var(--color-accent); 
+  position: absolute;
+}
+
 .tab-close {
-  padding: 1px 4px; font-size: 10px; color: var(--color-text-muted);
-  opacity: 0; transition: opacity var(--transition);
+  background: transparent;
+  border: none;
+  color: var(--color-text-muted);
+  border-radius: var(--radius-sm);
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+  opacity: 0; 
+  transition: all 100ms ease;
+  position: absolute;
 }
-.tab-item:hover .tab-close, .tab-item.active .tab-close { opacity: 1; }
-.tab-new { margin-left: 4px; font-size: 16px; color: var(--color-text-muted); }
+
+.tab-close:hover {
+  background: var(--color-bg3);
+  color: var(--color-text);
+}
+
+.tab-item:hover .tab-close, .tab-item.active .tab-close { 
+  opacity: 1; 
+}
+.tab-item:hover .tab-dirty {
+  opacity: 0; /* Hide dirty dot when hovered so close button can show */
+}
+
+.tab-new { 
+  background: transparent;
+  border: none;
+  margin-left: 4px; 
+  color: var(--color-text-muted);
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.tab-new:hover {
+  background: var(--color-surface);
+  color: var(--color-text);
+}
 </style>

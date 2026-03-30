@@ -18,6 +18,7 @@ import { readFileText } from '@/api'
 import DiffMinimap from '@/components/editor/DiffMinimap.vue'
 import MergeOutputPanel from '@/components/editor/MergeOutputPanel.vue'
 import IgnoreToolbar from '@/components/editor/IgnoreToolbar.vue'
+import { ArrowUp, ArrowDown, FileOutput, Merge, FileCode2 } from 'lucide-vue-next'
 
 const tabStore = useTabStore()
 const settingsStore = useSettingsStore()
@@ -311,29 +312,49 @@ const diffCountLabel = computed(() => {
   <div class="text-diff-view flex flex-col h-full overflow-hidden" tabindex="0">
 
     <!-- ── Top toolbar ── -->
-    <div class="diff-toolbar flex items-center gap-1">
-      <button class="path-btn btn" @click="loadFile('left')">
-        <span class="text-muted text-xs">LEFT</span>
-        <span class="truncate path-text">{{ leftPath || 'Open file…' }}</span>
-      </button>
-
-      <div class="toolbar-mid flex items-center gap-1">
-        <template v-if="stats">
-          <span class="badge badge-add">+{{ stats.added }}</span>
-          <span class="badge badge-del">-{{ stats.deleted }}</span>
-          <span class="badge badge-mod">~{{ stats.modified }}</span>
-          <span class="diff-nav-label text-xs text-muted">{{ diffCountLabel }}</span>
-        </template>
-        <button class="btn btn-icon" title="Prev diff (F7)" @click="jumpToDiff(-1)">↑</button>
-        <button class="btn btn-icon" title="Next diff (F8)" @click="jumpToDiff(1)">↓</button>
-        <button class="btn btn-icon" title="Export HTML report" @click="exportHtmlReport">📄</button>
-        <button class="btn btn-icon" :class="{ active: showMerge }" title="3-way merge" @click="showMerge = !showMerge">⊕</button>
+    <div class="diff-toolbar flex items-center justify-between gap-4">
+      <div class="flex-1 min-w-0">
+        <button class="path-btn btn w-full" @click="loadFile('left')">
+          <FileCode2 :size="14" class="text-muted" />
+          <span class="text-muted text-xs font-semibold w-12 text-left">LEFT</span>
+          <span class="truncate path-text">{{ leftPath || 'Select file...' }}</span>
+        </button>
       </div>
 
-      <button class="path-btn btn" @click="loadFile('right')">
-        <span class="text-muted text-xs">RIGHT</span>
-        <span class="truncate path-text">{{ rightPath || 'Open file…' }}</span>
-      </button>
+      <div class="toolbar-mid flex items-center justify-center gap-2">
+        <div v-if="stats" class="stats-badges flex items-center gap-1.5 mr-2">
+          <span class="badge badge-add" title="Added lines">+{{ stats.added }}</span>
+          <span class="badge badge-del" title="Deleted lines">-{{ stats.deleted }}</span>
+          <span class="badge badge-mod" title="Modified lines">~{{ stats.modified }}</span>
+        </div>
+        
+        <div class="nav-group flex items-center bg-bg rounded border border-border p-0.5">
+          <button class="btn btn-icon rounded-sm" title="Prev diff (F7)" @click="jumpToDiff(-1)">
+            <ArrowUp :size="14" />
+          </button>
+          <span class="diff-nav-label text-xs text-muted px-2 font-mono">{{ diffCountLabel }}</span>
+          <button class="btn btn-icon rounded-sm" title="Next diff (F8)" @click="jumpToDiff(1)">
+            <ArrowDown :size="14" />
+          </button>
+        </div>
+
+        <div class="action-group flex items-center gap-1 ml-2">
+          <button class="btn btn-icon" title="Export HTML report" @click="exportHtmlReport">
+            <FileOutput :size="16" />
+          </button>
+          <button class="btn btn-icon" :class="{ 'text-accent bg-bg2': showMerge }" title="3-way merge" @click="showMerge = !showMerge">
+            <Merge :size="16" />
+          </button>
+        </div>
+      </div>
+
+      <div class="flex-1 min-w-0">
+        <button class="path-btn btn w-full" @click="loadFile('right')">
+          <FileCode2 :size="14" class="text-muted" />
+          <span class="text-muted text-xs font-semibold w-12 text-left">RIGHT</span>
+          <span class="truncate path-text">{{ rightPath || 'Select file...' }}</span>
+        </button>
+      </div>
     </div>
 
     <!-- ── Options bar ── -->
