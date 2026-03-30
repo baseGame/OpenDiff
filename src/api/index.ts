@@ -1,5 +1,9 @@
 import { invoke } from '@tauri-apps/api/core'
-import type { DiffResult, DiffOptions, MergeResult, Session, AppSettings } from '@/types'
+import type {
+  DiffResult, DiffOptions, MergeResult, Session, AppSettings,
+  TableDiffResult, TableDiffOptions,
+  FolderDiffResult, FolderDiffOptions,
+} from '@/types'
 
 // ── Diff ──────────────────────────────────────────────────────────────
 
@@ -25,6 +29,26 @@ export async function mergeThree(
   rightPath: string,
 ): Promise<MergeResult> {
   return invoke('cmd_merge_three', { basePath, leftPath, rightPath })
+}
+
+// ── Table / CSV diff ──────────────────────────────────────────────────
+
+export async function diffTables(
+  leftPath: string,
+  rightPath: string,
+  options?: TableDiffOptions,
+): Promise<TableDiffResult> {
+  return invoke('cmd_diff_tables', { leftPath, rightPath, options })
+}
+
+// ── Folder diff ───────────────────────────────────────────────────────
+
+export async function diffFolders(
+  leftRoot: string,
+  rightRoot: string,
+  options?: FolderDiffOptions,
+): Promise<FolderDiffResult> {
+  return invoke('cmd_diff_folders', { leftRoot, rightRoot, options })
 }
 
 // ── VFS ───────────────────────────────────────────────────────────────
@@ -57,7 +81,11 @@ export async function readFileBytes(path: string): Promise<number[]> {
   return invoke('cmd_read_file_bytes', { path })
 }
 
-export async function diffImages(leftPath: string, rightPath: string, threshold?: number): Promise<{ diff_png: string }> {
+export async function diffImages(
+  leftPath: string,
+  rightPath: string,
+  threshold?: number,
+): Promise<{ diff_png: string }> {
   return invoke('cmd_diff_images', { leftPath, rightPath, threshold })
 }
 
@@ -82,3 +110,4 @@ export async function getSettings(): Promise<AppSettings> {
 export async function saveSettings(settings: AppSettings): Promise<void> {
   return invoke('cmd_save_settings', { settings })
 }
+

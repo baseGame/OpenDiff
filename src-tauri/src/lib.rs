@@ -45,6 +45,8 @@ pub fn run() {
             commands::vfs::cmd_delete_path,
             commands::vfs::cmd_rename_path,
             commands::image_diff::cmd_diff_images,
+            commands::table_diff::cmd_diff_tables,
+            commands::folder_diff::cmd_diff_folders,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

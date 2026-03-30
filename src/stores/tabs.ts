@@ -9,6 +9,7 @@ const KIND_ROUTE: Record<SessionKind, string> = {
   table_diff: '/table-diff',
   hex_diff: '/hex-diff',
   image_diff: '/image-diff',
+  folder_sync: '/folder-diff',
 }
 
 export const useTabStore = defineStore('tabs', () => {
@@ -46,6 +47,7 @@ export const useTabStore = defineStore('tabs', () => {
       table_diff: 'Table Compare',
       hex_diff: 'Hex Compare',
       image_diff: 'Image Compare',
+      folder_sync: 'Folder Sync',
     }
     return openTab({
       title: titles[kind],

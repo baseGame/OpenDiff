@@ -4293,6 +4293,7 @@ name = "opendiff"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "crc32fast",
  "diff-engine",
  "image",
  "parsers",
