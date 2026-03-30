@@ -15,18 +15,15 @@ env:
 jobs:
   # ── Frontend ──────────────────────────────────────────────────────────────
   frontend:
-    name: Frontend (Node ${{ matrix.node }})
+    name: Frontend (Node 20)
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        node: ['20', '22']
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Node ${{ matrix.node }}
+      - name: Setup Node 20
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ matrix.node }}
+          node-version: '20'
           cache: 'npm'
           cache-dependency-path: package-lock.json
 
@@ -39,26 +36,19 @@ jobs:
       - name: Upload dist
         uses: actions/upload-artifact@v4
         with:
-          name: dist-${{ matrix.node }}
+          name: dist
           path: dist/
           retention-days: 7
 
-  # ── Rust backend ────────────────────────────────────────────────────────────
-  backend:
-    name: Backend (Rust ${{ matrix.rust }})
+  # ── Linux build (native) ────────────────────────────────────────────────────
+  build-linux:
+    name: Build Linux (.deb / .rpm / .AppImage)
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        rust: [stable, nightly]
-        include:
-          - rust: stable
-            targets: ''
-          - rust: nightly
-            targets: '--all-targets'
+    needs: [frontend]
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install system dependencies (Ubuntu)
+      - name: Install Linux system deps
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y \
@@ -72,30 +62,23 @@ jobs:
             curl \
             file
 
-      - name: Setup Rust ${{ matrix.rust }}
-        uses: dtolnay/rust-toolchain@master
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: ${{ matrix.rust }}
-          components: rustfmt, clippy
+          components: rustfmt
 
       - name: Cache Cargo
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri -> target
 
-      - name: Check Rust
-        working-directory: src-tauri
-        run: cargo check ${{ matrix.targets }}
-
-      - name: Build Tauri (debug)
-        uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Download frontend dist
+        uses: actions/download-artifact@v4
         with:
-          args: --debug
+          name: dist
+          path: dist/
 
-      - name: Build Tauri (release with signing)
-        if: github.event_name == 'push' && (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main')
+      - name: Build Tauri (release + signing)
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -104,43 +87,139 @@ jobs:
         with:
           args: --release
 
-      - name: Upload release artifacts
-        if: github.event_name == 'push' && (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main')
+      - name: Upload Linux artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: release-artifacts
+          name: linux-artifacts
           path: |
             src-tauri/target/release/bundle/deb/*.deb
             src-tauri/target/release/bundle/rpm/*.rpm
             src-tauri/target/release/bundle/appimage/*.AppImage
           retention-days: 30
 
-  # ── Full test ──────────────────────────────────────────────────────────────
-  test:
-    name: Full Stack Test
-    runs-on: ubuntu-latest
-    needs: [frontend, backend]
+  # ── macOS build ─────────────────────────────────────────────────────────────
+  build-macos:
+    name: Build macOS (.app / .dmg)
+    runs-on: macos-latest
+    needs: [frontend]
     steps:
       - uses: actions/checkout@v4
-      - name: Download artifacts
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download frontend dist
         uses: actions/download-artifact@v4
         with:
-          path: artifacts/
-      - name: List artifacts
-        run: find artifacts/ -type f | head -20
+          name: dist
+          path: dist/
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      # macOS signing disabled — requires paid Apple Developer account + certificates
+      # To enable: set TAURI_SIGNING_PRIVATE_KEY + TAURI_SIGNING_PRIVATE_KEY_PASSWORD secrets
+      # and add codesign certificate + provisioning profile to repository secrets
+      - name: Build Tauri (release, unsigned)
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          args: --release
+          release-targets: >
+            macos-latest;
+            dmg
+
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-artifacts
+          path: |
+            src-tauri/target/release/bundle/dmg/*.dmg
+            src-tauri/target/release/bundle/macos-*.app
+          retention-days: 30
+
+  # ── Windows build ───────────────────────────────────────────────────────────
+  build-windows:
+    name: Build Windows (.exe / .msi)
+    runs-on: windows-latest
+    needs: [frontend]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download frontend dist
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - name: Build Tauri (release + signing)
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          args: --release
+          release-targets: >
+            nsis;
+            msi
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-artifacts
+          path: |
+            src-tauri/target/release/bundle/nsis/*.exe
+            src-tauri/target/release/bundle/msi/*.msi
+          retention-days: 30
 
   # ── Release ────────────────────────────────────────────────────────────────
   release:
-    name: Create Release
+    name: Create GitHub Release
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
-    needs: [test]
+    needs: [build-linux, build-macos, build-windows]
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download artifacts
+      - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts/
@@ -148,10 +227,10 @@ jobs:
 
       - name: Determine version
         id: version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHARD_OUTPUT
 
-      - name: List artifacts
-        run: ls -lh
+      - name: List all files
+        run: find artifacts/ -type f | sort
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -160,8 +239,14 @@ jobs:
           prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') || contains(github.ref, 'rc') }}
           generate_release_notes: true
           files: |
-            OpenDiff_amd64.deb
-            OpenDiff-*.x86_64.rpm
-            OpenDiff.AppImage
+            # Linux
+            artifacts/*.deb
+            artifacts/*.rpm
+            artifacts/*.AppImage
+            # macOS
+            artifacts/*.dmg
+            # Windows
+            artifacts/*.exe
+            artifacts/*.msi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
