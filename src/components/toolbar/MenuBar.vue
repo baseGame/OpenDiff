@@ -4,41 +4,21 @@ import { useRouter } from 'vue-router'
 import { useTabStore } from '@/stores/tabs'
 import type { SessionKind } from '@/types'
 import { open } from '@tauri-apps/plugin-dialog'
-import { Zap, Menu, FileText, FolderTree, Table, Binary, Image, Moon, Sun, Home, Info, LogOut } from 'lucide-vue-next'
+import { Search, History, Settings, HelpCircle, Moon, Sun } from 'lucide-vue-next'
 
 const router = useRouter()
 const tabStore = useTabStore()
 
-const menuOpen = ref<string | null>(null)
 const isDark = ref(document.documentElement.getAttribute('data-theme') !== 'light')
 
-const menus = {
-  File: [
-    { label: 'New Text Compare…', icon: FileText, action: () => openDiff('text_diff') },
-    { label: 'New Folder Compare…', icon: FolderTree, action: () => openDiff('folder_diff') },
-    { label: 'New Table Compare…', icon: Table, action: () => openDiff('table_diff') },
-    { label: 'New Hex Compare…', icon: Binary, action: () => openDiff('hex_diff') },
-    { label: 'New Image Compare…', icon: Image, action: () => openDiff('image_diff') },
-    null,
-    { label: 'Exit', icon: LogOut, action: () => window.close(), danger: true },
-  ],
-  View: [
-    { label: 'Toggle Theme', icon: isDark.value ? Sun : Moon, action: toggleTheme },
-    { label: 'Home', icon: Home, action: () => router.push('/') },
-  ],
-  Help: [
-    { label: 'About OpenDiff', icon: Info, action: () => alert('OpenDiff v0.1.0\nApache 2.0 | github.com/baseGame/OpenDiff') },
-  ],
-} as Record<string, any[]>
-
 async function openDiff(kind: SessionKind) {
-  menuOpen.value = null
-  const left = await open({ multiple: false, title: 'Select Left File/Folder' })
+  const isFolder = kind === 'folder_diff'
+  const left = await open({ multiple: false, directory: isFolder, title: 'Select Left' })
   if (!left) return
-  const right = await open({ multiple: false, title: 'Select Right File/Folder' })
+  const right = await open({ multiple: false, directory: isFolder, title: 'Select Right' })
   if (!right) return
   tabStore.openNewDiff(kind, left as string, right as string)
-  router.push(tabStore.KIND_ROUTE[kind])
+  router.push(tabStore.KIND_ROUTE[kind] || '/')
 }
 
 function toggleTheme() {
@@ -47,132 +27,120 @@ function toggleTheme() {
   const nextTheme = cur === 'dark' ? 'light' : 'dark'
   el.setAttribute('data-theme', nextTheme)
   isDark.value = nextTheme === 'dark'
-  menus.View[0].icon = isDark.value ? Sun : Moon
-  menuOpen.value = null
 }
 </script>
 
 <template>
-  <div class="menu-bar flex items-center" data-tauri-drag-region @click.self="menuOpen = null">
-    <div class="app-logo flex items-center gap-2">
-      <Zap :size="16" class="text-accent" />
-      <span>OpenDiff</span>
+  <header class="top-nav-bar flex items-center justify-between w-full px-3" data-tauri-drag-region>
+    <!-- Left Section -->
+    <div class="flex items-center gap-4 h-full" data-tauri-drag-region>
+      <span class="text-lg font-bold tracking-tighter text-text app-title" @click="router.push('/')">OpenDiff</span>
+      
+      <nav class="nav-menu flex items-center gap-2 h-full">
+        <button class="nav-link" @click="openDiff('folder_diff')">Folder Compare</button>
+        <button class="nav-link" @click="openDiff('text_diff')">Text Compare</button>
+        <button class="nav-link" @click="openDiff('image_diff')">Image Compare</button>
+        <button class="nav-link" @click="openDiff('hex_diff')">Hex Compare</button>
+      </nav>
     </div>
 
-    <div class="menu-container flex items-center gap-1">
-      <template v-for="(items, name) in menus" :key="name">
-        <div class="menu-entry" :class="{ active: menuOpen === name }">
-          <button class="menu-btn" @click="menuOpen = menuOpen === name ? null : name">
-            {{ name }}
-          </button>
-          
-          <div v-if="menuOpen === name" class="menu-dropdown shadow-lg" @click.stop>
-            <template v-for="(item, i) in items">
-              <div v-if="item === null" :key="`sep-${i}`" class="menu-sep" />
-              <button 
-                v-else 
-                :key="item.label" 
-                class="menu-item flex items-center gap-2" 
-                :class="{ 'text-red hover:bg-red hover:bg-opacity-10': item.danger }"
-                @click="item.action()"
-              >
-                <component :is="item.icon" :size="14" class="menu-icon" />
-                <span>{{ item.label }}</span>
-              </button>
-            </template>
-          </div>
-        </div>
-      </template>
+    <!-- Right Section -->
+    <div class="flex items-center gap-2">
+      <div class="search-box rounded flex items-center gap-2">
+        <Search :size="14" class="text-muted" />
+        <input 
+          class="bg-transparent border-none text-xs focus:outline-none p-0 w-32 placeholder:text-muted text-text" 
+          placeholder="Quick find..." 
+          type="text"
+        />
+      </div>
+      
+      <button class="icon-btn rounded" title="Recent History" @click="router.push('/')">
+        <History :size="16" />
+      </button>
+      <button class="icon-btn rounded" title="Toggle Theme" @click="toggleTheme">
+        <component :is="isDark ? Sun : Moon" :size="16" />
+      </button>
+      <button class="icon-btn rounded" title="Help">
+        <HelpCircle :size="16" />
+      </button>
     </div>
-    
-    <div class="drag-region flex-1 h-full" data-tauri-drag-region></div>
-  </div>
-
-  <!-- click outside to close -->
-  <div v-if="menuOpen" class="menu-overlay" @click="menuOpen = null" />
+  </header>
+  <div class="header-divider w-full"></div>
 </template>
 
 <style scoped>
-.menu-bar {
+.top-nav-bar {
   background: var(--color-bg);
-  border-bottom: 1px solid var(--color-border);
   height: 40px;
-  padding: 0 12px;
-  gap: 16px;
-  flex-shrink: 0;
-  position: relative;
-  z-index: 100;
-  user-select: none;
+  z-index: 50;
+  /* The entire header should be draggable where there are no interactive elements */
 }
-.app-logo {
-  font-weight: 600; 
-  font-size: 14px; 
+
+.app-title {
   color: var(--color-text);
-  padding-right: 16px; 
-  border-right: 1px solid var(--color-border);
+  cursor: pointer;
+  margin-right: 16px;
+  /* Make sure title doesn't block dragging */
+  -webkit-app-region: no-drag; 
 }
-.menu-entry { position: relative; }
-.menu-btn {
-  background: transparent; 
-  border: none; 
-  color: var(--color-text-muted);
-  padding: 6px 12px; 
-  font-size: 13px; 
+
+@media (max-width: 768px) {
+  .nav-menu {
+    display: none !important;
+  }
+}
+
+.nav-link {
+  font-family: var(--font-ui);
+  font-size: 11px;
   font-weight: 500;
-  cursor: pointer; 
+  letter-spacing: -0.01em;
+  color: var(--color-text-muted);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 4px 8px;
   border-radius: var(--radius-sm);
   transition: all var(--transition);
+  -webkit-app-region: no-drag;
 }
-.menu-btn:hover, .menu-entry.active .menu-btn {
-  background: var(--color-surface); 
+
+.nav-link:hover {
   color: var(--color-text);
+  background: var(--color-bg3);
 }
-.menu-dropdown {
-  position: absolute; 
-  top: calc(100% + 4px); 
-  left: 0;
-  background: var(--color-surface); 
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius); 
-  min-width: 240px;
-  z-index: 200; 
-  padding: 6px;
+
+.search-box {
+  background: var(--color-bg2);
+  padding: 4px 8px;
+  -webkit-app-region: no-drag;
 }
-.menu-item {
-  display: flex; 
-  width: 100%; 
-  text-align: left;
-  background: transparent; 
-  border: none; 
-  color: var(--color-text);
-  padding: 8px 12px; 
-  font-size: 13px; 
-  cursor: pointer; 
-  border-radius: var(--radius-sm);
-  transition: background var(--transition);
+
+.search-box input {
+  font-family: var(--font-ui);
 }
-.menu-item:hover { 
-  background: var(--color-bg3); 
-}
-.menu-icon {
+
+.icon-btn {
+  padding: 4px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
   color: var(--color-text-muted);
-  flex-shrink: 0;
+  transition: all var(--transition);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-app-region: no-drag;
 }
-.menu-item:hover .menu-icon {
+
+.icon-btn:hover {
+  background: var(--color-bg3);
   color: var(--color-text);
 }
-.menu-item.text-red:hover .menu-icon {
-  color: var(--color-red);
-}
-.menu-sep { 
-  height: 1px; 
-  background: var(--color-border); 
-  margin: 6px 0; 
-}
-.menu-overlay {
-  position: fixed; inset: 0; z-index: 99;
-}
-.drag-region {
-  -webkit-app-region: drag;
+
+.header-divider {
+  height: 1px;
+  background: var(--color-border);
 }
 </style>

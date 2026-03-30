@@ -2,6 +2,7 @@
 import { onMounted } from 'vue'
 import { RouterView } from 'vue-router'
 import MenuBar from '@/components/toolbar/MenuBar.vue'
+import SideNavBar from '@/components/toolbar/SideNavBar.vue'
 import TabBar from '@/components/tabs/TabBar.vue'
 import StatusBar from '@/components/StatusBar.vue'
 import { useSettingsStore } from '@/stores/settings'
@@ -13,10 +14,18 @@ onMounted(() => settingsStore.load())
 <template>
   <div class="app-layout flex flex-col h-full overflow-hidden">
     <MenuBar />
-    <TabBar />
-    <main class="flex-1 overflow-hidden">
-      <RouterView />
-    </main>
+    
+    <div class="flex flex-1 overflow-hidden relative">
+      <SideNavBar />
+      
+      <div class="main-container flex-1 flex flex-col overflow-hidden">
+        <TabBar />
+        <main class="flex-1 overflow-hidden">
+          <RouterView />
+        </main>
+      </div>
+    </div>
+    
     <StatusBar />
   </div>
 </template>
@@ -24,5 +33,9 @@ onMounted(() => settingsStore.load())
 <style scoped>
 .app-layout {
   background: var(--color-bg);
+}
+
+.main-container {
+  min-width: 0;
 }
 </style>
