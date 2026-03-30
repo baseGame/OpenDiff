@@ -221,3 +221,35 @@ html, body, #app {
 }
 .divider-v { width: 1px; height: 100%; }
 .divider-h { height: 1px; width: 100%; }
+
+/* ── Syntax Highlighting (highlight.js One Dark theme) ───────────────── */
+.hl-keyword  { color: #c678dd; }  /* purple */
+.hl-built_in { color: #e5c07b; }  /* yellow */
+.hl-type     { color: #e5c07b; }  /* yellow */
+.hl-literal  { color: #56b6c2; }  /* cyan */
+.hl-number   { color: #d19a66; }  /* orange */
+.hl-string   { color: #98c379; }  /* green */
+.hl-comment  { color: #5c6370; font-style: italic; }  /* grey */
+.hl-meta     { color: #abb2bf; }
+.hl-variable { color: #e06c75; }  /* red */
+.hl-function,.hl-title { color: #61afef; }  /* blue */
+.hl-attr    { color: #d19a66; }  /* orange */
+.hl-selector { color: #c678dd; }  /* purple */
+.hl-tag     { color: #e06c75; }  /* red */
+.hl-tag.hl-built_in { color: #e5c07b; }
+.hl-operator,.hl-punct { color: #abb2bf; }  /* light grey */
+.hl-property { color: #e06c75; }
+.hl-params { color: #abb2bf; }
+.hl-class, .hl-class.hl-type { color: #e5c07b; }
+.hl-module { color: #c678dd; }
+.hl-symbol { color: #56b6c2; }
+.hl-emphasis { font-style: italic; }
+.hl-strong { font-weight: bold; }
+.hl-code { color: #98c379; font-family: var(--font-mono); }
+.hl-quote { color: #5c6370; font-style: italic; }
+.hl-link { color: #61afef; text-decoration: underline; }
+.hl-section { color: #e06c75; font-weight: bold; }
+.hl-bullet { color: #d19a66; }
+.hl-add    { background: rgba(166,227,161,.15); }
+.hl-del    { background: rgba(243,139,168,.15); }
+.hl-mod    { background: rgba(137,180,250,.12); }

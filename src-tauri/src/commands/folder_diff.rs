@@ -159,8 +159,8 @@ fn compare_files(
         (Some(l), Some(r)) if l.is_dir && r.is_dir => (FileStatus::Same, FileStatus::Same),
         (Some(l), None) if !l.is_dir => (FileStatus::LeftOnly, FileStatus::RightOnly),
         (None, Some(r)) if !r.is_dir => (FileStatus::LeftOnly, FileStatus::RightOnly),
-        (Some(l), None) => (FileStatus::LeftOnly, FileStatus::RightOnly),
-        (None, Some(r)) => (FileStatus::LeftOnly, FileStatus::RightOnly),
+        (Some(_l), None) => (FileStatus::LeftOnly, FileStatus::RightOnly),
+        (None, Some(_r)) => (FileStatus::LeftOnly, FileStatus::RightOnly),
         (Some(l), Some(r)) => {
             let size_diff = compare_size && l.size != r.size;
             let crc_diff  = l.crc32 != r.crc32;
