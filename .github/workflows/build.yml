@@ -24,14 +24,16 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: package-lock.json
+          cache: 'pnpm'
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
 
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Build frontend
-        run: npm run build
+        run: pnpm run build
 
       - name: Upload dist
         uses: actions/upload-artifact@v4
@@ -78,8 +80,12 @@ jobs:
           name: dist
           path: dist/
 
-      - name: Install npm deps (for beforeBuildCommand)
-        run: npm ci
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Install pnpm deps (for beforeBuildCommand)
+        run: pnpm install --frozen-lockfile
 
       - name: Build Tauri (Linux)
         uses: tauri-apps/tauri-action@v0
@@ -112,8 +118,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: package-lock.json
+          cache: 'pnpm'
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
 
       - name: Download frontend dist
         uses: actions/download-artifact@v4
@@ -121,8 +129,8 @@ jobs:
           name: dist
           path: dist/
 
-      - name: Install npm deps (for beforeBuildCommand)
-        run: npm ci
+      - name: Install pnpm deps (for beforeBuildCommand)
+        run: pnpm install --frozen-lockfile
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -171,8 +179,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: package-lock.json
+          cache: 'pnpm'
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
 
       - name: Download frontend dist
         uses: actions/download-artifact@v4
@@ -180,8 +190,8 @@ jobs:
           name: dist
           path: dist/
 
-      - name: Install npm deps (for beforeBuildCommand)
-        run: npm ci
+      - name: Install pnpm deps (for beforeBuildCommand)
+        run: pnpm install --frozen-lockfile
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable

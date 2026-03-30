@@ -46,14 +46,14 @@ sudo apt install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-
 ```bash
 git clone https://github.com/baseGame/OpenDiff.git
 cd OpenDiff
-npm install
-npm run tauri:dev
+pnpm install
+pnpm run tauri:dev
 ```
 
 ### 生产构建
 
 ```bash
-npm run tauri:build
+pnpm run tauri:build
 # 产物在 src-tauri/target/release/bundle/
 ```
 

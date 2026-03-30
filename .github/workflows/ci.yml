@@ -58,22 +58,25 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'npm'
+          cache: 'pnpm'
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
 
       - name: Install dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: TypeScript check
-        run: npm run typecheck
+        run: pnpm run typecheck
 
       - name: Lint
-        run: npm run lint
+        run: pnpm run lint
 
       - name: Unit tests
-        run: npm run test:unit
+        run: pnpm run test:unit
 
       - name: Build
-        run: npm run build
+        run: pnpm run build
 
   # ── Tauri build (release) ──────────────────────────────────────────
   tauri-build:
@@ -88,7 +91,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'npm'
+          cache: 'pnpm'
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
 
@@ -104,8 +110,8 @@ jobs:
         if: matrix.os == 'macos-latest'
         run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
 
-      - name: npm install
-        run: npm ci
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
       - name: Tauri build
         uses: tauri-apps/tauri-action@v0
