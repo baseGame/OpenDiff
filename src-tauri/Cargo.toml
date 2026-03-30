@@ -20,6 +20,15 @@ repository = "https://github.com/baseGame/OpenDiff"
 # Tauri
 tauri = { version = "2.5", features = ["tray-icon"] }
 tauri-build = { version = "2.0", features = [] }
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
+tauri-plugin-shell = "2"
+
+# Image processing
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
+
+# CSV parsing
+csv = "1.3"
 
 # Serialization
 serde = { version = "1", features = ["derive"] }
@@ -66,6 +75,9 @@ tauri-build.workspace = true
 
 [dependencies]
 tauri.workspace = true
+tauri-plugin-dialog.workspace = true
+tauri-plugin-fs.workspace = true
+tauri-plugin-shell.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tokio.workspace = true
@@ -73,6 +85,7 @@ anyhow.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
+image.workspace = true
 
 diff-engine = { path = "crates/diff-engine" }
 vfs = { path = "crates/vfs" }

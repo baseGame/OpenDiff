@@ -132,3 +132,18 @@ pub enum MergeLine {
         right: Vec<String>,
     },
 }
+
+impl MergeLine {
+    /// Returns the resolved or chosen content of the line
+    pub fn content(&self) -> String {
+        match self {
+            MergeLine::Resolved(s) => s.clone(),
+            MergeLine::Conflict { left, right, .. } => {
+                // Prefer left for conflict resolution
+                if !left.is_empty() { left.join("\n") }
+                else if !right.is_empty() { right.join("\n") }
+                else { String::new() }
+            }
+        }
+    }
+}

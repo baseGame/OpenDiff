@@ -39,6 +39,13 @@ pub async fn cmd_delete_path(path: String, recursive: bool) -> Result<(), String
 }
 
 #[tauri::command]
+pub async fn cmd_read_file_bytes(path: String) -> Result<Vec<u8>, String> {
+    tokio::fs::read(&path)
+        .await
+        .map_err(|e| format!("Cannot read '{path}': {e}"))
+}
+
+#[tauri::command]
 pub async fn cmd_rename_path(src: String, dst: String) -> Result<(), String> {
     let vfs = LocalVfs;
     vfs.rename(&VPath::new(src), &VPath::new(dst)).await.map_err(|e| e.to_string())

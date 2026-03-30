@@ -1,201 +1,281 @@
 <script setup lang="ts">
 /**
  * ImageDiffView — Phase 3
- * Pixel-level image comparison with overlay modes
+ * Features: Pixel-level image diff, slider overlay, heatmap, threshold control
  */
-import { ref, computed, onMounted, watch } from 'vue'
-import { useTabStore } from '@/stores/tabs'
+import { ref, computed, onMounted } from 'vue'
 import { open } from '@tauri-apps/plugin-dialog'
+import { invoke } from '@tauri-apps/api/core'
 
-const tabStore  = useTabStore()
-const activeTab = computed(() => tabStore.activeTab)
+// ── State ──────────────────────────────────────────────────────────────
+const leftPath   = ref('')
+const rightPath  = ref('')
+const leftUrl    = ref('')
+const rightUrl   = ref('')
+const diffUrl    = ref('')
+const loading    = ref(false)
+const error      = ref<string | null>(null)
+const threshold  = ref(10) // pixel diff threshold
+const diffMode   = ref<'side'|'overlay'|'heatmap'>('side')
+const zoom       = ref(1)
+const showDiff   = ref(true)
 
-const leftPath  = ref('')
-const rightPath = ref('')
-const leftSrc   = ref('')
-const rightSrc  = ref('')
-const mode = ref<'side-by-side' | 'overlay' | 'diff'>('side-by-side')
-const tolerance = ref(10)
-const zoom = ref(1.0)
-const loading = ref(false)
-const error   = ref<string | null>(null)
-
-// Canvas refs for diff rendering
-const diffCanvas = ref<HTMLCanvasElement | null>(null)
-
-async function loadImage(side: 'left' | 'right') {
+// ── Load ──────────────────────────────────────────────────────────────
+async function pickFile(side: 'left' | 'right') {
   const path = await open({
     multiple: false,
     title: `Select ${side} image`,
-    filters: [{ name: 'Images', extensions: ['png','jpg','jpeg','bmp','gif','webp','ico','tiff'] }]
+    filters: [{ name: 'Images', extensions: ['png','jpg','jpeg','gif','bmp','webp','tiff'] }],
   }) as string | null
   if (!path) return
-  // Use file:// URL for Tauri
-  const src = `asset://localhost/${encodeURIComponent(path.replace(/\\/g, '/').replace(/^\//, ''))}`
-  if (side === 'left')  { leftPath.value  = path; leftSrc.value  = `file://${path}` }
-  else                  { rightPath.value = path; rightSrc.value = `file://${path}` }
-  if (mode.value === 'diff' && leftSrc.value && rightSrc.value) computeDiff()
+  if (side === 'left') leftPath.value = path
+  else rightPath.value = path
+  // Create object URLs for preview
+  const { convertFileSrc } = await import('@tauri-apps/api/core')
+  if (side === 'left') leftUrl.value  = convertFileSrc(path)
+  else rightUrl.value = convertFileSrc(path)
+  if (leftPath.value && rightPath.value) await computeDiff()
 }
 
+// ── Compute diff ──────────────────────────────────────────────────────
 async function computeDiff() {
-  if (!diffCanvas.value || !leftSrc.value || !rightSrc.value) return
+  if (!leftPath.value || !rightPath.value) return
   loading.value = true
-  const canvas = diffCanvas.value
-  const ctx = canvas.getContext('2d')!
+  error.value = null
   try {
-    const [imgL, imgR] = await Promise.all([
-      loadImg(leftSrc.value),
-      loadImg(rightSrc.value),
-    ])
-    const w = Math.max(imgL.width, imgR.width)
-    const h = Math.max(imgL.height, imgR.height)
-    canvas.width = w; canvas.height = h
-    ctx.drawImage(imgL, 0, 0)
-    const dL = ctx.getImageData(0, 0, w, h)
-    ctx.clearRect(0, 0, w, h)
-    ctx.drawImage(imgR, 0, 0)
-    const dR = ctx.getImageData(0, 0, w, h)
-    const out = ctx.createImageData(w, h)
-    let diffPx = 0
-    for (let i = 0; i < dL.data.length; i += 4) {
-      const dr = Math.abs(dL.data[i]   - dR.data[i])
-      const dg = Math.abs(dL.data[i+1] - dR.data[i+1])
-      const db = Math.abs(dL.data[i+2] - dR.data[i+2])
-      const delta = (dr + dg + db) / 3
-      if (delta > tolerance.value) {
-        // Highlight diff in red
-        out.data[i]   = 220; out.data[i+1] = 50; out.data[i+2] = 80; out.data[i+3] = 220
-        diffPx++
-      } else {
-        // Grey out same pixels
-        const avg = (dL.data[i] + dL.data[i+1] + dL.data[i+2]) / 3
-        out.data[i] = out.data[i+1] = out.data[i+2] = avg * 0.4
-        out.data[i+3] = 160
-      }
-    }
-    ctx.putImageData(out, 0, 0)
-    diffPixels.value = diffPx
-    totalPixels.value = (w * h)
+    const result = await invoke<{ diff_png: string }>('cmd_diff_images', {
+      leftPath: leftPath.value,
+      rightPath: rightPath.value,
+      threshold: threshold.value,
+    })
+    diffUrl.value = result.diff_png
   } catch (e: any) {
-    error.value = String(e)
+    // Fallback: compute diff in browser using canvas
+    await computeDiffBrowser()
   } finally {
     loading.value = false
   }
 }
 
-const diffPixels  = ref(0)
-const totalPixels = ref(0)
-const diffPct = computed(() => totalPixels.value ? ((diffPixels.value / totalPixels.value) * 100).toFixed(2) : '0')
+async function computeDiffBrowser() {
+  try {
+    const [lImg, rImg] = await Promise.all([
+      loadImage(leftUrl.value),
+      loadImage(rightUrl.value),
+    ])
 
-function loadImg(src: string): Promise<HTMLImageElement> {
+    const w = Math.max(lImg.width, rImg.width)
+    const h = Math.max(lImg.height, rImg.height)
+
+    const canvas = document.createElement('canvas')
+    canvas.width = w; canvas.height = h
+    const ctx = canvas.getContext('2d')!
+
+    // Draw left
+    ctx.drawImage(lImg, 0, 0)
+    const leftData = ctx.getImageData(0, 0, w, h)
+
+    // Draw right
+    ctx.drawImage(rImg, 0, 0)
+    const rightData = ctx.getImageData(0, 0, w, h)
+
+    // Compute diff
+    const diffData = ctx.createImageData(w, h)
+    for (let i = 0; i < diffData.data.length; i += 4) {
+      const dr = Math.abs(leftData.data[i]   - rightData.data[i])
+      const dg = Math.abs(leftData.data[i+1] - rightData.data[i+1])
+      const db = Math.abs(leftData.data[i+2] - rightData.data[i+2])
+      const da = Math.abs(leftData.data[i+3] - rightData.data[i+3])
+      const total = dr + dg + db
+      if (total > threshold.value * 3) {
+        // Highlight diff in red/green
+        diffData.data[i]   = Math.min(255, dr * 4)
+        diffData.data[i+1] = Math.min(255, dg * 4)
+        diffData.data[i+2] = Math.min(255, db * 4)
+        diffData.data[i+3] = 200
+      } else {
+        diffData.data[i] = diffData.data[i+1] = diffData.data[i+2] = 0
+        diffData.data[i+3] = 0
+      }
+    }
+    ctx.putImageData(diffData, 0, 0)
+    diffUrl.value = canvas.toDataURL('image/png')
+  } catch (e: any) {
+    error.value = `无法计算图片差异: ${e}`
+  }
+}
+
+function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image()
     img.crossOrigin = 'anonymous'
-    img.onload  = () => resolve(img)
-    img.onerror = () => reject(new Error(`Cannot load image: ${src}`))
+    img.onload = () => resolve(img)
+    img.onerror = reject
     img.src = src
   })
 }
 
-watch(mode, (m) => { if (m === 'diff') computeDiff() })
-watch(tolerance, () => { if (mode.value === 'diff') computeDiff() })
+// ── Zoom ──────────────────────────────────────────────────────────────
+function zoomIn()  { zoom.value = Math.min(4, zoom.value * 1.5) }
+function zoomOut() { zoom.value = Math.max(0.25, zoom.value / 1.5) }
+function zoomFit() { zoom.value = 1 }
+
+// ── Overlay slider ───────────────────────────────────────────────────
+const overlayPos = ref(50)
+
+onMounted(async () => {
+  if (leftPath.value && rightPath.value) await computeDiff()
+})
 </script>
 
 <template>
   <div class="image-diff-view flex flex-col h-full overflow-hidden">
+
     <!-- Toolbar -->
     <div class="img-toolbar flex items-center gap-2">
-      <button class="path-btn btn" @click="loadImage('left')">
+      <button class="path-btn btn" @click="pickFile('left')">
         <span class="text-muted text-xs">LEFT</span>
         <span class="truncate">{{ leftPath || 'Open image…' }}</span>
       </button>
-      <div class="flex items-center gap-2 flex-shrink-0">
-        <select class="input" style="width:130px" v-model="mode">
-          <option value="side-by-side">并排对比</option>
-          <option value="overlay">叠加对比</option>
-          <option value="diff">差异高亮</option>
-        </select>
-        <label class="text-xs text-muted">容差:</label>
-        <input type="range" v-model="tolerance" min="0" max="100" style="width:80px" />
-        <span class="text-xs text-muted">{{ tolerance }}</span>
-        <label class="text-xs text-muted">缩放:</label>
-        <select class="input" style="width:70px" v-model="zoom">
-          <option :value="0.25">25%</option>
-          <option :value="0.5">50%</option>
-          <option :value="1">100%</option>
-          <option :value="2">200%</option>
-        </select>
+
+      <div class="flex items-center gap-1 flex-shrink-0">
+        <button class="btn btn-icon" @click="zoomOut">−</button>
+        <span class="text-xs text-muted">{{ Math.round(zoom * 100) }}%</span>
+        <button class="btn btn-icon" @click="zoomIn">+</button>
+        <button class="btn btn-icon" @click="zoomFit">⊡</button>
       </div>
-      <button class="path-btn btn" @click="loadImage('right')">
+
+      <div class="flex items-center gap-1 flex-shrink-0">
+        <button
+          v-for="m in ['side','overlay','heatmap']" :key="m"
+          class="btn btn-icon"
+          :class="{ active: diffMode === m }"
+          @click="diffMode = m as any"
+        >{{ { side:'◫', overlay:'⊟', heatmap:'🎨' }[m] }}</button>
+        <label class="flex items-center gap-1 text-xs text-muted ml-2">
+          <span>Threshold:</span>
+          <input type="range" v-model.number="threshold" min="0" max="100" style="width:80px"
+            @change="computeDiff" />
+          <span>{{ threshold }}</span>
+        </label>
+        <button v-if="diffUrl" class="btn btn-icon" @click="showDiff = !showDiff">
+          {{ showDiff ? '👁' : '🙈' }}
+        </button>
+      </div>
+
+      <button class="path-btn btn" @click="pickFile('right')">
         <span class="text-muted text-xs">RIGHT</span>
         <span class="truncate">{{ rightPath || 'Open image…' }}</span>
       </button>
     </div>
 
-    <!-- Stats -->
-    <div v-if="mode === 'diff' && totalPixels" class="stats-bar flex items-center gap-3">
-      <span class="text-xs text-muted">差异像素: <strong class="text-red">{{ diffPixels.toLocaleString() }}</strong></span>
-      <span class="text-xs text-muted">总像素: {{ totalPixels.toLocaleString() }}</span>
-      <span class="badge" :class="diffPixels ? 'badge-del' : 'badge-add'">{{ diffPct }}% diff</span>
-    </div>
-
+    <!-- Status -->
     <div v-if="loading" class="diff-status loading">⟳ Computing pixel diff…</div>
     <div v-else-if="error" class="diff-status error">⚠ {{ error }}</div>
 
     <!-- Image area -->
-    <div class="img-main flex-1 overflow-auto">
-      <!-- Side by side -->
-      <div v-if="mode === 'side-by-side'" class="side-by-side flex h-full gap-0">
-        <div class="img-pane flex-1 overflow-auto">
-          <img v-if="leftSrc" :src="leftSrc" :style="`transform: scale(${zoom}); transform-origin: top left`" />
-          <div v-else class="img-placeholder text-muted">左侧图片</div>
+    <div v-if="leftUrl || rightUrl" class="img-main flex-1 overflow-auto">
+
+      <!-- Side-by-side -->
+      <div v-if="diffMode === 'side'" class="side-view flex h-full">
+        <div class="img-pane flex-1 overflow-hidden" :style="`transform:scale(${zoom})`">
+          <img v-if="leftUrl" :src="leftUrl" class="max-w-none" />
         </div>
-        <div class="divider divider-v" />
-        <div class="img-pane flex-1 overflow-auto">
-          <img v-if="rightSrc" :src="rightSrc" :style="`transform: scale(${zoom}); transform-origin: top left`" />
-          <div v-else class="img-placeholder text-muted">右侧图片</div>
+        <div class="img-divider" />
+        <div class="img-pane flex-1 overflow-hidden" :style="`transform:scale(${zoom})`">
+          <img v-if="rightUrl" :src="rightUrl" class="max-w-none" />
+        </div>
+        <!-- Diff overlay -->
+        <div v-if="showDiff && diffUrl" class="diff-overlay">
+          <img :src="diffUrl" />
         </div>
       </div>
 
-      <!-- Overlay -->
-      <div v-else-if="mode === 'overlay'" class="overlay-wrap overflow-auto">
-        <div class="overlay-stack" :style="`transform: scale(${zoom}); transform-origin: top left`">
-          <img v-if="leftSrc"  :src="leftSrc"  class="overlay-img" style="opacity:0.5" />
-          <img v-if="rightSrc" :src="rightSrc" class="overlay-img overlay-right" style="opacity:0.5;mix-blend-mode:difference" />
+      <!-- Overlay slider -->
+      <div v-else-if="diffMode === 'overlay'" class="overlay-view relative overflow-hidden">
+        <img :src="rightUrl" class="max-w-none" :style="`transform:scale(${zoom})`" />
+        <div
+          class="overlay-clip absolute top-0 left-0 h-full overflow-hidden"
+          :style="`width: ${overlayPos}%`"
+        >
+          <img :src="leftUrl" class="max-w-none" :style="`transform:scale(${zoom})`" />
         </div>
+        <div
+          class="overlay-slider absolute top-0 h-full w-1 bg-white shadow-lg cursor-ew-resize"
+          :style="`left: ${overlayPos}%`"
+        >
+          <div class="slider-handle">◀▶</div>
+        </div>
+        <input
+          type="range" class="overlay-range absolute bottom-2 w-full"
+          v-model.number="overlayPos" min="0" max="100"
+        />
       </div>
 
-      <!-- Diff canvas -->
-      <div v-else class="diff-wrap overflow-auto">
-        <canvas ref="diffCanvas" :style="`transform: scale(${zoom}); transform-origin: top left`" />
-        <div v-if="!leftSrc || !rightSrc" class="img-placeholder text-muted">请先打开两张图片</div>
+      <!-- Heatmap -->
+      <div v-else class="heatmap-view flex items-center justify-center">
+        <img v-if="diffUrl" :src="diffUrl" :style="`transform:scale(${zoom})`" class="diff-heatmap" />
+      </div>
+
+    </div>
+
+    <!-- Empty state -->
+    <div v-else class="flex-1 flex items-center justify-center">
+      <div class="text-muted text-center">
+        <div class="text-4xl mb-4">🖼️</div>
+        <div>请选择两张图片开始像素级对比</div>
       </div>
     </div>
+
   </div>
 </template>
 
 <style scoped>
-.image-diff-view { background: var(--color-bg3); }
+.image-diff-view { background: var(--color-bg2); }
+
 .img-toolbar {
   background: var(--color-bg2); border-bottom: 1px solid var(--color-border);
-  padding: 5px 8px; flex-shrink: 0;
+  padding: 5px 8px; flex-shrink: 0; min-height: 38px;
 }
-.path-btn { flex: 1; min-width: 0; font-size: 12px; }
-.stats-bar { background: var(--color-bg3); border-bottom: 1px solid var(--color-border); padding: 4px 12px; flex-shrink: 0; }
-.diff-status { padding: 5px 14px; font-size: 12px; flex-shrink: 0; border-bottom: 1px solid var(--color-border); }
+.path-btn { flex: 1; min-width: 0; font-family: var(--font-mono); font-size: 12px; }
+
+.diff-status {
+  padding: 5px 14px; font-size: 12px; flex-shrink: 0; border-bottom: 1px solid var(--color-border);
+}
 .diff-status.loading { color: var(--color-accent); }
 .diff-status.error   { color: var(--color-red); }
-.img-main { background: rgba(0,0,0,.3); }
-.side-by-side { background: rgba(0,0,0,.2); }
-.img-pane { padding: 16px; display: flex; justify-content: flex-start; align-items: flex-start; }
-.img-pane img { max-width: none; border: 1px solid var(--color-border); box-shadow: 0 4px 20px rgba(0,0,0,.4); }
-.img-placeholder { display: flex; align-items: center; justify-content: center; width: 100%; height: 200px; font-size: 14px; }
-.overlay-wrap { padding: 16px; }
-.overlay-stack { position: relative; display: inline-block; }
-.overlay-img { display: block; }
-.overlay-right { position: absolute; top: 0; left: 0; }
-.diff-wrap { padding: 16px; }
-.diff-wrap canvas { border: 1px solid var(--color-border); }
-.badge-add { background: rgba(166,227,161,.2); color: var(--color-green); display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
-.badge-del { background: rgba(243,139,168,.2); color: var(--color-red); display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+
+.img-main { overflow: auto; }
+
+/* Side-by-side */
+.side-view { position: relative; }
+.img-pane  { display: flex; align-items: flex-start; justify-content: flex-start; }
+.img-pane img { display: block; }
+.img-divider { width: 4px; background: var(--color-border); flex-shrink: 0; }
+.diff-overlay {
+  position: absolute; top: 0; left: 0; width: 50%;
+  pointer-events: none; opacity: .6; mix-blend-mode: multiply;
+}
+.diff-overlay img { width: 100%; display: block; }
+
+/* Overlay */
+.overlay-view { cursor: ew-resize; }
+.overlay-clip { clip-path: inset(0); }
+.overlay-slider {
+  transform: translateX(-50%);
+  display: flex; align-items: center; justify-content: center;
+}
+.slider-handle {
+  background: rgba(255,255,255,.9); padding: 4px 6px;
+  border-radius: 8px; font-size: 12px; color: #333;
+  box-shadow: 0 2px 8px rgba(0,0,0,.4);
+}
+.overlay-range { opacity: 0; height: 0; }
+
+/* Heatmap */
+.heatmap-view { padding: 20px; }
+.diff-heatmap { max-width: 100%; }
+
+/* Zoom */
+img { transition: transform .1s; }
 </style>

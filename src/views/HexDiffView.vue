@@ -1,164 +1,299 @@
 <script setup lang="ts">
 /**
  * HexDiffView — Phase 3
- * Binary file comparison in hexdump format
+ * Features: Hex dump comparison, byte-level diff highlighting, offset comparison
  */
 import { ref, computed, onMounted } from 'vue'
-import { useTabStore } from '@/stores/tabs'
 import { open } from '@tauri-apps/plugin-dialog'
-import { invoke } from '@tauri-apps/api/core'
+import { readFileText } from '@/api'
 
-const tabStore  = useTabStore()
-const activeTab = computed(() => tabStore.activeTab)
-
+// ── State ──────────────────────────────────────────────────────────────
 const leftPath  = ref('')
 const rightPath = ref('')
-const leftBytes  = ref<number[]>([])
-const rightBytes = ref<number[]>([])
-const loading    = ref(false)
-const error      = ref<string | null>(null)
+const leftBytes = ref<number[]>([])
+const rightBytes= ref<number[]>([])
+const loading   = ref(false)
+const error     = ref<string | null>(null)
+const bytesPerRow = ref(16)
+const showAscii  = ref(true)
 
-const BYTES_PER_ROW = 16
-const MAX_ROWS = 4096 // limit display to ~64KB for performance
-
-async function loadFile(side: 'left' | 'right') {
-  const path = await open({ multiple: false, title: `Select ${side} binary file` }) as string | null
+// ── Load files ────────────────────────────────────────────────────────
+async function pickFile(side: 'left' | 'right') {
+  const path = await open({
+    multiple: false,
+    title: `Select ${side} binary file`,
+    filters: [{ name: 'All Files', extensions: ['*'] }],
+  }) as string | null
   if (!path) return
+  if (side === 'left') { leftPath.value = path; leftBytes.value = [] }
+  else                { rightPath.value = path; rightBytes.value = [] }
+  await loadAndDiff()
+}
+
+async function loadAndDiff() {
+  if (!leftPath.value || !rightPath.value) return
+  loading.value = true
+  error.value = null
   try {
-    loading.value = true
-    // Read as base64 via tauri fs plugin
-    const { readFile } = await import('@tauri-apps/plugin-fs')
-    const data = await readFile(path)
-    const bytes = Array.from(new Uint8Array(data))
-    if (side === 'left') { leftPath.value = path; leftBytes.value = bytes }
-    else { rightPath.value = path; rightBytes.value = bytes }
+    const { invoke } = await import('@tauri-apps/api/core')
+    // Use Rust backend for binary reading
+    const [lBuf, rBuf] = await Promise.all([
+      invoke<string[]>('cmd_read_file_bytes', { path: leftPath.value }),
+      invoke<string[]>('cmd_read_file_bytes', { path: rightPath.value }),
+    ])
+    leftBytes.value  = lBuf.map(Number)
+    rightBytes.value = rBuf.map(Number)
   } catch (e: any) {
-    error.value = String(e)
+    // Fallback: try text read
+    try {
+      const [l, r] = await Promise.all([
+        readFileText(leftPath.value),
+        readFileText(rightPath.value),
+      ])
+      leftBytes.value  = Array.from(Buffer.from(l, 'binary'))
+      rightBytes.value = Array.from(Buffer.from(r, 'binary'))
+    } catch {
+      error.value = `无法读取文件: ${e}`
+    }
   } finally {
     loading.value = false
   }
 }
 
+// ── Row generation ────────────────────────────────────────────────────
 interface HexRow {
   offset: number
-  leftHex:    string[]
-  rightHex:   string[]
+  leftBytes:  (number|null)[]
+  rightBytes: (number|null)[]
   leftAscii:  string
   rightAscii: string
-  isDiff: boolean
-  cellDiff: boolean[]
+  status: 'equal' | 'diff' | 'left-only' | 'right-only'
 }
 
-const hexRows = computed((): HexRow[] => {
-  const maxLen = Math.max(leftBytes.value.length, rightBytes.value.length)
-  const rows: HexRow[] = []
-  for (let offset = 0; offset < Math.min(maxLen, MAX_ROWS * BYTES_PER_ROW); offset += BYTES_PER_ROW) {
-    const lSlice = leftBytes.value.slice(offset, offset + BYTES_PER_ROW)
-    const rSlice = rightBytes.value.slice(offset, offset + BYTES_PER_ROW)
-    const cellDiff: boolean[] = []
-    let rowDiff = false
-    for (let i = 0; i < BYTES_PER_ROW; i++) {
-      const diff = lSlice[i] !== rSlice[i]
-      cellDiff.push(diff)
-      if (diff) rowDiff = true
+const rows = computed((): HexRow[] => {
+  const l = leftBytes.value
+  const r = rightBytes.value
+  const bpr = bytesPerRow.value
+  const maxLen = Math.max(l.length, r.length)
+  const result: HexRow[] = []
+
+  for (let i = 0; i < maxLen; i += bpr) {
+    const lSlice = l.slice(i, i + bpr)
+    const rSlice = r.slice(i, i + bpr)
+
+    let status: HexRow['status'] = 'equal'
+    if (i >= l.length) status = 'right-only'
+    else if (i >= r.length) status = 'left-only'
+    else {
+      const lHex = lSlice.map(b => b?.toString(16).padStart(2,'0')).join(' ')
+      const rHex = rSlice.map(b => b?.toString(16).padStart(2,'0')).join(' ')
+      if (lHex !== rHex) status = 'diff'
     }
-    rows.push({
-      offset,
-      leftHex:  Array.from({ length: BYTES_PER_ROW }, (_, i) => lSlice[i] != null ? lSlice[i].toString(16).padStart(2, '0') : '  '),
-      rightHex: Array.from({ length: BYTES_PER_ROW }, (_, i) => rSlice[i] != null ? rSlice[i].toString(16).padStart(2, '0') : '  '),
-      leftAscii:  lSlice.map(b => b >= 0x20 && b < 0x7f ? String.fromCharCode(b) : '.').join(''),
-      rightAscii: rSlice.map(b => b >= 0x20 && b < 0x7f ? String.fromCharCode(b) : '.').join(''),
-      isDiff: rowDiff,
-      cellDiff,
+
+    const padLeft  = padBytes(lSlice, bpr)
+    const padRight = padBytes(rSlice, bpr)
+
+    result.push({
+      offset: i,
+      leftBytes:  padLeft,
+      rightBytes: padRight,
+      leftAscii:  padLeft.map(b => b !== null ? byteToAscii(b) : ' ').join(''),
+      rightAscii: padRight.map(b => b !== null ? byteToAscii(b) : ' ').join(''),
+      status,
     })
   }
-  return rows
+  return result
 })
 
-const diffCount = computed(() => hexRows.value.filter(r => r.isDiff).length)
+function padBytes(arr: (number|null)[], to: number): (number|null)[] {
+  while (arr.length < to) arr.push(null)
+  return arr
+}
 
-onMounted(() => {
-  if (activeTab.value?.leftPath)  leftPath.value  = activeTab.value.leftPath
-  if (activeTab.value?.rightPath) rightPath.value = activeTab.value.rightPath
+function byteToAscii(b: number): string {
+  return (b >= 32 && b <= 126) ? String.fromCharCode(b) : '.'
+}
+
+function byteStr(b: number|null): string {
+  return b !== null ? b.toString(16).padStart(2, '0') : '  '
+}
+
+// ── Stats ──────────────────────────────────────────────────────────────
+const stats = computed(() => {
+  const l = leftBytes.value, r = rightBytes.value
+  let same = 0, diff = 0
+  for (let i = 0; i < Math.max(l.length, r.length); i++) {
+    if (i >= l.length || i >= r.length) diff++
+    else if (l[i] === r[i]) same++
+    else diff++
+  }
+  return { same, diff, leftSize: l.length, rightSize: r.length }
+})
+
+onMounted(async () => {
+  if (leftPath.value && rightPath.value) await loadAndDiff()
 })
 </script>
 
 <template>
   <div class="hex-diff-view flex flex-col h-full overflow-hidden">
+
     <!-- Toolbar -->
     <div class="hex-toolbar flex items-center gap-2">
-      <button class="path-btn btn" @click="loadFile('left')">
+      <button class="path-btn btn" @click="pickFile('left')">
         <span class="text-muted text-xs">LEFT</span>
-        <span class="truncate">{{ leftPath || 'Open binary file…' }}</span>
+        <span class="truncate">{{ leftPath || 'Open binary…' }}</span>
       </button>
-      <div class="flex-shrink-0 flex items-center gap-2">
-        <span v-if="diffCount" class="badge badge-del">{{ diffCount }} diff rows</span>
-        <span v-else-if="hexRows.length" class="badge badge-add">Identical</span>
+
+      <div class="flex items-center gap-2 flex-shrink-0">
+        <label class="flex items-center gap-1 text-xs text-muted">
+          <span>Bytes/row:</span>
+          <select class="input" style="width:70px" v-model.number="bytesPerRow">
+            <option :value="8">8</option>
+            <option :value="16">16</option>
+            <option :value="32">32</option>
+          </select>
+        </label>
+        <label class="flex items-center gap-1 text-xs">
+          <input type="checkbox" v-model="showAscii" />
+          <span class="text-muted">ASCII</span>
+        </label>
       </div>
-      <button class="path-btn btn" @click="loadFile('right')">
+
+      <template v-if="leftBytes.length">
+        <span class="text-xs text-muted">L:{{ stats.leftSize }} B</span>
+        <span class="badge badge-add">{{ stats.diff }} diff</span>
+        <span class="badge badge-del">{{ stats.same }} same</span>
+      </template>
+
+      <button class="path-btn btn" @click="pickFile('right')">
         <span class="text-muted text-xs">RIGHT</span>
-        <span class="truncate">{{ rightPath || 'Open binary file…' }}</span>
+        <span class="truncate">{{ rightPath || 'Open binary…' }}</span>
       </button>
     </div>
 
-    <div v-if="loading" class="diff-status loading">⟳ Loading binary…</div>
+    <!-- Status -->
+    <div v-if="loading" class="diff-status loading">⟳ Reading binary data…</div>
     <div v-else-if="error" class="diff-status error">⚠ {{ error }}</div>
 
-    <!-- Hex grid -->
-    <div class="hex-main flex-1 overflow-auto font-mono">
-      <table class="hex-table" v-if="hexRows.length">
-        <thead>
-          <tr>
-            <th class="off-col">Offset</th>
-            <th class="hex-col" colspan="16">Left Hex (16 bytes)</th>
-            <th class="asc-col">ASCII</th>
-            <th class="sep-col"></th>
-            <th class="hex-col" colspan="16">Right Hex (16 bytes)</th>
-            <th class="asc-col">ASCII</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="row in hexRows" :key="row.offset" :class="row.isDiff ? 'hex-row-diff' : 'hex-row'">
-            <td class="off-col">{{ row.offset.toString(16).padStart(8, '0') }}</td>
-            <td v-for="(h, i) in row.leftHex" :key="i" :class="['hex-byte', row.cellDiff[i] ? 'byte-diff' : '']">{{ h }}</td>
-            <td class="asc-col">{{ row.leftAscii }}</td>
-            <td class="sep-col">│</td>
-            <td v-for="(h, i) in row.rightHex" :key="i" :class="['hex-byte', row.cellDiff[i] ? 'byte-diff byte-diff-r' : '']">{{ h }}</td>
-            <td class="asc-col">{{ row.rightAscii }}</td>
-          </tr>
-        </tbody>
-      </table>
-      <div v-else class="empty-state text-muted">
-        <div style="font-size:48px;margin-bottom:12px">🔢</div>
-        <p>打开两个二进制文件开始十六进制对比</p>
+    <!-- Hex table -->
+    <div class="hex-main flex-1 overflow-auto font-mono text-xs">
+
+      <!-- Header -->
+      <div class="hex-header flex">
+        <div class="col-offset">Offset</div>
+        <div class="col-bytes" v-if="showAscii">
+          <div v-for="col in Math.ceil(bytesPerRow / 2)" :key="col" class="hex-col-group">
+            <span>{{ (col-1)*2 }}</span>
+            <span>{{ (col-1)*2 + 1 }}</span>
+          </div>
+        </div>
+        <div v-else>
+          <div v-for="ci in bytesPerRow" :key="ci" class="hex-col">{{ (ci-1).toString(16).padStart(2,'0') }}</div>
+        </div>
+        <div class="col-sep" />
+        <div class="col-offset">Offset</div>
+        <div class="col-bytes">
+          <div v-for="ci in bytesPerRow" :key="ci" class="hex-col">{{ (ci-1).toString(16).padStart(2,'0') }}</div>
+        </div>
+        <div class="col-sep" v-if="showAscii" />
+        <div class="col-ascii" v-if="showAscii">Left ASCII</div>
+        <div class="col-ascii" v-if="showAscii">Right ASCII</div>
+      </div>
+
+      <!-- Rows -->
+      <div
+        v-for="(row, ri) in rows"
+        :key="ri"
+        class="hex-row flex"
+        :class="`hex-${row.status}`"
+      >
+        <!-- Left offset -->
+        <div class="col-offset hex-cell">{{ row.offset.toString(16).padStart(8,'0') }}</div>
+
+        <!-- Left bytes -->
+        <div class="col-bytes flex">
+          <template v-for="(b, bi) in row.leftBytes" :key="'lb'+bi">
+            <span v-if="bi % 2 === 0 && bytesPerRow > 8" class="hex-space" />
+            <span class="hex-byte" :class="{ 'byte-diff': row.status === 'diff' && b !== null && row.rightBytes[bi] !== null && b !== row.rightBytes[bi] }">
+              {{ byteStr(b) }}
+            </span>
+          </template>
+        </div>
+
+        <div class="col-sep" />
+
+        <!-- Right offset -->
+        <div class="col-offset hex-cell">{{ row.offset.toString(16).padStart(8,'0') }}</div>
+
+        <!-- Right bytes -->
+        <div class="col-bytes flex">
+          <template v-for="(b, bi) in row.rightBytes" :key="'rb'+bi">
+            <span v-if="bi % 2 === 0 && bytesPerRow > 8" class="hex-space" />
+            <span class="hex-byte" :class="{ 'byte-diff': row.status === 'diff' && b !== null && row.leftBytes[bi] !== null && b !== row.leftBytes[bi] }">
+              {{ byteStr(b) }}
+            </span>
+          </template>
+        </div>
+
+        <div class="col-sep" v-if="showAscii" />
+
+        <!-- ASCII -->
+        <div v-if="showAscii" class="col-ascii hex-cell ascii-left">{{ row.leftAscii }}</div>
+        <div v-if="showAscii" class="col-ascii hex-cell ascii-right">{{ row.rightAscii }}</div>
+      </div>
+
+      <!-- Empty -->
+      <div v-if="!rows.length && !loading" class="text-muted text-center p-8">
+        {{ leftPath ? '无差异' : '请选择两个二进制文件开始对比' }}
       </div>
     </div>
+
   </div>
 </template>
 
 <style scoped>
 .hex-diff-view { background: var(--color-bg); }
+
 .hex-toolbar {
   background: var(--color-bg2); border-bottom: 1px solid var(--color-border);
-  padding: 5px 8px; flex-shrink: 0; min-height: 36px;
+  padding: 5px 8px; flex-shrink: 0; min-height: 38px;
 }
-.path-btn { flex: 1; min-width: 0; font-size: 12px; }
-.diff-status { padding: 5px 14px; font-size: 12px; flex-shrink: 0; border-bottom: 1px solid var(--color-border); }
+.path-btn { flex: 1; min-width: 0; font-family: var(--font-mono); font-size: 12px; }
+
+.diff-status {
+  padding: 5px 14px; font-size: 12px; flex-shrink: 0; border-bottom: 1px solid var(--color-border);
+}
 .diff-status.loading { color: var(--color-accent); }
 .diff-status.error   { color: var(--color-red); }
+
+/* Hex table */
 .hex-main { overflow: auto; }
-.hex-table { border-collapse: collapse; font-size: 12px; white-space: nowrap; }
-.hex-table thead tr { background: var(--color-bg3); border-bottom: 2px solid var(--color-border); position: sticky; top: 0; z-index: 2; }
-.hex-table th { padding: 5px 4px; font-size: 11px; color: var(--color-text-muted); text-align: center; }
-.hex-row, .hex-row-diff { border-bottom: 1px solid rgba(69,71,90,.15); }
-.hex-row-diff td { background: rgba(137,180,250,.05); }
-.off-col { padding: 2px 8px; color: var(--color-text-muted); font-size: 11px; min-width: 80px; }
-.hex-byte { padding: 2px 4px; text-align: center; width: 22px; min-width: 22px; }
-.byte-diff { background: rgba(243,139,168,.35) !important; color: var(--color-red); font-weight: 700; border-radius: 2px; }
-.byte-diff-r { background: rgba(166,227,161,.35) !important; color: var(--color-green); }
-.asc-col { padding: 2px 8px; color: var(--color-text-muted); letter-spacing: 1px; border-left: 1px solid var(--color-border); }
-.sep-col { padding: 2px 4px; color: var(--color-border); }
-.empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; }
-.badge-add { background: rgba(166,227,161,.2); color: var(--color-green); display: inline-block; padding: 2px 10px; border-radius: 10px; font-size: 12px; font-weight: 600; }
-.badge-del { background: rgba(243,139,168,.2); color: var(--color-red); display: inline-block; padding: 2px 10px; border-radius: 10px; font-size: 12px; font-weight: 600; }
+.hex-header {
+  position: sticky; top: 0; z-index: 2;
+  background: var(--color-bg3); border-bottom: 2px solid var(--color-border);
+  padding: 4px 0; font-size: 10px; color: var(--color-text-muted);
+}
+.hex-row { border-bottom: 1px solid rgba(69,71,90,.2); }
+.hex-row:hover { background: var(--color-surface); }
+
+.col-offset  { width: 80px; flex-shrink: 0; }
+.col-bytes   { flex-shrink: 0; display: flex; flex-wrap: wrap; }
+.col-sep     { width: 6px; flex-shrink: 0; background: var(--color-border); margin: 0 2px; }
+.col-ascii   { width: 160px; flex-shrink: 0; overflow: hidden; }
+.hex-cell    { padding: 2px 8px; white-space: pre; }
+.hex-col     { width: 24px; text-align: center; flex-shrink: 0; }
+.hex-col-group { display: flex; }
+.hex-col-group span { width: 24px; text-align: center; flex-shrink: 0; }
+.hex-byte    { width: 24px; text-align: center; flex-shrink: 0; }
+.hex-space   { width: 6px; flex-shrink: 0; }
+
+.byte-diff { color: var(--color-red); font-weight: 700; }
+.ascii-left  { color: var(--color-red); }
+.ascii-right { color: var(--color-green); }
+
+/* Row colours */
+.hex-add    { background: rgba(166,227,161,.07); }
+.hex-del    { background: rgba(243,139,168,.07); }
+.hex-diff   { background: rgba(249,226,175,.04); }
 </style>

@@ -1,6 +1,7 @@
 use std::sync::Arc;
 use session::SessionManager;
 use tokio::sync::Mutex;
+use tauri::Manager;
 
 pub mod commands;
 
@@ -43,6 +44,7 @@ pub fn run() {
             commands::vfs::cmd_copy_file,
             commands::vfs::cmd_delete_path,
             commands::vfs::cmd_rename_path,
+            commands::image_diff::cmd_diff_images,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -53,6 +53,14 @@ export async function renamePath(src: string, dst: string): Promise<void> {
   return invoke('cmd_rename_path', { src, dst })
 }
 
+export async function readFileBytes(path: string): Promise<number[]> {
+  return invoke('cmd_read_file_bytes', { path })
+}
+
+export async function diffImages(leftPath: string, rightPath: string, threshold?: number): Promise<{ diff_png: string }> {
+  return invoke('cmd_diff_images', { leftPath, rightPath, threshold })
+}
+
 // ── Session ───────────────────────────────────────────────────────────
 
 export async function listRecentSessions(limit = 20): Promise<Session[]> {

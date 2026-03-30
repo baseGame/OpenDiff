@@ -11,19 +11,13 @@ anyhow = { workspace = true }
 thiserror = { workspace = true }
 
 # CSV/TSV
-csv = "1"
+csv = "1.3"
 
-# Excel
-calamine = "0.26"
+# ZIP (for xlsx/ods)
+zip = "2"
 
-# PDF
-lopdf = "0.34"
-
-# Word (.docx)
-docx-rs = "0.4"
+# Regex (for XML parsing)
+regex = "1"
 
 # Images
 image = { version = "0.25", features = ["png", "jpeg", "bmp", "gif", "webp", "tiff", "ico"] }
-
-# Audio tags (MP3, FLAC, etc.)
-lofty = "0.22"

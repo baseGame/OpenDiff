@@ -125,7 +125,7 @@ pub async fn open(url: &str) -> Result<Box<dyn Vfs>, VfsError> {
     }
 
     if url.starts_with("local://") || url.contains("://") {
-        return Err(VfsError::InvalidPath(url.into(), format!("unknown scheme in URL: {url}").into()));
+        return Err(VfsError::Other(format!("unknown scheme in URL: {url}")));
     }
 
     // Default: treat as local path

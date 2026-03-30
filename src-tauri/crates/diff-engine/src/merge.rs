@@ -1,172 +1,153 @@
-use crate::algorithm::histogram;
-use crate::types::*;
+//! Three-way text merge using Myers diff
+use crate::algorithm::myers;
+use crate::types::{DiffOp, MergeLine, MergeResult};
 
-/// Two-way merge: produce output that incorporates changes from left relative to base
-pub fn merge_two(base: &str, modified: &str) -> String {
-    let base_lines: Vec<&str> = base.lines().collect();
-    let mod_lines: Vec<&str> = modified.lines().collect();
-
-    let bl: Vec<&str> = base_lines.iter().copied().collect();
-    let ml: Vec<&str> = mod_lines.iter().copied().collect();
-    let ops = histogram(&bl, &ml);
-
-    let mut out = vec![];
-    for op in &ops {
-        match op {
-            DiffOp::Equal { left_start, count, .. } => {
-                for i in 0..*count {
-                    out.push(base_lines[left_start + i].to_string());
-                }
-            }
-            DiffOp::Delete { .. } => {} // remove from base
-            DiffOp::Insert { right_start, count } => {
-                for i in 0..*count {
-                    out.push(mod_lines[right_start + i].to_string());
-                }
-            }
-            DiffOp::Replace { right_start, right_count, .. } => {
-                for i in 0..*right_count {
-                    out.push(mod_lines[right_start + i].to_string());
-                }
-            }
-        }
-    }
-    out.join("\n")
+/// Two-way merge (left wins on conflict — for internal use)
+pub fn merge_two(left: &str, right: &str) -> MergeResult {
+    let left_lines: Vec<&str> = split_lines(left);
+    let right_lines: Vec<&str> = split_lines(right);
+    let ops = myers(
+        &left_lines.iter().map(|s| *s).collect::<Vec<_>>(),
+        &right_lines.iter().map(|s| *s).collect::<Vec<_>>(),
+    );
+    build_merge_output(&left_lines, &right_lines, &ops)
 }
 
-/// Three-way merge: merge left and right changes relative to base
+/// Three-way merge: base + left + right → output with conflicts
 pub fn merge_three(base: &str, left: &str, right: &str) -> MergeResult {
-    let base_lines: Vec<&str> = base.lines().collect();
-    let left_lines: Vec<&str> = left.lines().collect();
-    let right_lines: Vec<&str> = right.lines().collect();
+    let base_lines = split_lines(base);
+    let left_lines = split_lines(left);
+    let right_lines = split_lines(right);
 
-    let bl: Vec<&str> = base_lines.iter().copied().collect();
-    let ll: Vec<&str> = left_lines.iter().copied().collect();
-    let rl: Vec<&str> = right_lines.iter().copied().collect();
+    let ops_l = myers(
+        &base_lines.iter().map(|s| *s).collect::<Vec<_>>(),
+        &left_lines.iter().map(|s| *s).collect::<Vec<_>>(),
+    );
+    let ops_r = myers(
+        &base_lines.iter().map(|s| *s).collect::<Vec<_>>(),
+        &right_lines.iter().map(|s| *s).collect::<Vec<_>>(),
+    );
 
-    let left_ops = histogram(&bl, &ll);
-    let right_ops = histogram(&bl, &rl);
+    let base_to_left  = build_line_map(&ops_l);
+    let base_to_right = build_line_map(&ops_r);
 
-    // Build change masks over base lines
-    let n = base_lines.len();
-    let mut left_changes: Vec<Option<(usize, usize)>> = vec![None; n + 1]; // base_idx -> (left_start, count)
-    let mut right_changes: Vec<Option<(usize, usize)>> = vec![None; n + 1];
-
-    for op in &left_ops {
-        match op {
-            DiffOp::Delete { left_start, count } => {
-                left_changes[*left_start] = Some((*left_start, 0));
-                let _ = count;
-            }
-            DiffOp::Replace { left_start, left_count: _, right_start, right_count } => {
-                left_changes[*left_start] = Some((*right_start, *right_count));
-            }
-            DiffOp::Insert { right_start, count } => {
-                // Insert before current base position
-                if let Some(pos) = find_insert_pos(&left_ops, *right_start) {
-                    left_changes[pos] = Some((*right_start, *count));
-                }
-            }
-            _ => {}
-        }
-    }
-
-    for op in &right_ops {
-        match op {
-            DiffOp::Replace { left_start, left_count: _, right_start, right_count } => {
-                right_changes[*left_start] = Some((*right_start, *right_count));
-            }
-            DiffOp::Insert { right_start, count } => {
-                if let Some(pos) = find_insert_pos(&right_ops, *right_start) {
-                    right_changes[pos] = Some((*right_start, *count));
-                }
-            }
-            _ => {}
-        }
-    }
-
-    // Build output using simple chunk-based approach
-    let mut output_lines = vec![];
+    let mut output: Vec<MergeLine> = Vec::new();
     let mut conflict_count = 0usize;
 
-    let mut bi = 0;
-    while bi <= n {
-        let lc = left_changes.get(bi).and_then(|x| *x);
-        let rc = right_changes.get(bi).and_then(|x| *x);
+    for (base_i, base_line) in base_lines.iter().enumerate() {
+        let l_idx = base_to_left.get(&base_i).copied();
+        let r_idx = base_to_right.get(&base_i).copied();
 
-        match (lc, rc) {
-            (None, None) => {
-                if bi < n {
-                    output_lines.push(MergeLine::Resolved(base_lines[bi].to_string()));
-                }
-                bi += 1;
-            }
-            (Some((ls, lc)), None) => {
-                for i in 0..lc {
-                    output_lines.push(MergeLine::Resolved(left_lines[ls + i].to_string()));
-                }
-                bi += 1;
-            }
-            (None, Some((rs, rc))) => {
-                for i in 0..rc {
-                    output_lines.push(MergeLine::Resolved(right_lines[rs + i].to_string()));
-                }
-                bi += 1;
-            }
-            (Some((ls, lc)), Some((rs, rc))) => {
-                // Both changed same area — conflict
-                let base_chunk: Vec<String> = if bi < n { vec![base_lines[bi].to_string()] } else { vec![] };
-                let left_chunk: Vec<String> = (0..lc).map(|i| left_lines[ls + i].to_string()).collect();
-                let right_chunk: Vec<String> = (0..rc).map(|i| right_lines[rs + i].to_string()).collect();
-
-                // If both sides made identical changes, auto-resolve
-                if left_chunk == right_chunk {
-                    for l in &left_chunk {
-                        output_lines.push(MergeLine::Resolved(l.clone()));
-                    }
+        match (l_idx, r_idx) {
+            (Some(li), Some(ri)) => {
+                let l_text = left_lines[li].to_string();
+                let r_text = right_lines[ri].to_string();
+                if l_text == r_text {
+                    output.push(MergeLine::Resolved(l_text));
                 } else {
-                    conflict_count += 1;
-                    output_lines.push(MergeLine::Conflict {
-                        base: base_chunk,
-                        left: left_chunk,
-                        right: right_chunk,
+                    output.push(MergeLine::Conflict {
+                        base: vec![(*base_line).to_string()],
+                        left: vec![l_text],
+                        right: vec![r_text],
                     });
+                    conflict_count += 1;
                 }
-                bi += 1;
+            }
+            (Some(li), None) => {
+                output.push(MergeLine::Resolved(left_lines[li].to_string()));
+            }
+            (None, Some(ri)) => {
+                output.push(MergeLine::Resolved(right_lines[ri].to_string()));
+            }
+            (None, None) => {
+                output.push(MergeLine::Resolved((*base_line).to_string()));
             }
         }
     }
 
-    MergeResult { output_lines, conflict_count }
+    MergeResult { output_lines: output, conflict_count }
 }
 
-fn find_insert_pos(ops: &[DiffOp], right_start: usize) -> Option<usize> {
-    let mut base_pos = 0usize;
-    let mut right_pos = 0usize;
+fn build_line_map(ops: &[DiffOp]) -> std::collections::HashMap<usize, usize> {
+    let mut map = std::collections::HashMap::new();
+    let mut base_idx = 0usize;
+    let mut other_idx = 0usize;
     for op in ops {
         match op {
-            DiffOp::Equal { left_start: _, right_start: rs, count } => {
-                if right_start >= *rs && right_start < rs + count {
-                    return Some(base_pos + (right_start - rs));
+            DiffOp::Equal { left_start, right_start, count } => {
+                for i in 0..*count {
+                    map.insert(base_idx + i, right_start + i);
                 }
-                base_pos += count;
-                right_pos += count;
+                base_idx = *left_start + count;
+                other_idx = *right_start + count;
             }
-            DiffOp::Delete { count, .. } => { base_pos += count; }
-            DiffOp::Insert { right_start: rs, count } => {
-                if right_start >= *rs && right_start < rs + count {
-                    return Some(base_pos);
-                }
-                right_pos += count;
+            DiffOp::Delete { left_start, count } => {
+                base_idx = *left_start + count;
             }
-            DiffOp::Replace { left_count, right_start: rs, right_count, .. } => {
-                if right_start >= *rs && right_start < rs + right_count {
-                    return Some(base_pos);
-                }
-                base_pos += left_count;
-                right_pos += right_count;
+            DiffOp::Insert { right_start, count } => {
+                other_idx = *right_start + count;
+            }
+            DiffOp::Replace { left_start, left_count, right_start, right_count } => {
+                base_idx = *left_start + left_count;
+                other_idx = *right_start + right_count;
             }
         }
     }
-    None
+    map
+}
+
+fn split_lines(text: &str) -> Vec<&str> {
+    if text.is_empty() { return vec![]; }
+    let mut lines = vec![];
+    let mut start = 0;
+    for (i, c) in text.char_indices() {
+        if c == '\n' {
+            let end = if i > 0 && text.as_bytes()[i - 1] == b'\r' { i - 1 } else { i };
+            lines.push(&text[start..end]);
+            start = i + 1;
+        }
+    }
+    if start <= text.len() { lines.push(&text[start..]); }
+    lines
+}
+
+fn build_merge_output(
+    left_lines: &[&str],
+    right_lines: &[&str],
+    ops: &[DiffOp],
+) -> MergeResult {
+    let mut output: Vec<MergeLine> = Vec::new();
+    let mut conflict_count = 0usize;
+    for op in ops {
+        match op {
+            DiffOp::Equal { left_start, right_start, count } => {
+                for i in 0..*count {
+                    output.push(MergeLine::Resolved(left_lines[*left_start + i].to_string()));
+                }
+            }
+            DiffOp::Delete { left_start, count } => {
+                for i in 0..*count {
+                    output.push(MergeLine::Resolved(left_lines[*left_start + i].to_string()));
+                }
+            }
+            DiffOp::Insert { right_start, count } => {
+                for i in 0..*count {
+                    output.push(MergeLine::Resolved(right_lines[*right_start + i].to_string()));
+                }
+            }
+            DiffOp::Replace { left_start, left_count, right_start, right_count } => {
+                let l_end = *left_start + left_count;
+                let r_end = *right_start + right_count;
+                let left_block: Vec<_>  = left_lines[*left_start..l_end].iter().map(|s| (*s).to_string()).collect();
+                let right_block: Vec<_> = right_lines[*right_start..r_end].iter().map(|s| (*s).to_string()).collect();
+                if left_block == right_block {
+                    for line in left_block { output.push(MergeLine::Resolved(line)); }
+                } else {
+                    output.push(MergeLine::Conflict { base: vec![], left: left_block, right: right_block });
+                    conflict_count += 1;
+                }
+            }
+        }
+    }
+    MergeResult { output_lines: output, conflict_count }
 }
