@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from '@/views/HomeView.vue'
+import SettingsView from '@/views/SettingsView.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -29,6 +30,11 @@ const router = createRouter({
       path: '/image-diff',
       name: 'image-diff',
       component: () => import('@/views/ImageDiffView.vue'),
+    },
+    {
+      path: '/settings',
+      name: 'settings',
+      component: SettingsView,
     },
   ],
 })

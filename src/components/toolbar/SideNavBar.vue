@@ -1,8 +1,17 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { FolderOpen, Search, GitBranch, Puzzle, Bug, User, Settings } from 'lucide-vue-next'
 
+const router = useRouter()
+const route = useRoute()
+
 const activeItem = ref('explorer')
+
+function onNav(id: string, path?: string) {
+  activeItem.value = id
+  if (path) router.push(path)
+}
 
 const topItems = [
   { id: 'explorer', icon: FolderOpen, title: 'Explorer' },
@@ -14,7 +23,7 @@ const topItems = [
 
 const bottomItems = [
   { id: 'profile', icon: User, title: 'Profile' },
-  { id: 'settings', icon: Settings, title: 'Settings' },
+  { id: 'settings', icon: Settings, title: 'Settings', path: '/settings' },
 ]
 </script>
 
@@ -38,9 +47,9 @@ const bottomItems = [
         v-for="item in bottomItems" 
         :key="item.id"
         class="nav-btn w-full py-3 flex items-center justify-center"
-        :class="{ 'active': activeItem === item.id }"
+        :class="{ 'active': item.path ? route.path === item.path : activeItem === item.id }"
         :title="item.title"
-        @click="activeItem = item.id"
+        @click="onNav(item.id, item.path)"
       >
         <component :is="item.icon" :size="20" class="nav-icon" />
       </button>
