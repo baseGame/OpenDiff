@@ -63,6 +63,19 @@ function resetDefaults() {
 onMounted(() => {
   if (!store.loaded) store.load()
 })
+
+// Auto-save theme changes immediately
+watch(() => store.settings.theme, async () => {
+  await store.save()
+})
+
+// Auto-apply font changes immediately
+watch(() => store.settings.font_family, () => {
+  document.documentElement.style.setProperty('--font-mono', store.settings.font_family)
+})
+watch(() => store.settings.font_size, () => {
+  document.documentElement.style.setProperty('--editor-font-size', `${store.settings.font_size}px`)
+})
 </script>
 
 <template>
