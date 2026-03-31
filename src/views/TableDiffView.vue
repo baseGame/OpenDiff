@@ -274,7 +274,7 @@ onMounted(() => {
         </label>
       </div>
 
-      <template v-if="leftData.length">
+      <template v-if="rowDiffs.length">
         <span class="badge badge-add">+{{ stats.added }}</span>
         <span class="badge badge-del">-{{ stats.deleted }}</span>
         <span class="badge badge-mod">~{{ stats.modified }}</span>
