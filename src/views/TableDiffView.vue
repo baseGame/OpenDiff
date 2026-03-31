@@ -6,6 +6,7 @@
  */
 import { ref, computed, onMounted } from 'vue'
 import { open } from '@tauri-apps/plugin-dialog'
+import { useRouter } from 'vue-router'
 import { readFileText, diffTables } from '@/api'
 import type { TableDiffOptions } from '@/types'
 
@@ -19,6 +20,7 @@ const rightData  = ref<string[][]>([])
 const leftHeader = ref<string[]>([])
 const rightHeader= ref<string[]>([])
 const loading    = ref(false)
+const router = useRouter()
 const error      = ref<string | null>(null)
 const delimiter  = ref<string>(',')
 const hasHeaders = ref(true)
@@ -251,6 +253,19 @@ onMounted(() => {
 
 <template>
   <div class="table-diff-view flex flex-col h-full overflow-hidden">
+
+    <!-- Breadcrumb -->
+    <div class="breadcrumb flex items-center gap-1 px-4 py-1">
+      <button class="crumb-home" @click="router.push('/')">Home</button>
+      <span class="crumb-sep">›</span>
+      <span class="crumb-current">Table Compare</span>
+      <template v-if="leftPath || rightPath">
+        <span class="crumb-sep">›</span>
+        <span class="crumb-file">{{ leftPath ? leftPath.split('/').pop() : rightPath?.split('/').pop() }}</span>
+        <span class="crumb-sep" v-if="leftPath && rightPath">↔</span>
+        <span class="crumb-file" v-if="rightPath">{{ rightPath.split('/').pop() }}</span>
+      </template>
+    </div>
 
     <!-- Toolbar -->
     <div class="table-toolbar flex items-center gap-2">

@@ -10,6 +10,7 @@
  */
 import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import { useTabStore } from '@/stores/tabs'
+import { useRouter } from 'vue-router'
 import { useSettingsStore } from '@/stores/settings'
 import { diffFiles, diffTexts, mergeThree } from '@/api'
 import { highlightLine, detectLanguage } from '@/utils/syntaxHighlight'
@@ -21,6 +22,7 @@ import MergeOutputPanel from '@/components/editor/MergeOutputPanel.vue'
 import IgnoreToolbar from '@/components/editor/IgnoreToolbar.vue'
 import { ArrowUp, ArrowDown, FileOutput, Merge, FileCode2 } from 'lucide-vue-next'
 
+const router = useRouter()
 const tabStore = useTabStore()
 const settingsStore = useSettingsStore()
 const activeTab = computed(() => tabStore.activeTab)
@@ -329,6 +331,19 @@ const diffCountLabel = computed(() => {
 <template>
   <div class="text-diff-view flex flex-col h-full overflow-hidden" tabindex="0">
 
+    <!-- ── Breadcrumb ── -->
+    <div class="breadcrumb flex items-center gap-1 px-4 py-1 flex-shrink-0">
+      <button class="crumb-home" @click="router.push('/')">Home</button>
+      <span class="crumb-sep">›</span>
+      <span class="crumb-current">Text Compare</span>
+      <template v-if="leftPath || rightPath">
+        <span class="crumb-sep">›</span>
+        <span class="crumb-file">{{ leftPath ? leftPath.split('/').pop() : rightPath?.split('/').pop() }}</span>
+        <span class="crumb-sep" v-if="leftPath && rightPath">↔</span>
+        <span class="crumb-file" v-if="rightPath">{{ rightPath.split('/').pop() }}</span>
+      </template>
+    </div>
+
     <!-- ── Top toolbar ── -->
     <div class="diff-toolbar flex items-center justify-between gap-4">
       <div class="flex-1 min-w-0">
@@ -589,3 +604,16 @@ const diffCountLabel = computed(() => {
 .gutter-del  { background: var(--color-red); opacity: .6; }
 .gutter-mod  { background: var(--color-accent); opacity: .5; }
 </style>
+
+/* Breadcrumb */
+.breadcrumb {
+  background: var(--color-bg2);
+  border-bottom: 1px solid var(--color-border);
+  font-size: 11px; color: var(--color-text-muted);
+  padding: 3px 16px;
+}
+.crumb-home { color: var(--color-text-muted); background: none; border: none; cursor: pointer; padding: 0; font-size: 11px; }
+.crumb-home:hover { color: var(--color-accent); text-decoration: underline; }
+.crumb-sep { color: var(--color-border); margin: 0 2px; }
+.crumb-current { color: var(--color-text); font-weight: 600; }
+.crumb-file { color: var(--color-accent); font-family: var(--font-mono); font-size: 11px; }

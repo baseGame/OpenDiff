@@ -296,6 +296,19 @@ onMounted(() => {
 <template>
   <div class="folder-diff-view flex flex-col h-full overflow-hidden">
 
+    <!-- Breadcrumb -->
+    <div class="breadcrumb flex items-center gap-1 px-4 py-1">
+      <button class="crumb-home" @click="router.push('/')">Home</button>
+      <span class="crumb-sep">›</span>
+      <span class="crumb-current">Folder Compare</span>
+      <template v-if="leftRoot || rightRoot">
+        <span class="crumb-sep">›</span>
+        <span class="crumb-file">{{ leftRoot ? leftRoot.split('/').pop() : rightRoot?.split('/').pop() }}</span>
+        <span class="crumb-sep" v-if="leftRoot && rightRoot">↔</span>
+        <span class="crumb-file" v-if="rightRoot">{{ rightRoot.split('/').pop() }}</span>
+      </template>
+    </div>
+
     <!-- Toolbar -->
     <div class="folder-toolbar flex items-center gap-2">
       <button class="path-btn btn" @click="pickFolder('left')">
@@ -488,3 +501,10 @@ td { padding: 4px 8px; vertical-align: middle; }
 }
 .op-msg { padding: 1px 0; color: var(--color-text-muted); }
 </style>
+
+.breadcrumb {
+  background: var(--color-bg2);
+  border-bottom: 1px solid var(--color-border);
+  font-size: 11px; color: var(--color-text-muted);
+  padding: 3px 16px;
+}
