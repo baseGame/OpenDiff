@@ -213,12 +213,26 @@ watch(() => store.settings.font_size, () => {
         </div>
       </section>
 
+      <!-- ── Keyboard Shortcuts ────────────────────────────────── -->
+      <section class="settings-section">
+        <h3 class="section-title">Keyboard Shortcuts</h3>
+        <div class="shortcuts-grid">
+          <div class="shortcut-row"><kbd>Ctrl + O</kbd><span>打开左侧文件</span></div>
+          <div class="shortcut-row"><kbd>Ctrl + Shift + O</kbd><span>打开右侧文件</span></div>
+          <div class="shortcut-row"><kbd>Ctrl + ,</kbd><span>打开设置</span></div>
+          <div class="shortcut-row"><kbd>F7 / F8</kbd><span>上/下一个差异</span></div>
+          <div class="shortcut-row"><kbd>Ctrl + F</kbd><span>搜索</span></div>
+          <div class="shortcut-row"><kbd>Escape</kbd><span>关闭面板</span></div>
+          <div class="shortcut-row"><kbd>?</kbd><span>显示快捷键帮助</span></div>
+        </div>
+      </section>
+
       <!-- ── About ─────────────────────────────────────────────── -->
       <section class="settings-section">
         <h3 class="section-title">About</h3>
         <div class="about-box">
           <div class="about-name">OpenDiff</div>
-          <div class="about-version">Version 0.1.0</div>
+          <div class="about-version">Version 0.2.2</div>
           <div class="about-desc">Beyond Compare · Open Source</div>
           <div class="about-links">
             <a href="https://github.com/baseGame/OpenDiff" target="_blank" rel="noopener">GitHub Repository</a>
@@ -389,3 +403,22 @@ watch(() => store.settings.font_size, () => {
 .btn-primary:hover { opacity: 0.9; }
 .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
 </style>
+
+/* Shortcuts grid */
+.shortcuts-grid {
+  display: flex; flex-direction: column; gap: 6px;
+}
+.shortcut-row {
+  display: flex; align-items: center; gap: 12px;
+  font-size: 12px; padding: 5px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.shortcut-row:last-child { border-bottom: none; }
+kbd {
+  min-width: 170px;
+  padding: 3px 8px; border-radius: 5px;
+  background: var(--color-bg3);
+  border: 1px solid var(--color-border);
+  font-family: var(--font-mono, monospace); font-size: 11px;
+  color: var(--color-accent); text-align: center;
+}
