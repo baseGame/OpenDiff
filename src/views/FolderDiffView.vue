@@ -5,8 +5,8 @@
  */
 import { ref, computed, onMounted } from 'vue'
 import { useTabStore } from '@/stores/tabs'
-import { listDir, statPath, copyFile, deletePath, renamePath } from '@/api'
-import type { VfsEntry } from '@/types'
+import { listDir, statPath, copyFile, deletePath, renamePath, diffFolders } from '@/api'
+import type { VfsEntry, FolderDiffResult, FolderEntry } from '@/types'
 import { open } from '@tauri-apps/plugin-dialog'
 import { useRouter } from 'vue-router'
 
@@ -62,13 +62,30 @@ async function loadAndCompare() {
   loading.value = true
   error.value = null
   try {
+    // Try Rust backend for CRC32-based deep folder comparison
+    let rustResult: FolderDiffResult | null = null
+    try {
+      rustResult = await diffFolders(leftRoot.value, rightRoot.value, {
+        ignorePatterns: excludeGlob.value ? excludeGlob.value.split(';').map(s => s.trim()).filter(Boolean) : [],
+        compareContent: compareMode.value === 'crc',
+        compareTime: compareMode.value === 'time',
+        compareSize: compareMode.value === 'size',
+      } as any)
+    } catch (_) {
+      // Fallback to client-side comparison
+    }
+
     const [leftEntries, rightEntries] = await Promise.all([
       listDir(leftRoot.value),
       listDir(rightRoot.value),
     ])
-    leftTree.value  = await buildTree(leftEntries, leftRoot.value, 'left')
-    rightTree.value = await buildTree(rightEntries, rightRoot.value, 'right')
-    pairAndCompare(leftTree.value, rightTree.value)
+    leftTree.value  = await buildTree(leftEntries, leftRoot.value, 'left', rustResult)
+    rightTree.value = await buildTree(rightEntries, rightRoot.value, 'right', rustResult)
+    if (rustResult) {
+      applyRustResult(rustResult)
+    } else {
+      pairAndCompare(leftTree.value, rightTree.value)
+    }
   } catch (e: any) {
     error.value = String(e)
   } finally {
@@ -76,7 +93,7 @@ async function loadAndCompare() {
   }
 }
 
-async function buildTree(entries: any[], root: string, _side: string): Promise<TreeNode[]> {
+async function buildTree(entries: any[], root: string, _side: string, _rustResult?: FolderDiffResult | null): Promise<TreeNode[]> {
   return entries.map(e => ({
     name: e.name,
     path: e.path['0'] ?? `${root}/${e.name}`,
@@ -88,6 +105,29 @@ async function buildTree(entries: any[], root: string, _side: string): Promise<T
     expanded: false,
     paired: undefined,
   }))
+}
+
+function applyRustResult(result: FolderDiffResult) {
+  const entryMap = new Map<string, FolderEntry>()
+  for (const e of result.entries ?? []) {
+    entryMap.set(e.rel_path, e)
+  }
+  function applyToNodes(nodes: TreeNode[]) {
+    for (const node of nodes) {
+      const entry = entryMap.get(node.name)
+      if (entry) {
+        const leftStatus = entry.left_status
+        const rightStatus = entry.right_status
+        if (leftStatus === 'LeftOnly') node.diffStatus = 'left-only'
+        else if (rightStatus === 'RightOnly') node.diffStatus = 'right-only'
+        else if (leftStatus === 'Modified' || rightStatus === 'Modified') node.diffStatus = 'modified'
+        else node.diffStatus = 'same'
+      }
+      if (node.children) applyToNodes(node.children)
+    }
+  }
+  applyToNodes(leftTree.value)
+  applyToNodes(rightTree.value)
 }
 
 function pairAndCompare(left: TreeNode[], right: TreeNode[]) {

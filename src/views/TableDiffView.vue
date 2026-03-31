@@ -1,12 +1,13 @@
 <script setup lang="ts">
 /**
  * TableDiffView — Phase 3
- * Features: CSV / Excel / TSV comparison, column alignment, row/col diff highlighting
+ * Features: CSV / Excel / TSV comparison using Rust LCS algorithm,
+ *   column alignment, row/col diff highlighting, cell-level diff
  */
 import { ref, computed, onMounted } from 'vue'
 import { open } from '@tauri-apps/plugin-dialog'
-import { readFileText } from '@/api'
-import type { DiffResult } from '@/types'
+import { readFileText, diffTables } from '@/api'
+import type { TableDiffOptions } from '@/types'
 
 // ── State ──────────────────────────────────────────────────────────────
 type ViewMode = 'table' | 'unified'
@@ -23,6 +24,13 @@ const delimiter  = ref<string>(',')
 const hasHeaders = ref(true)
 const leftFormat = ref<'csv'|'excel'>('csv')
 const rightFormat= ref<'csv'|'excel'>('csv')
+
+// ── Rust backend result ──────────────────────────────────────────────
+interface TableRow { left: string[] | null; right: string[] | null; status: 'equal' | 'add' | 'del' | 'mod'; colDiffs: boolean[] }
+const tableResult = ref<{
+  leftHeaders: string[]; rightHeaders: string[];
+  rows: TableRow[]; stats: { added: number; deleted: number; modified: number; equal: number }
+} | null>(null)
 
 // ── Load ──────────────────────────────────────────────────────────────
 async function pickFile(side: 'left' | 'right') {
@@ -41,7 +49,32 @@ async function loadAndParse() {
   if (!leftPath.value || !rightPath.value) return
   loading.value = true
   error.value = null
+  tableResult.value = null
   try {
+    // Use Rust backend for LCS-based table diff
+    try {
+      const result = await diffTables(leftPath.value, rightPath.value, {
+        ignoreWhitespace: false,
+      } as TableDiffOptions)
+      // Rust returns sheets[].rows[].cells[] — extract first sheet rows into tableResult
+      const firstSheet = (result as any).sheets?.[0]
+      if (firstSheet?.rows?.length) {
+        tableResult.value = {
+          leftHeaders: [],
+          rightHeaders: [],
+          rows: firstSheet.rows.map((r: any): TableRow => ({
+            left: r.cells?.map((c: any) => c.left ?? '') ?? [],
+            right: r.cells?.map((c: any) => c.right ?? '') ?? [],
+            status: r.status?.toLowerCase() ?? 'equal',
+            colDiffs: r.cells?.map((c: any) => c.changed ?? false) ?? [],
+          })),
+          stats: result.stats ?? { added: 0, deleted: 0, modified: 0, equal: 0 },
+        }
+      }
+    } catch (_) {
+      // Fallback: client-side LCS (already works below)
+    }
+    // Load raw data
     const [lContent, rContent] = await Promise.all([
       readFileText(leftPath.value),
       readFileText(rightPath.value),
@@ -49,7 +82,6 @@ async function loadAndParse() {
     const sep = delimiter.value === ',' ? ',' : delimiter.value === '\t' ? '\t' : ';'
     leftData.value  = parseRows(lContent, sep)
     rightData.value = parseRows(rContent, sep)
-
     if (hasHeaders.value && leftData.value.length) {
       leftHeader.value  = leftData.value.shift()!
       rightHeader.value = rightData.value.shift()!
@@ -96,7 +128,14 @@ interface RowDiff {
   colDiffs: boolean[]
 }
 
+// Use Rust backend result when available, fallback to local LCS
 const rowDiffs = computed((): RowDiff[] => {
+  if (tableResult.value?.rows?.length) {
+    return tableResult.value.rows.map(r => ({
+      leftRow: r.left, rightRow: r.right,
+      status: r.status, colDiffs: r.colDiffs,
+    } as RowDiff))
+  }
   const rows: RowDiff[] = []
   const l = leftData.value
   const r = rightData.value
@@ -185,6 +224,7 @@ function rowEq(a: string[], b: string[]): boolean {
 
 // ── Stats ────────────────────────────────────────────────────────────
 const stats = computed(() => {
+  if (tableResult.value?.stats) return tableResult.value.stats
   const d = rowDiffs.value
   return {
     added:   d.filter(r => r.status === 'add').length,
