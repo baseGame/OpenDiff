@@ -5,7 +5,7 @@
  */
 import { ref, computed, onMounted } from 'vue'
 import { open } from '@tauri-apps/plugin-dialog'
-import { readFileText } from '@/api'
+import { readFileText, readFileBytes } from '@/api'
 
 // ── State ──────────────────────────────────────────────────────────────
 const leftPath  = ref('')
@@ -35,26 +35,14 @@ async function loadAndDiff() {
   loading.value = true
   error.value = null
   try {
-    const { invoke } = await import('@tauri-apps/api/core')
-    // Use Rust backend for binary reading
     const [lBuf, rBuf] = await Promise.all([
-      invoke<string[]>('cmd_read_file_bytes', { path: leftPath.value }),
-      invoke<string[]>('cmd_read_file_bytes', { path: rightPath.value }),
+      readFileBytes(leftPath.value),
+      readFileBytes(rightPath.value),
     ])
-    leftBytes.value  = lBuf.map(Number)
-    rightBytes.value = rBuf.map(Number)
+    leftBytes.value  = lBuf
+    rightBytes.value = rBuf
   } catch (e: any) {
-    // Fallback: try text read
-    try {
-      const [l, r] = await Promise.all([
-        readFileText(leftPath.value),
-        readFileText(rightPath.value),
-      ])
-      leftBytes.value  = Array.from(Buffer.from(l, 'binary'))
-      rightBytes.value = Array.from(Buffer.from(r, 'binary'))
-    } catch {
-      error.value = `无法读取文件: ${e}`
-    }
+    error.value = `无法读取文件: ${e}`
   } finally {
     loading.value = false
   }
