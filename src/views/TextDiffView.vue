@@ -129,6 +129,16 @@ async function loadFile(side: 'left' | 'right') {
   }
 }
 
+async function openBaseFile() {
+  const path = await open({ multiple: false, title: 'Select BASE file (for 3-way merge)' }) as string | null
+  if (!path) return
+  try {
+    basePath.value = path
+  } catch (e: any) {
+    error.value = `Cannot read base file: ${e}`
+  }
+}
+
 // ── Three-way merge ──────────────────────────────────────────────────
 async function runMerge() {
   if (!leftPath.value || !rightPath.value || !basePath.value) {
@@ -329,6 +339,15 @@ const diffCountLabel = computed(() => {
         </button>
       </div>
 
+      <!-- Base file selector for 3-way merge -->
+      <div class="flex-shrink-0">
+        <button class="base-btn btn w-full" :class="{ 'has-base': basePath }" @click="openBaseFile" title="Select base file for 3-way merge">
+          <FileCode2 :size="12" :class="basePath ? 'text-accent' : 'text-muted'" />
+          <span class="text-xs font-semibold w-10 text-left" :class="basePath ? 'text-accent' : 'text-muted'">BASE</span>
+          <span class="truncate path-text text-xs" style="max-width:80px">{{ basePath ? basePath.split('/').pop() || basePath : '—' }}</span>
+        </button>
+      </div>
+
       <div class="toolbar-mid flex items-center justify-center gap-2">
         <select v-model="detectedLang" class="lang-select" style="font-size:12px;padding:2px 6px;height:26px;max-width:130px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:4px;color:var(--color-text);cursor:pointer" title="Syntax language">
         <option value="auto">Auto-detect</option>
@@ -490,6 +509,16 @@ const diffCountLabel = computed(() => {
   justify-content: flex-start;
 }
 .path-text { min-width: 0; }
+.base-btn {
+  flex-shrink: 0; min-width: 0;
+  gap: 4px; font-family: var(--font-mono); font-size: 11px;
+  justify-content: flex-start; padding: 4px 8px;
+  background: var(--color-bg2); border: 1px solid var(--color-border);
+  color: var(--color-text-muted); cursor: pointer; transition: all 0.15s;
+  border-radius: 6px;
+}
+.base-btn:hover { border-color: var(--color-accent); color: var(--color-text); }
+.base-btn.has-base { border-color: var(--color-accent); background: rgba(137,180,250,.08); }
 .toolbar-mid {
   flex-shrink: 0; padding: 0 8px;
   border-left: 1px solid var(--color-border);
