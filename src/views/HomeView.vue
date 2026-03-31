@@ -84,7 +84,7 @@ function fmtDate(dt: string) {
       <section class="sessions-section">
         <div class="sessions-header">
           <h2 class="section-title">RECENT SESSIONS</h2>
-          <button class="view-all-btn">View All History</button>
+          <button class="view-all-btn" @click="router.push('/history')">View All History</button>
         </div>
         
         <div class="session-list" v-if="sessions.length">
