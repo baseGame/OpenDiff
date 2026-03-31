@@ -12,7 +12,7 @@ import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import { useTabStore } from '@/stores/tabs'
 import { useRouter } from 'vue-router'
 import { useSettingsStore } from '@/stores/settings'
-import { diffFiles, diffTexts, mergeThree } from '@/api'
+import { diffFiles, diffTexts, mergeThree, saveSession } from '@/api'
 import { highlightLine, detectLanguage } from '@/utils/syntaxHighlight'
 import type { DiffResult, DiffOptions, MergeResult, MergeLine } from '@/types'
 import { open, save } from '@tauri-apps/plugin-dialog'
@@ -90,6 +90,19 @@ async function runDiff() {
     }
     diffResult.value = await diffTexts(leftContent.value, rightContent.value, opts)
     buildDiffIndex()
+    // Auto-save session to history
+    if (leftPath.value || rightPath.value) {
+      saveSession({
+        id: `session_${Date.now()}`,
+        kind: 'text_diff',
+        name: leftPath.value || rightPath.value || 'Text Compare',
+        left_path: leftPath.value,
+        right_path: rightPath.value,
+        config: { algorithm: algorithm.value, ignore_whitespace: ignoreWS.value, ignore_case: ignoreCase.value, ignore_comments: ignoreComments.value, extra: null },
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }).catch(() => {})
+    }
   } catch (e: any) {
     error.value = String(e)
   } finally {
@@ -176,6 +189,52 @@ function onKeydown(e: KeyboardEvent) {
   if (e.key === 'F8') { e.preventDefault(); jumpToDiff(1) }
   if (e.ctrlKey || e.metaKey) {
     if (e.key === ',') { e.preventDefault(); router.push('/settings') }
+  }
+}
+
+// ── Drag & drop file support ───────────────────────────────────────
+const isDragOver = ref(false)
+let dragCounter = 0
+
+function onDragEnter(e: DragEvent) {
+  e.preventDefault()
+  dragCounter++
+  isDragOver.value = true
+}
+function onDragLeave(e: DragEvent) {
+  e.preventDefault()
+  dragCounter--
+  if (dragCounter === 0) isDragOver.value = false
+}
+function onDragOver(e: DragEvent) {
+  e.preventDefault()
+  if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy'
+}
+async function onDrop(e: DragEvent) {
+  e.preventDefault()
+  isDragOver.value = false
+  dragCounter = 0
+  const files: File[] = Array.from(e.dataTransfer?.files ?? [])
+  if (!files.length) return
+  try {
+    const content0 = await files[0].text()
+    if (!leftPath.value) {
+      leftPath.value = files[0].name
+      leftContent.value = content0
+    } else if (!rightPath.value) {
+      rightPath.value = files[0].name
+      rightContent.value = content0
+      await runDiff()
+    } else {
+      // Both filled — shift right → left, new to right
+      leftPath.value = rightPath.value
+      leftContent.value = rightContent.value
+      rightPath.value = files[0].name
+      rightContent.value = content0
+      await runDiff()
+    }
+  } catch (err) {
+    error.value = `无法读取拖拽的文件: ${err}`
   }
 }
 
@@ -343,7 +402,17 @@ const diffCountLabel = computed(() => {
 </script>
 
 <template>
-  <div class="text-diff-view flex flex-col h-full overflow-hidden" tabindex="0">
+  <div class="text-diff-view flex flex-col h-full overflow-hidden" tabindex="0"
+    @dragenter="onDragEnter" @dragleave="onDragLeave" @dragover="onDragOver" @drop="onDrop"
+  >
+    <!-- Drag overlay -->
+    <div v-if="isDragOver" class="drop-overlay">
+      <div class="drop-box">
+        <div class="drop-icon">📂</div>
+        <div class="drop-title">Drop file here</div>
+        <div class="drop-sub">First file → Left · Second file → Right</div>
+      </div>
+    </div>
 
     <!-- ── Breadcrumb ── -->
     <div class="breadcrumb flex items-center gap-1 px-4 py-1 flex-shrink-0">
@@ -654,3 +723,22 @@ const diffCountLabel = computed(() => {
 .crumb-sep { color: var(--color-border); margin: 0 2px; }
 .crumb-current { color: var(--color-text); font-weight: 600; }
 .crumb-file { color: var(--color-accent); font-family: var(--font-mono); font-size: 11px; }
+
+/* Drag & Drop overlay */
+.drop-overlay {
+  position: absolute; inset: 0; z-index: 100;
+  background: rgba(30,30,46,0.85);
+  display: flex; align-items: center; justify-content: center;
+  backdrop-filter: blur(4px);
+  pointer-events: none;
+}
+.drop-box {
+  border: 2px dashed var(--color-accent);
+  border-radius: 16px;
+  padding: 40px 60px;
+  text-align: center;
+  background: rgba(59,130,246,0.08);
+}
+.drop-icon { font-size: 48px; margin-bottom: 12px; }
+.drop-title { font-size: 20px; font-weight: 700; color: var(--color-accent); margin-bottom: 8px; }
+.drop-sub { font-size: 13px; color: var(--color-text-muted); }

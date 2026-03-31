@@ -57,6 +57,47 @@ const views = [
   { kind: 'folder_sync' as SessionKind, icon: RefreshCw,  label: 'Folder Sync',    desc: 'Rule-based sync.', theme: 'sync', isSync: true },
 ]
 
+// ── Drag & drop global file handler ────────────────────────────────
+const isDraggingFiles = ref(false)
+let dragCounter2 = 0
+function onGlobalDragEnter(e: DragEvent) {
+  e.preventDefault()
+  dragCounter2++
+  isDraggingFiles.value = true
+}
+function onGlobalDragLeave(e: DragEvent) {
+  e.preventDefault()
+  dragCounter2--
+  if (dragCounter2 === 0) isDraggingFiles.value = false
+}
+function onGlobalDragOver(e: DragEvent) {
+  e.preventDefault()
+  if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy'
+}
+async function onGlobalDrop(e: DragEvent) {
+  e.preventDefault()
+  isDraggingFiles.value = false
+  dragCounter2 = 0
+  const files = Array.from(e.dataTransfer?.files ?? [])
+  if (files.length === 0) return
+  // If 2 files dropped → auto start text compare
+  if (files.length >= 2) {
+    try {
+      const [l, r] = await Promise.all([files[0].text(), files[1].text()])
+      tabStore.openNewDiff('text_diff', files[0].name, files[1].name)
+      // Load content into tab store — store the paths as file names
+      // The TextDiffView will read them via the tab store
+      router.push('/text-diff')
+    } catch {}
+  }
+}
+onMounted(() => {
+  window.addEventListener('dragenter', onGlobalDragEnter)
+  window.addEventListener('dragleave', onGlobalDragLeave)
+  window.addEventListener('dragover', onGlobalDragOver)
+  window.addEventListener('drop', onGlobalDrop)
+})
+
 async function startNewDiff(kind: SessionKind) {
   // if folder_sync, we just treat it as folder_diff for now or handle it if supported
   const actualKind = kind === 'folder_sync' ? 'folder_diff' : kind
@@ -83,7 +124,19 @@ function fmtDate(dt: string) {
 </script>
 
 <template>
-  <div class="home-view">
+  <div class="home-view"
+    @dragenter="onGlobalDragEnter" @dragleave="onGlobalDragLeave"
+    @dragover="onGlobalDragOver" @drop="onGlobalDrop"
+  >
+    <!-- Global drag overlay -->
+    <div v-if="isDraggingFiles" class="home-drag-overlay">
+      <div class="drag-welcome-box">
+        <div class="drag-welcome-icon">📂</div>
+        <div class="drag-welcome-title">Drop files to compare</div>
+        <div class="drag-welcome-sub">2 files → Text Compare · 1 file → open first pane</div>
+      </div>
+    </div>
+
     <main class="home-main">
       <header class="home-header">
         <div class="header-subtitle">
@@ -672,3 +725,22 @@ function fmtDate(dt: string) {
   }
 }
 </style>
+
+/* Drag overlay */
+.home-drag-overlay {
+  position: fixed; inset: 0; z-index: 9999;
+  background: rgba(15,15,25,0.88);
+  display: flex; align-items: center; justify-content: center;
+  backdrop-filter: blur(6px);
+  pointer-events: none;
+}
+.drag-welcome-box {
+  border: 2px dashed var(--color-accent);
+  border-radius: 20px;
+  padding: 48px 72px;
+  text-align: center;
+  background: rgba(59,130,246,0.06);
+}
+.drag-welcome-icon { font-size: 56px; margin-bottom: 16px; }
+.drag-welcome-title { font-size: 22px; font-weight: 700; color: var(--color-accent); margin-bottom: 10px; }
+.drag-welcome-sub { font-size: 14px; color: var(--color-text-muted); }

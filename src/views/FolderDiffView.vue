@@ -5,7 +5,7 @@
  */
 import { ref, computed, onMounted } from 'vue'
 import { useTabStore } from '@/stores/tabs'
-import { listDir, statPath, copyFile, deletePath, renamePath, diffFolders } from '@/api'
+import { listDir, statPath, copyFile, deletePath, renamePath, diffFolders, saveSession } from '@/api'
 import type { VfsEntry, FolderDiffResult, FolderEntry } from '@/types'
 import { open } from '@tauri-apps/plugin-dialog'
 import { useRouter } from 'vue-router'
@@ -90,6 +90,19 @@ async function loadAndCompare() {
     error.value = String(e)
   } finally {
     loading.value = false
+  }
+  // Auto-save session
+  if (leftRoot.value || rightRoot.value) {
+    saveSession({
+      id: `session_${Date.now()}`,
+      kind: 'folder_diff',
+      name: leftRoot.value || rightRoot.value || 'Folder Compare',
+      left_path: leftRoot.value,
+      right_path: rightRoot.value,
+      config: { algorithm: 'histogram', ignore_whitespace: false, ignore_case: false, ignore_comments: false, extra: null },
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }).catch(() => {})
   }
 }
 
