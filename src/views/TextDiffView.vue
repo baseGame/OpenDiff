@@ -170,8 +170,22 @@ function jumpToDiff(direction: 1 | -1) {
 
 // ── Keyboard shortcuts ───────────────────────────────────────────────
 function onKeydown(e: KeyboardEvent) {
+  const tag = (e.target as HTMLElement)?.tagName
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
   if (e.key === 'F7') { e.preventDefault(); jumpToDiff(-1) }
   if (e.key === 'F8') { e.preventDefault(); jumpToDiff(1) }
+  if (e.ctrlKey || e.metaKey) {
+    if (e.key === ',') { e.preventDefault(); router.push('/settings') }
+  }
+}
+
+// ── Minimap navigation ───────────────────────────────────────────────
+function onMinimapClick(lineIdx: number) {
+  if (!leftPane.value) return
+  const LINE_H = 22
+  const targetY = lineIdx * LINE_H - leftPane.value.clientHeight / 2
+  leftPane.value.scrollTo({ top: Math.max(0, targetY), behavior: 'smooth' })
+  rightPane.value?.scrollTo({ top: Math.max(0, targetY), behavior: 'smooth' })
 }
 onMounted(() => {
   window.addEventListener('keydown', onKeydown)
@@ -430,8 +444,17 @@ const diffCountLabel = computed(() => {
     />
 
     <!-- ── Status bar ── -->
-    <div v-if="loading" class="diff-status loading">⟳ Computing diff…</div>
-    <div v-else-if="error" class="diff-status error">⚠ {{ error }}</div>
+    <div v-if="loading" class="diff-status loading">
+      <div class="spinner" />
+      <span>Computing diff…</span>
+    </div>
+    <div v-else-if="error" class="diff-status error">
+      <span>⚠ {{ error }}</span>
+      <button class="btn-retry" @click="runDiff">重试</button>
+    </div>
+    <div v-else-if="!diffResult" class="diff-status hint">
+      <span>📂 打开两个文件以开始对比，或直接在左侧/右侧输入文本</span>
+    </div>
 
     <!-- ── Main diff area ── -->
     <div class="diff-main flex flex-1 overflow-hidden">
@@ -495,7 +518,7 @@ const diffCountLabel = computed(() => {
       </div>
 
       <!-- Minimap -->
-      <DiffMinimap :diff-result="diffResult" />
+      <DiffMinimap :diff-result="diffResult" @scroll-to="onMinimapClick" />
     </div>
 
     <!-- ── Merge output panel ── -->
@@ -546,9 +569,23 @@ const diffCountLabel = computed(() => {
 .diff-status {
   padding: 5px 16px; font-size: 12px; flex-shrink: 0;
   border-bottom: 1px solid var(--color-border);
+  display: flex; align-items: center; gap: 8px;
 }
 .diff-status.loading { color: var(--color-accent); background: rgba(137,180,250,.08); }
 .diff-status.error { color: var(--color-red); background: rgba(243,139,168,.08); }
+.diff-status.hint { color: var(--color-text-muted); background: var(--color-bg2); }
+.diff-status.hint span { flex: 1; }
+.spinner {
+  width: 14px; height: 14px; border: 2px solid currentColor; border-top-color: transparent;
+  border-radius: 50%; animation: spin 0.7s linear infinite; flex-shrink: 0;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.btn-retry {
+  padding: 2px 10px; border-radius: 10px; border: 1px solid var(--color-red);
+  background: transparent; color: var(--color-red); cursor: pointer; font-size: 11px;
+  transition: all 0.15s; flex-shrink: 0;
+}
+.btn-retry:hover { background: rgba(239,68,68,.1); }
 
 /* Diff panes */
 .diff-main { background: var(--color-bg); }
