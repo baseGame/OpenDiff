@@ -253,3 +253,17 @@ html, body, #app {
 .hl-add    { background: rgba(166,227,161,.15); }
 .hl-del    { background: rgba(243,139,168,.15); }
 .hl-mod    { background: rgba(137,180,250,.12); }
+
+/* ── Language selector ─────────────────────────────────────────── */
+.lang-select {
+  font-size: 12px;
+  padding: 2px 6px;
+  height: 26px;
+  max-width: 130px;
+  cursor: pointer;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  color: var(--color-text);
+}
+.lang-select:hover { border-color: var(--color-accent); }
