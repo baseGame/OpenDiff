@@ -6,8 +6,8 @@ import { listRecentSessions } from '@/api'
 import { open } from '@tauri-apps/plugin-dialog'
 import type { Session, SessionKind } from '@/types'
 import { 
-  FileText, FolderTree, Table, Binary, Image, 
-  RefreshCw, MoreVertical, Play, Bookmark, ArrowRight, Folder
+  FileText, FolderTree, Table, Binary, Image,
+  RefreshCw, MoreVertical, Play, Bookmark, BookmarkCheck, ArrowRight, Folder
 } from 'lucide-vue-next'
 
 const router = useRouter()
@@ -17,6 +17,36 @@ const sessions = ref<Session[]>([])
 onMounted(async () => {
   try { sessions.value = await listRecentSessions(10) } catch {}
 })
+
+// ── Bookmark state ───────────────────────────────────────────────────
+const bookmarked = ref<Set<string>>(new Set(
+  JSON.parse(localStorage.getItem('opendiff_bookmarks') || '[]')
+))
+function toggleBookmark(s: Session, e: Event) {
+  e.stopPropagation()
+  if (bookmarked.value.has(s.id)) {
+    bookmarked.value.delete(s.id)
+  } else {
+    bookmarked.value.add(s.id)
+  }
+  localStorage.setItem('opendiff_bookmarks', JSON.stringify([...bookmarked.value]))
+}
+
+// ── Preset profiles ──────────────────────────────────────────────────
+const profiles = [
+  { label: 'Backend Sync Rules', kind: 'folder_diff' as SessionKind, desc: 'Compare project directories', icon: FolderTree },
+  { label: 'CI/CD Diff Template', kind: 'text_diff' as SessionKind, desc: 'Compare config files', icon: FileText },
+  { label: 'Design Assets', kind: 'image_diff' as SessionKind, desc: 'Compare image files', icon: Image },
+]
+async function openProfile(kind: SessionKind) {
+  const isFolder = kind === 'folder_diff'
+  const left = await open({ multiple: false, directory: isFolder, title: 'Select Left' })
+  if (!left) return
+  const right = await open({ multiple: false, directory: isFolder, title: 'Select Right' })
+  if (!right) return
+  tabStore.openNewDiff(kind, left as string, right as string)
+  router.push(tabStore.KIND_ROUTE[kind] || '/')
+}
 
 // Adapt to Beyond Compare features
 const views = [
@@ -108,7 +138,10 @@ function fmtDate(dt: string) {
               </div>
             </div>
             <div class="session-actions">
-              <button class="action-btn btn-bookmark" @click.stop><Bookmark :size="16" /></button>
+              <button class="action-btn btn-bookmark" :class="{ bookmarked: bookmarked.has(s.id) }" @click="toggleBookmark(s, $event)">
+                <BookmarkCheck v-if="bookmarked.has(s.id)" :size="16" />
+                <Bookmark v-else :size="16" />
+              </button>
               <button class="action-btn btn-play" @click.stop="startNewDiff(s.kind)"><Play :size="16" /></button>
             </div>
           </div>
@@ -139,23 +172,19 @@ function fmtDate(dt: string) {
       <div class="aside-section">
         <h2 class="section-title">SAVED PROFILES</h2>
         <div class="profile-list">
-          <button class="profile-item">
-            <span>Backend Sync Rules</span>
-            <MoreVertical :size="14" class="profile-more" />
-          </button>
-          <button class="profile-item">
-            <span>CI/CD Diff Template</span>
-            <MoreVertical :size="14" class="profile-more" />
-          </button>
-          <button class="profile-item">
-            <span>Design Assets Compare</span>
+          <button v-for="p in profiles" :key="p.label" class="profile-item" @click="openProfile(p.kind)" :title="p.desc">
+            <div class="profile-info">
+              <component :is="p.icon" :size="13" class="profile-icon" />
+              <span>{{ p.label }}</span>
+            </div>
             <MoreVertical :size="14" class="profile-more" />
           </button>
         </div>
       </div>
 
-      <div class="tip-card">
+      <div class="tip-card" id="tip-card">
         <p><strong>Tip:</strong> Drag and drop any two files or folders directly into the main grid to start a comparison instantly.</p>
+        <button class="tip-close" @click="$el.parentElement.remove()" title="Dismiss">×</button>
       </div>
     </aside>
   </div>
@@ -489,6 +518,30 @@ function fmtDate(dt: string) {
 .btn-bookmark:hover {
   background: var(--surface-container-highest);
 }
+
+.btn-bookmark.bookmarked {
+  color: var(--color-yellow, #f59e0b);
+}
+
+.profile-list { display: flex; flex-direction: column; gap: 2px; }
+.profile-item {
+  width: 100%; text-align: left; padding: 7px 8px;
+  border-radius: var(--radius-sm); background: transparent; border: none;
+  cursor: pointer; display: flex; align-items: center; justify-content: space-between;
+  transition: background 0.15s; font-size: 12px; color: var(--on-surface);
+}
+.profile-item:hover { background: var(--surface-container-highest); }
+.profile-item:hover .profile-more { opacity: 1; }
+.profile-info { display: flex; align-items: center; gap: 7px; }
+.profile-icon { color: var(--color-text-muted); flex-shrink: 0; }
+.profile-more { color: var(--outline-variant); opacity: 0; transition: opacity 0.15s; }
+.tip-card { position: relative; }
+.tip-close {
+  position: absolute; top: 4px; right: 8px;
+  background: none; border: none; color: inherit; cursor: pointer;
+  font-size: 16px; line-height: 1; opacity: 0.5; padding: 0 4px;
+}
+.tip-close:hover { opacity: 1; }
 
 .btn-play {
   color: var(--primary);
