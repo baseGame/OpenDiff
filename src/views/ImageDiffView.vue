@@ -43,12 +43,12 @@ async function computeDiff() {
   loading.value = true
   error.value = null
   try {
-    const result = await invoke<{ diff_png: string }>('cmd_diff_images', {
+    const result: string = await invoke('cmd_diff_images', {
       leftPath: leftPath.value,
       rightPath: rightPath.value,
       threshold: threshold.value,
     })
-    diffUrl.value = result.diff_png
+    diffUrl.value = result
   } catch (e: any) {
     // Fallback: compute diff in browser using canvas
     await computeDiffBrowser()
