@@ -1,4 +1,4 @@
-use session::{Session, SessionKind, AppSettings, SessionManager};
+use session::{Session, AppSettings};
 use tauri::State;
 use crate::AppState;
 

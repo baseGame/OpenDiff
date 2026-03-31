@@ -120,7 +120,7 @@ fn build_merge_output(
     let mut conflict_count = 0usize;
     for op in ops {
         match op {
-            DiffOp::Equal { left_start, right_start, count } => {
+            DiffOp::Equal { left_start, right_start: _, count } => {
                 for i in 0..*count {
                     output.push(MergeLine::Resolved(left_lines[*left_start + i].to_string()));
                 }

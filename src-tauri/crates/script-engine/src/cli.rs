@@ -87,7 +87,7 @@ impl CliArgs {
     }
 
     async fn run_diff(&self, left: &PathBuf, right: &PathBuf, format: &str, output: Option<&PathBuf>) -> Result<()> {
-        use diff_engine::{diff_texts, DiffAlgorithm, IgnoreRules, DiffResult};
+        use diff_engine::{diff_texts, DiffAlgorithm, IgnoreRules};
         use std::io::Write;
 
         let left_text  = tokio::fs::read_to_string(left).await?;

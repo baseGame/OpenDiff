@@ -1,6 +1,6 @@
 //! Table / CSV / Spreadsheet diff command
 use anyhow::Result;
-use parsers::{parse_csv, parse_spreadsheet};
+use parsers::parse_csv;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
@@ -164,7 +164,7 @@ fn diff_tables(left: &[Vec<String>], right: &[Vec<String>], has_headers: bool) -
                 }).collect(),
                 status: Equal,
             });
-            stats.3 += 1;
+            _ = stats.3 += 1;
             li += 1; ri += 1;
         } else if ri < r.len() && !lcs.contains(&li) {
             // Right-only row

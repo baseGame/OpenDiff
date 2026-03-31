@@ -1,11 +1,8 @@
 //! BCS — Beyond Compare Script — interpreter.
-use diff_engine::{DiffResult, DiffAlgorithm, IgnoreRules, WhitespaceMode, diff_texts, merge_three};
-use vfs::{Vfs, open as open_vfs, VPath};
+use diff_engine::{DiffResult, DiffAlgorithm, IgnoreRules, diff_texts};
 use anyhow::{anyhow, Result};
 use serde::Serialize;
-use std::collections::HashMap;
 use std::path::PathBuf;
-use std::str::FromStr;
 
 // ── Report types (re-exported from here for CLI use) ──────────────────────────
 

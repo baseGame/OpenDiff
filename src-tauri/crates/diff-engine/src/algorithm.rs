@@ -51,7 +51,7 @@ pub fn myers(left: &[&str], right: &[&str]) -> Vec<DiffOp> {
     for (d, snapshot) in trace.iter().enumerate().rev() {
         let d = d as isize;
         let k = x - y;
-        let ki = (k + offset) as usize;
+        let _ki = (k + offset) as usize;
 
         let prev_k = if k == -d || (k != d && snapshot[(k - 1 + offset) as usize] < snapshot[(k + 1 + offset) as usize]) {
             k + 1
@@ -269,9 +269,9 @@ fn lcs_anchors(pairs: &[(usize, usize)]) -> Vec<(usize, usize)> {
     }
 
     // Backtrack
-    let mut result = vec![];
+    let result = vec![];
     if indices.is_empty() { return result; }
-    let mut idx = Some(indices[indices.len() - 1]);
+    let idx = Some(indices[indices.len() - 1]);
     while let Some(i) = idx {
         // find pair at index i
         // we need to re-trace — simplified: just return pairs as-is for now

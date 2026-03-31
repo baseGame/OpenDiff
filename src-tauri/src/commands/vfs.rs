@@ -1,6 +1,4 @@
 use vfs::{LocalVfs, Vfs, VPath, Entry, Metadata};
-use tauri::State;
-use crate::AppState;
 
 #[tauri::command]
 pub async fn cmd_list_dir(path: String) -> Result<Vec<Entry>, String> {

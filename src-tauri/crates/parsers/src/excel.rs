@@ -59,7 +59,7 @@ fn parse_xlsx_simple(path: &str) -> Result<SpreadsheetData> {
     let mut archive = zip::ZipArchive::new(std::io::BufReader::new(file))?;
 
     let mut all_rows: Vec<Vec<String>> = vec![];
-    let mut sheet_name = "Sheet1".to_string();
+    let sheet_name = "Sheet1".to_string();
 
     if let Ok(mut sheet1) = archive.by_name("xl/worksheets/sheet1.xml") {
         let mut xml_content = String::new();

@@ -1,8 +1,6 @@
 use diff_engine::{diff_texts, merge_three, DiffAlgorithm, DiffResult, IgnoreRules, MergeResult, WhitespaceMode, CommentStyle};
-use serde::{Deserialize, Serialize};
-use tauri::State;
+use serde::Deserialize;
 use tokio::fs;
-use crate::AppState;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
