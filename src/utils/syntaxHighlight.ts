@@ -100,8 +100,7 @@ const EXT_MAP: Record<string, string> = {
   xml: 'xml', svg: 'xml',
   md: 'markdown', markdown: 'markdown',
   // Shell
-  sh: 'bash', bash: 'bash', zsh: 'bash', ksh: 'bash',
-  fish: 'bash', sh: 'bash',
+  sh: 'bash', bash: 'bash', zsh: 'bash', ksh: 'bash', fish: 'bash',
   ps1: 'powershell', psm1: 'powershell',
   // Build
   dockerfile: 'dockerfile',

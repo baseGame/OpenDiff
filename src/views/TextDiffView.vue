@@ -12,6 +12,7 @@ import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import { useTabStore } from '@/stores/tabs'
 import { useSettingsStore } from '@/stores/settings'
 import { diffFiles, diffTexts, mergeThree } from '@/api'
+import { highlightLine, detectLanguage } from '@/utils/syntaxHighlight'
 import type { DiffResult, DiffOptions, MergeResult, MergeLine } from '@/types'
 import { open, save } from '@tauri-apps/plugin-dialog'
 import { readFileText } from '@/api'
@@ -36,6 +37,7 @@ const diffResult  = ref<DiffResult | null>(null)
 const mergeResult = ref<MergeResult | null>(null)
 const loading  = ref(false)
 const error    = ref<string | null>(null)
+const detectedLang = ref('plaintext')
 
 // ── Options ──────────────────────────────────────────────────────────
 const ignoreWS       = ref(false)
@@ -236,8 +238,14 @@ const displayRows = computed((): DisplayRow[] => {
 })
 
 // ── Char highlight render ─────────────────────────────────────────────
-function renderWithHighlight(text: string, ranges: [number, number][] | undefined): string {
-  if (!ranges || !ranges.length) return escapeHtml(text)
+function applySyntaxHighlight(text: string, lang: string): string {
+  if (!text || lang === 'plaintext' || lang === 'auto') return escapeHtml(text)
+  try { return highlightLine(text, lang) } catch { return escapeHtml(text) }
+}
+
+function renderWithHighlight(text: string, ranges: [number, number][] | undefined, lang?: string): string {
+  const el = lang && lang !== 'auto' ? applySyntaxHighlight(text, lang) : escapeHtml(text)
+  if (!ranges || !ranges.length) return el
   let out = ''
   let pos = 0
   for (const [s, e] of ranges) {
@@ -322,7 +330,25 @@ const diffCountLabel = computed(() => {
       </div>
 
       <div class="toolbar-mid flex items-center justify-center gap-2">
-        <div v-if="stats" class="stats-badges flex items-center gap-1.5 mr-2">
+        <select v-model="detectedLang" class="lang-select" style="font-size:12px;padding:2px 6px;height:26px;max-width:130px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:4px;color:var(--color-text);cursor:pointer" title="Syntax language">
+        <option value="auto">Auto-detect</option>
+        <option value="plaintext">Plain Text</option>
+        <option value="javascript">JavaScript</option>
+        <option value="typescript">TypeScript</option>
+        <option value="python">Python</option>
+        <option value="rust">Rust</option>
+        <option value="java">Java</option>
+        <option value="cpp">C++</option>
+        <option value="go">Go</option>
+        <option value="xml">HTML/XML</option>
+        <option value="css">CSS</option>
+        <option value="json">JSON</option>
+        <option value="yaml">YAML</option>
+        <option value="sql">SQL</option>
+        <option value="bash">Bash</option>
+        <option value="markdown">Markdown</option>
+      </select>
+      <div v-if="stats" class="stats-badges flex items-center gap-1.5 mr-2">
           <span class="badge badge-add" title="Added lines">+{{ stats.added }}</span>
           <span class="badge badge-del" title="Deleted lines">-{{ stats.deleted }}</span>
           <span class="badge badge-mod" title="Modified lines">~{{ stats.modified }}</span>
@@ -391,7 +417,7 @@ const diffCountLabel = computed(() => {
                 <td
                   class="line-content"
                   v-if="row.leftChars"
-                  v-html="renderWithHighlight(row.leftText, row.leftChars)"
+                  v-html="renderWithHighlight(row.leftText, row.leftChars, detectedLang)"
                 />
                 <td class="line-content" v-else>{{ row.leftText || '\u00a0' }}</td>
               </tr>
@@ -425,7 +451,7 @@ const diffCountLabel = computed(() => {
                 <td
                   class="line-content"
                   v-if="row.rightChars"
-                  v-html="renderWithHighlight(row.rightText, row.rightChars)"
+                  v-html="renderWithHighlight(row.rightText, row.rightChars, detectedLang)"
                 />
                 <td class="line-content" v-else>{{ row.rightText || '\u00a0' }}</td>
               </tr>
