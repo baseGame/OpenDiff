@@ -221,6 +221,19 @@ async function openFileDiff(node: TreeNode) {
 }
 
 // ── Combined display rows ─────────────────────────────────────────────
+// ── Stats ─────────────────────────────────────────────────────────────
+const folderStats = computed(() => {
+  let same = 0, mod = 0, lo = 0, ro = 0
+  for (const row of allNodes.value) {
+    const s = row.left?.diffStatus ?? row.right?.diffStatus ?? 'unknown'
+    if (s === 'same') same++
+    else if (s === 'modified') mod++
+    else if (s === 'left-only') lo++
+    else if (s === 'right-only') ro++
+  }
+  return { same, modified: mod, 'left-only': lo, 'right-only': ro, total: same + mod + lo + ro }
+})
+
 const allNodes = computed((): Array<{ left?: TreeNode; right?: TreeNode; depth: number }> => {
   const rows: Array<{ left?: TreeNode; right?: TreeNode; depth: number }> = []
   function walkPair(ls: TreeNode[], rs: TreeNode[], depth: number) {
@@ -313,7 +326,16 @@ onMounted(() => {
         @click="filterMode = m as FilterMode"
       >{{ m }}</button>
       <div class="flex-1" />
-      <input v-model="excludeGlob" class="input" style="width:180px" placeholder="Exclude: *.tmp;*.log" />
+      <input v-model="excludeGlob" class="input" style="width:180px" placeholder="Exclude: *.tmp;*.log"
+        @keydown.enter="loadAndCompare" title="Press Enter to apply exclude filter" />
+      <!-- Stats summary -->
+      <div v-if="folderStats.total > 0" class="stats-summary text-xs">
+        <span class="stat-eq">✓ {{ folderStats.same }}</span>
+        <span class="stat-mod">~ {{ folderStats.modified }}</span>
+        <span class="stat-lo">← {{ folderStats['left-only'] }}</span>
+        <span class="stat-ro">{{ folderStats['right-only'] }} →</span>
+        <span class="text-muted">/ {{ folderStats.total }} files</span>
+      </div>
     </div>
 
     <!-- Status -->
@@ -417,6 +439,11 @@ onMounted(() => {
 }
 .filter-btn { font-size: 11px; padding: 2px 8px; border-radius: 10px; }
 .filter-btn.active { background: var(--color-accent); color: var(--color-bg); border-color: var(--color-accent); }
+.stats-summary { display: flex; align-items: center; gap: 8px; padding: 2px 8px; background: var(--color-surface); border-radius: 12px; border: 1px solid var(--color-border); flex-shrink: 0; }
+.stat-eq { color: var(--color-green); font-weight: 600; }
+.stat-mod { color: #f59e0b; font-weight: 600; }
+.stat-lo { color: var(--color-red); font-weight: 600; }
+.stat-ro { color: var(--color-accent); font-weight: 600; }
 
 .diff-status { padding: 5px 14px; font-size: 12px; flex-shrink: 0; border-bottom: 1px solid var(--color-border); }
 .diff-status.loading { color: var(--color-accent); }
