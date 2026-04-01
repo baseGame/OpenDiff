@@ -169,7 +169,6 @@ export default {
     confirm: '确认',
     confirm_delete: '再次点击确认删除',
   },
-
   session: {
     save: '💾 保存',
     saved: '已保存 Session！',
@@ -180,16 +179,28 @@ export default {
     search: '搜索 Session...',
     load: '加载',
   },
-
   folder_sync: {
-    title: 'Folder Sync',
-    sync_preview: 'Sync Preview',
-    execute: 'Execute Sync',
-    mode_update_left: 'Update Left',
-    mode_update_right: 'Update Right',
-    mode_update_both: 'Update Both',
-    mode_mirror_left: 'Mirror to Left',
-    mode_mirror_right: 'Mirror to Right',
-    no_actions: 'Folders are in sync — no actions needed',
-    log_title: 'Sync Log',
-  },}
+    title: '文件夹同步',
+    sync_preview: '同步预览',
+    execute: '执行同步',
+    mode_update_left: '更新左侧',
+    mode_update_right: '更新右侧',
+    mode_update_both: '双向更新',
+    mode_mirror_left: '镜像到左侧',
+    mode_mirror_right: '镜像到右侧',
+    no_actions: '文件夹已完全同步，无需任何操作！',
+    log_title: '同步日志',
+  },
+  goto_line: {
+    title: '跳转到行',
+    prompt: '输入行号：',
+    go: '跳转',
+  },
+  importance: {
+    title: '重要性规则',
+    presets: '预设：',
+    add_rule: '添加规则',
+    no_rules: '暂无规则，请添加或选择预设',
+    hint: '匹配的行将从差异视图中隐藏',
+  },
+}

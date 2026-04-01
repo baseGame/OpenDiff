@@ -169,7 +169,6 @@ export default {
     confirm: 'Confirm',
     confirm_delete: 'Click again to confirm deletion',
   },
-
   session: {
     save: 'Save Session',
     saved: 'Session saved!',
@@ -180,7 +179,6 @@ export default {
     search: 'Search sessions...',
     load: 'Load',
   },
-
   folder_sync: {
     title: 'Folder Sync',
     sync_preview: 'Sync Preview',
@@ -192,4 +190,17 @@ export default {
     mode_mirror_right: 'Mirror to Right',
     no_actions: 'Folders are in sync — no actions needed',
     log_title: 'Sync Log',
-  },}
+  },
+  goto_line: {
+    title: 'Go to Line',
+    prompt: 'Enter line number:',
+    go: 'Go',
+  },
+  importance: {
+    title: 'Importance Rules',
+    presets: 'Presets:',
+    add_rule: 'Add Rule',
+    no_rules: 'No rules yet. Add one or choose a preset.',
+    hint: 'Matched lines will be hidden from the diff view',
+  },
+}

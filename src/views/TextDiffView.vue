@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * TextDiffView — Complete clean implementation
+ * TextDiffView — Complete clean implementation with i18n + search + importance rules
  */
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { open } from '@tauri-apps/plugin-dialog'
@@ -11,6 +11,9 @@ import IgnoreToolbar from '@/components/editor/IgnoreToolbar.vue'
 import MergeOutputPanel from '@/components/editor/MergeOutputPanel.vue'
 import DiffMinimap from '@/components/editor/DiffMinimap.vue'
 import SaveSessionDialog from '@/components/SaveSessionDialog.vue'
+import SearchBar from '@/components/SearchBar.vue'
+import GotoLineDialog from '@/components/GotoLineDialog.vue'
+import ImportanceRules from '@/components/ImportanceRules.vue'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
@@ -38,6 +41,10 @@ const leftScrollEl  = ref<HTMLElement | null>(null)
 const rightScrollEl = ref<HTMLElement | null>(null)
 const isDragOver = ref(false)
 const showSaveDialog = ref(false)
+const showGotoLine = ref(false)
+const showImportanceRules = ref(false)
+const searchBarRef = ref<any>(null)
+const importanceRules = ref<any[]>([])
 let dragCounter = 0
 
 const langOptions = [
@@ -121,8 +128,7 @@ function scrollToIdx(idx: number) {
 // ── Stats ─────────────────────────────────────────────────────
 const stats = computed(() => diffResult.value?.stats ?? { added: 0, deleted: 0, modified: 0, equal: 0 })
 
-// ── HTML rendering (no dangerous innerHTML in script) ───────────
-// renderLeft/Right return safe HTML strings for v-html
+// ── HTML rendering ──────────────────────────────────────────────
 function escapeHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 }
@@ -155,21 +161,29 @@ const rows = computed((): Row[] => {
   return r
 })
 
-// ── Save session ───────────────────────────────────────────────
-async function handleSaveSession(name: string, _kind: any) {
-  if (!leftPath.value && !rightPath.value) return
-  try {
-    await saveSession({
-      id: `s_${Date.now()}`,
-      name,
-      kind: 'text_diff',
-      left_path: leftPath.value,
-      right_path: rightPath.value,
-      config: { algorithm: algorithm.value, ignore_whitespace: ignoreWS.value, ignore_case: ignoreCase.value, ignore_comments: ignoreComments.value, extra: null },
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    })
-  } catch { /* ignore */ }
+// ── Importance rules ────────────────────────────────────────────
+function isRowIgnored(text: string): boolean {
+  if (!importanceRules.value?.length) return false
+  const lower = text.toLowerCase()
+  return importanceRules.value.filter((r: any) => r.enabled).some((r: any) => {
+    try { return r.isRegex ? new RegExp(r.pattern, 'i').test(lower) : lower.includes(r.pattern.toLowerCase()) } catch { return false }
+  })
+}
+
+const filteredRows = computed(() => {
+  const rendered = renderedRows.value
+  if (!importanceRules.value?.length) return rendered
+  return rendered.filter((row: any) => !isRowIgnored(row.lt + ' ' + row.rt))
+})
+
+// ── Jump to line ───────────────────────────────────────────────
+function onGotoLine(line: number) {
+  leftScrollEl.value?.scrollTo({ top: Math.max(0, (line - 1) * 22 - 200), behavior: 'smooth' })
+}
+
+// ── Search jump ─────────────────────────────────────────────────
+function onSearchJump(idx: number) {
+  leftScrollEl.value?.scrollTo({ top: Math.max(0, idx * 22 - 200), behavior: 'smooth' })
 }
 
 // ── Merge ─────────────────────────────────────────────────────
@@ -179,6 +193,16 @@ async function runMerge() {
   try { mergeResult.value = await mergeThree(leftContent.value, rightContent.value, ''); showMerge.value = true }
   catch (e: any) { error.value = String(e) }
   finally { loading.value = false }
+}
+
+// ── Save session ───────────────────────────────────────────────
+async function handleSaveSession(name: string, _kind: any) {
+  if (!leftPath.value && !rightPath.value) return
+  try {
+    await saveSession({ id: `s_${Date.now()}`, name, kind: 'text_diff', left_path: leftPath.value, right_path: rightPath.value,
+      config: { algorithm: algorithm.value, ignore_whitespace: ignoreWS.value, ignore_case: ignoreCase.value, ignore_comments: ignoreComments.value, extra: null },
+      created_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+  } catch { /* ignore */ }
 }
 
 // ── Drag & Drop ───────────────────────────────────────────────
@@ -201,11 +225,8 @@ function onKeydown(e: KeyboardEvent) {
   if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
   if (e.key === 'F7') { e.preventDefault(); jumpToDiff(-1) }
   if (e.key === 'F8') { e.preventDefault(); jumpToDiff(1) }
-  if (e.ctrlKey || e.metaKey) {
-    if (e.key === ',') { e.preventDefault(); router.push('/settings') }
-    if (e.key === 'o' && !e.shiftKey) { e.preventDefault(); loadFile('left') }
-    if (e.key === 'O' || (e.shiftKey && e.key === 'o')) { e.preventDefault(); loadFile('right') }
-  }
+  if ((e.ctrlKey || e.metaKey) && e.key === 'g') { e.preventDefault(); showGotoLine.value = true }
+  if ((e.ctrlKey || e.metaKey) && e.key === 'f') { e.preventDefault(); searchBarRef.value?.$el?.querySelector('input')?.focus() }
 }
 onMounted(() => window.addEventListener('keydown', onKeydown))
 onUnmounted(() => window.removeEventListener('keydown', onKeydown))
@@ -217,8 +238,7 @@ function onRightScroll(e: Event) { leftScrollEl.value && (leftScrollEl.value.scr
 // ── Minimap ──────────────────────────────────────────────────
 function onMinimapClick(idx: number) { leftScrollEl.value?.scrollTo({ top: idx * 22 - 200, behavior: 'smooth' }) }
 
-// ── Computed row text for v-html ─────────────────────────────
-// Each row's left/right text rendered as HTML, stored in the row object
+// ── Rendered rows ─────────────────────────────────────────────
 const renderedRows = computed(() => rows.value.map(row => ({
   ...row,
   lHtml: hl(row.lt, effectiveLang.value),
@@ -260,12 +280,15 @@ const renderedRows = computed(() => rows.value.map(row => ({
       <IgnoreToolbar v-model:algorithm="algorithm" v-model:ignoreWs="ignoreWS"
         v-model:ignoreCase="ignoreCase" v-model:ignoreComments="ignoreComments"
         v-model:showOnlyDiffs="showOnlyDiffs" v-model:syncScroll="syncScroll" v-model:wordWrap="wordWrap"
-        @change="if (leftContent && rightContent) runDiff()" />
+        @change="leftContent && rightContent ? runDiff() : undefined" />
       <div style="flex:1" />
       <button class="tdv-btn" @click="jumpToDiff(-1)" :disabled="currentDiffIdx <= 0">↑</button>
       <button class="tdv-btn" @click="jumpToDiff(1)" :disabled="currentDiffIdx >= diffIdxs.length - 1">↓</button>
       <button class="tdv-btn" :class="{ 'tdv-btn-on': showMerge }" @click="showMerge = !showMerge">{{ $t('text_diff.merge_panel') }}</button>
-      <button class="tdv-btn" @click="showSaveDialog = true">{{ $t('session.save') || '💾' }}</button>
+      <button class="tdv-btn" @click="showSaveDialog = true">{{ $t('session.save') || 'Save' }}</button>
+      <button class="tdv-btn" @click="showImportanceRules = true" title="Importance Rules">⚙</button>
+      <div style="flex:1" />
+      <SearchBar ref="searchBarRef" :total="rows.length" @jump="onSearchJump" />
       <div style="flex:1" />
       <div class="tdv-stats" v-if="diffResult">
         <span class="s-add">+{{ stats.added }}</span>
@@ -275,45 +298,35 @@ const renderedRows = computed(() => rows.value.map(row => ({
     </div>
 
     <!-- Status bar -->
-    <div v-if="loading" class="tdv-status tdv-ldg">
-      <div class="tdv-spin" />{{ $t('text_diff.computing') }}
-    </div>
-    <div v-else-if="error" class="tdv-status tdv-err">
-      ⚠ {{ error }} <button class="tdv-rtry" @click="runDiff">{{ $t('text_diff.retry') }}</button>
-    </div>
-    <div v-else-if="!diffResult" class="tdv-status tdv-hint">
-      📂 {{ $t('text_diff.no_diff') }}
-    </div>
+    <div v-if="loading" class="tdv-status tdv-ldg"><div class="tdv-spin" />{{ $t('text_diff.computing') }}</div>
+    <div v-else-if="error" class="tdv-status tdv-err">⚠ {{ error }} <button class="tdv-rtry" @click="runDiff">{{ $t('text_diff.retry') }}</button></div>
+    <div v-else-if="!diffResult" class="tdv-status tdv-hint">📂 {{ $t('text_diff.no_diff') }}</div>
 
     <!-- Split diff -->
     <div class="tdv-body" v-if="diffResult">
       <div class="tdv-pane">
         <div class="tdv-phdr">{{ leftPath || 'Untitled' }}</div>
         <div class="tdv-scrl" ref="leftScrollEl" @scroll="onLeftScroll">
-          <table class="tdv-tbl">
-            <tbody>
-              <tr v-for="(row, ri) in renderedRows" :key="ri" :class="`r-${row.st}`">
-                <td class="tdv-num">{{ row.li !== null ? row.li + 1 : '' }}</td>
-                <td class="tdv-gut" />
-                <td class="tdv-cell" v-html="row.lHtml" />
-              </tr>
-            </tbody>
-          </table>
+          <table class="tdv-tbl"><tbody>
+            <tr v-for="(row, ri) in filteredRows" :key="ri" :class="`r-${row.st}`">
+              <td class="tdv-num">{{ row.li !== null ? row.li + 1 : '' }}</td>
+              <td class="tdv-gut" />
+              <td class="tdv-cell" v-html="row.lHtml" />
+            </tr>
+          </tbody></table>
         </div>
       </div>
       <div class="tdv-div" />
       <div class="tdv-pane">
         <div class="tdv-phdr">{{ rightPath || 'Untitled' }}</div>
         <div class="tdv-scrl" ref="rightScrollEl" @scroll="onRightScroll">
-          <table class="tdv-tbl">
-            <tbody>
-              <tr v-for="(row, ri) in renderedRows" :key="ri" :class="`r-${row.st}`">
-                <td class="tdv-num">{{ row.ri !== null ? row.ri + 1 : '' }}</td>
-                <td class="tdv-gut" />
-                <td class="tdv-cell" v-html="row.rHtml" />
-              </tr>
-            </tbody>
-          </table>
+          <table class="tdv-tbl"><tbody>
+            <tr v-for="(row, ri) in filteredRows" :key="ri" :class="`r-${row.st}`">
+              <td class="tdv-num">{{ row.ri !== null ? row.ri + 1 : '' }}</td>
+              <td class="tdv-gut" />
+              <td class="tdv-cell" v-html="row.rHtml" />
+            </tr>
+          </tbody></table>
         </div>
       </div>
       <DiffMinimap :diff-result="diffResult" @scroll-to="onMinimapClick" />
@@ -328,8 +341,15 @@ const renderedRows = computed(() => rows.value.map(row => ({
     </div>
 
     <!-- Merge panel -->
-    <MergeOutputPanel v-if="showMerge" :merge-result="mergeResult" class="tdv-mrg"
-      @close="showMerge = false" @run-merge="runMerge" />
+    <MergeOutputPanel v-if="showMerge" :merge-result="mergeResult" class="tdv-mrg" @close="showMerge = false" @run-merge="runMerge" />
+
+    <!-- Goto line -->
+    <GotoLineDialog :visible="showGotoLine" :max-line="rows.length" @goto="onGotoLine" @close="showGotoLine = false" />
+
+    <!-- Importance rules -->
+    <ImportanceRules :visible="showImportanceRules" :rules="importanceRules"
+      @close="showImportanceRules = false" @update="r => { importanceRules = r }" />
+
     <!-- Save dialog -->
     <SaveSessionDialog :visible="showSaveDialog" kind="text_diff" :left-path="leftPath" :right-path="rightPath"
       @close="showSaveDialog = false" @save="handleSaveSession" />
@@ -362,8 +382,8 @@ const renderedRows = computed(() => rows.value.map(row => ({
 .tdv-ldg { color:var(--color-accent); background:rgba(137,180,250,.08) }
 .tdv-err { color:var(--color-red); background:rgba(243,139,168,.08) }
 .tdv-hint { color:var(--color-text-muted); background:var(--color-bg2) }
-.tdv-spin { width:14px; height:14px; border:2px solid currentColor; border-top-color:transparent; border-radius:50%; animation:sp 0.7s linear infinite; flex-shrink:0 }
-@keyframes sp { to { transform: rotate(360deg) } }
+.tdv-spin { width:14px; height:14px; border:2px solid currentColor; border-top-color:transparent; border-radius:50%; animation:sp .7s linear infinite; flex-shrink:0 }
+@keyframes sp { to { transform:rotate(360deg) } }
 .tdv-rtry { padding:2px 10px; border:1px solid var(--color-red); border-radius:10px; background:transparent; color:var(--color-red); font-size:11px; cursor:pointer }
 .tdv-rtry:hover { background:rgba(239,68,68,.1) }
 .tdv-body { display:flex; flex:1; overflow:hidden }
