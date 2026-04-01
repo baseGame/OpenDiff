@@ -306,6 +306,8 @@ onMounted(() => {
 })
 </script>
 
+</script>
+
 <template>
   <div class="folder-diff-view flex flex-col h-full overflow-hidden">
 

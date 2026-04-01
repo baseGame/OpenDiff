@@ -166,8 +166,8 @@ function fmtDate(dt: string) {
 
       <section class="sessions-section">
         <div class="sessions-header">
-          <h2 class="section-title">RECENT SESSIONS</h2>
-          <button class="view-all-btn" @click="router.push('/history')">View All History</button>
+          <h2 class="section-title">{{ $t('home.recent_sessions') }}</h2>
+          <button class="view-all-btn" @click="router.push('/history')">{{ $t('home.view_all_history') }}</button>
         </div>
         
         <div class="session-list" v-if="sessions.length">
@@ -210,7 +210,7 @@ function fmtDate(dt: string) {
 
     <aside class="home-aside">
       <div class="aside-section">
-        <h2 class="section-title">WORKSPACE STATUS</h2>
+        <h2 class="section-title">{{ $t('home.workspace_status') }}</h2>
         <div class="status-card">
           <div class="status-header">
             <span>Disk Usage</span>
@@ -223,7 +223,7 @@ function fmtDate(dt: string) {
       </div>
 
       <div class="aside-section">
-        <h2 class="section-title">SAVED PROFILES</h2>
+        <h2 class="section-title">{{ $t('home.saved_profiles') }}</h2>
         <div class="profile-list">
           <button v-for="p in profiles" :key="p.label" class="profile-item" @click="openProfile(p.kind)" :title="p.desc">
             <div class="profile-info">

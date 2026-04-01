@@ -1,7 +1,8 @@
 import { defineStore } from 'pinia'
-import { ref, watch } from 'vue'
+import { ref } from 'vue'
 import type { AppSettings, ThemeMode } from '@/types'
 import { getSettings, saveSettings } from '@/api'
+import { setLocale, type LocaleCode } from '@/i18n'
 
 const DEFAULT: AppSettings = {
   theme: 'auto',
@@ -12,6 +13,7 @@ const DEFAULT: AppSettings = {
   show_whitespace: false,
   word_wrap: false,
   auto_save_sessions: true,
+  language: 'en',
 }
 
 export const useSettingsStore = defineStore('settings', () => {
@@ -20,26 +22,37 @@ export const useSettingsStore = defineStore('settings', () => {
 
   async function load() {
     try {
-      settings.value = await getSettings()
+      const loadedSettings = await getSettings()
+      // Merge with defaults to fill missing fields (e.g. language)
+      settings.value = { ...DEFAULT, ...loadedSettings }
     } catch {
       settings.value = { ...DEFAULT }
     }
     loaded.value = true
-    applyTheme(settings.value.theme)
+    applyAll(settings.value)
   }
 
   async function save() {
     await saveSettings(settings.value)
-    applyTheme(settings.value.theme)
+    applyAll(settings.value)
+  }
+
+  function applyAll(s: AppSettings) {
+    applyTheme(s.theme)
+    setLocale(s.language as LocaleCode)
+    document.documentElement.style.setProperty('--font-mono', s.font_family)
+    document.documentElement.style.setProperty('--editor-font-size', `${s.font_size}px`)
   }
 
   function applyTheme(theme: ThemeMode) {
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
     const dark = theme === 'dark' || (theme === 'auto' && prefersDark)
     document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light')
-    document.documentElement.style.setProperty('--font-mono', settings.value.font_family)
-    document.documentElement.style.setProperty('--editor-font-size', `${settings.value.font_size}px`)
   }
 
-  return { settings, loaded, load, save }
+  function resetDefaults() {
+    settings.value = { ...DEFAULT }
+  }
+
+  return { settings, loaded, load, save, resetDefaults }
 })

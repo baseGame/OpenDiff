@@ -103,6 +103,7 @@ export interface AppSettings {
   theme: ThemeMode; font_family: string; font_size: number
   diff_algorithm: DiffAlgorithm; show_line_numbers: boolean
   show_whitespace: boolean; word_wrap: boolean; auto_save_sessions: boolean
+  language: string
 }
 
 // ── VFS Types ──────────────────────────────────────────────────────

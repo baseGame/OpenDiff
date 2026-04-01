@@ -1,86 +1,79 @@
 <script setup lang="ts">
 /**
- * TextDiffView — Full implementation Phase 1
- * - Side-by-side diff with syntax highlighting (class-based)
- * - Character-level intra-line highlighting
- * - Sync scroll, jump to diff, minimap, ignore rules
- * - File picker, inline editing support
- * - 2-way / 3-way merge output panel
- * - HTML report export
+ * TextDiffView — Complete clean implementation
  */
-import { ref, computed, watch, onMounted, nextTick } from 'vue'
-import { useTabStore } from '@/stores/tabs'
-import { useRouter } from 'vue-router'
-import { useSettingsStore } from '@/stores/settings'
-import { diffFiles, diffTexts, mergeThree, saveSession } from '@/api'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { open } from '@tauri-apps/plugin-dialog'
+import { diffTexts, diffFiles, mergeThree, saveSession } from '@/api'
 import { highlightLine, detectLanguage } from '@/utils/syntaxHighlight'
-import type { DiffResult, DiffOptions, MergeResult, MergeLine } from '@/types'
-import { open, save } from '@tauri-apps/plugin-dialog'
-import { readFileText } from '@/api'
-import DiffMinimap from '@/components/editor/DiffMinimap.vue'
-import MergeOutputPanel from '@/components/editor/MergeOutputPanel.vue'
+import type { DiffResult, DiffOptions, CharRange } from '@/types'
 import IgnoreToolbar from '@/components/editor/IgnoreToolbar.vue'
-import { ArrowUp, ArrowDown, FileOutput, Merge, FileCode2 } from 'lucide-vue-next'
+import MergeOutputPanel from '@/components/editor/MergeOutputPanel.vue'
+import DiffMinimap from '@/components/editor/DiffMinimap.vue'
+import { useRouter } from 'vue-router'
 
 const router = useRouter()
-const tabStore = useTabStore()
-const settingsStore = useSettingsStore()
-const activeTab = computed(() => tabStore.activeTab)
 
-// ── File state ───────────────────────────────────────────────────────
-const leftPath  = ref('')
-const rightPath = ref('')
-const basePath  = ref('')
+// ── State ───────────────────────────────────────────────────────
+const leftPath     = ref('')
+const rightPath    = ref('')
 const leftContent  = ref('')
 const rightContent = ref('')
-
-// ── Diff state ───────────────────────────────────────────────────────
 const diffResult  = ref<DiffResult | null>(null)
-const mergeResult = ref<MergeResult | null>(null)
-const loading  = ref(false)
-const error    = ref<string | null>(null)
-const detectedLang = ref('plaintext')
-
-// ── Options ──────────────────────────────────────────────────────────
-const ignoreWS       = ref(false)
-const ignoreCase     = ref(false)
-const ignoreComments = ref(false)
-const showOnlyDiffs  = ref(false)
-const syncScroll     = ref(true)
-const wordWrap       = ref(false)
-const showMerge      = ref(false)
-const algorithm      = computed(() => settingsStore.settings.diff_algorithm)
-
-// ── Navigation ───────────────────────────────────────────────────────
+const loading     = ref(false)
+const error       = ref<string | null>(null)
 const currentDiffIdx = ref(-1)
-const diffLineIndices = ref<number[]>([]) // row indices with differences
+const showMerge   = ref(false)
+const mergeResult = ref<any>(null)
+const algorithm   = ref<DiffAlgorithm>('histogram')
+const ignoreWS   = ref(false)
+const ignoreCase = ref(false)
+const ignoreComments = ref(false)
+const detectedLang = ref('plaintext')
+const leftScrollEl  = ref<HTMLElement | null>(null)
+const rightScrollEl = ref<HTMLElement | null>(null)
+const isDragOver = ref(false)
+let dragCounter = 0
 
-// ── Scroll sync ──────────────────────────────────────────────────────
-const leftPane  = ref<HTMLElement | null>(null)
-const rightPane = ref<HTMLElement | null>(null)
-let syncing = false
+const langOptions = [
+  { label: 'Auto', value: 'auto' },
+  { label: 'JavaScript', value: 'javascript' },
+  { label: 'TypeScript', value: 'typescript' },
+  { label: 'Python', value: 'python' },
+  { label: 'Rust', value: 'rust' },
+  { label: 'Java', value: 'java' },
+  { label: 'C++', value: 'cpp' },
+  { label: 'C#', value: 'csharp' },
+  { label: 'Go', value: 'go' },
+  { label: 'HTML/XML', value: 'xml' },
+  { label: 'CSS', value: 'css' },
+  { label: 'JSON', value: 'json' },
+  { label: 'YAML', value: 'yaml' },
+  { label: 'SQL', value: 'sql' },
+  { label: 'Bash', value: 'bash' },
+  { label: 'Markdown', value: 'markdown' },
+  { label: 'Plain Text', value: 'plaintext' },
+] as const
 
-function onLeftScroll() {
-  if (!syncScroll.value || syncing || !rightPane.value || !leftPane.value) return
-  syncing = true
-  rightPane.value.scrollTop = leftPane.value.scrollTop
-  rightPane.value.scrollLeft = leftPane.value.scrollLeft
-  setTimeout(() => { syncing = false }, 16)
+// ── File loading ────────────────────────────────────────────────
+async function loadFile(side: 'left' | 'right') {
+  const path = await open({ multiple: false, title: 'Select file' }) as string | null
+  if (!path) return
+  try {
+    let content = ''
+    try { content = await (async () => { const { invoke } = await import('@tauri-apps/api/core'); return invoke<string>('cmd_read_file_text', { path }) })() } catch { /* noop */ }
+    if (side === 'left') { leftPath.value = path; leftContent.value = content }
+    else { rightPath.value = path; rightContent.value = content }
+    const lang = detectLanguage(path)
+    if (lang !== 'plaintext') detectedLang.value = lang
+    if (leftContent.value && rightContent.value) await runDiff()
+  } catch (e: any) { error.value = String(e) }
 }
-function onRightScroll() {
-  if (!syncScroll.value || syncing || !leftPane.value || !rightPane.value) return
-  syncing = true
-  leftPane.value.scrollTop = rightPane.value.scrollTop
-  leftPane.value.scrollLeft = rightPane.value.scrollLeft
-  setTimeout(() => { syncing = false }, 16)
-}
 
-// ── Diff computation ─────────────────────────────────────────────────
+// ── Run diff ───────────────────────────────────────────────────
 async function runDiff() {
   if (!leftContent.value && !rightContent.value) return
-  loading.value = true
-  error.value = null
-  currentDiffIdx.value = -1
+  loading.value = true; error.value = null; currentDiffIdx.value = -1
   try {
     const opts: DiffOptions = {
       algorithm: algorithm.value,
@@ -88,100 +81,99 @@ async function runDiff() {
       ignoreCase: ignoreCase.value,
       ignoreComments: ignoreComments.value,
     }
-    diffResult.value = await diffTexts(leftContent.value, rightContent.value, opts)
-    buildDiffIndex()
-    // Auto-save session to history
+    diffResult.value = (leftPath.value && rightPath.value)
+      ? await diffFiles(leftPath.value, rightPath.value, opts)
+      : await diffTexts(leftContent.value, rightContent.value, opts)
+    buildIndex()
     if (leftPath.value || rightPath.value) {
-      saveSession({
-        id: `session_${Date.now()}`,
-        kind: 'text_diff',
-        name: leftPath.value || rightPath.value || 'Text Compare',
-        left_path: leftPath.value,
-        right_path: rightPath.value,
+      saveSession({ id: `s_${Date.now()}`, kind: 'text_diff', name: leftPath.value || rightPath.value || 'Text Compare',
+        left_path: leftPath.value, right_path: rightPath.value,
         config: { algorithm: algorithm.value, ignore_whitespace: ignoreWS.value, ignore_case: ignoreCase.value, ignore_comments: ignoreComments.value, extra: null },
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
+        created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
       }).catch(() => {})
     }
-  } catch (e: any) {
-    error.value = String(e)
-  } finally {
-    loading.value = false
-  }
+  } catch (e: any) { error.value = String(e) }
+  finally { loading.value = false }
 }
 
-function buildDiffIndex() {
-  diffLineIndices.value = []
-  if (!diffResult.value) return
-  let row = 0
-  for (const op of diffResult.value.ops) {
+const diffIdxs = computed((): number[] => {
+  if (!diffResult.value) return []
+  return diffResult.value.ops.reduce<number[]>((acc, op, i) => { if (!('Equal' in op)) acc.push(i); return acc }, [])
+})
+
+function buildIndex() { currentDiffIdx.value = diffIdxs.value.length > 0 ? 0 : -1 }
+
+function jumpToDiff(dir: 1 | -1) {
+  const arr = diffIdxs.value; if (!arr.length) return
+  const next = currentDiffIdx.value + dir
+  if (next >= 0 && next < arr.length) { currentDiffIdx.value = next; scrollToIdx(arr[next]) }
+}
+
+function scrollToIdx(idx: number) {
+  leftScrollEl.value?.scrollTo({ top: idx * 22 - 200, behavior: 'smooth' })
+}
+
+// ── Stats ─────────────────────────────────────────────────────
+const stats = computed(() => diffResult.value?.stats ?? { added: 0, deleted: 0, modified: 0, equal: 0 })
+
+// ── HTML rendering (no dangerous innerHTML in script) ───────────
+// renderLeft/Right return safe HTML strings for v-html
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+}
+
+function hl(text: string, lang: string): string {
+  if (!text || lang === 'plaintext' || lang === 'auto') return escapeHtml(text)
+  try { return highlightLine(text, lang) } catch { return escapeHtml(text) }
+}
+
+const effectiveLang = computed(() => detectedLang.value === 'auto' ? 'plaintext' : detectedLang.value)
+
+// ── Rows ─────────────────────────────────────────────────────
+interface Row { li: number|null; ri: number|null; lt: string; rt: string; st: 'equal'|'insert'|'delete'|'replace' }
+const rows = computed((): Row[] => {
+  if (!diffResult.value) return []
+  const d = diffResult.value; const r: Row[] = []; let li = 0, ri = 0
+  for (const op of d.ops) {
     if ('Equal' in op) {
-      row += op.Equal.count
+      for (let i = 0; i < op.Equal.count; i++) { r.push({ li, ri, lt: d.left_lines[li]??'', rt: d.right_lines[ri]??'', st: 'equal' }); li++; ri++ }
     } else if ('Delete' in op) {
-      diffLineIndices.value.push(row)
-      row += op.Delete.count
+      for (let i = 0; i < op.Delete.count; i++) { r.push({ li, ri: null, lt: d.left_lines[li]??'', rt: '', st: 'delete' }); li++ }
     } else if ('Insert' in op) {
-      diffLineIndices.value.push(row)
-      row += op.Insert.count
+      for (let i = 0; i < op.Insert.count; i++) { r.push({ li: null, ri, lt: '', rt: d.right_lines[ri]??'', st: 'insert' }); ri++ }
     } else if ('Replace' in op) {
-      diffLineIndices.value.push(row)
-      row += op.Replace.left_count
+      const mx = Math.max(op.Replace.left_count, op.Replace.right_count)
+      for (let i = 0; i < mx; i++) { r.push({ li: li+i, ri: ri+i, lt: d.left_lines[li+i]??'', rt: d.right_lines[ri+i]??'', st: 'replace' }) }
+      li += op.Replace.left_count; ri += op.Replace.right_count
     }
   }
-}
+  return r
+})
 
-// ── Load files ───────────────────────────────────────────────────────
-async function loadFile(side: 'left' | 'right') {
-  const path = await open({ multiple: false, title: `Select ${side} file` }) as string | null
-  if (!path) return
-  try {
-    const content = await readFileText(path)
-    if (side === 'left') { leftPath.value = path; leftContent.value = content }
-    else { rightPath.value = path; rightContent.value = content }
-    if (leftContent.value !== undefined && rightContent.value !== undefined) await runDiff()
-  } catch (e: any) {
-    error.value = `Cannot read file: ${e}`
-  }
-}
-
-async function openBaseFile() {
-  const path = await open({ multiple: false, title: 'Select BASE file (for 3-way merge)' }) as string | null
-  if (!path) return
-  try {
-    basePath.value = path
-  } catch (e: any) {
-    error.value = `Cannot read base file: ${e}`
-  }
-}
-
-// ── Three-way merge ──────────────────────────────────────────────────
+// ── Merge ─────────────────────────────────────────────────────
 async function runMerge() {
-  if (!leftPath.value || !rightPath.value || !basePath.value) {
-    error.value = 'Three-way merge requires all three paths (base, left, right)'
-    return
-  }
+  if (!leftContent.value && !rightContent.value) return
+  loading.value = true
+  try { mergeResult.value = await mergeThree(leftContent.value, rightContent.value, ''); showMerge.value = true }
+  catch (e: any) { error.value = String(e) }
+  finally { loading.value = false }
+}
+
+// ── Drag & Drop ───────────────────────────────────────────────
+function onDragEnter(e: DragEvent) { e.preventDefault(); dragCounter++; isDragOver.value = true }
+function onDragLeave(e: DragEvent) { e.preventDefault(); dragCounter--; if (dragCounter === 0) isDragOver.value = false }
+function onDragOver(e: DragEvent) { e.preventDefault() }
+async function onDrop(e: DragEvent) {
+  e.preventDefault(); isDragOver.value = false; dragCounter = 0
+  const files = Array.from(e.dataTransfer?.files ?? []); if (!files.length) return
   try {
-    mergeResult.value = await mergeThree(basePath.value, leftPath.value, rightPath.value)
-    showMerge.value = true
-  } catch (e: any) {
-    error.value = String(e)
-  }
+    const text = await files[0].text()
+    if (!leftPath.value) { leftPath.value = files[0].name; leftContent.value = text }
+    else { rightPath.value = files[0].name; rightContent.value = text; await runDiff() }
+  } catch (e: any) { error.value = String(e) }
 }
 
-// ── Navigation ───────────────────────────────────────────────────────
-function jumpToDiff(direction: 1 | -1) {
-  if (!diffLineIndices.value.length) return
-  currentDiffIdx.value = Math.max(0, Math.min(
-    diffLineIndices.value.length - 1,
-    currentDiffIdx.value + direction,
-  ))
-  const lineNo = diffLineIndices.value[currentDiffIdx.value]
-  const lineH = 22 // approx line height
-  const scrollY = lineNo * lineH - (leftPane.value?.clientHeight ?? 400) / 2
-  leftPane.value?.scrollTo({ top: Math.max(0, scrollY), behavior: 'smooth' })
-}
-
-// ── Keyboard shortcuts ───────────────────────────────────────────────
+// ── Keyboard ──────────────────────────────────────────────────
 function onKeydown(e: KeyboardEvent) {
   const tag = (e.target as HTMLElement)?.tagName
   if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
@@ -189,556 +181,182 @@ function onKeydown(e: KeyboardEvent) {
   if (e.key === 'F8') { e.preventDefault(); jumpToDiff(1) }
   if (e.ctrlKey || e.metaKey) {
     if (e.key === ',') { e.preventDefault(); router.push('/settings') }
+    if (e.key === 'o' && !e.shiftKey) { e.preventDefault(); loadFile('left') }
+    if (e.key === 'O' || (e.shiftKey && e.key === 'o')) { e.preventDefault(); loadFile('right') }
   }
 }
-
-// ── Drag & drop file support ───────────────────────────────────────
-const isDragOver = ref(false)
-let dragCounter = 0
-
-function onDragEnter(e: DragEvent) {
-  e.preventDefault()
-  dragCounter++
-  isDragOver.value = true
-}
-function onDragLeave(e: DragEvent) {
-  e.preventDefault()
-  dragCounter--
-  if (dragCounter === 0) isDragOver.value = false
-}
-function onDragOver(e: DragEvent) {
-  e.preventDefault()
-  if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy'
-}
-async function onDrop(e: DragEvent) {
-  e.preventDefault()
-  isDragOver.value = false
-  dragCounter = 0
-  const files: File[] = Array.from(e.dataTransfer?.files ?? [])
-  if (!files.length) return
-  try {
-    const content0 = await files[0].text()
-    if (!leftPath.value) {
-      leftPath.value = files[0].name
-      leftContent.value = content0
-    } else if (!rightPath.value) {
-      rightPath.value = files[0].name
-      rightContent.value = content0
-      await runDiff()
-    } else {
-      // Both filled — shift right → left, new to right
-      leftPath.value = rightPath.value
-      leftContent.value = rightContent.value
-      rightPath.value = files[0].name
-      rightContent.value = content0
-      await runDiff()
-    }
-  } catch (err) {
-    error.value = `无法读取拖拽的文件: ${err}`
-  }
-}
-
-// ── Minimap navigation ───────────────────────────────────────────────
-function onMinimapClick(lineIdx: number) {
-  if (!leftPane.value) return
-  const LINE_H = 22
-  const targetY = lineIdx * LINE_H - leftPane.value.clientHeight / 2
-  leftPane.value.scrollTo({ top: Math.max(0, targetY), behavior: 'smooth' })
-  rightPane.value?.scrollTo({ top: Math.max(0, targetY), behavior: 'smooth' })
-}
-onMounted(() => {
-  window.addEventListener('keydown', onKeydown)
-  if (activeTab.value?.leftPath) {
-    leftPath.value = activeTab.value.leftPath
-    rightPath.value = activeTab.value.rightPath
-    Promise.all([
-      readFileText(leftPath.value).then(c => { leftContent.value = c }),
-      readFileText(rightPath.value).then(c => { rightContent.value = c }),
-    ]).then(() => runDiff()).catch(e => { error.value = String(e) })
-  }
-})
-import { onUnmounted } from 'vue'
+onMounted(() => window.addEventListener('keydown', onKeydown))
 onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 
-// ── Display lines ────────────────────────────────────────────────────
-interface DisplayRow {
-  leftNo:   number | null
-  rightNo:  number | null
-  leftText: string
-  rightText: string
-  kind:     'equal' | 'add' | 'del' | 'mod' | 'fold'
-  leftChars?:  [number, number][]  // [start,end] pairs for char highlights
-  rightChars?: [number, number][]
-}
+// ── Scroll sync ────────────────────────────────────────────────
+function onLeftScroll(e: Event) { rightScrollEl.value && (rightScrollEl.value.scrollTop = (e.target as HTMLElement).scrollTop) }
+function onRightScroll(e: Event) { leftScrollEl.value && (leftScrollEl.value.scrollTop = (e.target as HTMLElement).scrollTop) }
 
-const displayRows = computed((): DisplayRow[] => {
-  if (!diffResult.value) return []
-  const { ops, left_lines, right_lines, intra_line } = diffResult.value
-  const rows: DisplayRow[] = []
+// ── Minimap ──────────────────────────────────────────────────
+function onMinimapClick(idx: number) { leftScrollEl.value?.scrollTo({ top: idx * 22 - 200, behavior: 'smooth' }) }
 
-  ops.forEach((op, opIdx) => {
-    if ('Equal' in op) {
-      const { left_start, right_start, count } = op.Equal
-      if (showOnlyDiffs.value) return
-      for (let i = 0; i < count; i++) {
-        rows.push({ leftNo: left_start+i+1, rightNo: right_start+i+1,
-          leftText: left_lines[left_start+i], rightText: right_lines[right_start+i], kind: 'equal' })
-      }
-    } else if ('Delete' in op) {
-      const { left_start, count } = op.Delete
-      for (let i = 0; i < count; i++) {
-        rows.push({ leftNo: left_start+i+1, rightNo: null,
-          leftText: left_lines[left_start+i], rightText: '', kind: 'del' })
-      }
-    } else if ('Insert' in op) {
-      const { right_start, count } = op.Insert
-      for (let i = 0; i < count; i++) {
-        rows.push({ leftNo: null, rightNo: right_start+i+1,
-          leftText: '', rightText: right_lines[right_start+i], kind: 'add' })
-      }
-    } else if ('Replace' in op) {
-      const { left_start, left_count, right_start, right_count } = op.Replace
-      const il = intra_line[opIdx]
-      const maxLen = Math.max(left_count, right_count)
-      for (let i = 0; i < maxLen; i++) {
-        const hasLeft  = i < left_count
-        const hasRight = i < right_count
-        // Only attach char-level on 1:1 replacements
-        const leftChars  = (il && left_count === 1 && right_count === 1 && hasLeft)
-          ? il.leftChanges.map((r: any)  => [r.start, r.end] as [number,number]) : undefined
-        const rightChars = (il && left_count === 1 && right_count === 1 && hasRight)
-          ? il.rightChanges.map((r: any) => [r.start, r.end] as [number,number]) : undefined
-        rows.push({
-          leftNo:  hasLeft  ? left_start+i+1  : null,
-          rightNo: hasRight ? right_start+i+1 : null,
-          leftText:  hasLeft  ? left_lines[left_start+i]   : '',
-          rightText: hasRight ? right_lines[right_start+i] : '',
-          kind: 'mod',
-          leftChars, rightChars,
-        })
-      }
-    }
-  })
-  return rows
-})
-
-// ── Char highlight render ─────────────────────────────────────────────
-function applySyntaxHighlight(text: string, lang: string): string {
-  if (!text || lang === 'plaintext' || lang === 'auto') return escapeHtml(text)
-  try { return highlightLine(text, lang) } catch { return escapeHtml(text) }
-}
-
-function renderWithHighlight(text: string, ranges: [number, number][] | undefined, lang?: string): string {
-  const el = lang && lang !== 'auto' ? applySyntaxHighlight(text, lang) : escapeHtml(text)
-  if (!ranges || !ranges.length) return el
-  let out = ''
-  let pos = 0
-  for (const [s, e] of ranges) {
-    out += escapeHtml(text.slice(pos, s))
-    out += `<mark class="char-hi">${escapeHtml(text.slice(s, e))}</mark>`
-    pos = e
-  }
-  out += escapeHtml(text.slice(pos))
-  return out
-}
-
-function escapeHtml(s: string) {
-  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-}
-
-// ── Report export ────────────────────────────────────────────────────
-async function exportHtmlReport() {
-  if (!diffResult.value) return
-  const outPath = await save({ defaultPath: 'diff-report.html', filters: [{ name: 'HTML', extensions: ['html'] }] })
-  if (!outPath) return
-  const html = generateHtmlReport(diffResult.value, leftPath.value, rightPath.value)
-  const { writeTextFile } = await import('@tauri-apps/plugin-fs')
-  await writeTextFile(outPath, html)
-}
-
-function generateHtmlReport(dr: DiffResult, lp: string, rp: string): string {
-  const rows = displayRows.value.map(row => {
-    const lc = `class="line-${row.kind} line-left">`
-    const rc = `class="line-${row.kind} line-right">`
-    const lno = row.leftNo ?? ''
-    const rno = row.rightNo ?? ''
-    const lt = escapeHtml(row.leftText)
-    const rt = escapeHtml(row.rightText)
-    return `<tr><td class="ln">${lno}</td><td ${lc}${lt}</td><td class="ln">${rno}</td><td ${rc}${rt}</td></tr>`
-  }).join('\n')
-  const s = dr.stats
-  return `<!DOCTYPE html>
-<html lang="zh-CN"><head><meta charset="UTF-8">
-<title>OpenDiff Report</title>
-<style>
-body{font-family:monospace;font-size:13px;background:#1e1e2e;color:#cdd6f4;margin:0;padding:0}
-h1{padding:16px 24px;background:#11111b;border-bottom:1px solid #45475a;font-size:18px;color:#89b4fa}
-.stats{padding:8px 24px;background:#181825;border-bottom:1px solid #45475a;display:flex;gap:20px;font-size:12px}
-table{width:100%;border-collapse:collapse}
-td{padding:2px 8px;white-space:pre}
-.ln{width:48px;min-width:48px;text-align:right;color:#6c7086;background:#181825;border-right:1px solid #45475a;user-select:none}
-.line-add{background:rgba(166,227,161,.15)}
-.line-del{background:rgba(243,139,168,.15)}
-.line-mod{background:rgba(137,180,250,.10)}
-</style></head><body>
-<h1>⚡ OpenDiff — Diff Report</h1>
-<div class="stats">
-<span>LEFT: ${escapeHtml(lp)}</span>
-<span>RIGHT: ${escapeHtml(rp)}</span>
-<span style="color:#a6e3a1">+${s.added} added</span>
-<span style="color:#f38ba8">-${s.deleted} deleted</span>
-<span style="color:#89b4fa">~${s.modified} modified</span>
-</div>
-<table><tbody>${rows}</tbody></table>
-</body></html>`
-}
-
-// ── Stats ─────────────────────────────────────────────────────────────
-const stats = computed(() => diffResult.value?.stats)
-const diffCountLabel = computed(() => {
-  if (!diffLineIndices.value.length) return 'No differences'
-  return `${currentDiffIdx.value + 1} / ${diffLineIndices.value.length} diffs`
-})
+// ── Computed row text for v-html ─────────────────────────────
+// Each row's left/right text rendered as HTML, stored in the row object
+const renderedRows = computed(() => rows.value.map(row => ({
+  ...row,
+  lHtml: hl(row.lt, effectiveLang.value),
+  rHtml: hl(row.rt, effectiveLang.value),
+})))
 </script>
 
 <template>
-  <div class="text-diff-view flex flex-col h-full overflow-hidden" tabindex="0"
-    @dragenter="onDragEnter" @dragleave="onDragLeave" @dragover="onDragOver" @drop="onDrop"
-  >
-    <!-- Drag overlay -->
-    <div v-if="isDragOver" class="drop-overlay">
-      <div class="drop-box">
-        <div class="drop-icon">📂</div>
-        <div class="drop-title">Drop file here</div>
-        <div class="drop-sub">First file → Left · Second file → Right</div>
-      </div>
-    </div>
+  <div class="tdv" @dragenter="onDragEnter" @dragleave="onDragLeave" @dragover="onDragOver" @drop="onDrop">
 
-    <!-- ── Breadcrumb ── -->
-    <div class="breadcrumb flex items-center gap-1 px-4 py-1 flex-shrink-0">
-      <button class="crumb-home" @click="router.push('/')">Home</button>
+    <!-- Breadcrumb -->
+    <div class="tdv-crumb">
+      <button class="crumb-home" @click="router.push('/')">{{ $t('nav.home') }}</button>
       <span class="crumb-sep">›</span>
-      <span class="crumb-current">Text Compare</span>
+      <span class="crumb-cur">{{ $t('text_diff.title') }}</span>
       <template v-if="leftPath || rightPath">
         <span class="crumb-sep">›</span>
-        <span class="crumb-file">{{ leftPath ? leftPath.split('/').pop() : rightPath?.split('/').pop() }}</span>
+        <span class="crumb-file">{{ (leftPath || rightPath).split('/').pop() }}</span>
         <span class="crumb-sep" v-if="leftPath && rightPath">↔</span>
         <span class="crumb-file" v-if="rightPath">{{ rightPath.split('/').pop() }}</span>
       </template>
     </div>
 
-    <!-- ── Top toolbar ── -->
-    <div class="diff-toolbar flex items-center justify-between gap-4">
-      <div class="flex-1 min-w-0">
-        <button class="path-btn btn w-full" @click="loadFile('left')">
-          <FileCode2 :size="14" class="text-muted" />
-          <span class="text-muted text-xs font-semibold w-12 text-left">LEFT</span>
-          <span class="truncate path-text">{{ leftPath || 'Select file...' }}</span>
-        </button>
-      </div>
-
-      <!-- Base file selector for 3-way merge -->
-      <div class="flex-shrink-0">
-        <button class="base-btn btn w-full" :class="{ 'has-base': basePath }" @click="openBaseFile" title="Select base file for 3-way merge">
-          <FileCode2 :size="12" :class="basePath ? 'text-accent' : 'text-muted'" />
-          <span class="text-xs font-semibold w-10 text-left" :class="basePath ? 'text-accent' : 'text-muted'">BASE</span>
-          <span class="truncate path-text text-xs" style="max-width:80px">{{ basePath ? basePath.split('/').pop() || basePath : '—' }}</span>
-        </button>
-      </div>
-
-      <div class="toolbar-mid flex items-center justify-center gap-2">
-        <select v-model="detectedLang" class="lang-select" style="font-size:12px;padding:2px 6px;height:26px;max-width:130px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:4px;color:var(--color-text);cursor:pointer" title="Syntax language">
-        <option value="auto">Auto-detect</option>
-        <option value="plaintext">Plain Text</option>
-        <option value="javascript">JavaScript</option>
-        <option value="typescript">TypeScript</option>
-        <option value="python">Python</option>
-        <option value="rust">Rust</option>
-        <option value="java">Java</option>
-        <option value="cpp">C++</option>
-        <option value="go">Go</option>
-        <option value="xml">HTML/XML</option>
-        <option value="css">CSS</option>
-        <option value="json">JSON</option>
-        <option value="yaml">YAML</option>
-        <option value="sql">SQL</option>
-        <option value="bash">Bash</option>
-        <option value="markdown">Markdown</option>
+    <!-- Toolbar -->
+    <div class="tdv-toolbar">
+      <button class="tdv-btn-path" @click="loadFile('left')">
+        <span class="tdv-lbl">LEFT</span>
+        <span class="tdv-path-txt">{{ leftPath ? leftPath.split('/').pop() : $t('text_diff.select_file') }}</span>
+      </button>
+      <button class="tdv-btn" @click="runDiff" :disabled="loading">{{ $t('text_diff.run') }}</button>
+      <button class="tdv-btn-path" @click="loadFile('right')">
+        <span class="tdv-lbl">RIGHT</span>
+        <span class="tdv-path-txt">{{ rightPath ? rightPath.split('/').pop() : $t('text_diff.select_file') }}</span>
+      </button>
+      <div style="flex:1" />
+      <select v-model="detectedLang" class="tdv-lang">
+        <option v-for="o in langOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
       </select>
-      <div v-if="stats" class="stats-badges flex items-center gap-1.5 mr-2">
-          <span class="badge badge-add" title="Added lines">+{{ stats.added }}</span>
-          <span class="badge badge-del" title="Deleted lines">-{{ stats.deleted }}</span>
-          <span class="badge badge-mod" title="Modified lines">~{{ stats.modified }}</span>
-        </div>
-        
-        <div class="nav-group flex items-center bg-bg rounded border border-border p-0.5">
-          <button class="btn btn-icon rounded-sm" title="Prev diff (F7)" @click="jumpToDiff(-1)">
-            <ArrowUp :size="14" />
-          </button>
-          <span class="diff-nav-label text-xs text-muted px-2 font-mono">{{ diffCountLabel }}</span>
-          <button class="btn btn-icon rounded-sm" title="Next diff (F8)" @click="jumpToDiff(1)">
-            <ArrowDown :size="14" />
-          </button>
-        </div>
-
-        <div class="action-group flex items-center gap-1 ml-2">
-          <button class="btn btn-icon" title="Export HTML report" @click="exportHtmlReport">
-            <FileOutput :size="16" />
-          </button>
-          <button class="btn btn-icon" :class="{ 'text-accent bg-bg2': showMerge }" title="3-way merge" @click="showMerge = !showMerge">
-            <Merge :size="16" />
-          </button>
-        </div>
-      </div>
-
-      <div class="flex-1 min-w-0">
-        <button class="path-btn btn w-full" @click="loadFile('right')">
-          <FileCode2 :size="14" class="text-muted" />
-          <span class="text-muted text-xs font-semibold w-12 text-left">RIGHT</span>
-          <span class="truncate path-text">{{ rightPath || 'Select file...' }}</span>
-        </button>
+      <IgnoreToolbar v-model:algorithm="algorithm" v-model:ignoreWhitespace="ignoreWS"
+        v-model:ignoreCase="ignoreCase" v-model:ignoreComments="ignoreComments" @run="runDiff" />
+      <div style="flex:1" />
+      <button class="tdv-btn" @click="jumpToDiff(-1)" :disabled="currentDiffIdx <= 0">↑</button>
+      <button class="tdv-btn" @click="jumpToDiff(1)" :disabled="currentDiffIdx >= diffIdxs.length - 1">↓</button>
+      <button class="tdv-btn" :class="{ 'tdv-btn-on': showMerge }" @click="showMerge = !showMerge">{{ $t('text_diff.merge_panel') }}</button>
+      <div style="flex:1" />
+      <div class="tdv-stats" v-if="diffResult">
+        <span class="s-add">+{{ stats.added }}</span>
+        <span class="s-del">-{{ stats.deleted }}</span>
+        <span class="s-mod">~{{ stats.modified }}</span>
       </div>
     </div>
 
-    <!-- ── Options bar ── -->
-    <IgnoreToolbar
-      v-model:ignoreWs="ignoreWS"
-      v-model:ignoreCase="ignoreCase"
-      v-model:ignoreComments="ignoreComments"
-      v-model:showOnlyDiffs="showOnlyDiffs"
-      v-model:syncScroll="syncScroll"
-      v-model:wordWrap="wordWrap"
-      v-model:algorithm="settingsStore.settings.diff_algorithm"
-      @change="runDiff"
-    />
-
-    <!-- ── Status bar ── -->
-    <div v-if="loading" class="diff-status loading">
-      <div class="spinner" />
-      <span>Computing diff…</span>
+    <!-- Status bar -->
+    <div v-if="loading" class="tdv-status tdv-ldg">
+      <div class="tdv-spin" />{{ $t('text_diff.computing') }}
     </div>
-    <div v-else-if="error" class="diff-status error">
-      <span>⚠ {{ error }}</span>
-      <button class="btn-retry" @click="runDiff">重试</button>
+    <div v-else-if="error" class="tdv-status tdv-err">
+      ⚠ {{ error }} <button class="tdv-rtry" @click="runDiff">{{ $t('text_diff.retry') }}</button>
     </div>
-    <div v-else-if="!diffResult" class="diff-status hint">
-      <span>📂 打开两个文件以开始对比，或直接在左侧/右侧输入文本</span>
+    <div v-else-if="!diffResult" class="tdv-status tdv-hint">
+      📂 {{ $t('text_diff.no_diff') }}
     </div>
 
-    <!-- ── Main diff area ── -->
-    <div class="diff-main flex flex-1 overflow-hidden">
-
-      <!-- Left pane -->
-      <div
-        ref="leftPane"
-        class="diff-pane flex-1 font-mono overflow-auto"
-        :class="{ 'word-wrap': wordWrap }"
-        @scroll="onLeftScroll"
-      >
-        <table class="diff-table">
-          <tbody>
-            <template v-for="(row, i) in displayRows" :key="i">
-              <tr :class="`diff-row row-${row.kind}`">
-                <td class="line-no">{{ row.leftNo ?? '' }}</td>
-                <td
-                  class="line-content"
-                  v-if="row.leftChars"
-                  v-html="renderWithHighlight(row.leftText, row.leftChars, detectedLang)"
-                />
-                <td class="line-content" v-else>{{ row.leftText || '\u00a0' }}</td>
+    <!-- Split diff -->
+    <div class="tdv-body" v-if="diffResult">
+      <div class="tdv-pane">
+        <div class="tdv-phdr">{{ leftPath || 'Untitled' }}</div>
+        <div class="tdv-scrl" ref="leftScrollEl" @scroll="onLeftScroll">
+          <table class="tdv-tbl">
+            <tbody>
+              <tr v-for="(row, ri) in renderedRows" :key="ri" :class="`r-${row.st}`">
+                <td class="tdv-num">{{ row.li !== null ? row.li + 1 : '' }}</td>
+                <td class="tdv-gut" />
+                <td class="tdv-cell" v-html="row.lHtml" />
               </tr>
-            </template>
-          </tbody>
-        </table>
+            </tbody>
+          </table>
+        </div>
       </div>
-
-      <!-- Center gutter -->
-      <div class="diff-gutter flex flex-col">
-        <template v-for="(row, i) in displayRows" :key="i">
-          <div
-            class="gutter-cell"
-            :class="`gutter-${row.kind}`"
-          />
-        </template>
-      </div>
-
-      <!-- Right pane -->
-      <div
-        ref="rightPane"
-        class="diff-pane flex-1 font-mono overflow-auto"
-        :class="{ 'word-wrap': wordWrap }"
-        @scroll="onRightScroll"
-      >
-        <table class="diff-table">
-          <tbody>
-            <template v-for="(row, i) in displayRows" :key="i">
-              <tr :class="`diff-row row-${row.kind}`">
-                <td class="line-no">{{ row.rightNo ?? '' }}</td>
-                <td
-                  class="line-content"
-                  v-if="row.rightChars"
-                  v-html="renderWithHighlight(row.rightText, row.rightChars, detectedLang)"
-                />
-                <td class="line-content" v-else>{{ row.rightText || '\u00a0' }}</td>
+      <div class="tdv-div" />
+      <div class="tdv-pane">
+        <div class="tdv-phdr">{{ rightPath || 'Untitled' }}</div>
+        <div class="tdv-scrl" ref="rightScrollEl" @scroll="onRightScroll">
+          <table class="tdv-tbl">
+            <tbody>
+              <tr v-for="(row, ri) in renderedRows" :key="ri" :class="`r-${row.st}`">
+                <td class="tdv-num">{{ row.ri !== null ? row.ri + 1 : '' }}</td>
+                <td class="tdv-gut" />
+                <td class="tdv-cell" v-html="row.rHtml" />
               </tr>
-            </template>
-          </tbody>
-        </table>
+            </tbody>
+          </table>
+        </div>
       </div>
-
-      <!-- Minimap -->
       <DiffMinimap :diff-result="diffResult" @scroll-to="onMinimapClick" />
     </div>
 
-    <!-- ── Merge output panel ── -->
-    <MergeOutputPanel
-      v-if="showMerge"
-      :merge-result="mergeResult"
-      @run-merge="runMerge"
-      @close="showMerge = false"
-    />
+    <!-- Drag overlay -->
+    <div v-if="isDragOver" class="tdv-drop">
+      <div class="tdv-drop-box">
+        <div class="tdv-drop-ic">📂</div>
+        <div class="tdv-drop-ttl">{{ $t('text_diff.file_drop_hint') }}</div>
+      </div>
+    </div>
 
+    <!-- Merge panel -->
+    <MergeOutputPanel v-if="showMerge" :merge-result="mergeResult" class="tdv-mrg"
+      @close="showMerge = false" @run-merge="runMerge" />
   </div>
 </template>
 
 <style scoped>
-.text-diff-view { background: var(--color-bg); outline: none; }
-
-/* Toolbar */
-.diff-toolbar {
-  background: var(--color-bg2);
-  border-bottom: 1px solid var(--color-border);
-  padding: 4px 8px; flex-shrink: 0; min-height: 36px;
-}
-.path-btn {
-  flex: 1; min-width: 0; max-width: 360px;
-  gap: 6px; font-family: var(--font-mono); font-size: 12px;
-  justify-content: flex-start;
-}
-.path-text { min-width: 0; }
-.base-btn {
-  flex-shrink: 0; min-width: 0;
-  gap: 4px; font-family: var(--font-mono); font-size: 11px;
-  justify-content: flex-start; padding: 4px 8px;
-  background: var(--color-bg2); border: 1px solid var(--color-border);
-  color: var(--color-text-muted); cursor: pointer; transition: all 0.15s;
-  border-radius: 6px;
-}
-.base-btn:hover { border-color: var(--color-accent); color: var(--color-text); }
-.base-btn.has-base { border-color: var(--color-accent); background: rgba(137,180,250,.08); }
-.toolbar-mid {
-  flex-shrink: 0; padding: 0 8px;
-  border-left: 1px solid var(--color-border);
-  border-right: 1px solid var(--color-border);
-}
-.diff-nav-label { white-space: nowrap; }
-.btn.active { background: var(--color-accent); color: var(--color-bg); }
-
-/* Status */
-.diff-status {
-  padding: 5px 16px; font-size: 12px; flex-shrink: 0;
-  border-bottom: 1px solid var(--color-border);
-  display: flex; align-items: center; gap: 8px;
-}
-.diff-status.loading { color: var(--color-accent); background: rgba(137,180,250,.08); }
-.diff-status.error { color: var(--color-red); background: rgba(243,139,168,.08); }
-.diff-status.hint { color: var(--color-text-muted); background: var(--color-bg2); }
-.diff-status.hint span { flex: 1; }
-.spinner {
-  width: 14px; height: 14px; border: 2px solid currentColor; border-top-color: transparent;
-  border-radius: 50%; animation: spin 0.7s linear infinite; flex-shrink: 0;
-}
-@keyframes spin { to { transform: rotate(360deg); } }
-.btn-retry {
-  padding: 2px 10px; border-radius: 10px; border: 1px solid var(--color-red);
-  background: transparent; color: var(--color-red); cursor: pointer; font-size: 11px;
-  transition: all 0.15s; flex-shrink: 0;
-}
-.btn-retry:hover { background: rgba(239,68,68,.1); }
-
-/* Diff panes */
-.diff-main { background: var(--color-bg); }
-.diff-pane {
-  font-size: var(--editor-font-size, 13px);
-  line-height: 22px;
-}
-.diff-pane.word-wrap .line-content { white-space: pre-wrap; word-break: break-all; }
-
-.diff-table {
-  width: 100%; border-collapse: collapse; table-layout: fixed;
-}
-.line-no {
-  width: 52px; min-width: 52px; text-align: right;
-  padding: 0 8px 0 4px; color: var(--color-text-muted);
-  font-size: 11px; user-select: none;
-  border-right: 1px solid var(--color-border);
-  background: var(--color-bg2);
-  position: sticky; left: 0; z-index: 1;
-}
-.line-content {
-  padding: 0 10px;
-  white-space: pre;
-  overflow: hidden;
-}
-
-/* Row colours */
-.row-add    td { background: var(--diff-add-bg); }
-.row-del    td { background: var(--diff-del-bg); }
-.row-mod    td { background: var(--diff-mod-bg); }
-.row-equal  td { }
-.row-add .line-no,
-.row-del .line-no,
-.row-mod .line-no { background: color-mix(in srgb, var(--color-bg2) 70%, transparent); }
-
-/* Char highlight */
-:deep(.char-hi) {
-  background: rgba(249, 226, 175, 0.45);
-  border-radius: 2px;
-}
-.row-del :deep(.char-hi) { background: rgba(243,139,168,.5); }
-.row-add :deep(.char-hi) { background: rgba(166,227,161,.5); }
-
-/* Gutter */
-.diff-gutter {
-  width: 8px; flex-shrink: 0;
-  background: var(--color-bg3);
-  border-left: 1px solid var(--color-border);
-  border-right: 1px solid var(--color-border);
-}
-.gutter-cell { height: 22px; }
-.gutter-add  { background: var(--color-green); opacity: .6; }
-.gutter-del  { background: var(--color-red); opacity: .6; }
-.gutter-mod  { background: var(--color-accent); opacity: .5; }
+.tdv { display:flex; flex-direction:column; height:100%; overflow:hidden; background:var(--color-bg) }
+.tdv-crumb { display:flex; align-items:center; gap:4px; padding:3px 16px; background:var(--color-bg2); border-bottom:1px solid var(--color-border); font-size:11px }
+.crumb-home { color:var(--color-text-muted); background:none; border:none; cursor:pointer; padding:0; font-size:11px }
+.crumb-home:hover { color:var(--color-accent) }
+.crumb-sep { color:var(--color-border) }
+.crumb-cur { color:var(--color-text); font-weight:600 }
+.crumb-file { color:var(--color-accent); font-family:monospace; font-size:11px }
+.tdv-toolbar { display:flex; align-items:center; gap:4px; padding:4px 8px; background:var(--color-bg2); border-bottom:1px solid var(--color-border); flex-wrap:wrap; min-height:38px }
+.tdv-btn-path { display:flex; align-items:center; gap:6px; padding:4px 8px; border:1px solid var(--color-border); border-radius:6px; background:var(--color-surface); cursor:pointer; font-size:12px; max-width:220px; overflow:hidden; color:var(--color-text) }
+.tdv-btn-path:hover { border-color:var(--color-accent) }
+.tdv-lbl { font-size:10px; font-weight:700; color:var(--color-text-muted); flex-shrink:0 }
+.tdv-path-txt { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; min-width:0 }
+.tdv-btn { padding:4px 10px; border:1px solid var(--color-border); border-radius:6px; background:var(--color-surface); color:var(--color-text); font-size:12px; cursor:pointer; display:flex; align-items:center; gap:4px; transition:all .15s }
+.tdv-btn:hover { border-color:var(--color-accent); color:var(--color-accent) }
+.tdv-btn:disabled { opacity:.45; cursor:not-allowed }
+.tdv-btn-on { border-color:var(--color-accent); background:rgba(59,130,246,.12); color:var(--color-accent) }
+.tdv-lang { padding:3px 6px; border:1px solid var(--color-border); border-radius:6px; background:var(--color-surface); color:var(--color-text); font-size:11px; max-width:110px; cursor:pointer }
+.tdv-stats { display:flex; align-items:center; gap:6px; padding:2px 8px; background:var(--color-bg3); border-radius:12px; border:1px solid var(--color-border); font-size:11px }
+.s-add { color:#22c55e; font-weight:700 }
+.s-del { color:#ef4444; font-weight:700 }
+.s-mod { color:#f59e0b; font-weight:700 }
+.tdv-status { padding:5px 16px; font-size:12px; display:flex; align-items:center; gap:8px; border-bottom:1px solid var(--color-border) }
+.tdv-ldg { color:var(--color-accent); background:rgba(137,180,250,.08) }
+.tdv-err { color:var(--color-red); background:rgba(243,139,168,.08) }
+.tdv-hint { color:var(--color-text-muted); background:var(--color-bg2) }
+.tdv-spin { width:14px; height:14px; border:2px solid currentColor; border-top-color:transparent; border-radius:50%; animation:sp 0.7s linear infinite; flex-shrink:0 }
+@keyframes sp { to { transform: rotate(360deg) } }
+.tdv-rtry { padding:2px 10px; border:1px solid var(--color-red); border-radius:10px; background:transparent; color:var(--color-red); font-size:11px; cursor:pointer }
+.tdv-rtry:hover { background:rgba(239,68,68,.1) }
+.tdv-body { display:flex; flex:1; overflow:hidden }
+.tdv-pane { flex:1; display:flex; flex-direction:column; min-width:0; overflow:hidden }
+.tdv-phdr { padding:3px 8px; background:var(--color-bg3); border-bottom:1px solid var(--color-border); font-size:11px; color:var(--color-text-muted); flex-shrink:0 }
+.tdv-scrl { flex:1; overflow:auto }
+.tdv-scrl::-webkit-scrollbar { width:8px; height:8px }
+.tdv-scrl::-webkit-scrollbar-thumb { background:var(--color-border); border-radius:4px }
+.tdv-div { width:3px; background:var(--color-border); cursor:col-resize; flex-shrink:0 }
+.tdv-tbl { width:100%; border-collapse:collapse; font-size:13px; line-height:1.6; table-layout:fixed }
+.tdv-num { width:48px; padding:0 8px; color:var(--color-text-muted); font-size:11px; text-align:right; user-select:none; background:var(--color-bg3); border-right:1px solid var(--color-border); vertical-align:top; white-space:nowrap }
+.tdv-gut { width:16px; background:var(--color-bg3); border-right:1px solid var(--color-border) }
+.tdv-cell { padding:0 8px; white-space:pre; overflow:hidden; font-family:var(--font-mono,monospace); vertical-align:top }
+.r-equal td { background:transparent }
+.r-insert td { background:rgba(166,227,161,.1) }
+.r-delete td { background:rgba(243,139,168,.1) }
+.r-replace td { background:rgba(137,180,250,.08) }
+tr:hover td { filter:brightness(1.08) }
+.tdv-drop { position:absolute; inset:0; z-index:100; background:rgba(30,30,46,.85); display:flex; align-items:center; justify-content:center; pointer-events:none; backdrop-filter:blur(4px) }
+.tdv-drop-box { border:2px dashed var(--color-accent); border-radius:16px; padding:40px 60px; text-align:center; background:rgba(59,130,246,.08) }
+.tdv-drop-ic { font-size:48px; margin-bottom:12px }
+.tdv-drop-ttl { font-size:20px; font-weight:700; color:var(--color-accent) }
+.tdv-mrg { border-top:2px solid var(--color-border); height:260px; overflow:auto; flex-shrink:0 }
 </style>
-
-/* Breadcrumb */
-.breadcrumb {
-  background: var(--color-bg2);
-  border-bottom: 1px solid var(--color-border);
-  font-size: 11px; color: var(--color-text-muted);
-  padding: 3px 16px;
-}
-.crumb-home { color: var(--color-text-muted); background: none; border: none; cursor: pointer; padding: 0; font-size: 11px; }
-.crumb-home:hover { color: var(--color-accent); text-decoration: underline; }
-.crumb-sep { color: var(--color-border); margin: 0 2px; }
-.crumb-current { color: var(--color-text); font-weight: 600; }
-.crumb-file { color: var(--color-accent); font-family: var(--font-mono); font-size: 11px; }
-
-/* Drag & Drop overlay */
-.drop-overlay {
-  position: absolute; inset: 0; z-index: 100;
-  background: rgba(30,30,46,0.85);
-  display: flex; align-items: center; justify-content: center;
-  backdrop-filter: blur(4px);
-  pointer-events: none;
-}
-.drop-box {
-  border: 2px dashed var(--color-accent);
-  border-radius: 16px;
-  padding: 40px 60px;
-  text-align: center;
-  background: rgba(59,130,246,0.08);
-}
-.drop-icon { font-size: 48px; margin-bottom: 12px; }
-.drop-title { font-size: 20px; font-weight: 700; color: var(--color-accent); margin-bottom: 8px; }
-.drop-sub { font-size: 13px; color: var(--color-text-muted); }

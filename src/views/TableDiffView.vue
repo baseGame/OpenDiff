@@ -251,6 +251,8 @@ onMounted(() => {
 })
 </script>
 
+</script>
+
 <template>
   <div class="table-diff-view flex flex-col h-full overflow-hidden">
 
