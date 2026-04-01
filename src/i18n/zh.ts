@@ -180,4 +180,16 @@ export default {
     search: '搜索 Session...',
     load: '加载',
   },
-}
+
+  folder_sync: {
+    title: 'Folder Sync',
+    sync_preview: 'Sync Preview',
+    execute: 'Execute Sync',
+    mode_update_left: 'Update Left',
+    mode_update_right: 'Update Right',
+    mode_update_both: 'Update Both',
+    mode_mirror_left: 'Mirror to Left',
+    mode_mirror_right: 'Mirror to Right',
+    no_actions: 'Folders are in sync — no actions needed',
+    log_title: 'Sync Log',
+  },}

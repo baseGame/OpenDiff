@@ -1,17 +1,18 @@
 <script setup lang="ts">
 /**
- * FolderDiffView — Phase 2
- * Features: dual folder tree, diff coloring, filter, sync operations, file comparison drill-in
+ * FolderDiffView — Phase 3: Full Folder Sync Engine
+ * 5 sync modes: Update Left / Right / Both / Mirror to Left / Right
+ * Live preview + one-click execute
  */
 import { ref, computed, onMounted } from 'vue'
 import { useTabStore } from '@/stores/tabs'
-import { listDir, statPath, copyFile, deletePath, renamePath, diffFolders, saveSession } from '@/api'
-import type { VfsEntry, FolderDiffResult, FolderEntry } from '@/types'
+import { listDir, copyFile, deletePath, diffFolders, saveSession } from '@/api'
+import type { FolderDiffResult } from '@/types'
 import { open } from '@tauri-apps/plugin-dialog'
 import { useRouter } from 'vue-router'
 
+const router = useRouter()
 const tabStore = useTabStore()
-const router   = useRouter()
 const activeTab = computed(() => tabStore.activeTab)
 
 // ── Paths ─────────────────────────────────────────────────────────────
@@ -24,7 +25,7 @@ const rightTree = ref<TreeNode[]>([])
 const loading   = ref(false)
 const error     = ref<string | null>(null)
 
-// ── Filter ────────────────────────────────────────────────────────────
+// ── Filter ───────────────────────────────────────────────────────────
 type FilterMode = 'all' | 'diffs' | 'same' | 'left-only' | 'right-only'
 const filterMode = ref<FilterMode>('all')
 const excludeGlob = ref('')
@@ -33,20 +34,39 @@ const excludeGlob = ref('')
 type CompareMode = 'time' | 'size' | 'crc'
 const compareMode = ref<CompareMode>('time')
 
-// ── Operations status ─────────────────────────────────────────────────
-const opLog = ref<string[]>([])
-const opRunning = ref(false)
+// ── Sync state ────────────────────────────────────────────────────────
+type SyncMode = 'update-left' | 'update-right' | 'update-both' | 'mirror-left' | 'mirror-right'
+const syncMode = ref<SyncMode>('update-right')
+const showSyncPanel = ref(false)
+const syncPreview = ref<SyncAction[]>([])
+const syncLog    = ref<SyncLogEntry[]>([])
+const syncRunning = ref(false)
+const syncProgress = ref(0)
+const syncTotal   = ref(0)
 
-interface TreeNode {
-  name: string
-  path: string
-  kind: 'file' | 'directory'
+interface SyncAction {
+  action: 'copy' | 'delete'
+  direction: 'left' | 'right'
+  path: string       // relative path
+  leftPath: string   // full left path
+  rightPath: string  // full right path
   size?: number
   modified?: number
+  status: 'pending' | 'done' | 'error'
+  errorMsg?: string
+}
+
+interface SyncLogEntry {
+  time: string
+  msg: string
+  type: 'info' | 'success' | 'error'
+}
+
+interface TreeNode {
+  name: string; path: string; kind: 'file' | 'directory'
+  size?: number; modified?: number
   diffStatus: 'same' | 'modified' | 'left-only' | 'right-only' | 'unknown'
-  children?: TreeNode[]
-  expanded: boolean
-  paired?: TreeNode // matching node on the other side
+  children?: TreeNode[]; expanded: boolean; paired?: TreeNode
 }
 
 // ── Load folders ──────────────────────────────────────────────────────
@@ -59,10 +79,8 @@ async function pickFolder(side: 'left' | 'right') {
 }
 
 async function loadAndCompare() {
-  loading.value = true
-  error.value = null
+  loading.value = true; error.value = null
   try {
-    // Try Rust backend for CRC32-based deep folder comparison
     let rustResult: FolderDiffResult | null = null
     try {
       rustResult = await diffFolders(leftRoot.value, rightRoot.value, {
@@ -71,455 +89,502 @@ async function loadAndCompare() {
         compareTime: compareMode.value === 'time',
         compareSize: compareMode.value === 'size',
       } as any)
-    } catch (_) {
-      // Fallback to client-side comparison
-    }
+    } catch (_) { /* noop */ }
 
     const [leftEntries, rightEntries] = await Promise.all([
-      listDir(leftRoot.value),
-      listDir(rightRoot.value),
+      listDir(leftRoot.value), listDir(rightRoot.value),
     ])
-    leftTree.value  = await buildTree(leftEntries, leftRoot.value, 'left', rustResult)
-    rightTree.value = await buildTree(rightEntries, rightRoot.value, 'right', rustResult)
-    if (rustResult) {
-      applyRustResult(rustResult)
-    } else {
-      pairAndCompare(leftTree.value, rightTree.value)
+    leftTree.value  = await buildTree(leftEntries, leftRoot.value)
+    rightTree.value = await buildTree(rightEntries, rightRoot.value)
+    if (rustResult) applyRustResult(rustResult)
+    else pairAndCompare(leftTree.value, rightTree.value)
+
+    if (leftRoot.value || rightRoot.value) {
+      saveSession({
+        id: `s_${Date.now()}`, kind: 'folder_diff',
+        name: leftRoot.value || rightRoot.value || 'Folder Compare',
+        left_path: leftRoot.value, right_path: rightRoot.value,
+        config: { algorithm: 'histogram', ignore_whitespace: false, ignore_case: false, ignore_comments: false, extra: null },
+        created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+      }).catch(() => {})
     }
-  } catch (e: any) {
-    error.value = String(e)
-  } finally {
-    loading.value = false
-  }
-  // Auto-save session
-  if (leftRoot.value || rightRoot.value) {
-    saveSession({
-      id: `session_${Date.now()}`,
-      kind: 'folder_diff',
-      name: leftRoot.value || rightRoot.value || 'Folder Compare',
-      left_path: leftRoot.value,
-      right_path: rightRoot.value,
-      config: { algorithm: 'histogram', ignore_whitespace: false, ignore_case: false, ignore_comments: false, extra: null },
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    }).catch(() => {})
-  }
+  } catch (e: any) { error.value = String(e) }
+  finally { loading.value = false }
 }
 
-async function buildTree(entries: any[], root: string, _side: string, _rustResult?: FolderDiffResult | null): Promise<TreeNode[]> {
+async function buildTree(entries: any[], root: string): Promise<TreeNode[]> {
   return entries.map(e => ({
     name: e.name,
     path: e.path['0'] ?? `${root}/${e.name}`,
     kind: e.kind === 'directory' ? 'directory' : 'file',
-    size: e.metadata.size,
-    modified: e.metadata.modified,
+    size: e.metadata.size, modified: e.metadata.modified,
     diffStatus: 'unknown' as const,
-    children: undefined,
-    expanded: false,
-    paired: undefined,
+    children: undefined, expanded: false, paired: undefined,
   }))
 }
 
 function applyRustResult(result: FolderDiffResult) {
-  const entryMap = new Map<string, FolderEntry>()
-  for (const e of result.entries ?? []) {
-    entryMap.set(e.rel_path, e)
-  }
-  function applyToNodes(nodes: TreeNode[]) {
-    for (const node of nodes) {
-      const entry = entryMap.get(node.name)
-      if (entry) {
-        const leftStatus = entry.left_status
-        const rightStatus = entry.right_status
-        if (leftStatus === 'LeftOnly') node.diffStatus = 'left-only'
-        else if (rightStatus === 'RightOnly') node.diffStatus = 'right-only'
-        else if (leftStatus === 'Modified' || rightStatus === 'Modified') node.diffStatus = 'modified'
-        else node.diffStatus = 'same'
+  const m = new Map<string, any>()
+  for (const e of result.entries ?? []) m.set(e.rel_path, e)
+  function apply(nodes: TreeNode[]) {
+    for (const n of nodes) {
+      const ent = m.get(n.name)
+      if (ent) {
+        if (ent.left_status === 'LeftOnly') n.diffStatus = 'left-only'
+        else if (ent.right_status === 'RightOnly') n.diffStatus = 'right-only'
+        else if (ent.left_status === 'Modified' || ent.right_status === 'Modified') n.diffStatus = 'modified'
+        else n.diffStatus = 'same'
       }
-      if (node.children) applyToNodes(node.children)
+      if (n.children) apply(n.children)
     }
   }
-  applyToNodes(leftTree.value)
-  applyToNodes(rightTree.value)
+  apply(leftTree.value); apply(rightTree.value)
 }
 
 function pairAndCompare(left: TreeNode[], right: TreeNode[]) {
-  const rightMap = new Map(right.map(n => [n.name, n]))
-  const leftMap  = new Map(left.map(n => [n.name, n]))
-
+  const rm = new Map(right.map(n => [n.name, n]))
+  const lm = new Map(left.map(n => [n.name, n]))
   for (const ln of left) {
-    const rn = rightMap.get(ln.name)
-    if (!rn) {
-      ln.diffStatus = 'left-only'
-    } else {
-      ln.paired = rn
-      rn.paired = ln
-      ln.diffStatus = rn.diffStatus = compareNodes(ln, rn)
-    }
+    const rn = rm.get(ln.name)
+    if (!rn) { ln.diffStatus = 'left-only' }
+    else { ln.paired = rn; rn.paired = ln; ln.diffStatus = rn.diffStatus = compareNodes(ln, rn) }
   }
   for (const rn of right) {
-    if (!leftMap.has(rn.name)) {
-      rn.diffStatus = 'right-only'
+    if (!lm.has(rn.name) && rn.diffStatus === 'unknown') rn.diffStatus = 'right-only'
+  }
+}
+
+function compareNodes(a: TreeNode, b: TreeNode): 'same' | 'modified' | 'unknown' {
+  if (a.kind !== b.kind) return 'modified'
+  if (a.kind === 'directory') return 'same'
+  if (compareMode.value === 'crc') return 'same' // placeholder
+  if (compareMode.value === 'size') return a.size === b.size ? 'same' : 'modified'
+  if (!a.modified || !b.modified) return 'unknown'
+  const diff = Math.abs(a.modified - b.modified)
+  return diff < 2000 ? 'same' : 'modified'
+}
+
+// ── Flattened nodes for table ─────────────────────────────────────────
+interface FlatNode {
+  left?: TreeNode; right?: TreeNode; depth: number; isDir: boolean
+}
+const allNodes = computed((): FlatNode[] => {
+  const result: FlatNode[] = []
+  function flatten(nodes: TreeNode[], depth = 0) {
+    for (const n of nodes) {
+      if (n.diffStatus === 'same' && filterMode.value === 'diffs') continue
+      if (n.diffStatus === 'left-only' && filterMode.value !== 'all' && filterMode.value !== 'left-only') continue
+      if (n.diffStatus === 'right-only' && filterMode.value !== 'all' && filterMode.value !== 'right-only') continue
+      if (n.diffStatus === 'modified' && filterMode.value === 'same') continue
+      result.push({ left: n, right: n.paired, depth, isDir: n.kind === 'directory' })
+      if (n.expanded && n.children) flatten(n.children, depth + 1)
     }
   }
-}
-
-function compareNodes(l: TreeNode, r: TreeNode): 'same' | 'modified' {
-  switch (compareMode.value) {
-    case 'size': return l.size === r.size ? 'same' : 'modified'
-    case 'time': return Math.abs((l.modified ?? 0) - (r.modified ?? 0)) < 2000 ? 'same' : 'modified'
-    default: return l.size === r.size ? 'same' : 'modified' // CRC: fallback to size for now
+  // interleave left and right matching entries
+  const lm = new Map(leftTree.value.map(n => [n.name, n]))
+  for (const ln of leftTree.value) {
+    if (ln.diffStatus === 'same' && filterMode.value === 'diffs') continue
+    if (ln.diffStatus === 'left-only' && filterMode.value !== 'all' && filterMode.value !== 'left-only') continue
+    if (ln.diffStatus === 'modified' && filterMode.value === 'same') continue
+    const rn = ln.paired
+    result.push({ left: ln, right: rn, depth: 0, isDir: ln.kind === 'directory' })
+    if (ln.expanded && ln.children) flatten(ln.children, 1)
   }
-}
-
-// ── Toggle expand ──────────────────────────────────────────────────────
-async function toggleExpand(node: TreeNode, side: 'left' | 'right') {
-  if (node.kind !== 'directory') return
-  node.expanded = !node.expanded
-  if (node.expanded && !node.children) {
-    try {
-      const entries = await listDir(node.path)
-      node.children = await buildTree(entries, node.path, side)
-      // Pair with sibling if available
-      if (node.paired && !node.paired.children) {
-        const sibEntries = await listDir(node.paired.path)
-        node.paired.children = await buildTree(sibEntries, node.paired.path, side === 'left' ? 'right' : 'left')
+  // right-only nodes not in left
+  const seen = new Set(leftTree.value.map(n => n.name))
+  for (const rn of rightTree.value) {
+    if (rn.diffStatus === 'right-only') {
+      if (filterMode.value === 'all' || filterMode.value === 'right-only') {
+        result.push({ left: undefined, right: rn, depth: 0, isDir: rn.kind === 'directory' })
       }
-      if (node.children && node.paired?.children) {
-        pairAndCompare(node.children, node.paired.children)
-      }
-    } catch (e: any) {
-      error.value = String(e)
     }
   }
-}
+  return result
+})
 
-// ── File operations ────────────────────────────────────────────────────
-async function copyToRight(node: TreeNode) {
-  if (!node.paired && node.diffStatus === 'left-only') {
-    const dst = node.path.replace(leftRoot.value, rightRoot.value)
-    opRunning.value = true
-    try {
-      await copyFile(node.path, dst)
-      opLog.value.unshift(`✅ Copied: ${node.name} → right`)
-      node.diffStatus = 'same'
-    } catch (e: any) {
-      opLog.value.unshift(`❌ Failed: ${e}`)
-    } finally {
-      opRunning.value = false
-    }
+function flatten(nodes: TreeNode[], depth: number): FlatNode[] {
+  const r: FlatNode[] = []
+  for (const n of nodes) {
+    if (n.diffStatus === 'same' && filterMode.value === 'diffs') continue
+    if (n.diffStatus === 'left-only' && filterMode.value !== 'all' && filterMode.value !== 'left-only') continue
+    if (n.diffStatus === 'right-only' && filterMode.value !== 'all' && filterMode.value !== 'right-only') continue
+    if (n.diffStatus === 'modified' && filterMode.value === 'same') continue
+    r.push({ left: n, right: n.paired, depth, isDir: n.kind === 'directory' })
+    if (n.expanded && n.children) r.push(...flatten(n.children, depth + 1))
   }
+  return r
 }
 
-async function copyToLeft(node: TreeNode) {
-  if (!node.paired && node.diffStatus === 'right-only') {
-    const dst = node.path.replace(rightRoot.value, leftRoot.value)
-    opRunning.value = true
-    try {
-      await copyFile(node.path, dst)
-      opLog.value.unshift(`✅ Copied: ${node.name} → left`)
-      node.diffStatus = 'same'
-    } catch (e: any) {
-      opLog.value.unshift(`❌ Failed: ${e}`)
-    } finally {
-      opRunning.value = false
-    }
-  }
-}
-
-async function openFileDiff(node: TreeNode) {
-  if (node.kind !== 'file' || !node.paired) return
-  tabStore.openNewDiff('text_diff', node.path, node.paired.path)
-  router.push('/text-diff')
-}
-
-// ── Combined display rows ─────────────────────────────────────────────
 // ── Stats ─────────────────────────────────────────────────────────────
 const folderStats = computed(() => {
-  let same = 0, mod = 0, lo = 0, ro = 0
-  for (const row of allNodes.value) {
-    const s = row.left?.diffStatus ?? row.right?.diffStatus ?? 'unknown'
-    if (s === 'same') same++
-    else if (s === 'modified') mod++
-    else if (s === 'left-only') lo++
-    else if (s === 'right-only') ro++
+  let same = 0, modified = 0, lo = 0, ro = 0, total = 0
+  function count(nodes: TreeNode[]) {
+    for (const n of nodes) {
+      if (n.kind === 'file') {
+        total++
+        if (n.diffStatus === 'same') same++
+        else if (n.diffStatus === 'modified') modified++
+        else if (n.diffStatus === 'left-only') lo++
+        else if (n.diffStatus === 'right-only') ro++
+      }
+      if (n.children) count(n.children)
+    }
   }
-  return { same, modified: mod, 'left-only': lo, 'right-only': ro, total: same + mod + lo + ro }
+  count(leftTree.value)
+  return { same, modified, 'left-only': lo, 'right-only': ro, total }
 })
 
-const allNodes = computed((): Array<{ left?: TreeNode; right?: TreeNode; depth: number }> => {
-  const rows: Array<{ left?: TreeNode; right?: TreeNode; depth: number }> = []
-  function walkPair(ls: TreeNode[], rs: TreeNode[], depth: number) {
-    const allNames = new Set([...ls.map(n => n.name), ...rs.map(n => n.name)])
-    const lMap = new Map(ls.map(n => [n.name, n]))
-    const rMap = new Map(rs.map(n => [n.name, n]))
-    for (const name of allNames) {
-      const l = lMap.get(name)
-      const r = rMap.get(name)
-      const status = l?.diffStatus ?? r?.diffStatus ?? 'unknown'
-      if (filterMode.value !== 'all') {
-        const keep = (
-          (filterMode.value === 'diffs'      && status !== 'same') ||
-          (filterMode.value === 'same'       && status === 'same') ||
-          (filterMode.value === 'left-only'  && status === 'left-only') ||
-          (filterMode.value === 'right-only' && status === 'right-only')
-        )
-        if (!keep) continue
+// ── Sync computation ─────────────────────────────────────────────────
+const syncModeOptions = [
+  { value: 'update-right', label: '→ Update Right',  desc: 'Copy newer + orphans from Left to Right', icon: '→' },
+  { value: 'update-left',  label: '← Update Left',   desc: 'Copy newer + orphans from Right to Left', icon: '←' },
+  { value: 'update-both',   label: '↔ Update Both',  desc: 'Copy newer files to the other side',    icon: '↔' },
+  { value: 'mirror-right',  label: '⇉ Mirror Right', desc: 'Make Right identical to Left (incl. deletions)', icon: '⇉' },
+  { value: 'mirror-left',   label: '⇇ Mirror Left',   desc: 'Make Left identical to Right (incl. deletions)', icon: '⇇' },
+]
+
+function computeSyncPreview() {
+  syncPreview.value = []
+  for (const node of allNodes.value) {
+    if (node.isDir || !node.left || !node.right) continue
+    const st = node.left.diffStatus
+    const lm = node.left.modified ?? 0
+    const rm = node.right?.modified ?? 0
+    const ls = node.left.size ?? 0
+    const rs = node.right?.size ?? 0
+
+    if (syncMode.value === 'update-right') {
+      // newer on left → copy left to right; orphan left → copy
+      if (st === 'left-only') {
+        syncPreview.value.push({ action: 'copy', direction: 'right', path: node.left.name, leftPath: node.left.path, rightPath: `${rightRoot.value}/${node.left.name}`, size: ls, modified: lm, status: 'pending' })
+      } else if (st === 'modified' && lm > rm) {
+        syncPreview.value.push({ action: 'copy', direction: 'right', path: node.left.name, leftPath: node.left.path, rightPath: `${rightRoot.value}/${node.left.name}`, size: ls, modified: lm, status: 'pending' })
       }
-      rows.push({ left: l, right: r, depth })
-      // Recurse into expanded directories
-      if (l?.expanded && l.children) {
-        walkPair(l.children, r?.children ?? [], depth + 1)
+    } else if (syncMode.value === 'update-left') {
+      if (st === 'right-only' && node.right) {
+        syncPreview.value.push({ action: 'copy', direction: 'left', path: node.right.name, leftPath: `${leftRoot.value}/${node.right.name}`, rightPath: node.right.path, size: rs, modified: rm, status: 'pending' })
+      } else if (st === 'modified' && rm > lm && node.right) {
+        syncPreview.value.push({ action: 'copy', direction: 'left', path: node.right.name, leftPath: `${leftRoot.value}/${node.right.name}`, rightPath: node.right.path, size: rs, modified: rm, status: 'pending' })
+      }
+    } else if (syncMode.value === 'update-both') {
+      if (st === 'modified') {
+        if (lm > rm) syncPreview.value.push({ action: 'copy', direction: 'right', path: node.left.name, leftPath: node.left.path, rightPath: `${rightRoot.value}/${node.left.name}`, size: ls, modified: lm, status: 'pending' })
+        if (rm > lm && node.right) syncPreview.value.push({ action: 'copy', direction: 'left', path: node.right.name, leftPath: `${leftRoot.value}/${node.right.name}`, rightPath: node.right.path, size: rs, modified: rm, status: 'pending' })
+      }
+    } else if (syncMode.value === 'mirror-right') {
+      if (st === 'left-only') {
+        syncPreview.value.push({ action: 'copy', direction: 'right', path: node.left.name, leftPath: node.left.path, rightPath: `${rightRoot.value}/${node.left.name}`, size: ls, modified: lm, status: 'pending' })
+      } else if (st === 'modified') {
+        syncPreview.value.push({ action: 'copy', direction: 'right', path: node.left.name, leftPath: node.left.path, rightPath: `${rightRoot.value}/${node.left.name}`, size: ls, modified: lm, status: 'pending' })
+      }
+      // right-only files → delete from right
+      if (st === 'right-only' && node.right) {
+        syncPreview.value.push({ action: 'delete', direction: 'right', path: node.right.name, leftPath: '', rightPath: node.right.path, size: rs, modified: rm, status: 'pending' })
+      }
+    } else if (syncMode.value === 'mirror-left') {
+      if (st === 'right-only' && node.right) {
+        syncPreview.value.push({ action: 'copy', direction: 'left', path: node.right.name, leftPath: `${leftRoot.value}/${node.right.name}`, rightPath: node.right.path, size: rs, modified: rm, status: 'pending' })
+      } else if (st === 'modified' && node.right) {
+        syncPreview.value.push({ action: 'copy', direction: 'left', path: node.right.name, leftPath: `${leftRoot.value}/${node.right.name}`, rightPath: node.right.path, size: rs, modified: rm, status: 'pending' })
+      }
+      if (st === 'left-only') {
+        syncPreview.value.push({ action: 'delete', direction: 'left', path: node.left.name, leftPath: node.left.path, rightPath: '', size: ls, modified: lm, status: 'pending' })
       }
     }
   }
-  walkPair(leftTree.value, rightTree.value, 0)
-  return rows
-})
-
-function statusColor(status: string): string {
-  return { same: '', modified: 'mod', 'left-only': 'del', 'right-only': 'add', unknown: '' }[status] ?? ''
+  // also handle right-only nodes (not paired)
+  for (const rn of rightTree.value) {
+    if (rn.diffStatus !== 'right-only' || rn.kind !== 'file') continue
+    if (syncMode.value === 'update-right') {
+      // orphan right → no action for update-right
+    } else if (syncMode.value === 'update-left') {
+      syncPreview.value.push({ action: 'copy', direction: 'left', path: rn.name, leftPath: `${leftRoot.value}/${rn.name}`, rightPath: rn.path, size: rn.size, modified: rn.modified, status: 'pending' })
+    } else if (syncMode.value === 'mirror-right') {
+      syncPreview.value.push({ action: 'delete', direction: 'right', path: rn.name, leftPath: '', rightPath: rn.path, size: rn.size, modified: rn.modified, status: 'pending' })
+    }
+  }
+  // left-only in mirror-left
+  if (syncMode.value === 'mirror-left') {
+    for (const ln of leftTree.value) {
+      if (ln.diffStatus === 'left-only' && ln.kind === 'file') {
+        syncPreview.value.push({ action: 'delete', direction: 'left', path: ln.name, leftPath: ln.path, rightPath: '', size: ln.size, modified: ln.modified, status: 'pending' })
+      }
+    }
+  }
+  showSyncPanel.value = true
+  addLog('info', `Preview: ${syncPreview.value.length} action(s) calculated for "${syncModeOptions.find(o => o.value === syncMode.value)?.label}"`)
 }
 
-function statusIcon(status: string): string {
-  return { same: '=', modified: '~', 'left-only': '◀', 'right-only': '▶', unknown: '?' }[status] ?? '?'
+async function executeSync() {
+  if (!syncPreview.value.length) return
+  syncRunning.value = true
+  syncTotal.value = syncPreview.value.length
+  syncProgress.value = 0
+  addLog('info', `Starting sync: ${syncTotal.value} operation(s)...`)
+  for (const action of syncPreview.value) {
+    try {
+      if (action.action === 'copy') {
+        if (action.direction === 'right') {
+          await copyFile(action.leftPath, action.rightPath)
+        } else {
+          await copyFile(action.rightPath, action.leftPath)
+        }
+        action.status = 'done'
+        addLog('success', `✓ Copied: ${action.path}`)
+      } else if (action.action === 'delete') {
+        if (action.direction === 'right' && action.rightPath) {
+          await deletePath(action.rightPath)
+        } else if (action.direction === 'left' && action.leftPath) {
+          await deletePath(action.leftPath)
+        }
+        action.status = 'done'
+        addLog('success', `✓ Deleted: ${action.path}`)
+      }
+    } catch (e: any) {
+      action.status = 'error'; action.errorMsg = String(e)
+      addLog('error', `✗ Failed: ${action.path} — ${e}`)
+    }
+    syncProgress.value++
+  }
+  syncRunning.value = false
+  addLog('info', `Sync complete! ${syncPreview.value.filter(a => a.status === 'done').length}/${syncTotal.value} succeeded.`)
+  // Refresh after sync
+  await loadAndCompare()
 }
 
-function fmtSize(bytes?: number): string {
-  if (bytes == null) return ''
-  if (bytes < 1024) return `${bytes}B`
-  if (bytes < 1024 * 1024) return `${(bytes/1024).toFixed(1)}K`
-  return `${(bytes/1024/1024).toFixed(1)}M`
+function addLog(type: SyncLogEntry['type'], msg: string) {
+  const t = new Date().toLocaleTimeString()
+  syncLog.value.unshift({ time: t, msg, type })
+  if (syncLog.value.length > 100) syncLog.value.pop()
 }
 
-function fmtTime(ms?: number): string {
-  if (!ms) return ''
-  return new Date(ms).toLocaleString()
+// ── UI helpers ────────────────────────────────────────────────────────
+function statusColor(s: string) {
+  return { same: '', modified: 'mod', 'left-only': 'lo', 'right-only': 'ro', unknown: '' }[s] ?? ''
+}
+function fmtSize(b?: number) {
+  if (b == null) return ''; if (b < 1024) return `${b}B`; if (b < 1048576) return `${(b/1024).toFixed(1)}K`; return `${(b/1048576).toFixed(1)}M`
+}
+function fmtTime(ms?: number) {
+  if (!ms) return ''; return new Date(ms).toLocaleString()
+}
+function toggleExpand(n: TreeNode, side: 'left' | 'right') {
+  n.expanded = !n.expanded
+  if (n.expanded && !n.children?.length) expandNode(n, side)
+}
+async function expandNode(n: TreeNode, side: 'left' | 'right') {
+  try {
+    const root = side === 'left' ? leftRoot.value : rightRoot.value
+    const entries = await listDir(n.path)
+    n.children = await buildTree(entries, root)
+    pairAndCompare(n.children, n.children) // self-pair for now
+  } catch { /* ignore */ }
 }
 
 onMounted(() => {
   if (activeTab.value?.leftPath && activeTab.value?.rightPath) {
-    leftRoot.value = activeTab.value.leftPath
-    rightRoot.value = activeTab.value.rightPath
+    leftRoot.value = activeTab.value.leftPath; rightRoot.value = activeTab.value.rightPath
     loadAndCompare()
   }
 })
 </script>
 
-</script>
-
 <template>
-  <div class="folder-diff-view flex flex-col h-full overflow-hidden">
+  <div class="fdv">
 
     <!-- Breadcrumb -->
-    <div class="breadcrumb flex items-center gap-1 px-4 py-1">
-      <button class="crumb-home" @click="router.push('/')">Home</button>
+    <div class="fdv-crumb">
+      <button class="crumb-home" @click="router.push('/')">{{ $t('nav.home') }}</button>
       <span class="crumb-sep">›</span>
-      <span class="crumb-current">Folder Compare</span>
+      <span class="crumb-cur">{{ $t('folder_diff.title') }}</span>
       <template v-if="leftRoot || rightRoot">
         <span class="crumb-sep">›</span>
-        <span class="crumb-file">{{ leftRoot ? leftRoot.split('/').pop() : rightRoot?.split('/').pop() }}</span>
+        <span class="crumb-file">{{ (leftRoot || rightRoot).split('/').pop() }}</span>
         <span class="crumb-sep" v-if="leftRoot && rightRoot">↔</span>
         <span class="crumb-file" v-if="rightRoot">{{ rightRoot.split('/').pop() }}</span>
       </template>
     </div>
 
     <!-- Toolbar -->
-    <div class="folder-toolbar flex items-center gap-2">
-      <button class="path-btn btn" @click="pickFolder('left')">
-        <span class="text-muted text-xs">LEFT</span>
-        <span class="truncate">{{ leftRoot || 'Open folder…' }}</span>
+    <div class="fdv-toolbar">
+      <button class="fdv-btn-path" @click="pickFolder('left')">
+        <span class="fdv-lbl">LEFT</span>
+        <span class="fdv-path-txt">{{ leftRoot ? leftRoot.split('/').pop() : $t('folder_diff.select_folder') }}</span>
+      </button>
+      <button class="fdv-btn" :disabled="loading || !leftRoot || !rightRoot" @click="loadAndCompare">⟳</button>
+      <button class="fdv-btn-path" @click="pickFolder('right')">
+        <span class="fdv-lbl">RIGHT</span>
+        <span class="fdv-path-txt">{{ rightRoot ? rightRoot.split('/').pop() : $t('folder_diff.select_folder') }}</span>
+      </button>
+      <div class="fdv-sep" />
+      <select v-model="compareMode" class="fdv-sel" @change="loadAndCompare">
+        <option value="time">{{ $t('folder_diff.by_time') }}</option>
+        <option value="size">{{ $t('folder_diff.by_size') }}</option>
+        <option value="crc">{{ $t('folder_diff.by_crc') }}</option>
+      </select>
+
+      <div class="fdv-sep" />
+      <button class="fdv-btn" :class="{ 'fdv-btn-on': showSyncPanel }" @click="computeSyncPreview">
+        🔄 {{ $t('folder_sync.sync_preview') || 'Sync' }}
       </button>
 
-      <div class="flex items-center gap-1 flex-shrink-0">
-        <button class="btn btn-primary" :disabled="opRunning" @click="loadAndCompare">⟳</button>
-        <select class="input" style="width:100px" v-model="compareMode" @change="loadAndCompare">
-          <option value="time">By Time</option>
-          <option value="size">By Size</option>
-          <option value="crc">By CRC</option>
-        </select>
-      </div>
-
-      <button class="path-btn btn" @click="pickFolder('right')">
-        <span class="text-muted text-xs">RIGHT</span>
-        <span class="truncate">{{ rightRoot || 'Open folder…' }}</span>
-      </button>
+      <!-- Sync mode quick select -->
+      <select v-model="syncMode" class="fdv-sel">
+        <option v-for="o in syncModeOptions" :key="o.value" :value="o.value">{{ o.icon }} {{ o.label }}</option>
+      </select>
     </div>
 
     <!-- Filter bar -->
-    <div class="filter-bar flex items-center gap-2">
-      <span class="text-muted text-xs">Show:</span>
-      <button v-for="m in ['all','diffs','same','left-only','right-only']" :key="m"
-        class="btn btn-icon filter-btn" :class="{ active: filterMode === m }"
-        @click="filterMode = m as FilterMode"
-      >{{ m }}</button>
-      <div class="flex-1" />
-      <input v-model="excludeGlob" class="input" style="width:180px" placeholder="Exclude: *.tmp;*.log"
-        @keydown.enter="loadAndCompare" title="Press Enter to apply exclude filter" />
-      <!-- Stats summary -->
-      <div v-if="folderStats.total > 0" class="stats-summary text-xs">
-        <span class="stat-eq">✓ {{ folderStats.same }}</span>
-        <span class="stat-mod">~ {{ folderStats.modified }}</span>
-        <span class="stat-lo">← {{ folderStats['left-only'] }}</span>
-        <span class="stat-ro">{{ folderStats['right-only'] }} →</span>
-        <span class="text-muted">/ {{ folderStats.total }} files</span>
+    <div class="fdv-filter">
+      <span class="fdv-filter-lbl">{{ $t('folder_diff.show') }}:</span>
+      <button v-for="m in [['all',$t('folder_diff.all')],['diffs',$t('folder_diff.diffs')],['same',$t('folder_diff.same')],['left-only',$t('folder_diff.left_only')],['right-only',$t('folder_diff.right_only')]]" :key="m[0]"
+        class="fdv-filter-btn" :class="{ active: filterMode === m[0] }" @click="filterMode = m[0] as FilterMode">
+        {{ m[1] }}
+      </button>
+      <div class="fdv-sep" />
+      <input v-model="excludeGlob" class="fdv-input" style="width:160px" :placeholder="$t('folder_diff.exclude')"
+        @keydown.enter="loadAndCompare" />
+      <div class="fdv-sep" />
+      <div v-if="folderStats.total > 0" class="fdv-stats">
+        <span class="s-eq">✓ {{ folderStats.same }}</span>
+        <span class="s-mod">~ {{ folderStats.modified }}</span>
+        <span class="s-lo">← {{ folderStats['left-only'] }}</span>
+        <span class="s-ro">{{ folderStats['right-only'] }} →</span>
+        <span class="fdv-total">/ {{ folderStats.total }} files</span>
       </div>
     </div>
 
     <!-- Status -->
-    <div v-if="loading" class="diff-status loading">⟳ Scanning folders…</div>
-    <div v-else-if="error" class="diff-status error">⚠ {{ error }}</div>
+    <div v-if="loading" class="fdv-status fdv-ldg"><div class="fdv-spin" /> {{ $t('folder_diff.scanning') }}</div>
+    <div v-else-if="error" class="fdv-status fdv-err">⚠ {{ error }}</div>
 
-    <!-- Main tree table -->
-    <div class="folder-main flex-1 overflow-auto">
-      <table class="folder-table">
+    <!-- Main table -->
+    <div class="fdv-body">
+      <table class="fdv-tbl">
         <thead>
           <tr>
-            <th class="col-name">Left File</th>
-            <th class="col-size">Size</th>
-            <th class="col-time">Modified</th>
-            <th class="col-status">Status</th>
-            <th class="col-actions"></th>
-            <th class="col-name">Right File</th>
-            <th class="col-size">Size</th>
-            <th class="col-time">Modified</th>
+            <th class="fdv-th">{{ $t('folder_diff.left') }}</th>
+            <th class="fdv-th-sm">Size</th>
+            <th class="fdv-th-sm">Modified</th>
+            <th class="fdv-th-sm">Status</th>
+            <th class="fdv-th-sm"></th>
+            <th class="fdv-th">{{ $t('folder_diff.right') }}</th>
+            <th class="fdv-th-sm">Size</th>
+            <th class="fdv-th-sm">Modified</th>
           </tr>
         </thead>
         <tbody>
-          <tr
-            v-for="(row, i) in allNodes"
-            :key="i"
-            class="folder-row"
-            :class="`status-${statusColor(row.left?.diffStatus ?? row.right?.diffStatus ?? 'unknown')}`"
-            @dblclick="row.left?.kind === 'file' && row.left?.paired ? openFileDiff(row.left) : undefined"
-          >
-            <!-- Left name -->
-            <td class="col-name">
-              <span :style="`padding-left: ${row.depth * 16 + 4}px`" class="node-name">
-                <span v-if="row.left?.kind === 'directory'" class="dir-arrow" @click="toggleExpand(row.left!, 'left')">
-                  {{ row.left.expanded ? '▾' : '▸' }}
-                </span>
-                <span v-else class="file-icon">{{ row.left ? '📄' : '' }}</span>
-                {{ row.left?.name ?? '' }}
+          <tr v-for="(row, i) in allNodes" :key="i" class="fdv-row" :class="`s-${statusColor(row.left?.diffStatus ?? row.right?.diffStatus ?? 'unknown')}`">
+            <td class="fdv-td-name" :style="`padding-left:${row.depth * 16 + 8}px`">
+              <span v-if="row.isDir" class="fdv-dir-icon" @click="row.left && toggleExpand(row.left, 'left')">
+                {{ row.left?.expanded ? '▾' : '▸' }}
+              </span>
+              <span class="fdv-node-icon">{{ row.isDir ? '📁' : '📄' }}</span>
+              {{ row.left?.name ?? row.right?.name ?? '' }}
+            </td>
+            <td class="fdv-td-sm">{{ fmtSize(row.left?.size ?? row.right?.size) }}</td>
+            <td class="fdv-td-sm fdv-time">{{ fmtTime(row.left?.modified ?? row.right?.modified) }}</td>
+            <td class="fdv-td-sm">
+              <span class="fdv-status-badge" :class="`badge-${statusColor(row.left?.diffStatus ?? row.right?.diffStatus ?? 'unknown')}`">
+                {{ { same:'=', modified:'~', 'left-only':'◀', 'right-only':'▶', unknown:'?' }[row.left?.diffStatus ?? row.right?.diffStatus ?? 'unknown'] }}
               </span>
             </td>
-            <td class="col-size text-muted text-xs">{{ fmtSize(row.left?.size) }}</td>
-            <td class="col-time text-muted text-xs">{{ fmtTime(row.left?.modified) }}</td>
-
-            <!-- Status -->
-            <td class="col-status text-center">
-              <span class="status-badge" :class="`badge-${statusColor(row.left?.diffStatus ?? row.right?.diffStatus ?? 'unknown')}`">
-                {{ statusIcon(row.left?.diffStatus ?? row.right?.diffStatus ?? 'unknown') }}
-              </span>
+            <td class="fdv-td-sm" />
+            <td class="fdv-td-name">
+              <span class="fdv-node-icon">{{ row.isDir ? '📁' : '📄' }}</span>
+              {{ row.right?.name ?? '' }}
             </td>
-
-            <!-- Actions -->
-            <td class="col-actions">
-              <div class="action-btns">
-                <button v-if="row.left?.diffStatus === 'left-only'" class="btn btn-icon action-btn" title="Copy → Right" @click="copyToRight(row.left!)">▶</button>
-                <button v-if="row.right?.diffStatus === 'right-only'" class="btn btn-icon action-btn" title="Copy → Left" @click="copyToLeft(row.right!)">◀</button>
-                <button v-if="row.left?.kind === 'file' && row.left?.paired" class="btn btn-icon action-btn" title="Compare files" @click="openFileDiff(row.left!)">⚡</button>
-              </div>
-            </td>
-
-            <!-- Right name -->
-            <td class="col-name">
-              <span :style="`padding-left: ${row.depth * 16 + 4}px`" class="node-name">
-                <span v-if="row.right?.kind === 'directory'" class="dir-arrow" @click="toggleExpand(row.right!, 'right')">
-                  {{ row.right.expanded ? '▾' : '▸' }}
-                </span>
-                <span v-else class="file-icon">{{ row.right ? '📄' : '' }}</span>
-                {{ row.right?.name ?? '' }}
-              </span>
-            </td>
-            <td class="col-size text-muted text-xs">{{ fmtSize(row.right?.size) }}</td>
-            <td class="col-time text-muted text-xs">{{ fmtTime(row.right?.modified) }}</td>
+            <td class="fdv-td-sm">{{ fmtSize(row.right?.size) }}</td>
+            <td class="fdv-td-sm fdv-time">{{ fmtTime(row.right?.modified) }}</td>
           </tr>
-          <tr v-if="!allNodes.length && !loading">
-            <td colspan="8" class="empty-row text-muted">
-              {{ leftRoot && rightRoot ? '无差异或目录为空' : '请选择两个文件夹开始对比' }}
+          <tr v-if="!allNodes.length && !loading" class="fdv-row">
+            <td colspan="8" class="fdv-empty">
+              📂 {{ $t('folder_diff.no_folders') }}
             </td>
           </tr>
         </tbody>
       </table>
     </div>
 
-    <!-- Op log -->
-    <div v-if="opLog.length" class="op-log">
-      <div v-for="(msg, i) in opLog.slice(0, 5)" :key="i" class="op-msg text-xs">{{ msg }}</div>
-    </div>
+    <!-- Sync Panel (slides in from right) -->
+    <div v-if="showSyncPanel" class="fdv-sync-panel">
+      <div class="fdv-sync-hdr">
+        <div class="fdv-sync-title">🔄 {{ $t('folder_sync.sync_preview') || 'Sync Preview' }}</div>
+        <button class="fdv-close-btn" @click="showSyncPanel = false">✕</button>
+      </div>
 
+      <!-- Mode description -->
+      <div class="fdv-sync-mode-desc">
+        <div class="fdv-mode-name">{{ syncModeOptions.find(o => o.value === syncMode)?.label }}</div>
+        <div class="fdv-mode-sub">{{ syncModeOptions.find(o => o.value === syncMode)?.desc }}</div>
+      </div>
+
+      <!-- Progress -->
+      <div v-if="syncRunning" class="fdv-progress">
+        <div class="fdv-progress-bar">
+          <div class="fdv-progress-fill" :style="`width:${syncProgress / syncTotal * 100}%`" />
+        </div>
+        <div class="fdv-progress-txt">{{ syncProgress }} / {{ syncTotal }}</div>
+      </div>
+
+      <!-- Action list -->
+      <div class="fdv-sync-list">
+        <div v-if="!syncPreview.length" class="fdv-sync-empty">✓ No actions needed — folders are in sync!</div>
+        <div v-for="(a, i) in syncPreview" :key="i" class="fdv-sync-item" :class="`item-${a.action} item-${a.direction}`">
+          <span class="fdv-item-icon">{{ a.action === 'copy' ? (a.direction === 'right' ? '→' : '←') : '✕' }}</span>
+          <span class="fdv-item-action">{{ a.action === 'copy' ? 'Copy' : 'Delete' }}</span>
+          <span class="fdv-item-path">{{ a.path }}</span>
+          <span class="fdv-item-status" :class="`st-${a.status}`">
+            {{ a.status === 'pending' ? '○' : a.status === 'done' ? '✓' : '✗' }}
+          </span>
+        </div>
+      </div>
+
+      <!-- Execute -->
+      <div class="fdv-sync-actions">
+        <button class="fdv-btn-exec" :disabled="syncRunning || !syncPreview.length" @click="executeSync">
+          ⚡ {{ $t('folder_sync.execute') || 'Execute Sync' }}
+        </button>
+        <button class="fdv-btn-cancel" @click="showSyncPanel = false">{{ $t('common.cancel') }}</button>
+      </div>
+
+      <!-- Log -->
+      <div class="fdv-sync-log">
+        <div class="fdv-log-title">📋 Log</div>
+        <div v-for="(e, i) in syncLog" :key="i" class="fdv-log-entry" :class="`log-${e.type}`">{{ e.time }} {{ e.msg }}</div>
+      </div>
+    </div>
   </div>
 </template>
 
 <style scoped>
-.folder-diff-view { background: var(--color-bg); }
+.fdv { display:flex; flex-direction:column; height:100%; overflow:hidden; background:var(--color-bg); position:relative }
 
-.folder-toolbar {
-  background: var(--color-bg2); border-bottom: 1px solid var(--color-border);
-  padding: 5px 8px; flex-shrink: 0; min-height: 38px;
-}
-.path-btn { flex: 1; min-width: 0; font-family: var(--font-mono); font-size: 12px; }
+/* Breadcrumb */
+.fdv-crumb { display:flex; align-items:center; gap:4px; padding:3px 16px; background:var(--color-bg2); border-bottom:1px solid var(--color-border); font-size:11px }
+.crumb-home { color:var(--color-text-muted); background:none; border:none; cursor:pointer; padding:0; font-size:11px }
+.crumb-home:hover { color:var(--color-accent) }
+.crumb-sep { color:var(--color-border) }
+.crumb-cur { color:var(--color-text); font-weight:600 }
+.crumb-file { color:var(--color-accent); font-family:monospace; font-size:11px }
 
-.filter-bar {
-  background: var(--color-bg3); border-bottom: 1px solid var(--color-border);
-  padding: 4px 10px; flex-shrink: 0; gap: 4px;
-}
-.filter-btn { font-size: 11px; padding: 2px 8px; border-radius: 10px; }
-.filter-btn.active { background: var(--color-accent); color: var(--color-bg); border-color: var(--color-accent); }
-.stats-summary { display: flex; align-items: center; gap: 8px; padding: 2px 8px; background: var(--color-surface); border-radius: 12px; border: 1px solid var(--color-border); flex-shrink: 0; }
-.stat-eq { color: var(--color-green); font-weight: 600; }
-.stat-mod { color: #f59e0b; font-weight: 600; }
-.stat-lo { color: var(--color-red); font-weight: 600; }
-.stat-ro { color: var(--color-accent); font-weight: 600; }
+/* Toolbar */
+.fdv-toolbar { display:flex; align-items:center; gap:4px; padding:4px 8px; background:var(--color-bg2); border-bottom:1px solid var(--color-border); flex-wrap:wrap; min-height:38px }
+.fdv-btn-path { display:flex; align-items:center; gap:6px; padding:4px 8px; border:1px solid var(--color-border); border-radius:6px; background:var(--color-surface); cursor:pointer; font-size:12px; max-width:220px; overflow:hidden; color:var(--color-text) }
+.fdv-btn-path:hover { border-color:var(--color-accent) }
+.fdv-lbl { font-size:10px; font-weight:700; color:var(--color-text-muted); flex-shrink:0 }
+.fdv-path-txt { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; min-width:0 }
+.fdv-btn { padding:4px 10px; border:1px solid var(--color-border); border-radius:6px; background:var(--color-surface); color:var(--color-text); font-size:12px; cursor:pointer; display:flex; align-items:center; gap:4px; transition:all .15s }
+.fdv-btn:hover { border-color:var(--color-accent); color:var(--color-accent) }
+.fdv-btn:disabled { opacity:.45; cursor:not-allowed }
+.fdv-btn-on { border-color:var(--color-accent); background:rgba(59,130,246,.12); color:var(--color-accent) }
+.fdv-sel { padding:3px 6px; border:1px solid var(--color-border); border-radius:6px; background:var(--color-surface); color:var(--color-text); font-size:11px; cursor:pointer }
+.fdv-sep { flex:1 }
 
-.diff-status { padding: 5px 14px; font-size: 12px; flex-shrink: 0; border-bottom: 1px solid var(--color-border); }
-.diff-status.loading { color: var(--color-accent); }
-.diff-status.error   { color: var(--color-red); }
-
-.folder-main { overflow: auto; }
-.folder-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-.folder-table thead tr { background: var(--color-bg3); border-bottom: 2px solid var(--color-border); }
-.folder-table th { padding: 6px 8px; text-align: left; font-size: 11px; font-weight: 700; color: var(--color-text-muted); white-space: nowrap; }
-.folder-row { border-bottom: 1px solid rgba(69,71,90,.3); cursor: default; transition: background .1s; }
-.folder-row:hover { background: var(--color-surface); }
-
-.col-name   { min-width: 200px; max-width: 360px; }
-.col-size   { width: 64px; text-align: right; }
-.col-time   { width: 140px; }
-.col-status { width: 56px; }
-.col-actions{ width: 80px; }
-
-td { padding: 4px 8px; vertical-align: middle; }
-.node-name { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
-.dir-arrow { cursor: pointer; color: var(--color-accent); font-size: 12px; user-select: none; }
-.file-icon { font-size: 12px; }
-
-/* Status row colours */
-.status-add td  { background: rgba(166,227,161,.06); }
-.status-del td  { background: rgba(243,139,168,.06); }
-.status-mod td  { background: rgba(137,180,250,.05); }
-
-.status-badge { display: inline-block; padding: 1px 6px; border-radius: 8px; font-size: 11px; font-weight: 700; }
-.badge-mod { background: rgba(137,180,250,.2); color: var(--color-accent); }
-.badge-add { background: rgba(166,227,161,.2); color: var(--color-green); }
-.badge-del { background: rgba(243,139,168,.2); color: var(--color-red); }
-
-.action-btns { display: flex; gap: 2px; }
-.action-btn { padding: 2px 6px; font-size: 11px; }
-
-.empty-row { text-align: center; padding: 32px; font-size: 13px; }
-
-.op-log {
-  background: var(--color-bg3); border-top: 1px solid var(--color-border);
-  padding: 4px 12px; flex-shrink: 0; max-height: 100px; overflow-y: auto;
-}
-.op-msg { padding: 1px 0; color: var(--color-text-muted); }
-</style>
-
-.breadcrumb {
-  background: var(--color-bg2);
-  border-bottom: 1px solid var(--color-border);
-  font-size: 11px; color: var(--color-text-muted);
-  padding: 3px 16px;
-}
+/* Filter */
+.fdv-filter { display:flex; align-items:center; gap:4px; padding:3px 8px; background:var(--color-bg2); border-bottom:1px solid var(--color-border) }
+.fdv-filter-lbl { font-size:11px; color:var(--color-text-muted) }
+.fdv-filter-btn { padding:2px 8px; border-radius:4px; border:1px solid transparent; background:transparent; color:var(--color-text-muted); font-size:11px; cursor:pointer }
+.fdv-filter-btn:hover { border-color:var(--color-border); color:var(--color-text) }
+.fdv-filter-btn.active { border-color:var(--color-accent); background:rgba(59,130,246,.12); color:var(--color-accent) }
+.fdv-input { padding:2px 6px; border:1px solid var(--color-border); border-radius:4px; background

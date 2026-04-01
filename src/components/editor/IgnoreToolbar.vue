@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Settings2, ArrowLeftRight, WrapText } from 'lucide-vue-next'
 
-defineProps<{
+const props = defineProps<{
   ignoreWs: boolean
   ignoreCase: boolean
   ignoreComments: boolean
@@ -22,7 +22,7 @@ const emit = defineEmits<{
   'change': []
 }>()
 
-function toggle(key: string, val: boolean) {
+function toggle(key: keyof typeof props, val: boolean) {
   emit(`update:${key}` as any, val)
   emit('change')
 }
