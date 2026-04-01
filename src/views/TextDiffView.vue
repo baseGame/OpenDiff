@@ -21,6 +21,7 @@ const router = useRouter()
 // ── State ───────────────────────────────────────────────────────
 const leftPath     = ref('')
 const rightPath    = ref('')
+const basePath   = ref('')
 const leftContent  = ref('')
 const rightContent = ref('')
 const diffResult  = ref<DiffResult | null>(null)
@@ -79,6 +80,17 @@ async function loadFile(side: 'left' | 'right') {
     const lang = detectLanguage(path)
     if (lang !== 'plaintext') detectedLang.value = lang
     if (leftContent.value && rightContent.value) await runDiff()
+  } catch (e: any) { error.value = String(e) }
+}
+
+// ── Load BASE file ─────────────────────────────────────────────
+async function loadBase() {
+  const path = await open({ multiple: false, title: 'Select BASE file' }) as string | null
+  if (!path) return
+  try {
+    let content = ''
+    try { content = await (async () => { const { invoke } = await import('@tauri-apps/api/core'); return invoke<string>('cmd_read_file_text', { path }) })() } catch { /* noop */ }
+    basePath.value = path
   } catch (e: any) { error.value = String(e) }
 }
 
@@ -190,7 +202,7 @@ function onSearchJump(idx: number) {
 async function runMerge() {
   if (!leftContent.value && !rightContent.value) return
   loading.value = true
-  try { mergeResult.value = await mergeThree(leftContent.value, rightContent.value, ''); showMerge.value = true }
+  try { mergeResult.value = await mergeThree(basePath.value || leftContent.value, leftContent.value, rightContent.value); showMerge.value = true }
   catch (e: any) { error.value = String(e) }
   finally { loading.value = false }
 }
@@ -272,6 +284,10 @@ const renderedRows = computed(() => rows.value.map(row => ({
       <button class="tdv-btn-path" @click="loadFile('right')">
         <span class="tdv-lbl">RIGHT</span>
         <span class="tdv-path-txt">{{ rightPath ? rightPath.split('/').pop() : $t('text_diff.select_file') }}</span>
+      </button>
+      <button class="tdv-btn-path" @click="loadBase()" :class="{ 'tdv-base-active': basePath }">
+        <span class="tdv-lbl">BASE</span>
+        <span class="tdv-path-txt">{{ basePath ? basePath.split('/').pop() : 'BASE (optional)' }}</span>
       </button>
       <div style="flex:1" />
       <select v-model="detectedLang" class="tdv-lang">
@@ -373,6 +389,7 @@ const renderedRows = computed(() => rows.value.map(row => ({
 .tdv-btn:hover { border-color:var(--color-accent); color:var(--color-accent) }
 .tdv-btn:disabled { opacity:.45; cursor:not-allowed }
 .tdv-btn-on { border-color:var(--color-accent); background:rgba(59,130,246,.12); color:var(--color-accent) }
+.tdv-base-active { border-color:#22c55e; color:#22c55e }
 .tdv-lang { padding:3px 6px; border:1px solid var(--color-border); border-radius:6px; background:var(--color-surface); color:var(--color-text); font-size:11px; max-width:110px; cursor:pointer }
 .tdv-stats { display:flex; align-items:center; gap:6px; padding:2px 8px; background:var(--color-bg3); border-radius:12px; border:1px solid var(--color-border); font-size:11px }
 .s-add { color:#22c55e; font-weight:700 }
