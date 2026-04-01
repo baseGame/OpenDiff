@@ -40,7 +40,7 @@ export const useTabStore = defineStore('tabs', () => {
     activeTabId.value = id
   }
 
-  function openNewDiff(kind: SessionKind, leftPath: string, rightPath: string) {
+  function openNewDiff(kind: SessionKind, leftPath: string, rightPath: string, basePath?: string) {
     const titles: Record<SessionKind, string> = {
       text_diff: 'Text Compare',
       folder_diff: 'Folder Compare',
@@ -54,6 +54,7 @@ export const useTabStore = defineStore('tabs', () => {
       kind,
       leftPath,
       rightPath,
+      basePath: basePath,
       isDirty: false,
     })
   }

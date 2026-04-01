@@ -6,10 +6,11 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { open } from '@tauri-apps/plugin-dialog'
 import { diffTexts, diffFiles, mergeThree, saveSession } from '@/api'
 import { highlightLine, detectLanguage } from '@/utils/syntaxHighlight'
-import type { DiffResult, DiffOptions, CharRange } from '@/types'
+import type { DiffResult, DiffOptions, CharRange, DiffAlgorithm } from '@/types'
 import IgnoreToolbar from '@/components/editor/IgnoreToolbar.vue'
 import MergeOutputPanel from '@/components/editor/MergeOutputPanel.vue'
 import DiffMinimap from '@/components/editor/DiffMinimap.vue'
+import SaveSessionDialog from '@/components/SaveSessionDialog.vue'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
@@ -29,10 +30,14 @@ const algorithm   = ref<DiffAlgorithm>('histogram')
 const ignoreWS   = ref(false)
 const ignoreCase = ref(false)
 const ignoreComments = ref(false)
+const showOnlyDiffs = ref(false)
+const syncScroll = ref(true)
+const wordWrap = ref(false)
 const detectedLang = ref('plaintext')
 const leftScrollEl  = ref<HTMLElement | null>(null)
 const rightScrollEl = ref<HTMLElement | null>(null)
 const isDragOver = ref(false)
+const showSaveDialog = ref(false)
 let dragCounter = 0
 
 const langOptions = [
@@ -150,6 +155,23 @@ const rows = computed((): Row[] => {
   return r
 })
 
+// ── Save session ───────────────────────────────────────────────
+async function handleSaveSession(name: string, _kind: any) {
+  if (!leftPath.value && !rightPath.value) return
+  try {
+    await saveSession({
+      id: `s_${Date.now()}`,
+      name,
+      kind: 'text_diff',
+      left_path: leftPath.value,
+      right_path: rightPath.value,
+      config: { algorithm: algorithm.value, ignore_whitespace: ignoreWS.value, ignore_case: ignoreCase.value, ignore_comments: ignoreComments.value, extra: null },
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+  } catch { /* ignore */ }
+}
+
 // ── Merge ─────────────────────────────────────────────────────
 async function runMerge() {
   if (!leftContent.value && !rightContent.value) return
@@ -235,12 +257,15 @@ const renderedRows = computed(() => rows.value.map(row => ({
       <select v-model="detectedLang" class="tdv-lang">
         <option v-for="o in langOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
       </select>
-      <IgnoreToolbar v-model:algorithm="algorithm" v-model:ignoreWhitespace="ignoreWS"
-        v-model:ignoreCase="ignoreCase" v-model:ignoreComments="ignoreComments" @run="runDiff" />
+      <IgnoreToolbar v-model:algorithm="algorithm" v-model:ignoreWs="ignoreWS"
+        v-model:ignoreCase="ignoreCase" v-model:ignoreComments="ignoreComments"
+        v-model:showOnlyDiffs="showOnlyDiffs" v-model:syncScroll="syncScroll" v-model:wordWrap="wordWrap"
+        @change="if (leftContent && rightContent) runDiff()" />
       <div style="flex:1" />
       <button class="tdv-btn" @click="jumpToDiff(-1)" :disabled="currentDiffIdx <= 0">↑</button>
       <button class="tdv-btn" @click="jumpToDiff(1)" :disabled="currentDiffIdx >= diffIdxs.length - 1">↓</button>
       <button class="tdv-btn" :class="{ 'tdv-btn-on': showMerge }" @click="showMerge = !showMerge">{{ $t('text_diff.merge_panel') }}</button>
+      <button class="tdv-btn" @click="showSaveDialog = true">{{ $t('session.save') || '💾' }}</button>
       <div style="flex:1" />
       <div class="tdv-stats" v-if="diffResult">
         <span class="s-add">+{{ stats.added }}</span>
@@ -305,6 +330,9 @@ const renderedRows = computed(() => rows.value.map(row => ({
     <!-- Merge panel -->
     <MergeOutputPanel v-if="showMerge" :merge-result="mergeResult" class="tdv-mrg"
       @close="showMerge = false" @run-merge="runMerge" />
+    <!-- Save dialog -->
+    <SaveSessionDialog :visible="showSaveDialog" kind="text_diff" :left-path="leftPath" :right-path="rightPath"
+      @close="showSaveDialog = false" @save="handleSaveSession" />
   </div>
 </template>
 

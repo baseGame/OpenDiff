@@ -169,4 +169,15 @@ export default {
     confirm: 'Confirm',
     confirm_delete: 'Click again to confirm deletion',
   },
+
+  session: {
+    save: 'Save Session',
+    saved: 'Session saved!',
+    title: 'Session Manager',
+  },
+  session_picker: {
+    title: 'Switch Session',
+    search: 'Search sessions...',
+    load: 'Load',
+  },
 }

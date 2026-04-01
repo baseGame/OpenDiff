@@ -169,4 +169,15 @@ export default {
     confirm: '确认',
     confirm_delete: '再次点击确认删除',
   },
+
+  session: {
+    save: '💾 保存',
+    saved: '已保存 Session！',
+    title: 'Session 管理器',
+  },
+  session_picker: {
+    title: '📂 切换 Session',
+    search: '搜索 Session...',
+    load: '加载',
+  },
 }

@@ -121,5 +121,5 @@ export interface VfsMetadata {
 // ── UI Types ──────────────────────────────────────────────────────
 export interface Tab {
   id: string; title: string; kind: SessionKind
-  leftPath: string; rightPath: string; isDirty: boolean
+  leftPath: string; rightPath: string; isDirty: boolean; basePath?: string
 }

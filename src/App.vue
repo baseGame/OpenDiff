@@ -4,11 +4,16 @@ import { useRouter } from 'vue-router'
 import AppLayout from '@/components/AppLayout.vue'
 import GlobalToast from '@/components/GlobalToast.vue'
 import KeyboardShortcuts from '@/components/KeyboardShortcuts.vue'
+import SessionPicker from '@/components/SessionPicker.vue'
+import type { Session } from '@/types'
+import { useTabStore } from '@/stores/tabs'
 
 const toast = ref<InstanceType<typeof GlobalToast> | null>(null)
 provide('toast', (msg: string, type?: 'success' | 'error' | 'info') => toast.value?.show(msg, type))
 
 const router = useRouter()
+const tabStore = useTabStore()
+const showSessionPicker = ref(false)
 
 function onKeydown(e: KeyboardEvent) {
   const tag = (e.target as HTMLElement)?.tagName
@@ -17,7 +22,7 @@ function onKeydown(e: KeyboardEvent) {
     if (e.key === ',') { e.preventDefault(); router.push('/settings') }
     if (e.key === 'o' && !e.shiftKey) {
       e.preventDefault()
-      const leftEl = document.querySelector<HTMLElement>('.path-btn')
+      const leftEl = document.querySelector<HTMLElement>('[data-side=left-file]') || document.querySelector<HTMLElement>('.path-btn')
       leftEl?.click()
     }
     if ((e.key === 'O') || (e.shiftKey && e.key === 'o')) {
@@ -25,11 +30,30 @@ function onKeydown(e: KeyboardEvent) {
       const btns = document.querySelectorAll<HTMLElement>('.path-btn')
       btns[btns.length - 1]?.click()
     }
+    if (e.shiftKey && (e.key === 'S' || e.key === 's')) {
+      e.preventDefault(); showSessionPicker.value = true
+    }
+  }
+  if (e.ctrlKey && e.shiftKey && (e.key === 'S' || e.key === 's')) {
+    e.preventDefault(); showSessionPicker.value = true
   }
   if (e.key === 'Escape') {
     const panel = document.querySelector('.merge-panel') as HTMLElement
     if (panel) panel.remove()
   }
+}
+
+function onLoadSession(s: Session) {
+  const routeMap: Record<string, string> = {
+    text_diff: '/text-diff',
+    folder_diff: '/folder-diff',
+    table_diff: '/table-diff',
+    hex_diff: '/hex-diff',
+    image_diff: '/image-diff',
+    folder_sync: '/folder-diff',
+  }
+  tabStore.openNewDiff(s.kind, s.left_path, s.right_path, s.base_path)
+  router.push(routeMap[s.kind] || '/')
 }
 
 window.addEventListener('keydown', onKeydown)
@@ -39,4 +63,5 @@ window.addEventListener('keydown', onKeydown)
   <AppLayout />
   <GlobalToast ref="toast" />
   <KeyboardShortcuts />
+  <SessionPicker :visible="showSessionPicker" @close="showSessionPicker = false" @load="onLoadSession" />
 </template>
