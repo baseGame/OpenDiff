@@ -4,6 +4,7 @@
  */
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { open } from '@tauri-apps/plugin-dialog'
+import { invoke } from '@tauri-apps/api/core'
 import { diffTexts, diffFiles, mergeThree, saveSession } from '@/api'
 import { highlightLine, detectLanguage } from '@/utils/syntaxHighlight'
 import { detectEncoding, SUPPORTED_ENCODINGS } from '@/utils/encoding'
@@ -35,7 +36,7 @@ const currentDiffIdx = ref(-1)
 const showMerge   = ref(false)
 const mergeResult = ref<any>(null)
 const algorithm   = ref<DiffAlgorithm>('histogram')
-const ignoreWS   = ref(false)
+const ignoreWs   = ref(false)
 const ignoreCase = ref(false)
 const ignoreComments = ref(false)
 const showOnlyDiffs = ref(false)
@@ -434,7 +435,7 @@ const renderedRows = computed(() => rows.value.map(row => ({
       <select v-model="detectedLang" class="tdv-lang">
         <option v-for="o in langOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
       </select>
-      <IgnoreToolbar v-model:algorithm="algorithm" v-model:ignoreWs="ignoreWS"
+      <IgnoreToolbar v-model:algorithm="algorithm" v-model:ignoreWs="ignoreWs"
         v-model:ignoreCase="ignoreCase" v-model:ignoreComments="ignoreComments"
         v-model:showOnlyDiffs="showOnlyDiffs" v-model:syncScroll="syncScroll" v-model:wordWrap="wordWrap"
         @change="leftContent && rightContent ? runDiff() : undefined" />
