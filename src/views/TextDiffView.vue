@@ -6,6 +6,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { open } from '@tauri-apps/plugin-dialog'
 import { diffTexts, diffFiles, mergeThree, saveSession } from '@/api'
 import { highlightLine, detectLanguage } from '@/utils/syntaxHighlight'
+import { detectEncoding, SUPPORTED_ENCODINGS } from '@/utils/encoding'
 import type { DiffResult, DiffOptions, CharRange, DiffAlgorithm } from '@/types'
 import IgnoreToolbar from '@/components/editor/IgnoreToolbar.vue'
 import MergeOutputPanel from '@/components/editor/MergeOutputPanel.vue'
@@ -38,6 +39,9 @@ const showOnlyDiffs = ref(false)
 const syncScroll = ref(true)
 const wordWrap = ref(false)
 const detectedLang = ref('plaintext')
+const detectedEncoding = ref<{ name: string; confidence: number; label: string }>({ name: 'UTF-8', confidence: 1, label: 'UTF-8' })
+const selectedEncoding = ref('UTF-8')
+const showEncodingPanel = ref(false)
 const leftScrollEl  = ref<HTMLElement | null>(null)
 const rightScrollEl = ref<HTMLElement | null>(null)
 const isDragOver = ref(false)
@@ -173,6 +177,26 @@ const rows = computed((): Row[] => {
   return r
 })
 
+const encodingOptions = ['UTF-8', 'GBK', 'GB2312', 'BIG5', 'SHIFT-JIS', 'EUC-KR', 'ISO-8859-1', 'WINDOWS-1252', 'UTF-16LE', 'UTF-16BE', 'ASCII']
+
+async function reloadWithEncoding() {
+  if (!leftPath.value && !rightPath.value) return
+  try {
+    const enc = selectedEncoding.value
+    if (leftPath.value) {
+      const { invoke } = await import('@tauri-apps/api/core')
+      const bytes: number[] = await invoke('cmd_read_file_bytes', { path: leftPath.value })
+      leftContent.value = new TextDecoder(enc, { fatal: false }).decode(new Uint8Array(bytes))
+    }
+    if (rightPath.value) {
+      const { invoke } = await import('@tauri-apps/api/core')
+      const bytes: number[] = await invoke('cmd_read_file_bytes', { path: rightPath.value })
+      rightContent.value = new TextDecoder(enc, { fatal: false }).decode(new Uint8Array(bytes))
+    }
+    if (leftContent.value && rightContent.value) await runDiff()
+  } catch { /* ignore */ }
+}
+
 // ── Importance rules ────────────────────────────────────────────
 function isRowIgnored(text: string): boolean {
   if (!importanceRules.value?.length) return false
@@ -290,6 +314,21 @@ const renderedRows = computed(() => rows.value.map(row => ({
         <span class="tdv-path-txt">{{ basePath ? basePath.split('/').pop() : 'BASE (optional)' }}</span>
       </button>
       <div style="flex:1" />
+      <select v-model="selectedEncoding" class="tdv-lang" :title="'Encoding: ' + detectedEncoding.label" @change="reloadWithEncoding">
+        <option value="UTF-8">UTF-8</option>
+        <option value="GBK">GBK</option>
+        <option value="GB2312">GB2312</option>
+        <option value="BIG5">BIG5</option>
+        <option value="SHIFT-JIS">Shift-JIS</option>
+        <option value="EUC-KR">EUC-KR</option>
+        <option value="ISO-8859-1">ISO-8859-1</option>
+        <option value="UTF-16LE">UTF-16 LE</option>
+        <option value="UTF-16BE">UTF-16 BE</option>
+        <option value="ASCII">ASCII</option>
+      </select>
+      <span v-if="detectedEncoding.confidence < 1" class="tdv-enc-badge" :title="detectedEncoding.label" @click="showEncodingPanel = !showEncodingPanel">
+        {{ detectedEncoding.name }}
+      </span>
       <select v-model="detectedLang" class="tdv-lang">
         <option v-for="o in langOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
       </select>
@@ -390,7 +429,8 @@ const renderedRows = computed(() => rows.value.map(row => ({
 .tdv-btn:disabled { opacity:.45; cursor:not-allowed }
 .tdv-btn-on { border-color:var(--color-accent); background:rgba(59,130,246,.12); color:var(--color-accent) }
 .tdv-base-active { border-color:#22c55e; color:#22c55e }
-.tdv-lang { padding:3px 6px; border:1px solid var(--color-border); border-radius:6px; background:var(--color-surface); color:var(--color-text); font-size:11px; max-width:110px; cursor:pointer }
+.tdv-lang { padding:3px 6px; border:1px solid var(--color-border); border-radius:6px; background:var(--color-surface); color:var(--color-text); font-size:11px; max-width:120px; cursor:pointer }
+.tdv-enc-badge { display:inline-flex; align-items:center; padding:1px 6px; border-radius:3px; border:1px solid var(--color-accent); background:rgba(59,130,246,.12); color:var(--color-accent); font-size:10px; font-weight:700; cursor:pointer }
 .tdv-stats { display:flex; align-items:center; gap:6px; padding:2px 8px; background:var(--color-bg3); border-radius:12px; border:1px solid var(--color-border); font-size:11px }
 .s-add { color:#22c55e; font-weight:700 }
 .s-del { color:#ef4444; font-weight:700 }

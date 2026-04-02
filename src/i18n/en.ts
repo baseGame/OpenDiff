@@ -7,6 +7,7 @@ export default {
     workspace_status: 'Workspace Status', saved_profiles: 'Saved Profiles',
     tip: 'Tip: Drag and drop any two files onto the main area to start comparing instantly.',
     no_recent: 'No recent sessions found.', start_compare: 'Start Comparing', disk_usage: 'Disk Usage',
+  encoding: { title: 'Encoding', detected: 'Detected:', reload: 'Re-load with encoding' },
   },
   diff_kind: { text_diff: 'Text Compare', folder_diff: 'Folder Compare', table_diff: 'Table Compare', hex_diff: 'Hex Compare', image_diff: 'Image Compare', folder_sync: 'Folder Sync' },
   text_diff: {

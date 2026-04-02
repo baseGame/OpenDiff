@@ -7,6 +7,7 @@ export default {
     workspace_status: '工作区状态', saved_profiles: '保存的配置',
     tip: '💡 提示：将任意两个文件拖入主区域，即可快速开始对比。',
     no_recent: '暂无历史记录', start_compare: '开始对比', disk_usage: '磁盘占用',
+  encoding: { title: '文件编码', detected: '检测结果：', reload: '重新加载（编码）' },
   },
   diff_kind: { text_diff: '文本对比', folder_diff: '文件夹对比', table_diff: '表格对比', hex_diff: '十六进制对比', image_diff: '图片对比', folder_sync: '文件夹同步' },
   text_diff: {
