@@ -33,6 +33,12 @@
 - [ ] 过滤徽章显示当前过滤状态
 - [ ] 快捷键：`Alt+A` 全部 / `Alt+N` 仅新增 / `Alt+D` 仅删除
 
+### 🔧 紧急修复 (v0.2.10-patch1)
+- [x] TextDiffView 所有按钮失效 → `ignoreWs` prop 名不匹配（IgnoreToolbar 期望 `ignoreWs`，TextDiffView 传 `ignoreWS`）
+- [x] HTML5 File API 浏览器回退（`open()` 在浏览器报错）
+- [x] 删除重复 bookmark 函数定义（导致 TypeScript 冲突）
+- [x] 桌面/浏览器两用文件选择器（隐藏 `<input type=file>` 回退）
+
 ### H14 — 跨文件搜索
 - [ ] 搜索范围选择：当前文件 / 两文件交叉搜索
 - [ ] 搜索结果面板：显示每个匹配的文件+行号
