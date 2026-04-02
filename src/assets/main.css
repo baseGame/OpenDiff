@@ -267,3 +267,37 @@ html, body, #app {
   color: var(--color-text);
 }
 .lang-select:hover { border-color: var(--color-accent); }
+
+/* ── Light Theme ─────────────────────────────────────────────── */
+[data-theme="light"] {
+  --color-bg: #ffffff;
+  --color-bg2: #f4f4f5;
+  --color-bg3: #e4e4e7;
+  --color-surface: #f4f4f5;
+  --color-border: #d4d4d8;
+  --color-border-hover: #a1a1aa;
+  --color-text: #18181b;
+  --color-text-muted: #71717a;
+  --color-accent: #2563eb;
+  --color-accent-hover: #1d4ed8;
+  --color-green: #16a34a;
+  --color-red: #dc2626;
+  --color-yellow: #ca8a04;
+  --color-orange: #ea580c;
+  --color-purple: #9333ea;
+  --color-pink: #db2777;
+  --color-cyan: #0891b2;
+  --color-bg-hover: rgba(0,0,0,.04);
+  --color-overlay: rgba(255,255,255,.8);
+  --shadow-sm: 0 1px 2px rgba(0,0,0,.06);
+  --shadow-md: 0 4px 6px rgba(0,0,0,.08);
+  --shadow-lg: 0 10px 15px rgba(0,0,0,.1);
+}
+
+[data-theme="light"] body {
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+[data-theme="light"] ::-webkit-scrollbar { background: var(--color-bg2) }
+[data-theme="light"] ::-webkit-scrollbar-thumb { background: var(--color-border) }
