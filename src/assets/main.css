@@ -301,3 +301,36 @@ html, body, #app {
 
 [data-theme="light"] ::-webkit-scrollbar { background: var(--color-bg2) }
 [data-theme="light"] ::-webkit-scrollbar-thumb { background: var(--color-border) }
+
+
+/* ── Responsive — Mobile First ───────────────────────────────── */
+@media (max-width: 768px) {
+  .sidebar { display: none !important; }
+  .app-body { flex-direction: column; }
+  .app-main { width: 100% !important; }
+  .top-bar { padding: 4px 8px; font-size: 13px; }
+  .diff-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .settings-body { padding: 0 8px 80px; }
+  .setting-row { flex-direction: column; gap: 6px; }
+  .diff-minimap { display: none !important; }
+  .tdv-toolbar, .fdv-toolbar { flex-wrap: wrap; gap: 4px; padding: 4px; }
+}
+
+@media (max-width: 480px) {
+  .tdv-lbl, .fdv-lbl { display: none; }
+  .tdv-btn-path, .fdv-btn { padding: 4px 8px; gap: 2px; }
+  .crumb-home, .crumb-sep { display: none; }
+  .modal-overlay .modal-body { margin: 8px; border-radius: 8px; }
+}
+
+@media (pointer: coarse) {
+  button, .btn, .tdv-btn, .fdv-btn { min-height: 36px; min-width: 36px; }
+  input, select { min-height: 36px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
