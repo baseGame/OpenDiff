@@ -59,6 +59,7 @@ export default {
   session_picker: { title: '📂 切换 Session', search: '搜索 Session...', load: '加载' },
   folder_sync: { title: '文件夹同步', sync_preview: '同步预览', execute: '执行同步', mode_update_left: '更新左侧', mode_update_right: '更新右侧', mode_update_both: '双向更新', mode_mirror_left: '镜像到左侧', mode_mirror_right: '镜像到右侧', no_actions: '文件夹已完全同步，无需任何操作！', log_title: '同步日志' },
   goto_line: { title: '跳转到行', prompt: '输入行号：', go: '跳转' },
+  bookmarks: { title: '书签', empty: '暂无书签 — 点击差异行上的 ☆ 添加' },
   importance: { title: '重要性规则', presets: '预设：', add_rule: '添加规则', no_rules: '暂无规则，请添加或选择预设', hint: '匹配的行将从差异视图中隐藏' },
   merge: { no_conflicts: '无冲突', conflicts: '冲突', hint: '选择基准+左侧+右侧文件，然后点击"执行合并"' },
 }

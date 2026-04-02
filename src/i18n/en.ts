@@ -57,6 +57,7 @@ export default {
   session_picker: { title: 'Switch Session', search: 'Search sessions...', load: 'Load' },
   folder_sync: { title: 'Folder Sync', sync_preview: 'Sync Preview', execute: 'Execute Sync', mode_update_left: 'Update Left', mode_update_right: 'Update Right', mode_update_both: 'Update Both', mode_mirror_left: 'Mirror to Left', mode_mirror_right: 'Mirror to Right', no_actions: 'Folders are in sync — no actions needed', log_title: 'Sync Log' },
   goto_line: { title: 'Go to Line', prompt: 'Enter line number:', go: 'Go' },
+  bookmarks: { title: 'Bookmarks', empty: 'No bookmarks — click ☆ on a diff line to add' },
   importance: { title: 'Importance Rules', presets: 'Presets:', add_rule: 'Add Rule', no_rules: 'No rules yet. Add one or choose a preset.', hint: 'Matched lines will be hidden from the diff view' },
   merge: { no_conflicts: 'No conflicts', conflicts: 'conflicts', hint: 'Select BASE + Left + Right files, then click Execute Merge' },
 }

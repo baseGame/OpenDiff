@@ -50,6 +50,15 @@ const isDragOver = ref(false)
 const showSaveDialog = ref(false)
 const showGotoLine = ref(false)
 const showImportanceRules = ref(false)
+const bookmarkedIdxs = ref(new Set<number>())
+const showBookmarkPanel = ref(false)
+const currentBookmarkPos = ref(-1)
+const bookmarkedIdxs = ref(new Set<number>())
+const showBookmarkPanel = ref(false)
+const currentBookmarkPos = ref(-1)
+const bookmarkedIdxs = ref(new Set<number>())
+const showBookmarkPanel = ref(false)
+const currentBookmarkPos = ref(-1)
 const searchBarRef = ref<any>(null)
 const importanceRules = ref<any[]>([])
 let dragCounter = 0
@@ -138,6 +147,42 @@ function jumpToDiff(dir: 1 | -1) {
   const next = currentDiffIdx.value + dir
   if (next >= 0 && next < arr.length) { currentDiffIdx.value = next; scrollToIdx(arr[next]) }
 }
+function toggleBookmark(idx: number) {
+  const s = new Set(bookmarkedIdxs.value); s.has(idx) ? s.delete(idx) : s.add(idx)
+  bookmarkedIdxs.value = s; syncBookmarkPos()
+}
+function syncBookmarkPos() {
+  const bids = [...bookmarkedIdxs.value].sort((a, b) => a - b)
+  const cur = diffIdxs.value[currentDiffIdx.value]
+  currentBookmarkPos.value = bids.indexOf(cur)
+}
+function jumpToBookmark(dir: 1 | -1) {
+  const bids = [...bookmarkedIdxs.value].sort((a, b) => a - b)
+  if (!bids.length) return
+  currentBookmarkPos.value = Math.max(0, Math.min(bids.length - 1, currentBookmarkPos.value + dir))
+  const target = bids[currentBookmarkPos.value]
+  const di = diffIdxs.value.indexOf(target)
+  if (di >= 0) { currentDiffIdx.value = di; scrollToIdx(target) }
+}
+function isBookmarked(idx: number) { return bookmarkedIdxs.value.has(idx) }
+function toggleBookmark(idx: number) {
+  const s = new Set(bookmarkedIdxs.value); s.has(idx) ? s.delete(idx) : s.add(idx)
+  bookmarkedIdxs.value = s; syncBookmarkPos()
+}
+function syncBookmarkPos() {
+  const bids = [...bookmarkedIdxs.value].sort((a, b) => a - b)
+  const cur = diffIdxs.value[currentDiffIdx.value]
+  currentBookmarkPos.value = bids.indexOf(cur)
+}
+function jumpToBookmark(dir: 1 | -1) {
+  const bids = [...bookmarkedIdxs.value].sort((a, b) => a - b)
+  if (!bids.length) return
+  currentBookmarkPos.value = Math.max(0, Math.min(bids.length - 1, currentBookmarkPos.value + dir))
+  const target = bids[currentBookmarkPos.value]
+  const di = diffIdxs.value.indexOf(target)
+  if (di >= 0) { currentDiffIdx.value = di; scrollToIdx(target) }
+}
+function isBookmarked(idx: number) { return bookmarkedIdxs.value.has(idx) }
 
 function scrollToIdx(idx: number) {
   leftScrollEl.value?.scrollTo({ top: idx * 22 - 200, behavior: 'smooth' })
@@ -289,6 +334,9 @@ function onKeydown(e: KeyboardEvent) {
   if (e.key === 'F7') { e.preventDefault(); jumpToDiff(-1) }
   if (e.key === 'F8') { e.preventDefault(); jumpToDiff(1) }
   if ((e.ctrlKey || e.metaKey) && e.key === 'g') { e.preventDefault(); showGotoLine.value = true }
+  if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'B') { showBookmarkPanel.value = !showBookmarkPanel.value }
+  if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'B') { showBookmarkPanel.value = !showBookmarkPanel.value }
+  if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'B') { e.preventDefault(); showBookmarkPanel.value = !showBookmarkPanel.value }
   if ((e.ctrlKey || e.metaKey) && e.key === 'f') { e.preventDefault(); searchBarRef.value?.$el?.querySelector('input')?.focus(); searchBarRef.value?.$el?.querySelector('input')?.select() }
 }
 onMounted(() => window.addEventListener('keydown', onKeydown))
@@ -369,6 +417,11 @@ const renderedRows = computed(() => rows.value.map(row => ({
       <button class="tdv-btn" :class="{ 'tdv-btn-on': showMerge }" @click="showMerge = !showMerge">{{ $t('text_diff.merge_panel') }}</button>
       <button class="tdv-btn" @click="showSaveDialog = true">{{ $t('session.save') || 'Save' }}</button>
       <button class="tdv-btn" @click="showImportanceRules = true" title="Importance Rules">⚙</button>
+      <button class="tdv-btn" :class="{ 'tdv-btn-on': showBookmarkPanel }" @click="showBookmarkPanel = !showBookmarkPanel" title="Bookmarks (Ctrl+Shift+B)">★<span v-if="bookmarkedIdxs.size > 0" class="tdv-badge">{{ bookmarkedIdxs.size }}</span></button>
+      <button class="tdv-btn" :class="{ 'tdv-btn-on': showBookmarkPanel }" @click="showBookmarkPanel = !showBookmarkPanel" title="Bookmarks (Ctrl+Shift+B)">★<span v-if="bookmarkedIdxs.size > 0" class="tdv-badge">{{ bookmarkedIdxs.size }}</span></button>
+      <button class="tdv-btn" :class="{ 'tdv-btn-on': showBookmarkPanel }" @click="showBookmarkPanel = !showBookmarkPanel" title="Bookmarks (Ctrl+Shift+B)">
+        ★ <span v-if="bookmarkedIdxs.size > 0" class="tdv-badge">{{ bookmarkedIdxs.size }}</span>
+      </button>
       <div style="flex:1" />
       <SearchBar ref="searchBarRef" :query="searchQuery" :match-idcs="searchMatchIdxs" @jump="onSearchJump" @update:query="onSearchQueryChange" />
       <div style="flex:1" />
@@ -404,7 +457,7 @@ const renderedRows = computed(() => rows.value.map(row => ({
         <div class="tdv-scrl" ref="rightScrollEl" @scroll="onRightScroll">
           <table class="tdv-tbl"><tbody>
             <tr v-for="(row, ri) in filteredRows" :key="ri" :class="`r-${row.st}`">
-              <td class="tdv-num">{{ row.ri !== null ? row.ri + 1 : '' }}</td>
+              <td class="tdv-num"><span @click.stop="toggleBookmark(row.ri)" class="tdiff-star">{{ isBookmarked(row.ri) ? '★' : '☆' }}</span>{{ row.ri !== null ? row.ri + 1 : '' }}</td>
               <td class="tdv-gut" />
               <td class="tdv-cell" v-html="row.rHtml" />
             </tr>
@@ -432,6 +485,28 @@ const renderedRows = computed(() => rows.value.map(row => ({
     <ImportanceRules :visible="showImportanceRules" :rules="importanceRules"
       @close="showImportanceRules = false" @update="r => { importanceRules = r }" />
 
+    <!-- Bookmark panel -->
+    <div v-if="showBookmarkPanel" class="tdv-bm-panel" @click.stop>
+      <div class="tdv-bm-hdr">
+        <span>★ Bookmarks ({{ bookmarkedIdxs.size }})</span>
+        <div class="tdv-bm-nav">
+          <button class="tdv-btn" @click="jumpToBookmark(-1)" :disabled="currentBookmarkPos <= 0">←</button>
+          <button class="tdv-btn" @click="jumpToBookmark(1)" :disabled="currentBookmarkPos >= bookmarkedIdxs.size - 1">→</button>
+          <button class="tdv-btn" @click="showBookmarkPanel = false">✕</button>
+        </div>
+      </div>
+      <div class="tdv-bm-list">
+        <div v-if="!bookmarkedIdxs.size" class="tdv-bm-empty">No bookmarks — click ☆ on a diff line</div>
+        <div v-for="(idx, bi) in [...bookmarkedIdxs].sort((a,b)=>a-b)" :key="idx"
+          class="tdv-bm-item" :class="{ active: diffIdxs[currentDiffIdx] === idx }"
+          @click="currentBookmarkPos = bi; const di = diffIdxs.indexOf(idx); if(di>=0){ currentDiffIdx = di; scrollToIdx(idx) }">
+          <span class="tdv-bm-num">{{ bi + 1 }}</span>
+          <span class="tdv-bm-lbl">Line {{ idx + 1 }}</span>
+          <button class="tdv-bm-del" @click.stop="toggleBookmark(idx)">✕</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Save dialog -->
     <SaveSessionDialog :visible="showSaveDialog" kind="text_diff" :left-path="leftPath" :right-path="rightPath"
       @close="showSaveDialog = false" @save="handleSaveSession" />
@@ -447,6 +522,52 @@ const renderedRows = computed(() => rows.value.map(row => ({
 .crumb-cur { color:var(--color-text); font-weight:600 }
 .crumb-file { color:var(--color-accent); font-family:monospace; font-size:11px }
 .tdv-toolbar { display:flex; align-items:center; gap:4px; padding:4px 8px; background:var(--color-bg2); border-bottom:1px solid var(--color-border); flex-wrap:wrap; min-height:38px }
+.tdv-badge { display:inline-flex; align-items:center; justify-content:center; background:var(--color-accent); color:#fff; border-radius:8px; font-size:10px; font-weight:700; padding:0 4px; min-width:16px; height:16px; line-height:16px }
+.tdv-btn-on { border-color:var(--color-accent); background:rgba(59,130,246,.12); color:var(--color-accent) }
+.tdiff-star { cursor:pointer; color:var(--color-text-muted); font-size:11px; user-select:none; flex-shrink:0; margin-left:2px }
+.tdiff-star:hover { color:#f59e0b }
+.tdv-bm-panel { position:absolute; top:36px; right:8px; z-index:100; background:var(--color-surface); border:1px solid var(--color-border); border-radius:8px; box-shadow:var(--shadow-lg); width:240px; max-height:320px; display:flex; flex-direction:column }
+.tdv-bm-hdr { display:flex; align-items:center; justify-content:space-between; padding:8px 10px; border-bottom:1px solid var(--color-border); font-size:12px; font-weight:600 }
+.tdv-bm-nav { display:flex; gap:4px }
+.tdv-bm-list { overflow-y:auto; flex:1 }
+.tdv-bm-empty { padding:16px; text-align:center; color:var(--color-text-muted); font-size:12px }
+.tdv-bm-item { display:flex; align-items:center; gap:6px; padding:6px 10px; cursor:pointer; font-size:12px }
+.tdv-bm-item:hover { background:var(--color-bg-hover) }
+.tdv-bm-item.active { background:rgba(59,130,246,.1); color:var(--color-accent) }
+.tdv-bm-num { color:var(--color-text-muted); font-size:10px; width:16px; flex-shrink:0 }
+.tdv-bm-lbl { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+.tdv-bm-del { background:none; border:none; color:var(--color-text-muted); cursor:pointer; padding:0; font-size:10px }
+.tdv-bm-del:hover { color:var(--color-red) }
+.tdv-badge { display:inline-flex; align-items:center; justify-content:center; background:var(--color-accent); color:#fff; border-radius:8px; font-size:10px; font-weight:700; padding:0 4px; min-width:16px; height:16px; line-height:16px }
+.tdv-btn-on { border-color:var(--color-accent); background:rgba(59,130,246,.12); color:var(--color-accent) }
+.tdiff-star { cursor:pointer; color:var(--color-text-muted); margin-right:3px; font-size:11px; user-select:none; flex-shrink:0 }
+.tdiff-star:hover { color:#f59e0b }
+.tdv-bm-panel { position:absolute; top:36px; right:8px; z-index:100; background:var(--color-surface); border:1px solid var(--color-border); border-radius:8px; box-shadow:var(--shadow-lg); width:240px; max-height:320px; display:flex; flex-direction:column }
+.tdv-bm-hdr { display:flex; align-items:center; justify-content:space-between; padding:8px 10px; border-bottom:1px solid var(--color-border); font-size:12px; font-weight:600 }
+.tdv-bm-nav { display:flex; gap:4px }
+.tdv-bm-list { overflow-y:auto; flex:1 }
+.tdv-bm-empty { padding:16px; text-align:center; color:var(--color-text-muted); font-size:12px }
+.tdv-bm-item { display:flex; align-items:center; gap:6px; padding:6px 10px; cursor:pointer; font-size:12px }
+.tdv-bm-item:hover { background:var(--color-bg-hover) }
+.tdv-bm-item.active { background:rgba(59,130,246,.1); color:var(--color-accent) }
+.tdv-bm-num { color:var(--color-text-muted); font-size:10px; width:16px; flex-shrink:0 }
+.tdv-bm-lbl { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+.tdv-bm-del { background:none; border:none; color:var(--color-text-muted); cursor:pointer; padding:0; font-size:10px }
+.tdv-bm-del:hover { color:var(--color-red) }
+.tdv-badge { display:inline-flex; align-items:center; justify-content:center; background:var(--color-accent); color:#fff; border-radius:8px; font-size:10px; font-weight:700; padding:0 4px; min-width:16px; height:16px; line-height:16px }
+.tdv-btn-on { border-color:var(--color-accent); background:rgba(59,130,246,.12); color:var(--color-accent) }
+.tdv-bm-panel { position:absolute; top:36px; right:8px; z-index:100; background:var(--color-surface); border:1px solid var(--color-border); border-radius:8px; box-shadow:var(--shadow-lg); width:240px; max-height:320px; display:flex; flex-direction:column }
+.tdv-bm-hdr { display:flex; align-items:center; justify-content:space-between; padding:8px 10px; border-bottom:1px solid var(--color-border); font-size:12px; font-weight:600 }
+.tdv-bm-nav { display:flex; gap:4px }
+.tdv-bm-list { overflow-y:auto; flex:1 }
+.tdv-bm-empty { padding:16px; text-align:center; color:var(--color-text-muted); font-size:12px }
+.tdv-bm-item { display:flex; align-items:center; gap:6px; padding:6px 10px; cursor:pointer; font-size:12px }
+.tdv-bm-item:hover { background:var(--color-bg-hover) }
+.tdv-bm-item.active { background:rgba(59,130,246,.1); color:var(--color-accent) }
+.tdv-bm-num { color:var(--color-text-muted); font-size:10px; width:16px }
+.tdv-bm-lbl { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+.tdv-bm-del { background:none; border:none; color:var(--color-text-muted); cursor:pointer; padding:0; font-size:10px }
+.tdv-bm-del:hover { color:var(--color-red) }
 .tdv-btn-path { display:flex; align-items:center; gap:6px; padding:4px 8px; border:1px solid var(--color-border); border-radius:6px; background:var(--color-surface); cursor:pointer; font-size:12px; max-width:220px; overflow:hidden; color:var(--color-text) }
 .tdv-btn-path:hover { border-color:var(--color-accent) }
 .tdv-lbl { font-size:10px; font-weight:700; color:var(--color-text-muted); flex-shrink:0 }
