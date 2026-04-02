@@ -172,6 +172,7 @@ Apache License 2.0 — 可免费商用，无需署名。
 ## 📋 更新日志
 
 ### v0.2.10（2026-04-02）
+- ✅ 差异书签（Ctrl+Shift+B + ☆ 点击切换 + 书签导航）
 - ✅ 响应式布局 + 移动端适配（768px / 480px 断点）
 - ✅ 触摸友好 UI（36px 最小点击区域）
 - ✅ CLI 参数支持（`opendiff.exe --left FILE --right FILE`）
