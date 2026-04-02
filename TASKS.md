@@ -1,77 +1,109 @@
-# OpenDiff v0.2 — 实施计划
+# OpenDiff TASKS.md — 待完成功能
 
-## 当前状态（全部完成 ✅）
-
-- ✅ 主页（5功能卡片 + 历史记录 + 侧栏）
-- ✅ TextDiffView（语法高亮已集成）
-- ✅ FolderDiffView（Rust diffFolders 已接入）
-- ✅ TableDiffView（Rust LCS 已接入）
-- ✅ HexDiffView（Rust 字节读取已接入）
-- ✅ ImageDiffView（Rust 像素 diff 已接入）
-- ✅ SettingsView（路由已注册）
-- ✅ 所有按钮绑定完整，无静默按钮
-- ✅ Session History 页面完整
-- ✅ HomeView 侧边栏 Profile 有功能
-- ✅ Settings 持久化已验证
-- ✅ 深色/浅色主题变量完整
-- ✅ **多语言支持：中文 + English**
+> 最后更新：v0.2.10 — 2026-04-02
 
 ---
 
-## 多语言（i18n）✅
+## ✅ 已完成
 
-**新增文件：**
-- `src/i18n/index.ts` — vue-i18n 核心，LOCALES 注册表（添加新语言只需添加一个文件）
-- `src/i18n/en.ts` — English 翻译
-- `src/i18n/zh.ts` — 中文翻译
-
-**已接入的视图：**
-- SettingsView — 语言切换下拉框（Settings → Appearance → Language）
-- TextDiffView — 所有文本 i18n 化
-- FolderDiffView — 所有文本 i18n 化
-- TableDiffView — 所有文本 i18n 化
-- HexDiffView — 所有文本 i18n 化
-- ImageDiffView — 所有文本 i18n 化
-- HomeView — 主要文本 i18n 化
-- HistoryView — 所有文本 i18n 化
-
-**添加新语言方法：**
-1. 创建 `src/i18n/{lang}.ts`（复制 `en.ts` 并翻译）
-2. 在 `LOCALES` 数组添加 `{ code, label, labelNative }`
-3. 无需修改其他代码
-
-**当前支持语言：**
-- 🇺🇸 English
-- 🇨🇳 中文
+| Hour | 功能 | Commit |
+|------|------|--------|
+| H1 | Session 管理器 UI + Ctrl+Shift+S 切换器 | 05632e5 |
+| H2 | Folder Sync 5 种同步模式 + 预览执行 | ca3b8c0 |
+| H3 | 搜索 Ctrl+F + Importance 规则引擎 | cdcab58 |
+| H4 | 三向合并 + 冲突解决 UI | 60cedb2 |
+| H5 | 文件编码检测 + 编码切换下拉 | 7dda369 |
+| H6 | CLI 参数 + Session 导入/导出 | 93a7827 |
+| H7 | 移动端响应式布局（768px 断点） | 030dbc1 |
+| H8 | README + BC_COMPARISON 同步 | 41b8038 |
 
 ---
 
-## 子任务列表（全部完成 ✅）
+## 🔄 待完成
 
-### Task 1–8: 全部完成 ✅
-（见上方各任务提交记录）
+### H12 — 差异书签 ⭐
+- [ ] 点击行号为该差异添加书签（★ 图标）
+- [ ] 书签列表浮层（Ctrl+Shift+B 打开）
+- [ ] 跳转到上一个/下一个书签
+- [ ] 书签数量徽章显示
+- [ ] 会话关闭后书签不持久化（单次对比用）
+
+### H13 — 差异过滤 ⭐
+- [ ] 工具栏过滤器按钮：全部 / 仅新增 / 仅删除 / 仅修改
+- [ ] 过滤徽章显示当前过滤状态
+- [ ] 快捷键：`Alt+A` 全部 / `Alt+N` 仅新增 / `Alt+D` 仅删除
+
+### H14 — 跨文件搜索
+- [ ] 搜索范围选择：当前文件 / 两文件交叉搜索
+- [ ] 搜索结果面板：显示每个匹配的文件+行号
+- [ ] 点击结果跳转到对应位置
+
+### H15 — 图片对比增强
+- [ ] Alpha 通道支持（透明PNG diff）
+- [ ] 像素差异热力图叠加层
+- [ ] 差异比例百分比显示
+- [ ] 支持 GIF 帧对比
+
+### H16 — 命令面板（Ctrl+Shift+P）
+- [ ] 模糊搜索所有命令（打开文件/执行同步/切换主题...）
+- [ ] 最近命令历史
+- [ ] 快捷键提示显示
+
+### H17 — Session 模板
+- [ ] 将当前对比配置保存为模板（算法/编码/Importance规则）
+- [ ] 模板库（预置：代码审查 / 论文对比 / 日志对比）
+- [ ] 模板导入/导出
+
+### H18 — 最近文件跳转列表
+- [ ] HomeView 侧边栏显示最近 10 个对比文件
+- [ ] 悬停显示路径+时间
+- [ ] 右键移除单条记录
+
+### H19 — 文件格式关联
+- [ ] .py / .js / .ts / .c / .cpp 独立语法高亮预设
+- [ ] 设置页面：选择默认对比模式
+- [ ] 记住每个扩展名的偏好设置
+
+### H20 — Windows 注册表右键菜单
+- [ ] 生成 `install-context-menu.reg` 文件
+- [ ] 用户双击即添加 "OpenDiff 比较" 右键菜单
+- [ ] 卸载脚本 `uninstall-context-menu.reg`
+
+### H21 — 自动更新检测
+- [ ] 启动时查询 GitHub Releases API
+- [ ] 有新版本时 HomeView 显示更新提示
+- [ ] 点击跳转下载页面
+
+### H22 — 快捷键自定义 UI
+- [ ] 设置页面：快捷键管理列表
+- [ ] 点击修改快捷键（按键录制）
+- [ ] 冲突检测（重复快捷键警告）
+- [ ] 导出/导入快捷键配置
+
+### H23 — 差异报告导出
+- [ ] 导出为 HTML 报告（带样式，可分享）
+- [ ] 导出为 PDF
+- [ ] 报告包含：文件信息 + 差异统计 + 差异内容
+
+### H24 — 集成测试 + 收尾
+- [ ] 全流程测试：打开文件 → 对比 → 保存 Session → 加载
+- [ ] 三向合并完整测试
+- [ ] 文件夹同步完整测试
+- [ ] 清理所有 console.warn
+- [ ] 性能：加载 10MB 文件不卡顿
+- [ ] v1.0.0 Release README
 
 ---
 
-## Git 提交历史（v0.2）
+## 完成标准
 
-```
-feat(i18n): full Chinese + English multi-language support
-feat(HomeView): sidebar profile buttons + bookmark toggle + tip close
-fix(SettingsView): add auto-save and immediate font apply
-feat(History): add full session history management page
-fix(TableDiffView): show stats badges when Rust diff result is used
-feat(FolderDiffView): add folder stats bar + exclude glob Enter key handler
-feat(TextDiffView): BASE file selector for 3-way merge
-fix(TextDiffView): complete remaining task items
-feat(App): GlobalToast component + keyboard shortcuts
-feat: global shortcuts + breadcrumb nav
-```
+每个 Hour 完成须满足：
+1. ✅ 代码提交并推送到 GitHub
+2. ✅ Web 预览部署成功
+3. ✅ Windows 便携包可下载
+4. ✅ README/TASKS.md 同步更新
+5. ✅ 人工验收（或截图证明）
 
 ---
 
-## 待完成
-
-- [ ] CI/CD: macOS `.dmg` + Windows `.exe/.msi`（GitHub Actions 自动构建）
-- [ ] 深色/浅色主题切换时 TabBar/侧边栏同步变化
-- [ ] 多语言：日语、德语、法语等
+_Keep going until all ✅ are checked_
