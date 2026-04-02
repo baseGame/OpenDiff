@@ -1,6 +1,6 @@
 # OpenDiff
 
-> **Beyond Compare · 开源 1:1 复刻** — Vue 3 + Tauri 2 + Rust | Apache 2.0
+> **Beyond Compare · 开源 1:1 复刻** — Vue 3 + Tauri 2 + Rust | Apache 2.0 | v0.2.10
 
 [![CI](https://github.com/baseGame/OpenDiff/actions/workflows/ci.yml/badge.svg)](https://github.com/baseGame/OpenDiff/actions)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
@@ -164,6 +164,39 @@ OpenDiff/
 ## 📄 许可证
 
 Apache License 2.0 — 可免费商用，无需署名。
+
+---
+
+---
+
+## 📋 更新日志
+
+### v0.2.10（2026-04-02）
+- ✅ 响应式布局 + 移动端适配（768px / 480px 断点）
+- ✅ 触摸友好 UI（36px 最小点击区域）
+- ✅ CLI 参数支持（`opendiff.exe --left FILE --right FILE`）
+- ✅ Session 导入/导出（JSON 格式）
+- ✅ 三向合并面板（BASE + LEFT + RIGHT → 冲突可视化）
+- ✅ 编码自动检测 + 工具栏切换（UTF-8 / GBK / Big5 / Shift-JIS）
+- ✅ 搜索高亮（Ctrl+F）+ 跳转到行（Ctrl+G）
+- ✅ Importance 规则引擎（正则 + 预置 + 隐藏行）
+- ✅ 文件夹 5 种同步模式 + 预览执行
+- ✅ Session 管理器（保存 / 加载 / 删除 / Ctrl+Shift+S）
+- ✅ 浅色主题完整 CSS 变量支持
+- 🐛 修复：HexDiffView 硬编码颜色 → CSS 变量
+
+### v0.2.9（2026-04-02）
+- ✅ 编码自动检测（UTF-8 / GBK / Big5 / Shift-JIS / EUC-KR）
+
+### v0.2.8（2026-04-02）
+- ✅ 三向合并 BASE 文件选择器
+- ✅ 冲突 Accept Left / Right / Both 解决 UI
+
+### v0.2.7（2026-04-01）
+- ✅ 搜索栏（Ctrl+F）+ 搜索高亮
+- ✅ 跳转到行（Ctrl+G）
+- ✅ Importance 规则引擎（正则预置）
+- ✅ Session 保存/加载/删除 UI
 
 ---
 
