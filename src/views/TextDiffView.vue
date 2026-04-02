@@ -28,6 +28,9 @@ const rightContent = ref('')
 const diffResult  = ref<DiffResult | null>(null)
 const loading     = ref(false)
 const error       = ref<string | null>(null)
+const fileInputLeft  = ref<HTMLInputElement | null>(null)
+const fileInputRight = ref<HTMLInputElement | null>(null)
+const fileInputBase  = ref<HTMLInputElement | null>(null)
 const currentDiffIdx = ref(-1)
 const showMerge   = ref(false)
 const mergeResult = ref<any>(null)
@@ -85,28 +88,64 @@ const langOptions = [
 
 // ── File loading ────────────────────────────────────────────────
 async function loadFile(side: 'left' | 'right') {
-  const path = await open({ multiple: false, title: 'Select file' }) as string | null
-  if (!path) return
+  let path: string | null = null
+  let content = ''
   try {
-    let content = ''
-    try { content = await (async () => { const { invoke } = await import('@tauri-apps/api/core'); return invoke<string>('cmd_read_file_text', { path }) })() } catch { /* noop */ }
-    if (side === 'left') { leftPath.value = path; leftContent.value = content }
-    else { rightPath.value = path; rightContent.value = content }
-    const lang = detectLanguage(path)
+    path = await open({ multiple: false, title: `Select ${side} file` }) as string | null
+    if (!path) return
+    try { content = await invoke<string>('cmd_read_file_text', { path }) } catch { /* noop */ }
+    if (!content) {
+      const bytes = await invoke<number[]>('cmd_read_file_bytes', { path })
+      content = new TextDecoder(selectedEncoding.value).decode(new Uint8Array(bytes))
+    }
+  } catch {
+    const input = side === 'left' ? fileInputLeft.value : fileInputRight.value
+    if (input) input.click()
+    return
+  }
+  if (!content) return
+  if (side === 'left') { leftPath.value = path; leftContent.value = content }
+  else { rightPath.value = path; rightContent.value = content }
+  const lang = detectLanguage(path || '')
+  if (lang !== 'plaintext') detectedLang.value = lang
+  error.value = null
+  if (leftContent.value && rightContent.value) await runDiff()
+}
+
+function onFileSelected(side: 'left' | 'right', event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    const content = e.target?.result as string || ''
+    if (side === 'left') { leftPath.value = file.name; leftContent.value = content }
+    else { rightPath.value = file.name; rightContent.value = content }
+    const lang = detectLanguage(file.name)
     if (lang !== 'plaintext') detectedLang.value = lang
-    if (leftContent.value && rightContent.value) await runDiff()
-  } catch (e: any) { error.value = String(e) }
+    error.value = null
+    if (leftContent.value && rightContent.value) runDiff()
+  }
+  reader.readAsText(file)
+}
+
+function onBaseFileSelected(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+  basePath.value = file.name
 }
 
 // ── Load BASE file ─────────────────────────────────────────────
 async function loadBase() {
-  const path = await open({ multiple: false, title: 'Select BASE file' }) as string | null
-  if (!path) return
+  // Try Tauri first, fallback to HTML5 File API
   try {
-    let content = ''
-    try { content = await (async () => { const { invoke } = await import('@tauri-apps/api/core'); return invoke<string>('cmd_read_file_text', { path }) })() } catch { /* noop */ }
+    const path = await open({ multiple: false, title: 'Select BASE file' }) as string | null
+    if (!path) return
     basePath.value = path
-  } catch (e: any) { error.value = String(e) }
+  } catch {
+    if (fileInputBase.value) fileInputBase.value.click()
+  }
 }
 
 // ── Run diff ───────────────────────────────────────────────────
@@ -165,24 +204,7 @@ function jumpToBookmark(dir: 1 | -1) {
   if (di >= 0) { currentDiffIdx.value = di; scrollToIdx(target) }
 }
 function isBookmarked(idx: number) { return bookmarkedIdxs.value.has(idx) }
-function toggleBookmark(idx: number) {
-  const s = new Set(bookmarkedIdxs.value); s.has(idx) ? s.delete(idx) : s.add(idx)
-  bookmarkedIdxs.value = s; syncBookmarkPos()
-}
-function syncBookmarkPos() {
-  const bids = [...bookmarkedIdxs.value].sort((a, b) => a - b)
-  const cur = diffIdxs.value[currentDiffIdx.value]
-  currentBookmarkPos.value = bids.indexOf(cur)
-}
-function jumpToBookmark(dir: 1 | -1) {
-  const bids = [...bookmarkedIdxs.value].sort((a, b) => a - b)
-  if (!bids.length) return
-  currentBookmarkPos.value = Math.max(0, Math.min(bids.length - 1, currentBookmarkPos.value + dir))
-  const target = bids[currentBookmarkPos.value]
-  const di = diffIdxs.value.indexOf(target)
-  if (di >= 0) { currentDiffIdx.value = di; scrollToIdx(target) }
-}
-function isBookmarked(idx: number) { return bookmarkedIdxs.value.has(idx) }
+
 
 function scrollToIdx(idx: number) {
   leftScrollEl.value?.scrollTo({ top: idx * 22 - 200, behavior: 'smooth' })
@@ -373,6 +395,11 @@ const renderedRows = computed(() => rows.value.map(row => ({
       </template>
     </div>
 
+    <!-- Hidden HTML5 file inputs — browser fallback when Tauri unavailable -->
+    <input ref="fileInputLeft"  type="file" style="display:none" @change="onFileSelected('left',  $event)" />
+    <input ref="fileInputRight" type="file" style="display:none" @change="onFileSelected('right', $event)" />
+    <input ref="fileInputBase"  type="file" style="display:none" @change="onBaseFileSelected($event)" />
+
     <!-- Toolbar -->
     <div class="tdv-toolbar">
       <button class="tdv-btn-path" @click="loadFile('left')">
@@ -417,7 +444,6 @@ const renderedRows = computed(() => rows.value.map(row => ({
       <button class="tdv-btn" :class="{ 'tdv-btn-on': showMerge }" @click="showMerge = !showMerge">{{ $t('text_diff.merge_panel') }}</button>
       <button class="tdv-btn" @click="showSaveDialog = true">{{ $t('session.save') || 'Save' }}</button>
       <button class="tdv-btn" @click="showImportanceRules = true" title="Importance Rules">⚙</button>
-      <button class="tdv-btn" :class="{ 'tdv-btn-on': showBookmarkPanel }" @click="showBookmarkPanel = !showBookmarkPanel" title="Bookmarks (Ctrl+Shift+B)">★<span v-if="bookmarkedIdxs.size > 0" class="tdv-badge">{{ bookmarkedIdxs.size }}</span></button>
       <button class="tdv-btn" :class="{ 'tdv-btn-on': showBookmarkPanel }" @click="showBookmarkPanel = !showBookmarkPanel" title="Bookmarks (Ctrl+Shift+B)">★<span v-if="bookmarkedIdxs.size > 0" class="tdv-badge">{{ bookmarkedIdxs.size }}</span></button>
       <button class="tdv-btn" :class="{ 'tdv-btn-on': showBookmarkPanel }" @click="showBookmarkPanel = !showBookmarkPanel" title="Bookmarks (Ctrl+Shift+B)">
         ★ <span v-if="bookmarkedIdxs.size > 0" class="tdv-badge">{{ bookmarkedIdxs.size }}</span>
