@@ -4,6 +4,8 @@
  * 触发: Ctrl+Shift+S 或点击工具栏按钮
  */
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { save, open } from '@tauri-apps/plugin-dialog'
+import { readTextFile, writeTextFile } from '@tauri-apps/plugin-fs'
 import { useRouter } from 'vue-router'
 import { listRecentSessions, deleteSession } from '@/api'
 import type { Session, SessionKind } from '@/types'
@@ -17,6 +19,37 @@ const activeKind = ref<SessionKind | 'all'>('all')
 const search = ref('')
 const loading = ref(false)
 const confirmDelete = ref<string | null>(null)
+
+async function exportSessions() {
+  if (!sessions.value.length) return
+  const path = await save({
+    defaultPath: 'opendiff-sessions.json',
+    filters: [{ name: 'JSON', extensions: ['json'] }]
+  } as any)
+  if (!path) return
+  try {
+    const data = JSON.stringify(sessions.value, null, 2)
+    await writeTextFile(path, data)
+    ;(window as any).__toast?.('Sessions exported!')
+  } catch (e) { console.error(e) }
+}
+
+async function importSessions() {
+  const paths = await open({
+    multiple: false,
+    filters: [{ name: 'JSON', extensions: ['json'] }]
+  } as any) as string | null
+  if (!paths) return
+  try {
+    const text = await readTextFile(paths)
+    const imported = JSON.parse(text)
+    if (!Array.isArray(imported)) return
+    for (const s of imported) {
+      try { await saveSession(s); sessions.value.unshift(s) } catch { /* skip duplicates */ }
+    }
+    ;(window as any).__toast?.(`Imported ${imported.length} sessions`)
+  } catch (e) { console.error(e) }
+}
 
 const kinds: { label: string; value: SessionKind | 'all' }[] = [
   { label: '全部', value: 'all' },
@@ -85,6 +118,10 @@ onUnmounted(() => { window.removeEventListener('keydown', onKeydown) })
         <!-- Header -->
         <div class="sp-hdr">
           <div class="sp-title">{{ $t('session_picker.title') || '📂 切换 Session' }}</div>
+          <div class="sp-hdr-actions">
+            <button class="sp-action-btn" @click="importSessions" title="Import sessions">⬆ Import</button>
+            <button class="sp-action-btn" @click="exportSessions" title="Export all">⬇ Export</button>
+          </div>
           <div class="sp-search-row">
             <input v-model="search" class="sp-search" :placeholder="$t('session_picker.search') || '搜索 Session...'" autofocus />
           </div>

@@ -42,6 +42,8 @@ const detectedLang = ref('plaintext')
 const detectedEncoding = ref<{ name: string; confidence: number; label: string }>({ name: 'UTF-8', confidence: 1, label: 'UTF-8' })
 const selectedEncoding = ref('UTF-8')
 const showEncodingPanel = ref(false)
+const searchQuery = ref('')
+const searchMatchIdxs = ref<number[]>([])
 const leftScrollEl  = ref<HTMLElement | null>(null)
 const rightScrollEl = ref<HTMLElement | null>(null)
 const isDragOver = ref(false)
@@ -154,6 +156,15 @@ function hl(text: string, lang: string): string {
   try { return highlightLine(text, lang) } catch { return escapeHtml(text) }
 }
 
+function hlWithSearch(html: string, q: string): string {
+  if (!q.trim()) return html
+  try {
+    const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const re = new RegExp(`(${escaped})`, 'gi')
+    return html.replace(re, '<mark class="search-hl">$1</mark>')
+  } catch { return html }
+}
+
 const effectiveLang = computed(() => detectedLang.value === 'auto' ? 'plaintext' : detectedLang.value)
 
 // ── Rows ─────────────────────────────────────────────────────
@@ -195,6 +206,22 @@ async function reloadWithEncoding() {
     }
     if (leftContent.value && rightContent.value) await runDiff()
   } catch { /* ignore */ }
+}
+
+// ── Search ─────────────────────────────────────────────────────
+function computeSearchMatches(q: string) {
+  if (!q.trim()) { searchMatchIdxs.value = []; return }
+  const lower = q.toLowerCase()
+  const idxs: number[] = []
+  rows.value.forEach((row, i) => {
+    if (row.lt.toLowerCase().includes(lower) || row.rt.toLowerCase().includes(lower)) idxs.push(i)
+  })
+  searchMatchIdxs.value = idxs
+}
+
+function onSearchQueryChange(q: string) {
+  searchQuery.value = q
+  computeSearchMatches(q)
 }
 
 // ── Importance rules ────────────────────────────────────────────
@@ -262,7 +289,7 @@ function onKeydown(e: KeyboardEvent) {
   if (e.key === 'F7') { e.preventDefault(); jumpToDiff(-1) }
   if (e.key === 'F8') { e.preventDefault(); jumpToDiff(1) }
   if ((e.ctrlKey || e.metaKey) && e.key === 'g') { e.preventDefault(); showGotoLine.value = true }
-  if ((e.ctrlKey || e.metaKey) && e.key === 'f') { e.preventDefault(); searchBarRef.value?.$el?.querySelector('input')?.focus() }
+  if ((e.ctrlKey || e.metaKey) && e.key === 'f') { e.preventDefault(); searchBarRef.value?.$el?.querySelector('input')?.focus(); searchBarRef.value?.$el?.querySelector('input')?.select() }
 }
 onMounted(() => window.addEventListener('keydown', onKeydown))
 onUnmounted(() => window.removeEventListener('keydown', onKeydown))
@@ -343,7 +370,7 @@ const renderedRows = computed(() => rows.value.map(row => ({
       <button class="tdv-btn" @click="showSaveDialog = true">{{ $t('session.save') || 'Save' }}</button>
       <button class="tdv-btn" @click="showImportanceRules = true" title="Importance Rules">⚙</button>
       <div style="flex:1" />
-      <SearchBar ref="searchBarRef" :total="rows.length" @jump="onSearchJump" />
+      <SearchBar ref="searchBarRef" :query="searchQuery" :match-idcs="searchMatchIdxs" @jump="onSearchJump" @update:query="onSearchQueryChange" />
       <div style="flex:1" />
       <div class="tdv-stats" v-if="diffResult">
         <span class="s-add">+{{ stats.added }}</span>
@@ -454,6 +481,7 @@ const renderedRows = computed(() => rows.value.map(row => ({
 .tdv-num { width:48px; padding:0 8px; color:var(--color-text-muted); font-size:11px; text-align:right; user-select:none; background:var(--color-bg3); border-right:1px solid var(--color-border); vertical-align:top; white-space:nowrap }
 .tdv-gut { width:16px; background:var(--color-bg3); border-right:1px solid var(--color-border) }
 .tdv-cell { padding:0 8px; white-space:pre; overflow:hidden; font-family:var(--font-mono,monospace); vertical-align:top }
+:deep(.search-hl) { background:rgba(250,204,21,.4); border-radius:2px; color:inherit }
 .r-equal td { background:transparent }
 .r-insert td { background:rgba(166,227,161,.1) }
 .r-delete td { background:rgba(243,139,168,.1) }
