@@ -34,7 +34,7 @@ const algorithm    = ref<DiffAlgorithm>('histogram')
 const ignoreWs     = ref(false)
 const ignoreCase   = ref(false)
 const ignoreComments = ref(false)
-const showOnlyDiffs = ref(false)
+const diffFilter = ref<'all'|'added'|'deleted'|'modified'>('all')
 const syncScroll   = ref(true)
 const wordWrap     = ref(false)
 const detectedLang = ref('plaintext')
@@ -240,8 +240,21 @@ function isRowIgnored(text: string): boolean {
   })
 }
 const filteredRows = computed(() => {
-  if (!importanceRules.value?.length) return rows.value
-  return rows.value.filter(row => !isRowIgnored((row.lt ?? '') + ' ' + (row.rt ?? '')))
+  let result = rows.value
+  // Diff type filter
+  if (diffFilter.value !== 'all') {
+    result = result.filter(row => {
+      if (diffFilter.value === 'added')   return row.st === 'insert' || row.st === 'replace'
+      if (diffFilter.value === 'deleted') return row.st === 'delete' || row.st === 'replace'
+      if (diffFilter.value === 'modified') return row.st === 'replace'
+      return true
+    })
+  }
+  // Importance rules filter
+  if (importanceRules.value?.length) {
+    result = result.filter(row => !isRowIgnored((row.lt ?? '') + ' ' + (row.rt ?? '')))
+  }
+  return result
 })
 
 // ── Encoding reload ─────────────────────────────────────────────
@@ -432,9 +445,15 @@ onUnmounted(() => {
 
       <div style="flex:1" />
 
-      <!-- Prev/Next diff -->
-      <button class="tdv-btn" :disabled="currentDiffIdx <= 0" @click="jumpToDiff(-1)" title="Previous diff (F7)">↑</button>
+      <!-- Diff type filter -->
+      <div class="tdv-filter-group">
+        <button v-for="f in [{k:'all',l:'All'},{k:'added',l:'+'},{k:'deleted',l:'−'},{k:'modified',l:'~'}]" :key="f.k"
+          class="tdv-filter-btn" :class="{ active: diffFilter === f.k }"
+          @click="diffFilter = f.k as any"
+          :title="`Show ${f.l} only`">{{ f.l }}</button>
+      </div>
       <span class="tdv-diff-count" v-if="diffIdxs.length">{{ currentDiffIdx + 1 }}/{{ diffIdxs.length }}</span>
+      <button class="tdv-btn" :disabled="currentDiffIdx <= 0" @click="jumpToDiff(-1)" title="Previous diff (F7)">↑</button>
       <button class="tdv-btn" :disabled="currentDiffIdx >= diffIdxs.length - 1" @click="jumpToDiff(1)" title="Next diff (F8)">↓</button>
 
       <!-- Merge -->
@@ -580,6 +599,12 @@ onUnmounted(() => {
 .tdv-btn-on { border-color:var(--color-accent); background:rgba(59,130,246,.12); color:var(--color-accent) }
 .tdv-lang { padding:3px 6px; border:1px solid var(--color-border); border-radius:6px; background:var(--color-surface); color:var(--color-text); font-size:11px; cursor:pointer }
 .tdv-diff-count { font-size:11px; color:var(--color-text-muted); padding:0 4px; white-space:nowrap }
+.tdv-filter-group { display:flex; gap:1px }
+.tdv-filter-btn { padding:2px 7px; border:1px solid var(--color-border); background:var(--color-surface); color:var(--color-text-muted); font-size:11px; cursor:pointer; font-weight:600; transition:all .1s }
+.tdv-filter-btn:first-child { border-radius:4px 0 0 4px }
+.tdv-filter-btn:last-child { border-radius:0 4px 4px 0 }
+.tdv-filter-btn:hover { background:var(--color-bg-hover); color:var(--color-text) }
+.tdv-filter-btn.active { background:var(--color-accent); border-color:var(--color-accent); color:#fff }
 .tdv-badge { display:inline-flex; align-items:center; justify-content:center; background:var(--color-accent); color:#fff; border-radius:8px; font-size:10px; font-weight:700; padding:0 4px; min-width:16px; height:16px; line-height:16px }
 
 /* Status bar */
