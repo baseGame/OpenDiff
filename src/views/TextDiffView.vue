@@ -42,6 +42,8 @@ const detectedEncoding = ref({ name: 'UTF-8', confidence: 1, label: 'UTF-8' })
 const selectedEncoding = ref('UTF-8')
 const searchQuery   = ref('')
 const searchMatchIdxs = ref<number[]>([])
+const searchResults = ref<Array<{row:number; side:'left'|'right'; text:string; line:number}>>([])
+const showSearchPanel = ref(false)
 const leftScrollEl  = ref<HTMLElement | null>(null)
 const rightScrollEl = ref<HTMLElement | null>(null)
 const isDragOver    = ref(false)
@@ -276,13 +278,23 @@ async function reloadWithEncoding() {
 
 // ── Search ─────────────────────────────────────────────────────
 function computeSearchMatches(q: string) {
-  if (!q.trim() || !diffResult.value) { searchMatchIdxs.value = []; return }
+  if (!q.trim() || !diffResult.value) { searchMatchIdxs.value = []; searchResults.value = []; showSearchPanel.value = false; return }
   const term = q.toLowerCase()
   const idxs: number[] = []
+  const results: Array<{row:number; side:'left'|'right'; text:string; line:number}> = []
   rows.value.forEach((row, i) => {
-    if ((row.lt + ' ' + row.rt).toLowerCase().includes(term)) idxs.push(i)
+    const lt = row.lt.toLowerCase(); const rt = row.rt.toLowerCase()
+    const leftMatch = lt.includes(term)
+    const rightMatch = rt.includes(term)
+    if (leftMatch || rightMatch) {
+      idxs.push(i)
+      if (leftMatch) results.push({ row: i, side: 'left', text: row.lt, line: row.li ?? i + 1 })
+      if (rightMatch) results.push({ row: i, side: 'right', text: row.rt, line: row.ri ?? i + 1 })
+    }
   })
   searchMatchIdxs.value = idxs
+  searchResults.value = results
+  showSearchPanel.value = results.length > 0 && q.trim().length > 0
 }
 function onSearchQueryChange(q: string) { searchQuery.value = q; computeSearchMatches(q) }
 function onSearchJump(idx: number) { scrollToIdx(idx) }
@@ -305,7 +317,7 @@ function onKeydown(e: KeyboardEvent) {
   if ((e.ctrlKey || e.metaKey) && e.key === 'm') { e.preventDefault(); runMerge() }
   if (e.key === 'F7') { e.preventDefault(); jumpToDiff(-1) }
   if (e.key === 'F8') { e.preventDefault(); jumpToDiff(1) }
-  if (e.key === 'Escape') { showBookmarkPanel.value = false; showSaveDialog.value = false; showGotoLine.value = false }
+  if (e.key === 'Escape') { showBookmarkPanel.value = false; showSaveDialog.value = false; showGotoLine.value = false; showSearchPanel.value = false }
   if (e.key === ',') { router.push('/settings') }
 }
 
@@ -477,6 +489,25 @@ onUnmounted(() => {
         @jump="onSearchJump" @update:query="onSearchQueryChange" />
     </div>
 
+    <!-- Cross-file search results panel (shows all LEFT+RIGHT matches) -->
+    <div v-if="showSearchPanel && searchResults.length" class="tdv-search-panel">
+      <div class="tdv-sp-hdr">
+        <span>🔍 {{ searchResults.length }} match{{ searchResults.length !== 1 ? 'es' : '' }} in "{{ searchQuery }}"</span>
+        <button class="tdv-btn" @click="showSearchPanel = false" style="padding:1px 6px;font-size:10px">✕</button>
+      </div>
+      <div class="tdv-sp-list">
+        <div v-for="(r, ri) in searchResults.slice(0, 100)" :key="ri"
+          class="tdv-sp-item" @click="onSearchJump(r.row); showSearchPanel = false">
+          <span class="tdv-sp-side" :class="`side-${r.side}`">{{ r.side === 'left' ? 'L' : 'R' }}</span>
+          <span class="tdv-sp-line">#{{ r.line }}</span>
+          <span class="tdv-sp-text" v-html="hlWithSearch(hl(r.text.slice(0, 120), effectiveLang), searchQuery)" />
+        </div>
+        <div v-if="searchResults.length > 100" class="tdv-sp-more">
+          … and {{ searchResults.length - 100 }} more
+        </div>
+      </div>
+    </div>
+
     <!-- Status bar -->
     <div class="tdv-status">
       <span v-if="loading" class="tdv-load">⚙ {{ $t('text_diff.computing') }}</span>
@@ -609,6 +640,17 @@ onUnmounted(() => {
 
 /* Status bar */
 .tdv-status { display:flex; align-items:center; gap:8px; padding:2px 16px; background:var(--color-bg3); border-bottom:1px solid var(--color-border); font-size:11px; min-height:22px }
+.tdv-search-panel { background:var(--color-surface); border-bottom:1px solid var(--color-border); max-height:240px; overflow:hidden; display:flex; flex-direction:column }
+.tdv-sp-hdr { display:flex; align-items:center; justify-content:space-between; padding:6px 12px; font-size:12px; font-weight:600; border-bottom:1px solid var(--color-border); color:var(--color-text-muted); flex-shrink:0 }
+.tdv-sp-list { overflow-y:auto; flex:1 }
+.tdv-sp-item { display:flex; align-items:baseline; gap:8px; padding:4px 12px; cursor:pointer }
+.tdv-sp-item:hover { background:var(--color-bg-hover) }
+.tdv-sp-side { font-size:9px; font-weight:700; padding:1px 5px; border-radius:3px; flex-shrink:0 }
+.side-left { background:rgba(59,130,246,.15); color:var(--color-accent) }
+.side-right { background:rgba(234,179,8,.15); color:var(--color-yellow) }
+.tdv-sp-line { color:var(--color-text-muted); font-size:10px; flex-shrink:0; min-width:30px }
+.tdv-sp-text { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-family:var(--font-mono); font-size:11px }
+.tdv-sp-more { padding:6px 12px; font-size:11px; color:var(--color-text-muted); text-align:center }
 .tdv-load { color:var(--color-accent) }
 .tdv-err { color:var(--color-red) }
 .tdv-hint { color:var(--color-text-muted) }
