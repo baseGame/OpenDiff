@@ -2,12 +2,15 @@ use diff_engine::{diff_texts, merge_three, DiffAlgorithm, DiffResult, IgnoreRule
 use serde::Deserialize;
 use tokio::fs;
 
+/// Diff options — front-end sends camelCase keys, we accept them via aliases
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct DiffOptions {
     pub algorithm: Option<DiffAlgorithm>,
+    #[serde(alias = "ignoreWhitespace")]
     pub ignore_whitespace: Option<bool>,
+    #[serde(alias = "ignoreCase")]
     pub ignore_case: Option<bool>,
+    #[serde(alias = "ignoreComments")]
     pub ignore_comments: Option<bool>,
 }
 
