@@ -8,12 +8,18 @@ pub struct Session {
     pub id: String,           // UUID
     pub name: String,
     pub kind: SessionKind,
+    #[serde(alias = "leftPath")]
     pub left_path: String,
+    #[serde(alias = "rightPath")]
     pub right_path: String,
+    #[serde(alias = "basePath")]
     pub base_path: Option<String>, // for 3-way
     pub config: SessionConfig,
+    #[serde(alias = "createdAt")]
     pub created_at: DateTime<Utc>,
+    #[serde(alias = "updatedAt")]
     pub updated_at: DateTime<Utc>,
+    #[serde(alias = "lastOpened")]
     pub last_opened: Option<DateTime<Utc>>,
 }
 
@@ -30,8 +36,11 @@ pub enum SessionKind {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SessionConfig {
     pub algorithm: DiffAlgorithm,
+    #[serde(alias = "ignoreWhitespace")]
     pub ignore_whitespace: bool,
+    #[serde(alias = "ignoreCase")]
     pub ignore_case: bool,
+    #[serde(alias = "ignoreComments")]
     pub ignore_comments: bool,
     pub extra: serde_json::Value, // view-specific extra config
 }
@@ -70,6 +79,7 @@ pub struct WorkspaceTab {
 
 /// App-wide settings
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AppSettings {
     pub theme: ThemeMode,
     pub font_family: String,
