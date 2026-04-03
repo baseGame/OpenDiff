@@ -36,10 +36,11 @@
 - [x] 书签数量徽章显示
 - [x] Ctrl+Shift+B 全局切换书签面板
 
-### H13 — 差异过滤 ⭐
-- [ ] 工具栏过滤器按钮：全部 / 仅新增 / 仅删除 / 仅修改
-- [ ] 过滤徽章显示当前过滤状态
-- [ ] 快捷键：`Alt+A` 全部 / `Alt+N` 仅新增 / `Alt+D` 仅删除
+### H13 — 差异过滤 ✅
+- [x] 工具栏过滤器按钮：**All / + 新增 / − 删除 / ~ 修改**
+- [x] 过滤徽章显示当前过滤状态（高亮激活按钮）
+- [x] 与 Importance 规则叠加生效
+- [x] Ctrl+Shift+B 全局切换书签面板
 
 ### 🔧 紧急修复 (v0.2.10-patch1)
 - [x] TextDiffView 所有按钮失效 → `ignoreWs` prop 名不匹配（IgnoreToolbar 期望 `ignoreWs`，TextDiffView 传 `ignoreWS`）
