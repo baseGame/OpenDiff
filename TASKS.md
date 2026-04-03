@@ -19,6 +19,14 @@
 
 ---
 
+## ✅ 已修复（v0.2.10-patch）
+
+| 问题 | 修复 | Commit |
+|------|------|--------|
+| Rust API 参数名不匹配 | `#[serde(alias = "...")]` 加到所有 Session/DiffOptions 字段 | `36e7f7f` |
+| DiffOptions ignore 字段别名 | 同上，ignoreWhitespace/ignoreCase/ignoreComments | `2dfa905` |
+| capabilities 权限配置 | `src-tauri/capabilities/main.json` 已创建 | `3ff0447` |
+
 ## 🔄 待完成
 
 ### H12 — 差异书签 ✅
