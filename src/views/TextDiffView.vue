@@ -1,3 +1,4 @@
+<script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { open } from '@tauri-apps/plugin-dialog'
 import { invoke } from '@tauri-apps/api/core'
@@ -56,6 +57,7 @@ const currentBookmarkPos = ref(-1)
 const searchBarRef       = ref<any>(null)
 const importanceRules    = ref<any[]>([])
 let dragCounter = 0
+function onDragleave() { dragCounter = Math.max(0, dragCounter - 1); if (dragCounter === 0) isDragOver.value = false }
 
 const encodingOptions = ['UTF-8', 'GBK', 'GB2312', 'BIG5', 'SHIFT-JIS', 'EUC-KR', 'ISO-8859-1', 'WINDOWS-1252', 'UTF-16LE', 'UTF-16BE', 'ASCII']
 
@@ -387,8 +389,8 @@ onUnmounted(() => {
 
 <template>
   <div class="tdv" :class="{ 'tdv-drag': isDragOver }"
-    @dragenter="isDragOver = true; dragCounter++"
-    @dragleave="if (--dragCounter === 0) isDragOver = false"
+    @dragenter="isDragOver = true; dragCounter += 1"
+    @dragleave="onDragleave()"
     @drop="onDrop">
 
     <!-- Drop overlay -->
@@ -453,7 +455,7 @@ onUnmounted(() => {
         v-model:showOnlyDiffs="showOnlyDiffs"
         v-model:syncScroll="syncScroll"
         v-model:wordWrap="wordWrap"
-        @change="if (leftContent || rightContent) runDiff()" />
+        @change="leftContent || rightContent ? runDiff() : null" />
 
       <div style="flex:1" />
 
@@ -565,12 +567,7 @@ onUnmounted(() => {
     <!-- Diff table -->
     <div class="tdv-table-wrap">
       <table class="tdiff-table">
-        <colgroup>
-          <col class="col-marker"><col class="col-lnum"><col class="col-content">
-          <col class="col-gutter">
-          <col class="col-marker"><col class="col-rnum"><col class="col-content">
-        </colgroup>
-        <tbody>
+<tbody>
           <template v-for="(row, ri) in filteredRows" :key="ri">
             <tr :class="`diff-row status-${row.st}`">
               <td class="tdiff-marker">
@@ -588,6 +585,7 @@ onUnmounted(() => {
               <td class="tdiff-content" :class="`ct-${row.st}`" v-html="hlWithSearch(hl(row.rt, effectiveLang), searchQuery)" />
             </tr>
           </template>
+        </tbody>
           <tr v-if="!filteredRows.length && !loading">
             <td colspan="7" class="tdv-empty">
               <div v-if="!leftContent && !rightContent">{{ $t('text_diff.no_diff') }}</div>
@@ -700,6 +698,13 @@ td { padding:0 4px; vertical-align:top; font-size:12px; line-height:20px; font-f
 .status-del { background:rgba(243,139,168,.04) }
 .status-mod { background:rgba(137,180,250,.04) }
 .tdv-gut { background:var(--color-bg2); width:16px; min-width:16px; max-width:16px }
+
+/* Table column widths (replaces <colgroup>) */
+.tdiff-table { table-layout: fixed }
+.col-marker  { width: 20px }
+.col-lnum    { width: 44px; font-size: 11px; color: var(--color-text-muted) }
+.col-content { width: 50% }
+.col-gutter  { width: 16px }
 .tdv-empty { text-align:center; padding:48px; color:var(--color-text-muted); font-size:14px }
 
 /* Star */
