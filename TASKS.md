@@ -19,19 +19,13 @@
 | H12 | 差异书签（★ 图标 + Ctrl+Shift+B 面板） | cdcab58 |
 | H13 | 差异过滤工具栏（All / + / − / ~） | 3638118 |
 | H14 | 跨文件搜索面板（Ctrl+F 结果 LEFT+RIGHT） | c22cb59 |
-| H15 | 图片对比（Alpha 通道 + 像素差异百分比） | Apr 4 |
-| H16 | 命令面板（Ctrl+Shift+P） | Apr 4 |
+| H15 | 图片对比（Alpha 通道 + 像素差异百分比） | 7461e5f |
+| H16 | 命令面板（Ctrl+Shift+P） | b5881fc |
+| H17 | Session 模板（代码审查 / 论文 / 日志预设） | HomeView |
+| H18 | 最近文件跳转列表 | HomeView |
+| H19 | 文件格式关联（30+ 扩展名） | b5881fc |
 | H20 | Windows 注册表右键菜单 | Apr 4 |
-
----
-
-## 🔄 进行中
-
-| Hour | 功能 | 状态 |
-|------|------|------|
-| H17 | Session 模板（代码审查 / 论文 / 日志预设） | 集成到 SettingsView |
-| H18 | 最近文件跳转列表 | HomeView 侧边栏 |
-| H19 | 文件格式关联（语法高亮预设） | SettingsView |
+| H21 | 自动更新检测（GitHub Releases API） | 7461e5f |
 
 ---
 
@@ -42,10 +36,6 @@
 | H9 | 深色/浅色主题适配 |
 | H10 | 平板响应式布局（1024px 断点） |
 | H11 | Hex 十六进制对比视图 |
-| H17 | Session 模板保存/加载 |
-| H18 | 最近文件（10 条历史） |
-| H19 | 文件格式关联设置 |
-| H21 | 自动更新检测（GitHub Releases） |
 | H22 | 快捷键自定义 UI |
 | H23 | 差异报告导出（HTML / PDF） |
 | H24 | 集成测试 + v1.0 README |
@@ -57,9 +47,10 @@
 | 问题 | 修复 | Commit |
 |------|------|--------|
 | Rust API 参数名不匹配 | `#[serde(alias = "...")]` | `36e7f7f` |
-| DiffOptions ignore 字段别名 | 同上 | `2dfa905` |
+| DiffOptions ignore 字段别名 | `#[serde(alias = "ignoreWhitespace")]` | `2dfa905` |
 | capabilities 权限配置 | `capabilities/main.json` | `3ff0447` |
 | exe 启动崩溃（Windows） | `transparent: false` + `devtools: false` | Apr 4 |
+| TextDiffView.vue 模板语法错误 | 恢复 v0.2.9 稳定版本 | `7461e5f` |
 
 ---
 
