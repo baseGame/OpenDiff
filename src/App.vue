@@ -5,6 +5,7 @@ import AppLayout from '@/components/AppLayout.vue'
 import GlobalToast from '@/components/GlobalToast.vue'
 import KeyboardShortcuts from '@/components/KeyboardShortcuts.vue'
 import SessionPicker from '@/components/SessionPicker.vue'
+import CommandPalette from '@/components/CommandPalette.vue'
 import type { Session } from '@/types'
 import { useTabStore } from '@/stores/tabs'
 
@@ -64,4 +65,5 @@ window.addEventListener('keydown', onKeydown)
   <GlobalToast ref="toast" />
   <KeyboardShortcuts />
   <SessionPicker :visible="showSessionPicker" @close="showSessionPicker = false" @load="onLoadSession" />
+  <CommandPalette />
 </template>

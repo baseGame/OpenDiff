@@ -88,6 +88,7 @@ tracing.workspace = true
 tracing-subscriber.workspace = true
 image.workspace = true
 crc32fast.workspace = true
+base64 = "0.22"
 
 diff-engine = { path = "crates/diff-engine" }
 vfs = { path = "crates/vfs" }

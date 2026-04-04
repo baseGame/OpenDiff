@@ -1,3 +1,4 @@
+use base64::{engine::general_purpose::STANDARD, Engine};
 use vfs::{LocalVfs, Vfs, VPath, Entry, Metadata};
 
 #[tauri::command]
@@ -20,7 +21,6 @@ pub async fn cmd_stat(path: String) -> Result<Metadata, String> {
 
 #[tauri::command]
 pub async fn cmd_copy_file(src: String, dst: String) -> Result<(), String> {
-    // Ensure parent dir exists
     if let Some(parent) = std::path::Path::new(&dst).parent() {
         tokio::fs::create_dir_all(parent).await
             .map_err(|e| format!("mkdir failed: {e}"))?;
@@ -41,6 +41,14 @@ pub async fn cmd_read_file_bytes(path: String) -> Result<Vec<u8>, String> {
     tokio::fs::read(&path)
         .await
         .map_err(|e| format!("Cannot read '{path}': {e}"))
+}
+
+#[tauri::command]
+pub async fn cmd_read_file_base64(path: String) -> Result<String, String> {
+    let bytes = tokio::fs::read(&path)
+        .await
+        .map_err(|e| format!("Cannot read '{path}': {e}"))?;
+    Ok(STANDARD.encode(&bytes))
 }
 
 #[tauri::command]

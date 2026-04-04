@@ -41,6 +41,7 @@ pub fn run() {
             commands::vfs::cmd_list_dir,
             commands::vfs::cmd_read_file_text,
             commands::vfs::cmd_read_file_bytes,
+            commands::vfs::cmd_read_file_base64,
             commands::vfs::cmd_stat,
             commands::vfs::cmd_copy_file,
             commands::vfs::cmd_delete_path,
