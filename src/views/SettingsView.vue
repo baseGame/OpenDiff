@@ -35,6 +35,55 @@ const shortcutRows = [
   { key: '?', descKey: 'settings.shortcut_help' },
 ]
 
+const formatExts = ref([
+  { ext: 'py',   mode: 'text' },
+  { ext: 'js',   mode: 'text' },
+  { ext: 'ts',   mode: 'text' },
+  { ext: 'tsx',  mode: 'text' },
+  { ext: 'jsx',  mode: 'text' },
+  { ext: 'c',    mode: 'text' },
+  { ext: 'cpp',  mode: 'text' },
+  { ext: 'h',    mode: 'text' },
+  { ext: 'java', mode: 'text' },
+  { ext: 'go',   mode: 'text' },
+  { ext: 'rs',   mode: 'text' },
+  { ext: 'cs',   mode: 'text' },
+  { ext: 'rb',   mode: 'text' },
+  { ext: 'php',  mode: 'text' },
+  { ext: 'swift', mode: 'text' },
+  { ext: 'kt',   mode: 'text' },
+  { ext: 'sql',  mode: 'text' },
+  { ext: 'sh',   mode: 'text' },
+  { ext: 'bash', mode: 'text' },
+  { ext: 'md',   mode: 'text' },
+  { ext: 'json', mode: 'text' },
+  { ext: 'yaml', mode: 'text' },
+  { ext: 'yml',  mode: 'text' },
+  { ext: 'xml',  mode: 'text' },
+  { ext: 'csv',  mode: 'table' },
+  { ext: 'tsv',  mode: 'table' },
+  { ext: 'xlsx', mode: 'table' },
+  { ext: 'xls',  mode: 'table' },
+  { ext: 'png',  mode: 'image' },
+  { ext: 'jpg',  mode: 'image' },
+  { ext: 'jpeg', mode: 'image' },
+  { ext: 'gif',  mode: 'image' },
+  { ext: 'webp', mode: 'image' },
+  { ext: 'bmp',  mode: 'image' },
+])
+
+function saveFormats() {
+  localStorage.setItem('formatAssociations', JSON.stringify(formatExts.value))
+  // format associations saved to localStorage
+}
+
+onMounted(() => {
+  try {
+    const saved = JSON.parse(localStorage.getItem('formatAssociations') || '[]')
+    if (saved.length) formatExts.value = saved
+  } catch {}
+})
+
 async function saveSettings() {
   saving.value = true
   saveMsg.value = ''
@@ -176,6 +225,24 @@ onMounted(() => {
         </div>
       </section>
 
+      <!-- Format Associations -->
+      <section class="settings-section">
+        <h3 class="section-title">{{ $t('settings.format_associations') || '文件格式关联' }}</h3>
+        <div class="setting-desc" style="margin-bottom:12px">选择文件打开时的默认对比模式</div>
+        <div class="format-grid">
+          <div v-for="ext in formatExts" :key="ext.ext" class="format-row">
+            <span class="format-ext">.{{ ext.ext }}</span>
+            <select v-model="ext.mode" class="setting-select" style="width:140px" @change="saveFormats">
+              <option value="text">文本对比</option>
+              <option value="table">表格对比</option>
+              <option value="hex">十六进制</option>
+              <option value="image">图片对比</option>
+              <option value="auto">自动检测</option>
+            </select>
+          </div>
+        </div>
+      </section>
+
       <!-- Shortcuts -->
       <section class="settings-section">
         <h3 class="section-title">{{ $t('settings.shortcuts') }}</h3>
@@ -259,4 +326,7 @@ kbd { min-width: 170px; padding: 3px 8px; border-radius: 5px; background: var(--
 .btn-ghost:hover { border-color: var(--color-accent); color: var(--color-accent); }
 .btn-primary { display: flex; align-items: center; gap: 6px; padding: 7px 16px; border-radius: 6px; border: none; background: var(--color-accent); color: white; font-size: 13px; cursor: pointer; font-weight: 500; }
 .btn-primary:hover { opacity: 0.9; }
+.format-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 4px; }
+.format-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 12px; }
+.format-ext { font-family: monospace; font-weight: 600; color: var(--color-text-secondary); min-width: 36px; }
 </style>
