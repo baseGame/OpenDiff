@@ -13,9 +13,30 @@ import {
 const router = useRouter()
 const tabStore = useTabStore()
 const sessions = ref<Session[]>([])
+const updateAvailable = ref('')
+const updateUrl = ref('')
+
+async function checkUpdate() {
+  try {
+    const r = await fetch('https://api.github.com/repos/baseGame/OpenDiff/releases/latest', {
+      headers: { 'Accept': 'application/vnd.github.v3+json' }
+    })
+    if (!r.ok) return
+    const data = await r.json() as { tag_name: string; html_url: string; body: string }
+    const latest = data.tag_name?.replace(/^v/, '') || ''
+    const current = '0.2.11'
+    const [lm, lr] = latest.split('.').map(Number)
+    const [cm, cr] = current.split('.').map(Number)
+    if ((lm ?? 0) > (cm ?? 0) || ((lm ?? 0) === (cm ?? 0) && (lr ?? 0) > (cr ?? 0))) {
+      updateAvailable.value = latest
+      updateUrl.value = data.html_url
+    }
+  } catch {}
+}
 
 onMounted(async () => {
   try { sessions.value = await listRecentSessions(10) } catch {}
+  checkUpdate()
 })
 
 // ── Bookmark state ───────────────────────────────────────────────────
@@ -128,6 +149,11 @@ function fmtDate(dt: string) {
     @dragenter="onGlobalDragEnter" @dragleave="onGlobalDragLeave"
     @dragover="onGlobalDragOver" @drop="onGlobalDrop"
   >
+    <!-- Update banner -->
+    <a v-if="updateAvailable" :href="updateUrl" target="_blank" class="update-banner">
+      🆕 New version {{ updateAvailable }} available — click to download
+    </a>
+
     <!-- Global drag overlay -->
     <div v-if="isDraggingFiles" class="home-drag-overlay">
       <div class="drag-welcome-box">
@@ -724,6 +750,8 @@ function fmtDate(dt: string) {
     display: none;
   }
 }
+.update-banner { display:block; padding:8px 16px; background:linear-gradient(90deg,rgba(59,130,246,.15),rgba(16,185,129,.15)); border-bottom:1px solid rgba(59,130,246,.3); color:var(--color-accent); font-size:12px; text-decoration:none; text-align:center; }
+.update-banner:hover { background:linear-gradient(90deg,rgba(59,130,246,.25),rgba(16,185,129,.25)); }
 </style>
 
 /* Drag overlay */

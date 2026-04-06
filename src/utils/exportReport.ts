@@ -1,0 +1,134 @@
+/**
+ * ExportDiffReport — Generate HTML / PDF diff reports
+ * Used by: TextDiffView, FolderDiffView
+ */
+import type { DiffResult } from '@/types'
+
+export interface DiffExportOptions {
+  title: string
+  leftLabel: string
+  rightLabel: string
+  diffResult: DiffResult | null
+  leftContent: string
+  rightContent: string
+  stats?: { same: number; added: number; deleted: number; modified: number }
+  theme?: 'dark' | 'light'
+}
+
+/** Generate a self-contained HTML diff report */
+export function exportDiffAsHtml(opts: DiffExportOptions): string {
+  const {
+    title,
+    leftLabel,
+    rightLabel,
+    diffResult,
+    leftContent,
+    rightContent,
+    stats,
+    theme = 'dark',
+  } = opts
+
+  const isDark = theme === 'dark'
+  const bg = isDark ? '#18181b' : '#f8fafc'
+  const surface = isDark ? '#27272a' : '#ffffff'
+  const border = isDark ? '#3f3f46' : '#cbd5e1'
+  const text = isDark ? '#f4f4f5' : '#0f172a'
+  const muted = isDark ? '#a1a1aa' : '#64748b'
+  const green = '#22c55e'
+  const red = '#ef4444'
+  const blue = '#3b82f6'
+
+  const rows: string[] = []
+  if (diffResult) {
+    for (const op of diffResult.ops) {
+      if ('Equal' in op) {
+        const line = escapeHtml(op.Equal)
+        rows.push(`<tr class="row-eq"><td class="ln">${op.li + 1}</td><td class="ct">${line}</td><td class="gutter"></td><td class="ln">${op.ri + 1}</td><td class="ct">${line}</td></tr>`)
+      } else if ('Insert' in op) {
+        const line = escapeHtml(op.Insert)
+        rows.push(`<tr class="row-ins"><td class="ln"></td><td class="ct"></td><td class="gutter"></td><td class="ln add">${op.ri + 1}</td><td class="ct ins">${line}</td></tr>`)
+      } else if ('Delete' in op) {
+        const line = escapeHtml(op.Delete)
+        rows.push(`<tr class="row-del"><td class="ln del">${op.li + 1}</td><td class="ct del">${line}</td><td class="gutter"></td><td class="ln"></td><td class="ct"></td></tr>`)
+      } else if ('Replace' in op) {
+        const [ll, rl] = op.Replace
+        rows.push(`<tr class="row-rep"><td class="ln del">${ll.li + 1}</td><td class="ct del">${escapeHtml(ll.line)}</td><td class="gutter"></td><td class="ln add">${rl.ri + 1}</td><td class="ct ins">${escapeHtml(rl.line)}</td></tr>`)
+      }
+    }
+  }
+
+  const statHtml = stats ? `
+  <div class="stats-bar">
+    <span class="stat-item"><span class="s-eq">${stats.same}</span> unchanged</span>
+    <span class="stat-item"><span class="s-add">+${stats.added}</span> added</span>
+    <span class="stat-item"><span class="s-del">-${stats.deleted}</span> deleted</span>
+    <span class="stat-item"><span class="s-mod">~${stats.modified}</span> modified</span>
+  </div>` : ''
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>${escapeHtml(title)}</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace; background: ${bg}; color: ${text}; font-size: 13px; line-height: 1.5; }
+.report-header { padding: 16px 24px; border-bottom: 1px solid ${border}; background: ${surface}; }
+.report-title { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+.report-meta { font-size: 11px; color: ${muted}; }
+.stats-bar { display: flex; gap: 16px; padding: 10px 24px; background: ${surface}; border-bottom: 1px solid ${border}; font-size: 12px; }
+.stat-item { color: ${muted} }
+.s-eq { color: ${muted}; font-weight: 700 } .s-add { color: ${green}; font-weight: 700 } .s-del { color: ${red}; font-weight: 700 } .s-mod { color: ${blue}; font-weight: 700 }
+table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.ln { width: 40px; text-align: right; padding: 1px 8px; color: ${muted}; font-size: 11px; user-select: none; border-right: 1px solid ${border}; }
+.ct { padding: 1px 8px; white-space: pre-wrap; word-break: break-all; }
+.gutter { width: 16px; background: ${surface}; border-right: 1px solid ${border}; }
+.ins { background: rgba(34,197,94,.15); } .del { background: rgba(239,68,68,.15); } .add { color: ${green}; } .row-rep { background: rgba(59,130,246,.06); }
+.row-eq:hover, .row-ins:hover, .row-del:hover, .row-rep:hover { filter: brightness(1.1); }
+.footer { padding: 12px 24px; font-size: 11px; color: ${muted}; border-top: 1px solid ${border}; text-align: center; }
+@media print { body { background: #fff; color: #000; } .row-eq { background: #fff !important; } }
+</style>
+</head>
+<body>
+<div class="report-header">
+  <div class="report-title">${escapeHtml(title)}</div>
+  <div class="report-meta">Left: ${escapeHtml(leftLabel)} &nbsp;|&nbsp; Right: ${escapeHtml(rightLabel)}</div>
+</div>${statHtml}
+<table>
+<thead><tr><th class="ln">#</th><th>${escapeHtml(leftLabel)}</th><th class="gutter"></th><th class="ln">#</th><th>${escapeHtml(rightLabel)}</th></tr></thead>
+<tbody>${rows.join('\n')}</tbody>
+</table>
+<div class="footer">Generated by OpenDiff · ${new Date().toLocaleString()}</div>
+</body>
+</html>`
+}
+
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+}
+
+/** Trigger browser print / save-as for the HTML report */
+export function printHtmlReport(html: string, filename = 'diff-report.html') {
+  const blob = new Blob([html], { type: 'text/html' })
+  const url = URL.createObjectURL(blob)
+  const win = window.open(url, '_blank')
+  if (win) {
+    win.onload = () => {
+      win.print()
+      URL.revokeObjectURL(url)
+    }
+  }
+}
+
+/** Export the current diff as a downloadable HTML file */
+export async function exportDiffReport(opts: DiffExportOptions, filename = 'diff-report.html') {
+  const html = exportDiffAsHtml(opts)
+  const blob = new Blob([html], { type: 'text/html' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
+}

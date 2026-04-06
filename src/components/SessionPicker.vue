@@ -7,7 +7,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { save, open } from '@tauri-apps/plugin-dialog'
 import { readTextFile, writeTextFile } from '@tauri-apps/plugin-fs'
 import { useRouter } from 'vue-router'
-import { listRecentSessions, deleteSession } from '@/api'
+import { listRecentSessions, deleteSession, saveSession } from '@/api'
 import type { Session, SessionKind } from '@/types'
 
 const props = defineProps<{ visible: boolean }>()

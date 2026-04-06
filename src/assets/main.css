@@ -60,7 +60,32 @@
   --diff-add-char: rgba(22, 163, 74, 0.25);
   --diff-del-bg: rgba(220, 38, 38, 0.1);
   --diff-del-char: rgba(220, 38, 38, 0.25);
+}  --scrollbar-thumb: #94a3b8;
 }
+
+/* Theme transition — smooth color animations */
+.theme-transitioning,
+.theme-transitioning * {
+  transition: background-color 200ms ease, color 200ms ease,
+              border-color 200ms ease, fill 200ms ease,
+              box-shadow 200ms ease !important;
+}
+
+/* Extended palette */
+:root {
+  --color-selection-bg: rgba(59, 130, 246, 0.25);
+  --color-focus-ring: rgba(59, 130, 246, 0.5);
+  --color-shadow: rgba(0, 0, 0, 0.15);
+}
+[data-theme="light"] {
+  --color-selection-bg: rgba(37, 99, 235, 0.2);
+  --color-focus-ring: rgba(37, 99, 235, 0.4);
+  --color-shadow: rgba(0, 0, 0, 0.08);
+  --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06);
+  --shadow-lg: 0 4px 6px rgba(0,0,0,0.07), 0 2px 4px rgba(0,0,0,0.05);
+}
+::selection { background: var(--color-selection-bg); color: var(--color-text); }
+:focus-visible { outline: 2px solid var(--color-focus-ring); outline-offset: 2px; border-radius: 2px; }
 
 /* ── Reset ── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -333,4 +358,25 @@ html, body, #app {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* ── H10: Tablet Responsive (1024px) ── */
+@media (max-width: 1024px) {
+  .home-grid { grid-template-columns: 1fr 1fr !important; gap: 12px !important; }
+  .home-header h1 { font-size: 22px !important; }
+  .home-card { padding: 14px !important; }
+  .tdv-toolbar { flex-wrap: wrap !important; gap: 4px !important; }
+  .tdv-btn-path, .tdv-btn { font-size: 11px !important; padding: 4px 6px !important; }
+  .settings-body { padding: 0 8px !important; }
+  .settings-section { padding: 12px 8px !important; }
+}
+
+/* ── Mobile (768px and below) ── */
+@media (max-width: 768px) {
+  .home-grid { grid-template-columns: 1fr !important; }
+  .home-header { padding: 12px !important; }
+  .tdv-table-wrap { overflow-x: auto !important; }
+  .tdiff-table { min-width: 600px !important; }
+  .folder-toolbar { flex-direction: column !important; }
+  .folder-file-row { font-size: 12px !important; }
 }
