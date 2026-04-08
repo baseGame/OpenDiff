@@ -2,9 +2,9 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useTabStore } from '@/stores/tabs'
-import { listRecentSessions, deleteSession, saveSession } from '@/api'
+import { listRecentSessions, deleteSession, saveSession, exportAllSessions, importSessions } from '@/api'
 import type { Session, SessionKind } from '@/types'
-import { ArrowLeft, FileText, FolderTree, Table, Binary, Image, Play, Trash2, Clock } from 'lucide-vue-next'
+import { ArrowLeft, FileText, FolderTree, Table, Binary, Image, Play, Trash2, Clock, Download, Upload } from 'lucide-vue-next'
 
 const router = useRouter()
 const tabStore = useTabStore()
@@ -14,6 +14,12 @@ const loading = ref(true)
 const error = ref<string | null>(null)
 const deleting = ref<string | null>(null)
 const confirmDelete = ref<string | null>(null)
+const toast = ref<{ msg: string; type: string } | null>(null)
+
+function showToast(msg: string, type = 'info') {
+  toast.value = { msg, type }
+  setTimeout(() => { toast.value = null }, 3000)
+}
 
 function kindIcon(kind: SessionKind) {
   const map: Record<string, any> = {
@@ -84,7 +90,7 @@ async function confirmAndDelete(s: Session) {
       await deleteSession(s.id)
       sessions.value = sessions.value.filter(x => x.id !== s.id)
     } catch (e: any) {
-      error.value = `删除失败: ${e}`
+      showToast(`Delete failed: ${e}`, 'error')
     } finally {
       deleting.value = null
       confirmDelete.value = null
@@ -96,7 +102,7 @@ async function confirmAndDelete(s: Session) {
 }
 
 async function clearAllHistory() {
-  if (!confirm('确定清空所有历史记录？此操作不可撤销。')) return
+  if (!confirm('Delete all history? This cannot be undone.')) return
   loading.value = true
   try {
     for (const s of sessions.value) {
@@ -105,6 +111,38 @@ async function clearAllHistory() {
     sessions.value = []
   } finally {
     loading.value = false
+  }
+}
+
+async function loadImport() {
+  const input = document.createElement('input')
+  input.type = 'file'; input.accept = '.json'
+  input.onchange = async () => {
+    const file = input.files?.[0]
+    if (!file) return
+    try {
+      const text = await file.text()
+      const count = await importSessions(text)
+      showToast(`Imported ${count} sessions`, 'success')
+      await loadSessions()
+    } catch (e: any) {
+      showToast(`Import failed: ${e}`, 'error')
+    }
+  }
+  input.click()
+}
+
+async function handleExportAll() {
+  try {
+    const json = await exportAllSessions()
+    const blob = new Blob([json], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = 'opendiff-sessions.json'; a.click()
+    URL.revokeObjectURL(url)
+    showToast('Sessions exported successfully', 'success')
+  } catch (e: any) {
+    showToast(`Export failed: ${e}`, 'error')
   }
 }
 
@@ -123,9 +161,19 @@ onMounted(loadSessions)
         <p class="subtitle">{{ $t('history.sessions_count', { n: sessions.length }) }}</p>
       </div>
       <div class="flex-1" />
+      <button v-if="sessions.length" class="btn-icon" title="Export all sessions" @click="handleExportAll">
+        <Download :size="15" />
+      </button>
+      <button v-if="sessions.length" class="btn-icon" title="Import sessions" @click="loadImport">
+        <Upload :size="15" />
+      </button>
       <button v-if="sessions.length" class="btn-ghost text-xs" @click="clearAllHistory">
         <Trash2 :size="14" /> {{ $t('history.clear_all') }}
       </button>
+    </div>
+
+    <div v-if="toast" class="toast-banner" :class="'toast-' + toast.type">
+      {{ toast.msg }}
     </div>
 
     <div v-if="error" class="error-banner flex items-center gap-2 px-6">
@@ -196,6 +244,10 @@ onMounted(loadSessions)
 .history-header { border-bottom: 1px solid var(--color-border); background: var(--color-bg2); }
 .title { font-size: 16px; font-weight: 700; margin: 0; }
 .subtitle { font-size: 12px; color: var(--color-text-muted); margin: 2px 0 0; }
+.toast-banner { padding: 6px 16px; font-size: 12px; text-align: center; border-bottom: 1px solid var(--color-border) }
+.toast-success { background: rgba(34,197,94,.12); color: var(--color-green) }
+.toast-error { background: rgba(239,68,68,.12); color: var(--color-red) }
+.toast-info { background: rgba(59,130,246,.12); color: var(--color-accent) }
 .error-banner { padding: 8px 24px; background: rgba(239,68,68,.1); border-bottom: 1px solid rgba(239,68,68,.2); color: var(--color-red); font-size: 13px; }
 .loading-state { color: var(--color-text-muted); }
 .spinner { width: 24px; height: 24px; border: 2px solid var(--color-border); border-top-color: var(--color-accent); border-radius: 50%; animation: spin 0.7s linear infinite; }

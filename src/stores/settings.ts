@@ -24,7 +24,7 @@ export const useSettingsStore = defineStore('settings', () => {
     try {
       const loadedSettings = await getSettings()
       // Merge with defaults to fill missing fields (e.g. language)
-      settings.value = { ...DEFAULT, ...loadedSettings }
+      settings.value = { ...DEFAULT, ...(loadedSettings ?? {}) }
     } catch {
       settings.value = { ...DEFAULT }
     }

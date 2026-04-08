@@ -156,7 +156,7 @@ async function loadAndCompare() {
       // Fallback to client-side comparison
     }
 
-    const [leftEntries, rightEntries] = await Promise.all([
+    const [leftEntries, rightEntries]: [VfsEntry[], VfsEntry[]] = await Promise.all([
       listDir(leftRoot.value),
       listDir(rightRoot.value),
     ])

@@ -24,10 +24,10 @@ async function checkUpdate() {
     if (!r.ok) return
     const data = await r.json() as { tag_name: string; html_url: string; body: string }
     const latest = data.tag_name?.replace(/^v/, '') || ''
-    const current = '0.2.11'
+    const current = '1.0.0'
     const [lm, lr] = latest.split('.').map(Number)
     const [cm, cr] = current.split('.').map(Number)
-    if ((lm ?? 0) > (cm ?? 0) || ((lm ?? 0) === (cm ?? 0) && (lr ?? 0) > (cr ?? 0))) {
+    if (lm > cm || (lm === cm && lr > cr)) {
       updateAvailable.value = latest
       updateUrl.value = data.html_url
     }
