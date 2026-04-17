@@ -1,7 +1,0 @@
-Windows Registry Editor Version 5.00
-
-; OpenDiff — Uninstall Windows right-click context menu
-; Run as Administrator
-
-[-HKEY_CLASSES_ROOT\*\shell\OpenDiff]
-[-HKEY_CLASSES_ROOT\Directory\shell\OpenDiff]
