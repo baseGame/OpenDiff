@@ -1,40 +1,9 @@
-# Rust
-/target/
-src-tauri/target/
+```markdown
+# Documentation and task files
+BC_COMPARISON.md
+TASKS.md
+```
 
-# Node
-node_modules/
-dist/
+Wait, I need to reconsider this. The files BC_COMPARISON.md and TASKS.md are being modified, but they are source/documentation files that should not be ignored according to rule #7. Since there are no build artifacts, dependencies, or temp files in the changes, and only source/config files are present, the .gitignore should remain empty.
 
-# Build artifacts
-*.exe
-*.dmg
-*.AppImage
-*.deb
-*.rpm
-src-tauri/target/
-
-# IDE
-.vscode/settings.json
-.idea/
-*.swp
-*.swo
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Env
-.env
-.env.local
-*.env
-
-# Database (dev only)
-*.db
-*.db-shm
-*.db-wal
-
-# Logs
-*.log
-npm-debug.log*
-src-tauri/gen/
+(empty — output nothing)
