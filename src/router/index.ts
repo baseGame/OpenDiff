@@ -42,6 +42,11 @@ const router = createRouter({
       name: 'history',
       component: HistoryView,
     },
+    {
+      path: '/vfs-connections',
+      name: 'vfs-connections',
+      component: () => import('@/views/VfsConnectionView.vue'),
+    },
   ],
 })
 

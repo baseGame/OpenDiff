@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { FolderOpen, Search, GitBranch, Puzzle, Bug, User, Settings } from 'lucide-vue-next'
+import { FolderOpen, Search, GitBranch, Puzzle, Bug, User, Settings, HardDrive } from 'lucide-vue-next'
 
 const router = useRouter()
 const route = useRoute()
@@ -18,7 +18,7 @@ const topItems = [
   { id: 'search', icon: Search, title: 'Search' },
   { id: 'source-control', icon: GitBranch, title: 'Source Control' },
   { id: 'extensions', icon: Puzzle, title: 'Extensions' },
-  { id: 'debugger', icon: Bug, title: 'Debugger' },
+  { id: 'vfs', icon: HardDrive, title: 'Remote Connections', path: '/vfs-connections' },
 ]
 
 const bottomItems = [
