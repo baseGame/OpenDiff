@@ -186,17 +186,18 @@ fn io_error(error: std::io::Error) -> ProfileStoreError {
     ProfileStoreError::Io(error.to_string())
 }
 
-fn restrict_file_permissions(path: &Path) {
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        if let Ok(metadata) = fs::metadata(path) {
-            let mut permissions = metadata.permissions();
-            permissions.set_mode(0o600);
-            let _ = fs::set_permissions(path, permissions);
-        }
+#[cfg(unix)]
+pub(crate) fn restrict_file_permissions(path: &Path) {
+    use std::os::unix::fs::PermissionsExt;
+    if let Ok(metadata) = fs::metadata(path) {
+        let mut permissions = metadata.permissions();
+        permissions.set_mode(0o600);
+        let _ = fs::set_permissions(path, permissions);
     }
 }
+
+#[cfg(not(unix))]
+pub(crate) fn restrict_file_permissions(_path: &Path) {}
 
 #[cfg(test)]
 mod tests {
@@ -275,6 +276,16 @@ mod tests {
             "prod-sftp"
         );
 
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn restrict_file_permissions_accepts_existing_files_on_every_platform() {
+        let root = unique_temp_dir("remote-perms");
+        let path = root.join("secret.json");
+        std::fs::write(&path, "{}").expect("fixture");
+        restrict_file_permissions(&path);
+        assert!(path.exists());
         let _ = std::fs::remove_dir_all(root);
     }
 
