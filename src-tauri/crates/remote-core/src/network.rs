@@ -4,10 +4,11 @@ use crate::{
     RemoteProviderResult,
 };
 use std::cell::RefCell;
+use std::fs;
 use std::io::{Read, Write};
 use std::net::{TcpStream, ToSocketAddrs};
-use std::path::Path;
-use std::time::Duration;
+use std::path::{Path, PathBuf};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 pub fn protocol_is_implemented(protocol: RemoteProtocol) -> bool {
     matches!(
@@ -306,18 +307,60 @@ fn authenticate_sftp(
         RemoteCredentialMaterial::PrivateKey {
             private_key,
             passphrase,
-        } => session
-            .userauth_pubkey_memory(
-                username,
-                None,
-                private_key.expose_secret(),
-                passphrase.as_ref().map(|value| value.expose_secret()),
-            )
-            .map_err(|error| RemoteProviderError::Backend(error.to_string())),
+        } => authenticate_sftp_private_key(
+            session,
+            username,
+            private_key.expose_secret(),
+            passphrase.as_ref().map(|value| value.expose_secret()),
+        ),
         RemoteCredentialMaterial::BearerToken(_) => Err(RemoteProviderError::Backend(
             "SFTP does not support bearer token authentication".to_owned(),
         )),
     }
+}
+
+fn authenticate_sftp_private_key(
+    session: &ssh2::Session,
+    username: &str,
+    private_key: &str,
+    passphrase: Option<&str>,
+) -> RemoteProviderResult<()> {
+    let key_file = stage_private_key_file(private_key)?;
+    session
+        .userauth_pubkey_file(username, None, key_file.path(), passphrase)
+        .map_err(|error| RemoteProviderError::Backend(error.to_string()))
+}
+
+struct StagedPrivateKey {
+    path: PathBuf,
+}
+
+impl StagedPrivateKey {
+    fn path(&self) -> &Path {
+        &self.path
+    }
+}
+
+impl Drop for StagedPrivateKey {
+    fn drop(&mut self) {
+        let _ = fs::remove_file(&self.path);
+    }
+}
+
+fn stage_private_key_file(private_key: &str) -> RemoteProviderResult<StagedPrivateKey> {
+    let stamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_nanos())
+        .unwrap_or(0);
+    let path = std::env::temp_dir().join(format!(
+        "opendiff-sftp-key-{}-{stamp}.pem",
+        std::process::id()
+    ));
+    fs::write(&path, private_key).map_err(|error| {
+        RemoteProviderError::Backend(format!("could not stage SFTP private key: {error}"))
+    })?;
+    crate::persist::restrict_file_permissions(&path);
+    Ok(StagedPrivateKey { path })
 }
 
 fn credential_username(credential: &RemoteCredential) -> RemoteProviderResult<&str> {
@@ -386,5 +429,49 @@ mod tests {
         assert!(!protocol_is_implemented(RemoteProtocol::S3));
         assert!(protocol_is_implemented(RemoteProtocol::Sftp));
         assert!(protocol_is_implemented(RemoteProtocol::WebDav));
+    }
+
+    #[test]
+    fn stages_sftp_private_key_to_a_restricted_temp_file() {
+        let pem =
+            "-----BEGIN OPENSSH PRIVATE KEY-----\ntest-key\n-----END OPENSSH PRIVATE KEY-----\n";
+        let staged = stage_private_key_file(pem).expect("key should stage");
+        let path = staged.path().to_path_buf();
+
+        assert_eq!(fs::read_to_string(&path).expect("staged key"), pem);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = fs::metadata(&path).expect("metadata").permissions().mode() & 0o777;
+            assert_eq!(mode, 0o600);
+        }
+
+        drop(staged);
+        assert!(
+            !path.exists(),
+            "staged private key must be removed after auth"
+        );
+    }
+
+    #[test]
+    fn sftp_private_key_auth_uses_the_portable_pubkey_file_path() {
+        let profile = RemoteProfile::new(
+            "closed-sftp-key",
+            "Closed SFTP key",
+            RemoteProtocol::Sftp,
+            RemoteEndpoint::new("127.0.0.1").with_port(1),
+            CredentialReference::profile_store("closed-sftp-key"),
+        );
+        let credential = RemoteCredential::private_key(
+            "deploy",
+            "-----BEGIN OPENSSH PRIVATE KEY-----\ntest-key\n-----END OPENSSH PRIVATE KEY-----\n",
+            None::<String>,
+        );
+        let error = test_network_connection(&profile, &credential).unwrap_err();
+
+        assert!(matches!(
+            error,
+            RemoteProviderError::Backend(message) if message.contains("connect failed")
+        ));
     }
 }

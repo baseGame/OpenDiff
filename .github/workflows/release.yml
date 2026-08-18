@@ -412,7 +412,7 @@ jobs:
           const fs = require('fs')
           const platforms = [
             'macos-aarch64-apple-darwin',
-            'macos-x86_64-apple-darwin',
+            'macos-15-intel',
             'linux-ubuntu-22.04',
             'windows-latest',
           ]
@@ -453,9 +453,9 @@ jobs:
           - platform: macos-latest
             args: --target aarch64-apple-darwin
             rust-target: aarch64-apple-darwin
-          - platform: macos-latest
-            args: --target x86_64-apple-darwin
-            rust-target: x86_64-apple-darwin
+          - platform: macos-15-intel
+            args: ''
+            rust-target: ''
           - platform: ubuntu-22.04
             args: ''
             rust-target: ''
@@ -513,7 +513,7 @@ jobs:
           prerelease: ${{ contains(github.ref_name, '-alpha') || contains(github.ref_name, '-beta') || contains(github.ref_name, '-rc') }}
           tauriScript: corepack pnpm tauri
           args: ${{ matrix.args }}
-          assetNamePattern: '[name]_[version]_[platform]_[arch][setup][ext]'
+          releaseAssetNamePattern: '[name]_[version]_[platform]_[arch][setup][ext]'
           retryAttempts: 2
           # Installers go only to the GitHub Release. Do not set uploadWorkflowArtifacts
           # unless those Actions artifacts also get installer_artifact_retention_days.
