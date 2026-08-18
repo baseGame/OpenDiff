@@ -5,9 +5,7 @@ export interface ClipboardTextSource {
 }
 
 export type ClipboardSourceErrorCode =
-  | 'clipboard-unavailable'
-  | 'clipboard-empty'
-  | 'clipboard-read-failed'
+  'clipboard-unavailable' | 'clipboard-empty' | 'clipboard-read-failed'
 
 export class ClipboardSourceError extends Error {
   constructor(

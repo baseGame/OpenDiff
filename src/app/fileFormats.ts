@@ -1,7 +1,7 @@
 import type { SessionType } from '@/types/session'
 
 export type FileFormatViewMode =
-  'text' | 'table' | 'hex' | 'picture' | 'registry' | 'media' | 'version' | 'patch'
+  'text' | 'table' | 'hex' | 'picture' | 'registry' | 'media' | 'version' | 'patch' | 'archive'
 
 export interface FileFormatMatcher {
   extensions: string[]
@@ -171,6 +171,38 @@ export const builtInFileFormats: FileFormatDefinition[] = [
       conversion: '',
     },
   },
+  {
+    id: 'zip-archive',
+    name: 'ZIP Archive',
+    priority: 88,
+    defaultView: 'archive',
+    matcher: {
+      extensions: ['zip'],
+      fileNames: [],
+      globs: [],
+    },
+    rules: {
+      grammar: '',
+      ignore: [],
+      conversion: '',
+    },
+  },
+  {
+    id: 'tar-archive',
+    name: 'TAR Archive',
+    priority: 87,
+    defaultView: 'archive',
+    matcher: {
+      extensions: ['tar', 'tgz', 'gz'],
+      fileNames: [],
+      globs: ['*.tar.gz'],
+    },
+    rules: {
+      grammar: '',
+      ignore: [],
+      conversion: '',
+    },
+  },
 ]
 
 const viewToSessionType: Record<FileFormatViewMode, SessionType> = {
@@ -182,6 +214,7 @@ const viewToSessionType: Record<FileFormatViewMode, SessionType> = {
   media: 'media-compare',
   version: 'version-compare',
   patch: 'text-patch',
+  archive: 'archive-compare',
 }
 
 export function loadFileFormats(): FileFormatDefinition[] {

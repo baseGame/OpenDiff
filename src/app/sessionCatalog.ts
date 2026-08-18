@@ -154,6 +154,26 @@ export const sessionCatalog: SessionCatalogEntry[] = [
     implemented: true,
     route: '/compare/version',
   },
+  {
+    type: 'archive-compare',
+    title: 'Archive Compare',
+    titleKey: 'ui.archiveCompare',
+    summary: 'ZIP/TAR folder tree compare',
+    summaryKey: 'session.summary.archiveCompare',
+    priority: 'P2',
+    implemented: true,
+    route: '/compare/folder',
+  },
+  {
+    type: 'script',
+    title: 'Script',
+    titleKey: 'ui.script',
+    summary: 'Run LOAD/COMPARE/REPORT scripts',
+    summaryKey: 'session.summary.script',
+    priority: 'P2',
+    implemented: true,
+    route: '/reports/scripts',
+  },
 ]
 
 export const sessionPriorities: SessionPriority[] = ['P0', 'P1', 'P2', 'P3']

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { exportFolderCompareReport, exportTextCompareReport } from '@/api/diff'
+import { runScript } from '@/api/script'
 import WorkbenchShell from '@/components/workbench/WorkbenchShell.vue'
 import WorkbenchToolbar from '@/components/workbench/WorkbenchToolbar.vue'
 import WorkbenchInspector from '@/components/workbench/WorkbenchInspector.vue'
@@ -33,6 +34,10 @@ const jobs = ref<ReportJob[]>([])
 const running = ref(false)
 const error = ref('')
 const lastExport = ref('')
+const scriptSource = ref('load "${left}"\nload "${right}"\ncompare\ntext-report "${output}"\n')
+const scriptPath = ref('')
+const scriptResult = ref('')
+const scriptRunning = ref(false)
 
 const completedCount = computed(
   () => jobs.value.filter((job) => job.stateKey === 'ui.completed').length,
@@ -95,6 +100,49 @@ async function runExport(): Promise<void> {
   }
 }
 
+async function runCurrentScript(): Promise<void> {
+  scriptRunning.value = true
+  error.value = ''
+  scriptResult.value = ''
+
+  try {
+    const response = await runScript({
+      source: scriptSource.value,
+      path: scriptPath.value.trim() || undefined,
+    })
+
+    scriptResult.value = [
+      `executed=${response.executed}`,
+      `compared=${response.compared}`,
+      `different=${response.different}`,
+      `reports=${response.reportsWritten}`,
+      ...response.logs,
+    ].join('\n')
+    jobs.value = [
+      {
+        name: scriptPath.value.trim() || t('ui.script'),
+        type: 'SCRIPT',
+        stateKey: 'ui.completed',
+        target: response.logs.at(-1) ?? scriptResult.value,
+      },
+      ...jobs.value,
+    ]
+  } catch (event) {
+    error.value = String(event)
+    jobs.value = [
+      {
+        name: t('ui.runScript'),
+        type: 'SCRIPT',
+        stateKey: 'ui.error',
+        target: scriptPath.value || t('ui.scriptSource'),
+      },
+      ...jobs.value,
+    ]
+  } finally {
+    scriptRunning.value = false
+  }
+}
+
 function fillFromLastCompare(): void {
   if (reportKind.value === 'folder' && lastCompare.folder) {
     leftPath.value = lastCompare.folder.leftRoot
@@ -136,6 +184,15 @@ function fillFromLastCompare(): void {
           @click="fillFromLastCompare"
         >
           {{ $t('ui.restoreRecent') }}
+        </button>
+        <button
+          type="button"
+          class="primary"
+          data-testid="run-script"
+          :disabled="scriptRunning"
+          @click="runCurrentScript"
+        >
+          {{ $t('ui.runScript') }}
         </button>
       </WorkbenchToolbar>
     </template>
@@ -239,9 +296,25 @@ function fillFromLastCompare(): void {
       <section class="script-panel">
         <header class="split-pane-header">
           <strong>{{ $t('ui.scriptCli') }}</strong>
-          <span>{{ $t('status.noComparisonYet') }}</span>
+          <span>{{ $t('ui.scriptingSupported') }}</span>
         </header>
-        <pre><code>{{ $t('ui.scriptingNotImplemented') }}</code></pre>
+        <label class="script-path">
+          <span>{{ $t('ui.scriptPath') }}</span>
+          <input
+            v-model="scriptPath"
+            type="text"
+            data-testid="script-path"
+          />
+        </label>
+        <textarea
+          v-model="scriptSource"
+          data-testid="script-source"
+          :placeholder="$t('ui.scriptSource')"
+        />
+        <pre
+          v-if="scriptResult"
+          data-testid="script-result"
+        ><code>{{ scriptResult }}</code></pre>
       </section>
     </section>
 
@@ -278,7 +351,7 @@ function fillFromLastCompare(): void {
 <style scoped>
 .reports-script-view {
   display: grid;
-  grid-template-rows: minmax(0, 1fr) 160px;
+  grid-template-rows: minmax(0, 1fr) minmax(220px, 0.7fr);
   gap: 8px;
   height: 100%;
   min-height: 0;
@@ -289,7 +362,7 @@ function fillFromLastCompare(): void {
 .report-panel,
 .script-panel {
   display: grid;
-  grid-template-rows: 28px auto minmax(0, 1fr);
+  grid-template-rows: 28px auto minmax(0, 1fr) auto;
   min-height: 0;
   overflow: hidden;
   border: 1px solid var(--app-border);
@@ -360,6 +433,36 @@ function fillFromLastCompare(): void {
   background: var(--app-surface-muted);
   color: var(--app-text-muted);
   font-weight: 700;
+}
+
+.script-path {
+  display: grid;
+  gap: 4px;
+  padding: 8px 8px 0;
+}
+
+.script-path span {
+  color: var(--app-text-muted);
+  font-size: 12px;
+}
+
+.script-path input,
+.script-panel textarea {
+  width: 100%;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--app-border);
+  border-radius: 6px;
+  background: var(--app-bg);
+  color: var(--app-text);
+  font: inherit;
+}
+
+.script-panel textarea {
+  min-height: 96px;
+  resize: vertical;
+  font-family: var(--font-mono);
+  font-size: 12px;
 }
 
 .script-panel pre {

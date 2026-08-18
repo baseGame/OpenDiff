@@ -3,6 +3,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import ReportsScriptView from './ReportsScriptView.vue'
 import { exportFolderCompareReport, exportTextCompareReport } from '@/api/diff'
+import { runScript } from '@/api/script'
 import { useLastCompareStore } from '@/stores/lastCompare'
 
 vi.mock('@/api/diff', () => ({
@@ -20,11 +21,22 @@ vi.mock('@/api/diff', () => ({
   }),
 }))
 
+vi.mock('@/api/script', () => ({
+  runScript: vi.fn().mockResolvedValue({
+    executed: 4,
+    compared: 1,
+    different: 1,
+    reportsWritten: 1,
+    logs: ['wrote report.txt'],
+  }),
+}))
+
 describe('ReportsScriptView', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.mocked(exportTextCompareReport).mockClear()
     vi.mocked(exportFolderCompareReport).mockClear()
+    vi.mocked(runScript).mockClear()
   })
 
   it('starts with no fake completed jobs', () => {
@@ -78,5 +90,23 @@ describe('ReportsScriptView', () => {
       format: 'text',
       outputPath: 'folder-compare.txt',
     })
+  })
+
+  it('runs a script from the editor', async () => {
+    const wrapper = mount(ReportsScriptView)
+
+    await wrapper.find('[data-testid="script-path"]').setValue('C:/work/job.bc')
+    await wrapper
+      .find('[data-testid="script-source"]')
+      .setValue('load left.txt\nload right.txt\ncompare\ntext-report out.txt\n')
+    await wrapper.find('[data-testid="run-script"]').trigger('click')
+    await flushPromises()
+
+    expect(runScript).toHaveBeenCalledWith({
+      source: 'load left.txt\nload right.txt\ncompare\ntext-report out.txt\n',
+      path: 'C:/work/job.bc',
+    })
+    expect(wrapper.find('[data-testid="script-result"]').text()).toContain('reports=1')
+    expect(wrapper.find('[data-testid="script-result"]').text()).toContain('wrote report.txt')
   })
 })

@@ -1,9 +1,20 @@
+mod network;
+mod persist;
+mod uri;
+
+pub use network::{
+    open_network_provider, protocol_is_implemented, test_network_connection,
+    unimplemented_protocol_message, FtpNetworkProvider, SftpNetworkProvider,
+};
+pub use persist::{default_profile, ProfileStoreError, RemoteProfileStore};
+pub use uri::{format_remote_uri, is_remote_uri, parse_remote_uri, RemoteUri};
+
 use logging_core::{LogDomain, LogStatus, StructuredLogEvent};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::fmt::{Debug, Formatter};
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 #[serde(rename_all = "kebab-case")]
 pub enum RemoteProtocol {
     Ftp,
@@ -250,14 +261,16 @@ impl CredentialStore for MemoryCredentialStore {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct RemoteEntry {
     pub path: String,
     pub kind: RemoteEntryKind,
     pub size: u64,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
 pub enum RemoteEntryKind {
     File,
     Directory,
@@ -1144,7 +1157,7 @@ impl RemoteTransferPlanner {
     }
 }
 
-fn normalize_remote_path(path: &str) -> RemoteProviderResult<String> {
+pub fn normalize_remote_path(path: &str) -> RemoteProviderResult<String> {
     let normalized = path.replace('\\', "/");
     let mut segments = Vec::<&str>::new();
 

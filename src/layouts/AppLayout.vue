@@ -21,6 +21,8 @@ import {
   Home,
   Image,
   Languages,
+  Package,
+  Play,
   Moon,
   Rows3,
   Search,
@@ -158,7 +160,10 @@ const executeRegisteredCommand = createCommandExecutor(commandRegistry, {
 
 const navigationItems = computed<NavigationItem[]>(() =>
   sessionCatalog
-    .filter((entry): entry is SessionCatalogEntry & { route: string } => Boolean(entry.route))
+    .filter(
+      (entry): entry is SessionCatalogEntry & { route: string } =>
+        Boolean(entry.route) && entry.implemented,
+    )
     .map((entry) => ({
       title: entry.title,
       titleKey: entry.titleKey,
@@ -313,6 +318,8 @@ function sessionIcon(type: SessionType): LucideIcon {
     'text-edit': FileText,
     'text-merge': GitMerge,
     'version-compare': FileCog,
+    'archive-compare': Package,
+    script: Play,
   }
 
   return icons[type] ?? FileText

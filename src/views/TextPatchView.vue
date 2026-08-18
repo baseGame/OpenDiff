@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watchEffect } from 'vue'
-import { applyTextPatch, parseTextPatch, readTextFile } from '@/api/diff'
+import { useRouter } from 'vue-router'
+import { applyTextPatch, applyTextPatchToFile, parseTextPatch, readTextFile } from '@/api/diff'
 import WorkbenchInspector from '@/components/workbench/WorkbenchInspector.vue'
 import WorkbenchShell from '@/components/workbench/WorkbenchShell.vue'
 import WorkbenchToolbar from '@/components/workbench/WorkbenchToolbar.vue'
 import { useI18n } from '@/i18n'
+import { useLastCompareStore } from '@/stores/lastCompare'
 import { useSessionLaunchStore } from '@/stores/sessionLaunch'
 import { useStatusBarStore } from '@/stores/statusBar'
 import type { PatchLineKind, TextPatchResponse } from '@/types/diff'
@@ -14,6 +16,7 @@ const result = ref<TextPatchResponse | null>(null)
 const loading = ref(false)
 const error = ref('')
 const sourcePath = ref('')
+const targetPath = ref('')
 const sourceText = ref('')
 const patchedText = ref('')
 const applyStatus = ref('')
@@ -21,6 +24,8 @@ const sourceEncoding = ref('UTF-8')
 const sourceLineEnding = ref('LF')
 const statusBar = useStatusBarStore()
 const sessionLaunch = useSessionLaunchStore()
+const lastCompare = useLastCompareStore()
+const router = useRouter()
 const { t } = useI18n()
 
 const fileCount = computed(() => result.value?.files.length ?? 0)
@@ -110,6 +115,70 @@ async function loadAndParsePatchFile(path: string): Promise<void> {
   } finally {
     loading.value = false
   }
+}
+
+async function applyPatchToTargetFile(): Promise<void> {
+  const source = sourcePath.value.trim()
+
+  if (!source) {
+    error.value = t('ui.sourceFile')
+    return
+  }
+
+  loading.value = true
+  error.value = ''
+  applyStatus.value = ''
+
+  try {
+    const outputPath = targetPath.value.trim() || source
+    const response = await applyTextPatchToFile({
+      sourcePath: source,
+      patch: patchInput.value,
+      outputPath,
+    })
+    patchedText.value = response.text
+    applyStatus.value = t('status.patchWritten', { path: outputPath })
+  } catch (event) {
+    error.value = event instanceof Error ? event.message : String(event)
+  } finally {
+    loading.value = false
+  }
+}
+
+async function openPatchedInTextCompare(): Promise<void> {
+  if (!patchedText.value && sourceText.value) {
+    await applyCurrentPatch()
+  }
+
+  lastCompare.recordTextCompare({
+    left: sourceText.value,
+    right: patchedText.value,
+    leftSource: sourcePath.value || undefined,
+    rightSource: targetPath.value || undefined,
+  })
+  sessionLaunch.setPendingLaunch({
+    id: crypto.randomUUID(),
+    source: 'command',
+    sessionType: 'text-compare',
+    title: t('ui.textCompare'),
+    route: '/compare/text',
+    autoRun: false,
+    locations: {
+      left: {
+        uri: sourcePath.value || 'source',
+        displayName: t('ui.sourceFile'),
+        kind: 'file',
+        readOnly: false,
+      },
+      right: {
+        uri: targetPath.value || 'patched',
+        displayName: t('ui.patchedOutput'),
+        kind: 'file',
+        readOnly: false,
+      },
+    },
+  })
+  await router.push('/compare/text')
 }
 
 async function applyCurrentPatch(): Promise<void> {
@@ -203,6 +272,22 @@ function lineNumber(value: number | null): string {
         >
           {{ $t('ui.applyPatch') }}
         </NButton>
+        <NButton
+          size="small"
+          :loading="loading"
+          data-testid="apply-text-patch-to-file"
+          @click="applyPatchToTargetFile"
+        >
+          {{ $t('ui.applyToFile') }}
+        </NButton>
+        <NButton
+          size="small"
+          :loading="loading"
+          data-testid="open-patched-text-compare"
+          @click="openPatchedInTextCompare"
+        >
+          {{ $t('ui.openInTextCompare') }}
+        </NButton>
         <span class="status-chip">{{ $t('status.fileCount', { count: fileCount }) }}</span>
         <span class="status-chip">{{ $t('status.hunkCount', { count: hunkCount }) }}</span>
       </WorkbenchToolbar>
@@ -227,6 +312,14 @@ function lineNumber(value: number | null): string {
             v-model="sourcePath"
             type="text"
             data-testid="patch-source-file"
+          />
+        </label>
+        <label>
+          <span>{{ $t('ui.targetFile') }}</span>
+          <input
+            v-model="targetPath"
+            type="text"
+            data-testid="patch-target-file"
           />
         </label>
         <NInput

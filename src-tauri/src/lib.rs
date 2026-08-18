@@ -1,9 +1,11 @@
 mod commands;
+mod sources;
 
 pub fn run() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
             commands::apply_text_patch,
+            commands::apply_text_patch_to_file,
             commands::check_text_file_changed,
             commands::build_folder_merge_plan,
             commands::change_folder_entry_attributes,
@@ -16,22 +18,32 @@ pub fn run() {
             commands::compare_table_csv,
             commands::compare_version_files,
             commands::copy_folder_compare_entry,
+            commands::create_folder_snapshot,
             commands::delete_folder_entry,
+            commands::delete_remote_profile,
             commands::diff_text,
             commands::execute_folder_merge_plan,
             commands::execute_folder_sync,
             commands::export_folder_compare_report,
             commands::export_text_compare_report,
             commands::find_hex_in_file,
+            commands::list_archive,
+            commands::list_remote_path,
+            commands::list_remote_profiles,
             commands::merge_text_files,
             commands::move_folder_entry,
             commands::parse_text_patch,
             commands::preview_folder_sync,
             commands::read_text_file,
             commands::rename_folder_entry,
+            commands::run_script,
             commands::save_hex_edits,
+            commands::save_remote_profile,
             commands::save_text_file,
-            commands::touch_folder_entry
+            commands::test_remote_profile,
+            commands::touch_folder_entry,
+            commands::write_git_integration,
+            commands::write_svn_integration
         ])
         .run(tauri::generate_context!())
         .expect("failed to run Open Diff application");

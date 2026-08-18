@@ -532,6 +532,12 @@ export interface ApplyTextPatchRequest {
   patch: string
 }
 
+export interface ApplyTextPatchToFileRequest {
+  sourcePath: string
+  patch: string
+  outputPath?: string
+}
+
 export interface ApplyTextPatchResponse {
   text: string
   appliedHunks: number

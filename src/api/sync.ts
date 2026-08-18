@@ -22,5 +22,6 @@ export function executeFolderSync(
     leftRoot: request.leftRoot,
     rightRoot: request.rightRoot,
     strategy: request.strategy,
+    overrides: request.overrides ?? [],
   })
 }

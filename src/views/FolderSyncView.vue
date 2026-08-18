@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { executeFolderSync, previewFolderSync } from '@/api/sync'
 import type {
+  FolderSyncActionOverride,
   FolderSyncExecutionLog,
+  FolderSyncOverrideAction,
   FolderSyncPreviewAction,
   FolderSyncPreviewRow,
   FolderSyncStrategy,
@@ -20,10 +22,18 @@ interface SyncPreviewRow {
   id: string
   relativePath: string
   action: FolderSyncPreviewAction
+  overrideAction: FolderSyncOverrideAction
   sourcePath?: string
   targetPath?: string
   detail: string
 }
+
+const overrideOptions: { value: FolderSyncOverrideAction; labelKey: string }[] = [
+  { value: 'leave', labelKey: 'ui.leave' },
+  { value: 'copyLeftToRight', labelKey: 'ui.copyLeftToRight' },
+  { value: 'copyRightToLeft', labelKey: 'ui.copyRightToLeft' },
+  { value: 'delete', labelKey: 'ui.delete' },
+]
 
 const strategyOptions: SyncStrategyOption[] = [
   { value: 'updateRight', labelKey: 'sync.strategy.updateRight' },
@@ -91,6 +101,7 @@ async function runSync(): Promise<void> {
       leftRoot: leftPath.value,
       rightRoot: rightPath.value,
       strategy: selectedStrategy.value,
+      overrides: currentOverrides(),
     })
 
     completedOperations.value = response.succeeded + response.failed + response.cancelled
@@ -100,6 +111,38 @@ async function runSync(): Promise<void> {
   } finally {
     syncRunning.value = false
   }
+}
+
+function currentOverrides(): FolderSyncActionOverride[] {
+  return previewRows.value.map((row) => ({
+    relativePath: row.relativePath,
+    action: row.overrideAction,
+  }))
+}
+
+function plannedOverride(
+  row: FolderSyncPreviewRow,
+  leftRoot: string,
+  rightRoot: string,
+): FolderSyncOverrideAction {
+  if (row.action === 'Delete') {
+    return 'delete'
+  }
+
+  if (row.action === 'Leave' || row.action === 'Conflict') {
+    return 'leave'
+  }
+
+  const source = row.sourcePath ?? ''
+  if (source.startsWith(rightRoot)) {
+    return 'copyRightToLeft'
+  }
+
+  if (source.startsWith(leftRoot)) {
+    return 'copyLeftToRight'
+  }
+
+  return 'copyLeftToRight'
 }
 
 function folderSyncActionLabel(action: FolderSyncPreviewAction): string {
@@ -118,6 +161,7 @@ function syncPreviewResponseRowToViewRow(row: FolderSyncPreviewRow): SyncPreview
     id: row.id,
     relativePath: row.relativePath,
     action: row.action,
+    overrideAction: plannedOverride(row, leftPath.value, rightPath.value),
     sourcePath: row.sourcePath,
     targetPath: row.targetPath,
     detail: row.detail,
@@ -253,7 +297,21 @@ function folderSyncExecutionLogLabel(log: FolderSyncExecutionLog): string {
             :key="row.id"
             class="sync-preview-row"
           >
-            <strong>{{ folderSyncActionLabel(row.action) }}</strong>
+            <label>
+              <span class="sr-only">{{ folderSyncActionLabel(row.action) }}</span>
+              <select
+                v-model="row.overrideAction"
+                :data-testid="`sync-override-${row.id}`"
+              >
+                <option
+                  v-for="option in overrideOptions"
+                  :key="option.value"
+                  :value="option.value"
+                >
+                  {{ $t(option.labelKey) }}
+                </option>
+              </select>
+            </label>
             <span>{{ row.sourcePath ?? '--' }}</span>
             <span>{{ row.targetPath ?? '--' }}</span>
             <span>{{ row.detail }}</span>
@@ -433,10 +491,34 @@ h1 {
 
 .sync-preview-row {
   display: grid;
-  grid-template-columns: 96px minmax(190px, 1fr) minmax(190px, 1fr) minmax(180px, 0.8fr);
+  grid-template-columns: 150px minmax(190px, 1fr) minmax(190px, 1fr) minmax(180px, 0.8fr);
   min-width: 860px;
   border-bottom: 1px solid var(--app-border);
   font-size: 12px;
+}
+
+.sync-preview-row label {
+  display: grid;
+  min-width: 0;
+  padding: 4px 8px;
+  border-right: 1px solid var(--app-border);
+}
+
+.sync-preview-row select {
+  width: 100%;
+  height: 26px;
+  border: 1px solid var(--app-border);
+  border-radius: 4px;
+  background: var(--app-bg);
+  color: var(--app-text);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
 }
 
 .sync-preview-row:last-child {

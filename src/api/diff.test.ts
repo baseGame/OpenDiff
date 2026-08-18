@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   applyTextPatch,
+  applyTextPatchToFile,
   changeFolderEntryAttributes,
   compareFolderPaths,
   compareHexFiles,
@@ -511,6 +512,11 @@ describe('diff api', () => {
     await saveHexEdits({ path: 'bin', edits: [{ offset: 0, value: 1 }] })
     await moveFolderEntry({ sourcePath: 'a', targetPath: 'b' })
     await applyTextPatch({ source: 'old', patch: 'diff' })
+    await applyTextPatchToFile({
+      sourcePath: 'C:/work/main.ts',
+      patch: 'diff',
+      outputPath: 'C:/work/main.patched.ts',
+    })
 
     expect(invoke).toHaveBeenCalledWith('export_text_compare_report', expect.any(Object))
     expect(invoke).toHaveBeenCalledWith('export_folder_compare_report', expect.any(Object))
@@ -519,5 +525,10 @@ describe('diff api', () => {
     expect(invoke).toHaveBeenCalledWith('save_hex_edits', expect.any(Object))
     expect(invoke).toHaveBeenCalledWith('move_folder_entry', expect.any(Object))
     expect(invoke).toHaveBeenCalledWith('apply_text_patch', { source: 'old', patch: 'diff' })
+    expect(invoke).toHaveBeenCalledWith('apply_text_patch_to_file', {
+      sourcePath: 'C:/work/main.ts',
+      patch: 'diff',
+      outputPath: 'C:/work/main.patched.ts',
+    })
   })
 })

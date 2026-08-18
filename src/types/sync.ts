@@ -1,14 +1,18 @@
 export type FolderSyncStrategy =
-  | 'updateRight'
-  | 'updateLeft'
-  | 'updateBoth'
-  | 'mirrorRight'
-  | 'mirrorLeft'
+  'updateRight' | 'updateLeft' | 'updateBoth' | 'mirrorRight' | 'mirrorLeft'
+
+export type FolderSyncOverrideAction = 'leave' | 'copyLeftToRight' | 'copyRightToLeft' | 'delete'
+
+export interface FolderSyncActionOverride {
+  relativePath: string
+  action: FolderSyncOverrideAction
+}
 
 export interface FolderSyncPreviewRequest {
   leftRoot: string
   rightRoot: string
   strategy: FolderSyncStrategy
+  overrides?: FolderSyncActionOverride[]
 }
 
 export type FolderSyncPreviewAction = 'Copy' | 'Delete' | 'Leave' | 'Conflict'

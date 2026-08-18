@@ -275,7 +275,17 @@ function persistFormats(): void {
 function isViewMode(value: unknown): value is FileFormatViewMode {
   return (
     typeof value === 'string' &&
-    ['text', 'table', 'hex', 'picture', 'registry', 'media', 'version', 'patch'].includes(value)
+    [
+      'text',
+      'table',
+      'hex',
+      'picture',
+      'registry',
+      'media',
+      'version',
+      'patch',
+      'archive',
+    ].includes(value)
   )
 }
 
@@ -289,6 +299,7 @@ function viewLabel(value: FileFormatViewMode): string {
     media: 'ui.media',
     version: 'ui.versionCompare',
     patch: 'ui.patch',
+    archive: 'ui.archive',
   }
 
   return t(labels[value])
@@ -402,6 +413,7 @@ function setImportStatus(key: string, params: Record<string, string | number> = 
               <option value="media">{{ $t('ui.media') }}</option>
               <option value="version">{{ $t('ui.versionCompare') }}</option>
               <option value="patch">{{ $t('ui.patch') }}</option>
+              <option value="archive">{{ $t('ui.archive') }}</option>
             </select>
           </label>
           <label>

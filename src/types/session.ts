@@ -13,6 +13,8 @@ export const sessionTypes = [
   'clipboard-compare',
   'media-compare',
   'version-compare',
+  'archive-compare',
+  'script',
 ] as const
 
 export type SessionType = (typeof sessionTypes)[number]

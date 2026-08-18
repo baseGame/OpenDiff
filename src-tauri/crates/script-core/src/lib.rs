@@ -27,6 +27,7 @@ pub enum ScriptCommandKind {
     Beep,
     Option { key: String, value: String },
     Select { query: String },
+    Unsupported { name: String },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -389,6 +390,12 @@ where
                     })?,
                 );
             }
+            ScriptCommandKind::Unsupported { name } => {
+                return Err(execution_error(
+                    command,
+                    format!("{name} is unsupported"),
+                ));
+            }
         }
 
         executed += 1;
@@ -548,6 +555,7 @@ impl ScriptCommandKind {
             ScriptCommandKind::Beep => "BEEP",
             ScriptCommandKind::Option { .. } => "OPTION",
             ScriptCommandKind::Select { .. } => "SELECT",
+            ScriptCommandKind::Unsupported { .. } => "UNSUPPORTED",
         }
     }
 }
@@ -563,6 +571,153 @@ impl fmt::Display for ScriptExecutionError {
 }
 
 impl std::error::Error for ScriptExecutionError {}
+
+#[derive(Debug, Default)]
+pub struct FilesystemScriptEngine {
+    last_request: Option<ScriptCompareRequest>,
+}
+
+impl FilesystemScriptEngine {
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+impl ScriptCompareEngine for FilesystemScriptEngine {
+    fn compare(&mut self, request: ScriptCompareRequest) -> Result<ScriptCompareSummary, String> {
+        if request.load_paths.len() < 2 {
+            return Err("COMPARE requires two LOAD paths".to_owned());
+        }
+
+        let left = &request.load_paths[0];
+        let right = &request.load_paths[1];
+        let summary = compare_script_paths(left, right, &request.filters)?;
+        self.last_request = Some(request);
+        Ok(summary)
+    }
+}
+
+impl ScriptReportEngine for FilesystemScriptEngine {
+    fn write_report(&mut self, request: ScriptReportRequest) -> Result<(), String> {
+        let content = match request.report_type {
+            ScriptReportType::Text => format!(
+                "TEXT-REPORT\ncompared: {}\ndifferent: {}\n",
+                request.compare_summary.compared, request.compare_summary.different
+            ),
+            ScriptReportType::Folder => format!(
+                "FOLDER-REPORT\ncompared: {}\ndifferent: {}\n",
+                request.compare_summary.compared, request.compare_summary.different
+            ),
+        };
+
+        if let Some(parent) = std::path::Path::new(&request.output).parent() {
+            std::fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+        }
+
+        std::fs::write(&request.output, content).map_err(|error| error.to_string())
+    }
+}
+
+pub fn run_script_source(
+    source: &str,
+    execution: ScriptExecutionContext,
+) -> Result<ScriptCompareExecutionResult, ScriptExecutionError> {
+    let script = parse_script(source).map_err(|error| ScriptExecutionError {
+        line: error.line,
+        command: "PARSE".to_owned(),
+        reason: error.message,
+    })?;
+    let mut engine = FilesystemScriptEngine::new();
+    let mut report_engine = FilesystemScriptEngine::new();
+    execute_automation_script(&script, execution, &mut engine, &mut report_engine)
+}
+
+pub fn run_script_file(
+    path: impl AsRef<std::path::Path>,
+    execution: ScriptExecutionContext,
+) -> Result<ScriptCompareExecutionResult, ScriptExecutionError> {
+    let path = path.as_ref();
+    let source = std::fs::read_to_string(path).map_err(|error| ScriptExecutionError {
+        line: 0,
+        command: "LOAD".to_owned(),
+        reason: format!("failed to read script {}: {error}", path.display()),
+    })?;
+    run_script_source(&source, execution)
+}
+
+fn compare_script_paths(
+    left: &str,
+    right: &str,
+    filters: &[String],
+) -> Result<ScriptCompareSummary, String> {
+    let left_path = std::path::Path::new(left);
+    let right_path = std::path::Path::new(right);
+
+    if left_path.is_file() && right_path.is_file() {
+        let left_text = file_core::read_text_file(left).map_err(|error| format!("{error:?}"))?;
+        let right_text = file_core::read_text_file(right).map_err(|error| format!("{error:?}"))?;
+        let diff = diff_core::diff_text(&shared_types::TextDiffRequest {
+            left: left_text.text,
+            right: right_text.text,
+            algorithm: None,
+            ignore_whitespace: false,
+            ignore_case: false,
+            ignore_line_endings: false,
+            ignore_regexes: Vec::new(),
+        });
+        let different = diff.stats.added + diff.stats.deleted + diff.stats.modified;
+
+        return Ok(ScriptCompareSummary {
+            compared: 2,
+            different,
+        });
+    }
+
+    if left_path.is_dir() && right_path.is_dir() {
+        let cancellation = job_core::CancellationToken::default();
+        let left_tree = folder_core::scan_local_folder(left, &cancellation)
+            .map_err(|error| format!("{error:?}"))?;
+        let right_tree = folder_core::scan_local_folder(right, &cancellation)
+            .map_err(|error| format!("{error:?}"))?;
+        let rows = folder_core::align_folder_trees(&left_tree, &right_tree);
+        let filtered = if filters.is_empty() {
+            rows
+        } else {
+            rows.into_iter()
+                .filter(|row| {
+                    filters.iter().any(|pattern| {
+                        let include = !pattern.starts_with('-');
+                        let needle = pattern.trim_start_matches('-');
+                        let matches = row.relative_path.contains(needle.trim_start_matches('*'));
+                        if include {
+                            matches
+                        } else {
+                            !matches
+                        }
+                    })
+                })
+                .collect()
+        };
+        let different = filtered
+            .iter()
+            .filter(|row| {
+                !matches!(
+                    folder_core::classify_folder_alignment(row.left.as_ref(), row.right.as_ref()),
+                    folder_core::FolderCompareStatus::Same
+                )
+            })
+            .count();
+
+        return Ok(ScriptCompareSummary {
+            compared: filtered.len(),
+            different,
+        });
+    }
+
+    Err(format!(
+        "LOAD paths must be two files or two folders: {left} / {right}"
+    ))
+}
 
 fn parse_command(
     command: &str,
@@ -624,8 +779,33 @@ fn parse_command(
         "SELECT" => {
             parse_single_output_command(line, args, |query| ScriptCommandKind::Select { query })
         }
-        unknown => Err(parse_error(line, format!("unknown command: {unknown}"))),
+        unsupported if is_unsupported_script_command(unsupported) => {
+            Ok(ScriptCommandKind::Unsupported {
+                name: unsupported.to_owned(),
+            })
+        }
+        unknown => Err(parse_error(
+            line,
+            format!("unsupported command: {unknown}"),
+        )),
     }
+}
+
+fn is_unsupported_script_command(command: &str) -> bool {
+    matches!(
+        command,
+        "ATTRIB"
+            | "COPY"
+            | "COPYTO"
+            | "DELETE"
+            | "EXPAND"
+            | "FILE-REPORT"
+            | "HEX-REPORT"
+            | "MOVE"
+            | "SNAPSHOT"
+            | "SYNC"
+            | "TOUCH"
+    )
 }
 
 fn parse_single_output_command(
@@ -743,7 +923,41 @@ mod tests {
         let error = parse_script("LOAD left right\nNOPE").expect_err("unknown command should fail");
 
         assert_eq!(error.line, 2);
-        assert!(error.message.contains("unknown command"));
+        assert!(error.message.contains("unsupported command"));
+    }
+
+    #[test]
+    fn parsed_unsupported_commands_fail_at_execution_with_clear_reason() {
+        struct NoopCompareEngine;
+        struct NoopReportEngine;
+
+        impl ScriptCompareEngine for NoopCompareEngine {
+            fn compare(
+                &mut self,
+                _request: ScriptCompareRequest,
+            ) -> Result<ScriptCompareSummary, String> {
+                Ok(ScriptCompareSummary::default())
+            }
+        }
+
+        impl ScriptReportEngine for NoopReportEngine {
+            fn write_report(&mut self, _request: ScriptReportRequest) -> Result<(), String> {
+                Ok(())
+            }
+        }
+
+        let script = parse_script("LOAD left right\nCOPYTO dest").expect("known missing command parses");
+        let error = execute_automation_script(
+            &script,
+            ScriptExecutionContext::default(),
+            &mut NoopCompareEngine,
+            &mut NoopReportEngine,
+        )
+        .expect_err("unsupported command should fail at runtime");
+
+        assert_eq!(error.command, "UNSUPPORTED");
+        assert!(error.reason.contains("COPYTO"));
+        assert!(error.reason.contains("unsupported"));
     }
 
     #[test]
@@ -1239,5 +1453,49 @@ mod tests {
         assert_eq!(result.mode, ScriptExecutionMode::Silent);
         assert!(result.progress.is_empty());
         assert_eq!(result.executed, 2);
+    }
+
+    #[test]
+    fn filesystem_engine_compares_text_files_and_writes_report() {
+        let root = unique_temp_dir("script-engine");
+        let left = root.join("left.txt");
+        let right = root.join("right.txt");
+        let report = root.join("out.txt");
+        std::fs::write(&left, "alpha\n").expect("left should write");
+        std::fs::write(&right, "beta\n").expect("right should write");
+
+        let result = run_script_source(
+            &format!(
+                "LOAD \"{}\" \"{}\"\nCOMPARE\nTEXT-REPORT \"{}\"\n",
+                left.display(),
+                right.display(),
+                report.display()
+            ),
+            ScriptExecutionContext::default(),
+        )
+        .expect("script should run");
+
+        assert_eq!(result.state.reports_written, 1);
+        assert_eq!(
+            result.state.last_compare,
+            Some(ScriptCompareSummary {
+                compared: 2,
+                different: 1,
+            })
+        );
+        let content = std::fs::read_to_string(&report).expect("report should exist");
+        assert!(content.contains("compared: 2"));
+        assert!(content.contains("different: 1"));
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    fn unique_temp_dir(label: &str) -> std::path::PathBuf {
+        let stamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!("open-diff-{label}-{stamp}"));
+        std::fs::create_dir_all(&path).expect("temp dir");
+        path
     }
 }

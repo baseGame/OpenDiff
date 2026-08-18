@@ -725,8 +725,7 @@ function previousChange(): void {
             :key="`${line.kind}:${line.oldNumber}:${line.newNumber}:${line.text}`"
             :class="`patch-line patch-line-${line.kind}`"
             >{{ line.kind === 'added' ? '+' : line.kind === 'removed' ? '-' : ' '
-            }}{{ line.text }}</pre
-          >
+            }}{{ line.text }}</pre>
         </div>
       </article>
     </section>

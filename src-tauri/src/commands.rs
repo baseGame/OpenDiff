@@ -533,17 +533,7 @@ pub fn compare_table_csv(
     right: String,
 ) -> Result<TableCompareResponse, AppErrorPayload> {
     compare_table(
-        left,
-        right,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
+        left, right, None, None, None, None, None, None, None, None, None,
     )
 }
 
@@ -585,7 +575,12 @@ pub fn compare_table(
             ignore_whitespace: true,
         },
     );
-    apply_manual_table_mappings(&mut column_mappings, left_sheet, right_sheet, &manual_mappings);
+    apply_manual_table_mappings(
+        &mut column_mappings,
+        left_sheet,
+        right_sheet,
+        &manual_mappings,
+    );
     if let Some(ignored) = ignored_columns.as_ref() {
         column_mappings.retain(|mapping| {
             !column_name_ignored(mapping.left_column.as_deref(), ignored)
@@ -698,15 +693,18 @@ pub fn compare_folder_paths(
     left_root: String,
     right_root: String,
 ) -> Result<FolderCompareResponse, AppErrorPayload> {
-    let cancellation_token = job_core::CancellationToken::default();
-    let left_tree = folder_core::scan_local_folder(&left_root, &cancellation_token)
-        .map_err(|error| folder_scan_error(&left_root, error))?;
-    let right_tree = folder_core::scan_local_folder(&right_root, &cancellation_token)
-        .map_err(|error| folder_scan_error(&right_root, error))?;
+    let left_source = crate::sources::load_compare_source(&left_root)
+        .map_err(|error| compare_source_error(&left_root, error))?;
+    let right_source = crate::sources::load_compare_source(&right_root)
+        .map_err(|error| compare_source_error(&right_root, error))?;
+    let left_tree = crate::sources::scan_compare_source(&left_source)
+        .map_err(|error| compare_source_error(&left_root, error))?;
+    let right_tree = crate::sources::scan_compare_source(&right_source)
+        .map_err(|error| compare_source_error(&right_root, error))?;
     let alignment_rows = folder_core::align_folder_trees(&left_tree, &right_tree);
     let rows = alignment_rows
         .iter()
-        .map(|row| folder_compare_row(row, &left_root, &right_root))
+        .map(|row| folder_compare_row(row, &left_source, &right_source, &left_root, &right_root))
         .collect::<Result<Vec<_>, _>>()?;
     let mut summary = FolderCompareSummary {
         total: rows.len(),
@@ -835,6 +833,7 @@ pub fn execute_folder_sync(
     left_root: String,
     right_root: String,
     strategy: String,
+    overrides: Option<Vec<sync_core::SyncActionOverride>>,
 ) -> Result<FolderSyncExecutionResponse, AppErrorPayload> {
     let cancellation_token = job_core::CancellationToken::default();
     let left_tree = folder_core::scan_local_folder(&left_root, &cancellation_token)
@@ -842,7 +841,10 @@ pub fn execute_folder_sync(
     let right_tree = folder_core::scan_local_folder(&right_root, &cancellation_token)
         .map_err(|error| folder_scan_error(&right_root, error))?;
     let alignment_rows = folder_core::align_folder_trees(&left_tree, &right_tree);
-    let plan = folder_sync_plan(&left_root, &right_root, &strategy, &alignment_rows)?;
+    let mut plan = folder_sync_plan(&left_root, &right_root, &strategy, &alignment_rows)?;
+    if let Some(overrides) = overrides {
+        plan = sync_core::apply_sync_overrides(plan, &left_root, &right_root, &overrides);
+    }
     let execution = execute_local_folder_sync_plan(&plan);
 
     Ok(FolderSyncExecutionResponse {
@@ -1021,18 +1023,18 @@ pub fn merge_text_files(
     output_path: Option<String>,
     conflict_policy: Option<String>,
 ) -> Result<TextMergeCommandResponse, AppErrorPayload> {
-    let left =
-        file_core::read_text_file(&left_path).map_err(|error| file_error("read", &left_path, error))?;
+    let left = file_core::read_text_file(&left_path)
+        .map_err(|error| file_error("read", &left_path, error))?;
     let right = file_core::read_text_file(&right_path)
         .map_err(|error| file_error("read", &right_path, error))?;
-    let (center_path, center_text) = if let Some(path) = center_path.filter(|value| !value.is_empty())
-    {
-        let document =
-            file_core::read_text_file(&path).map_err(|error| file_error("read", &path, error))?;
-        (Some(path), document.text)
-    } else {
-        (None, left.text.clone())
-    };
+    let (center_path, center_text) =
+        if let Some(path) = center_path.filter(|value| !value.is_empty()) {
+            let document = file_core::read_text_file(&path)
+                .map_err(|error| file_error("read", &path, error))?;
+            (Some(path), document.text)
+        } else {
+            (None, left.text.clone())
+        };
     let document = merge_core::TextMergeDocument::from_inputs(merge_core::TextMergeInput {
         base: merge_core::TextMergeSide::new(
             center_path.clone().unwrap_or_else(|| left_path.clone()),
@@ -1057,13 +1059,16 @@ pub fn merge_text_files(
         .sections
         .iter()
         .filter_map(|section| {
-            section.conflict.as_ref().map(|conflict| TextMergeConflictRow {
-                line_index: section.line_index,
-                title: format!("Line {}", section.line_index + 1),
-                base: conflict.base.first().cloned().unwrap_or_default(),
-                left: conflict.left.first().cloned().unwrap_or_default(),
-                right: conflict.right.first().cloned().unwrap_or_default(),
-            })
+            section
+                .conflict
+                .as_ref()
+                .map(|conflict| TextMergeConflictRow {
+                    line_index: section.line_index,
+                    title: format!("Line {}", section.line_index + 1),
+                    base: conflict.base.first().cloned().unwrap_or_default(),
+                    left: conflict.left.first().cloned().unwrap_or_default(),
+                    right: conflict.right.first().cloned().unwrap_or_default(),
+                })
         })
         .collect();
 
@@ -1130,7 +1135,12 @@ pub fn export_text_compare_report(
         kind: report_core::ReportSectionKind::Summary,
         title: "Summary".to_owned(),
         rows: vec![
-            report_row("Added", Some(diff.stats.added.to_string()), None, report_core::ReportRowStatus::Added),
+            report_row(
+                "Added",
+                Some(diff.stats.added.to_string()),
+                None,
+                report_core::ReportRowStatus::Added,
+            ),
             report_row(
                 "Deleted",
                 Some(diff.stats.deleted.to_string()),
@@ -1233,6 +1243,423 @@ pub fn apply_text_patch(
         applied_hunks: result.applied_hunks,
         files: result.files,
     })
+}
+
+#[tauri::command]
+pub fn apply_text_patch_to_file(
+    source_path: String,
+    patch: String,
+    output_path: Option<String>,
+) -> Result<ApplyTextPatchResponse, AppErrorPayload> {
+    let source = file_core::read_text_file(&source_path).map_err(|error| {
+        AppErrorPayload::new(
+            AppErrorCode::Unknown,
+            "error.file.readFailed.title",
+            format!("{error:?}"),
+        )
+        .with_param("path", &source_path)
+    })?;
+    let result = diff_core::apply_text_patch(&source.text, &patch).map_err(|error| {
+        AppErrorPayload::new(
+            AppErrorCode::Unknown,
+            "error.app.unknown.title",
+            error.to_string(),
+        )
+    })?;
+    let target = output_path.unwrap_or(source_path);
+    file_core::save_text_file(&target, &result.text).map_err(|error| {
+        AppErrorPayload::new(
+            AppErrorCode::Unknown,
+            "error.file.writeFailed.title",
+            format!("{error:?}"),
+        )
+        .with_param("path", &target)
+    })?;
+
+    Ok(ApplyTextPatchResponse {
+        text: result.text,
+        applied_hunks: result.applied_hunks,
+        files: result.files,
+    })
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ArchiveListResponse {
+    pub name: String,
+    pub format: String,
+    pub entries: Vec<archive_core::ArchiveEntry>,
+}
+
+#[tauri::command]
+pub fn list_archive(path: String) -> Result<ArchiveListResponse, AppErrorPayload> {
+    let document = archive_core::ArchiveReader::open_path(&path).map_err(|error| {
+        AppErrorPayload::new(
+            AppErrorCode::Unknown,
+            "error.app.unknown.title",
+            error.to_string(),
+        )
+        .with_param("path", &path)
+    })?;
+    let format = archive_core::ArchiveFormat::detect(&document.name)
+        .map(|format| format!("{:?}", format).to_ascii_lowercase())
+        .unwrap_or_else(|_| "unknown".to_owned());
+    let vfs = archive_core::ArchiveVfs::from_document(document.clone());
+
+    Ok(ArchiveListResponse {
+        name: document.name,
+        format,
+        entries: vfs.list_recursive(),
+    })
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ScriptRunResponse {
+    pub executed: usize,
+    pub compared: usize,
+    pub different: usize,
+    pub reports_written: usize,
+    pub logs: Vec<String>,
+}
+
+#[tauri::command]
+pub fn run_script(
+    source: String,
+    path: Option<String>,
+) -> Result<ScriptRunResponse, AppErrorPayload> {
+    let result = if let Some(path) = path.filter(|value| !value.trim().is_empty()) {
+        script_core::run_script_file(&path, script_core::ScriptExecutionContext::default())
+    } else {
+        script_core::run_script_source(&source, script_core::ScriptExecutionContext::default())
+    }
+    .map_err(|error| {
+        AppErrorPayload::new(
+            AppErrorCode::Unknown,
+            "error.app.unknown.title",
+            error.to_string(),
+        )
+    })?;
+    let summary = result.state.last_compare.unwrap_or_default();
+
+    Ok(ScriptRunResponse {
+        executed: result.executed,
+        compared: summary.compared,
+        different: summary.different,
+        reports_written: result.state.reports_written,
+        logs: result.state.logs,
+    })
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoteProfileDraft {
+    pub id: String,
+    pub name: String,
+    pub protocol: remote_core::RemoteProtocol,
+    pub host: String,
+    pub port: Option<u16>,
+    pub root_path: String,
+    pub username: Option<String>,
+    pub password: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoteProfileView {
+    pub id: String,
+    pub name: String,
+    pub protocol: remote_core::RemoteProtocol,
+    pub host: String,
+    pub port: Option<u16>,
+    pub root_path: String,
+    pub implemented: bool,
+    pub uri: String,
+    pub username: Option<String>,
+}
+
+#[tauri::command]
+pub fn list_remote_profiles() -> Result<Vec<RemoteProfileView>, AppErrorPayload> {
+    let store = remote_core::RemoteProfileStore::new(crate::sources::default_config_dir());
+    let profiles = store
+        .load_profiles()
+        .map_err(|error| profile_store_error(error))?;
+    Ok(profiles
+        .into_iter()
+        .map(|profile| remote_profile_view(&store, profile))
+        .collect())
+}
+
+#[tauri::command]
+pub fn save_remote_profile(
+    draft: RemoteProfileDraft,
+) -> Result<Vec<RemoteProfileView>, AppErrorPayload> {
+    let store = remote_core::RemoteProfileStore::new(crate::sources::default_config_dir());
+    let profile_id = if draft.id.trim().is_empty() {
+        draft
+            .name
+            .trim()
+            .to_ascii_lowercase()
+            .chars()
+            .map(|ch| if ch.is_ascii_alphanumeric() { ch } else { '-' })
+            .collect::<String>()
+            .trim_matches('-')
+            .to_owned()
+    } else {
+        draft.id.clone()
+    };
+    let profile_id = if profile_id.is_empty() {
+        format!(
+            "remote-profile-{}",
+            store
+                .load_profiles()
+                .map(|items| items.len() + 1)
+                .unwrap_or(1)
+        )
+    } else {
+        profile_id
+    };
+    let mut profile = remote_core::RemoteProfile::new(
+        profile_id.clone(),
+        draft.name,
+        draft.protocol,
+        remote_core::RemoteEndpoint::new(draft.host).with_root_path(draft.root_path),
+        remote_core::CredentialReference::profile_store(&profile_id),
+    );
+    if let Some(port) = draft.port {
+        profile.endpoint.port = Some(port);
+    }
+    store
+        .upsert_profile(profile)
+        .map_err(|error| profile_store_error(error))?;
+    if let Some(password) = draft.password.filter(|value| !value.is_empty()) {
+        store
+            .save_secret(&profile_id, draft.username.as_deref(), &password)
+            .map_err(|error| profile_store_error(error))?;
+    } else if let Some(username) = draft.username.filter(|value| !value.is_empty()) {
+        if let Ok(Some(existing)) = store.load_secret(&profile_id) {
+            if let remote_core::RemoteCredentialMaterial::Password(secret) = existing.material {
+                store
+                    .save_secret(&profile_id, Some(&username), secret.expose_secret())
+                    .map_err(|error| profile_store_error(error))?;
+            }
+        }
+    }
+    list_remote_profiles()
+}
+
+#[tauri::command]
+pub fn delete_remote_profile(id: String) -> Result<Vec<RemoteProfileView>, AppErrorPayload> {
+    let store = remote_core::RemoteProfileStore::new(crate::sources::default_config_dir());
+    store
+        .delete_profile(&id)
+        .map_err(|error| profile_store_error(error))?;
+    list_remote_profiles()
+}
+
+#[tauri::command]
+pub fn test_remote_profile(id: String) -> Result<String, AppErrorPayload> {
+    let store = remote_core::RemoteProfileStore::new(crate::sources::default_config_dir());
+    let profile = store
+        .find_profile(&id)
+        .map_err(|error| profile_store_error(error))?
+        .ok_or_else(|| {
+            AppErrorPayload::new(
+                AppErrorCode::Unknown,
+                "error.app.unknown.title",
+                format!("remote profile not found: {id}"),
+            )
+        })?;
+    if !remote_core::protocol_is_implemented(profile.protocol) {
+        return Err(AppErrorPayload::new(
+            AppErrorCode::Unknown,
+            "error.app.unknown.title",
+            remote_core::unimplemented_protocol_message(profile.protocol),
+        ));
+    }
+    let credential = store
+        .load_secret(&profile.id)
+        .map_err(|error| profile_store_error(error))?
+        .ok_or_else(|| {
+            AppErrorPayload::new(
+                AppErrorCode::Unknown,
+                "error.app.unknown.title",
+                "no stored username/password for this profile".to_owned(),
+            )
+        })?;
+    remote_core::test_network_connection(&profile, &credential).map_err(|error| {
+        AppErrorPayload::new(
+            AppErrorCode::Unknown,
+            "error.app.unknown.title",
+            format!("{error:?}"),
+        )
+    })
+}
+
+#[tauri::command]
+pub fn list_remote_path(
+    profile_id: String,
+    path: String,
+) -> Result<Vec<remote_core::RemoteEntry>, AppErrorPayload> {
+    let store = remote_core::RemoteProfileStore::new(crate::sources::default_config_dir());
+    let profile = store
+        .find_profile(&profile_id)
+        .map_err(|error| profile_store_error(error))?
+        .ok_or_else(|| {
+            AppErrorPayload::new(
+                AppErrorCode::Unknown,
+                "error.app.unknown.title",
+                format!("remote profile not found: {profile_id}"),
+            )
+        })?;
+    let credential = store
+        .load_secret(&profile.id)
+        .map_err(|error| profile_store_error(error))?
+        .ok_or_else(|| {
+            AppErrorPayload::new(
+                AppErrorCode::Unknown,
+                "error.app.unknown.title",
+                "no stored username/password for this profile".to_owned(),
+            )
+        })?;
+    let provider = remote_core::open_network_provider(&profile, &credential).map_err(|error| {
+        AppErrorPayload::new(
+            AppErrorCode::Unknown,
+            "error.app.unknown.title",
+            format!("{error:?}"),
+        )
+    })?;
+    provider.list(&path).map_err(|error| {
+        AppErrorPayload::new(
+            AppErrorCode::Unknown,
+            "error.app.unknown.title",
+            format!("{error:?}"),
+        )
+    })
+}
+
+#[tauri::command]
+pub fn write_git_integration(
+    kind: String,
+    executable_path: String,
+    scope: Option<String>,
+) -> Result<String, AppErrorPayload> {
+    let scope = if scope.as_deref() == Some("local") {
+        cli_core::GitConfigScope::Local
+    } else {
+        cli_core::GitConfigScope::Global
+    };
+    let config = if kind == "mergetool" {
+        cli_core::build_git_mergetool_config(&executable_path, scope)
+    } else {
+        cli_core::build_git_difftool_config(&executable_path, scope)
+    }
+    .map_err(|error| {
+        AppErrorPayload::new(
+            AppErrorCode::Unknown,
+            "error.app.unknown.title",
+            error.message,
+        )
+    })?;
+    cli_core::write_git_tool_config(&config).map_err(|error| {
+        AppErrorPayload::new(
+            AppErrorCode::Unknown,
+            "error.app.unknown.title",
+            error.message,
+        )
+    })
+}
+
+#[tauri::command]
+pub fn write_svn_integration(
+    executable_path: String,
+    wrapper_path: String,
+) -> Result<String, AppErrorPayload> {
+    let config =
+        cli_core::build_svn_diff_config(&executable_path, &wrapper_path).map_err(|error| {
+            AppErrorPayload::new(
+                AppErrorCode::Unknown,
+                "error.app.unknown.title",
+                error.message,
+            )
+        })?;
+    cli_core::write_svn_diff_config(&config, &wrapper_path).map_err(|error| {
+        AppErrorPayload::new(
+            AppErrorCode::Unknown,
+            "error.app.unknown.title",
+            error.message,
+        )
+    })
+}
+
+#[tauri::command]
+pub fn create_folder_snapshot(
+    source_root: String,
+    output_path: String,
+    name: Option<String>,
+) -> Result<String, AppErrorPayload> {
+    let snapshot = snapshot_core::scan_directory_snapshot(
+        name.unwrap_or_else(|| "folder-snapshot".to_owned()),
+        &source_root,
+    )
+    .map_err(|error| {
+        AppErrorPayload::new(
+            AppErrorCode::Unknown,
+            "error.app.unknown.title",
+            format!("{error:?}"),
+        )
+    })?;
+    snapshot_core::save_snapshot_file(&output_path, &snapshot).map_err(|error| {
+        AppErrorPayload::new(
+            AppErrorCode::Unknown,
+            "error.app.unknown.title",
+            format!("{error:?}"),
+        )
+    })?;
+    Ok(output_path)
+}
+
+fn remote_profile_view(
+    store: &remote_core::RemoteProfileStore,
+    profile: remote_core::RemoteProfile,
+) -> RemoteProfileView {
+    let username = store
+        .load_secret(&profile.id)
+        .ok()
+        .flatten()
+        .and_then(|credential| credential.username);
+    RemoteProfileView {
+        uri: remote_core::format_remote_uri(
+            profile.protocol.clone(),
+            &profile.id,
+            profile.endpoint.root_path.as_deref().unwrap_or("/"),
+        ),
+        implemented: remote_core::protocol_is_implemented(profile.protocol.clone()),
+        id: profile.id,
+        name: profile.name,
+        protocol: profile.protocol,
+        host: profile.endpoint.host,
+        port: profile.endpoint.port,
+        root_path: profile.endpoint.root_path.unwrap_or_else(|| "/".to_owned()),
+        username,
+    }
+}
+
+fn profile_store_error(error: remote_core::ProfileStoreError) -> AppErrorPayload {
+    AppErrorPayload::new(
+        AppErrorCode::Unknown,
+        "error.app.unknown.title",
+        format!("{error:?}"),
+    )
+}
+
+fn compare_source_error(path: &str, error: impl std::fmt::Display) -> AppErrorPayload {
+    AppErrorPayload::new(
+        AppErrorCode::Unknown,
+        "error.app.unknown.title",
+        error.to_string(),
+    )
+    .with_param("path", path)
 }
 
 #[tauri::command]
@@ -1342,6 +1769,22 @@ pub fn compare_version_files(
 
 #[tauri::command]
 pub fn read_text_file(path: String) -> Result<ReadTextFileResponse, AppErrorPayload> {
+    if remote_core::is_remote_uri(&path) {
+        let bytes = crate::sources::read_remote_file(&path).map_err(|error| {
+            AppErrorPayload::new(AppErrorCode::Unknown, "error.file.readFailed.title", error)
+                .with_param("path", &path)
+        })?;
+        return file_core::read_text_from_bytes(
+            path.clone(),
+            &bytes,
+            shared_types::FileStamp {
+                size: bytes.len() as u64,
+                modified_at_ms: 0,
+            },
+        )
+        .map_err(|error| file_error("read", &path, error));
+    }
+
     file_core::read_text_file(&path).map_err(|error| file_error("read", &path, error))
 }
 
@@ -1498,10 +1941,12 @@ fn folder_scan_error(path: &str, error: FolderScanError) -> AppErrorPayload {
 
 fn folder_compare_row(
     row: &FolderAlignmentRow,
+    left_source: &crate::sources::CompareSource,
+    right_source: &crate::sources::CompareSource,
     left_root: &str,
     right_root: &str,
 ) -> Result<FolderCompareRow, AppErrorPayload> {
-    let status = folder_row_status(row, left_root, right_root)?;
+    let status = folder_row_status(row, left_source, right_source, left_root, right_root)?;
 
     Ok(FolderCompareRow {
         relative_path: row.relative_path.clone(),
@@ -1520,6 +1965,8 @@ fn folder_compare_row(
 
 fn folder_row_status(
     row: &FolderAlignmentRow,
+    left_source: &crate::sources::CompareSource,
+    right_source: &crate::sources::CompareSource,
     left_root: &str,
     right_root: &str,
 ) -> Result<FolderCompareStatus, AppErrorPayload> {
@@ -1530,14 +1977,14 @@ fn folder_row_status(
         return Ok(metadata_status);
     }
 
-    let left_path = side_path(left_root, &row.relative_path);
-    let right_path = side_path(right_root, &row.relative_path);
-    let left_bytes = fs::read(&left_path).map_err(|error| file_io_error(&left_path, error))?;
-    let right_bytes = fs::read(&right_path).map_err(|error| file_io_error(&right_path, error))?;
+    let left_bytes = crate::sources::read_compare_file(left_source, &row.relative_path)
+        .map_err(|error| compare_source_error(left_root, error))?;
+    let right_bytes = crate::sources::read_compare_file(right_source, &row.relative_path)
+        .map_err(|error| compare_source_error(right_root, error))?;
 
     Ok(
         folder_core::compare_binary_streams(&left_bytes[..], &right_bytes[..], 8192)
-            .map_err(|error| file_io_error(&left_path, error))?
+            .map_err(|error| file_io_error(left_root, error))?
             .status,
     )
 }
@@ -2908,7 +3355,8 @@ fn find_hex_matches_in_file(
                 "empty hex find query",
             ))
         }
-        _ => hex_core::find_hex_matches(&[], query.clone()).map(|_| Vec::new()),
+        _ => hex_core::find_hex_matches(&[], query.clone())
+            .map(|_| Vec::<hex_core::HexFindMatch>::new()),
     };
     let _ = pattern;
     let total_len = file_len(path)?;
@@ -3411,6 +3859,7 @@ mod tests {
             left.display().to_string(),
             right.display().to_string(),
             "mirrorRight".to_owned(),
+            None,
         )
         .expect("valid folders should execute a sync plan");
 
@@ -3866,8 +4315,14 @@ mod tests {
 
         assert_eq!(response.left_sheet, "Sheet1");
         assert_eq!(response.summary.changed_cell_count, 1);
-        assert_eq!(response.changed_cells[0].left_value.as_deref(), Some("alpha"));
-        assert_eq!(response.changed_cells[0].right_value.as_deref(), Some("beta"));
+        assert_eq!(
+            response.changed_cells[0].left_value.as_deref(),
+            Some("alpha")
+        );
+        assert_eq!(
+            response.changed_cells[0].right_value.as_deref(),
+            Some("beta")
+        );
         assert!(response
             .column_mappings
             .iter()
@@ -3941,7 +4396,10 @@ mod tests {
 
         assert_eq!(result.status, folder_core::FileOperationStatus::Moved);
         assert!(!source.exists());
-        assert_eq!(fs::read_to_string(&target).expect("target should exist"), "moved");
+        assert_eq!(
+            fs::read_to_string(&target).expect("target should exist"),
+            "moved"
+        );
     }
 
     #[test]
@@ -3951,11 +4409,119 @@ mod tests {
         let path = root.join("data.bin");
         fs::write(&path, b"AAAABCDEAAAA").expect("fixture should be writable");
 
-        let matches = find_hex_in_file(path.display().to_string(), "text".to_owned(), "BCDE".to_owned())
-            .expect("find should succeed");
+        let matches = find_hex_in_file(
+            path.display().to_string(),
+            "text".to_owned(),
+            "BCDE".to_owned(),
+        )
+        .expect("find should succeed");
 
         assert_eq!(matches.len(), 1);
         assert_eq!(matches[0].offset, 4);
+    }
+
+    #[test]
+    fn compare_folder_paths_compares_real_zip_archives() {
+        let root = unique_temp_dir("zip-compare-command");
+        fs::create_dir_all(&root).expect("fixture directory should be created");
+        let left_doc = archive_core::ArchiveDocument::new("left.zip")
+            .with_file("/readme.txt", b"left".to_vec())
+            .with_file("/same.txt", b"same".to_vec());
+        let right_doc = archive_core::ArchiveDocument::new("right.zip")
+            .with_file("/readme.txt", b"right".to_vec())
+            .with_file("/same.txt", b"same".to_vec());
+        let left = root.join("left.zip");
+        let right = root.join("right.zip");
+        fs::write(&left, archive_core::write_zip_bytes(&left_doc).unwrap()).unwrap();
+        fs::write(&right, archive_core::write_zip_bytes(&right_doc).unwrap()).unwrap();
+
+        let response =
+            compare_folder_paths(left.display().to_string(), right.display().to_string())
+                .expect("zip archives should compare as folders");
+
+        assert!(response
+            .rows
+            .iter()
+            .any(|row| row.relative_path == "readme.txt" && row.status == "Different"));
+        assert!(response
+            .rows
+            .iter()
+            .any(|row| row.relative_path == "same.txt" && row.status == "Same"));
+    }
+
+    #[test]
+    fn run_script_compares_files_and_writes_a_report() {
+        let root = unique_temp_dir("script-command");
+        fs::create_dir_all(&root).expect("fixture directory should be created");
+        let left = root.join("left.txt");
+        let right = root.join("right.txt");
+        let report = root.join("out.txt");
+        fs::write(&left, "one\n").unwrap();
+        fs::write(&right, "two\n").unwrap();
+        let source = format!(
+            "LOAD \"{}\" \"{}\"\nCOMPARE\nTEXT-REPORT \"{}\"\n",
+            left.display(),
+            right.display(),
+            report.display()
+        );
+
+        let response = run_script(source, None).expect("script should run");
+
+        assert_eq!(response.reports_written, 1);
+        assert!(response.different >= 1);
+        assert!(fs::read_to_string(&report).unwrap().contains("compared:"));
+    }
+
+    #[test]
+    fn apply_text_patch_to_file_writes_reconstructed_source() {
+        let root = unique_temp_dir("patch-file-command");
+        fs::create_dir_all(&root).expect("fixture directory should be created");
+        let source = root.join("main.txt");
+        let output = root.join("patched.txt");
+        fs::write(&source, "const a = 1\nold\n").unwrap();
+        let patch = "\
+--- a/main.txt
++++ b/main.txt
+@@ -1,2 +1,2 @@
+ const a = 1
+-old
++new
+";
+
+        apply_text_patch_to_file(
+            source.display().to_string(),
+            patch.to_owned(),
+            Some(output.display().to_string()),
+        )
+        .expect("patch should apply");
+
+        assert_eq!(fs::read_to_string(&output).unwrap(), "const a = 1\nnew");
+    }
+
+    #[test]
+    fn execute_folder_sync_honors_per_item_overrides() {
+        let root = unique_temp_dir("sync-override-command");
+        let left = root.join("left");
+        let right = root.join("right");
+        fs::create_dir_all(&left).unwrap();
+        fs::create_dir_all(&right).unwrap();
+        fs::write(left.join("copy.txt"), "left").unwrap();
+        fs::write(left.join("leave.txt"), "left-leave").unwrap();
+
+        let response = execute_folder_sync(
+            left.display().to_string(),
+            right.display().to_string(),
+            "updateRight".to_owned(),
+            Some(vec![sync_core::SyncActionOverride {
+                relative_path: "leave.txt".to_owned(),
+                action: sync_core::SyncOverrideAction::Leave,
+            }]),
+        )
+        .expect("sync with overrides should run");
+
+        assert!(right.join("copy.txt").exists());
+        assert!(!right.join("leave.txt").exists());
+        assert!(response.succeeded >= 1);
     }
 
     fn unique_temp_dir(label: &str) -> PathBuf {

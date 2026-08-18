@@ -17,6 +17,8 @@ describe('fileFormats', () => {
     expect(sessionTypeForPath('export.reg')).toBe('registry-compare')
     expect(sessionTypeForPath('photo.webp')).toBe('picture-compare')
     expect(sessionTypeForPath('change.patch')).toBe('text-patch')
+    expect(sessionTypeForPath('release.zip')).toBe('archive-compare')
+    expect(sessionTypeForPath('bundle.tar.gz')).toBe('archive-compare')
   })
 
   it('lets saved file formats influence open routing', () => {

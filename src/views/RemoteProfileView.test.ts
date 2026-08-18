@@ -1,8 +1,35 @@
-import { mount } from '@vue/test-utils'
-import { describe, expect, it } from 'vitest'
+import { flushPromises, mount } from '@vue/test-utils'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import RemoteProfileView from './RemoteProfileView.vue'
+import {
+  deleteRemoteProfile,
+  listRemoteProfiles,
+  saveRemoteProfile,
+  testRemoteProfile,
+} from '@/api/remote'
+
+vi.mock('@/api/remote', async () => {
+  const actual = await vi.importActual<typeof import('@/api/remote')>('@/api/remote')
+
+  return {
+    ...actual,
+    listRemoteProfiles: vi.fn().mockRejectedValue(new Error('no backend')),
+    saveRemoteProfile: vi.fn().mockRejectedValue(new Error('no backend')),
+    deleteRemoteProfile: vi.fn().mockRejectedValue(new Error('no backend')),
+    testRemoteProfile: vi
+      .fn()
+      .mockResolvedValue('SFTP connected to files.example.com:22 and listed 1 entries'),
+  }
+})
 
 describe('RemoteProfileView', () => {
+  beforeEach(() => {
+    vi.mocked(listRemoteProfiles).mockClear()
+    vi.mocked(saveRemoteProfile).mockClear()
+    vi.mocked(deleteRemoteProfile).mockClear()
+    vi.mocked(testRemoteProfile).mockClear()
+  })
+
   it('renders built-in remote profiles without plaintext credentials', () => {
     const wrapper = mount(RemoteProfileView)
 
@@ -12,7 +39,10 @@ describe('RemoteProfileView', () => {
     expect(wrapper.find('[data-testid="remote-profile-list"]').text()).toContain('Team WebDAV')
     expect(wrapper.text()).toContain('Credential reference')
     expect(wrapper.text()).toContain('System keychain')
-    expect(wrapper.text()).not.toContain('password')
+    expect(wrapper.find('[data-testid="remote-profile-password-input"]').attributes('type')).toBe(
+      'password',
+    )
+    expect(wrapper.text()).not.toContain('correct-horse')
     expect(wrapper.text()).not.toContain('token')
   })
 
@@ -24,6 +54,7 @@ describe('RemoteProfileView', () => {
     await wrapper.find('[data-testid="remote-profile-host-input"]').setValue('dav2.example.com')
     await wrapper.find('[data-testid="remote-profile-root-input"]').setValue('/shared/v2')
     await wrapper.find('[data-testid="save-remote-profile"]').trigger('click')
+    await flushPromises()
 
     expect(wrapper.find('[data-testid="remote-profile-list"]').text()).toContain(
       'Team WebDAV Primary',
@@ -32,9 +63,27 @@ describe('RemoteProfileView', () => {
       'dav2.example.com',
     )
     expect(wrapper.find('[data-testid="remote-profile-summary"]').text()).toContain('/shared/v2')
+    expect(wrapper.find('[data-testid="test-remote-profile"]').attributes('disabled')).toBeDefined()
   })
 
-  it('creates, tests, and deletes a remote profile', async () => {
+  it('creates, tests, and deletes a real FTP profile', async () => {
+    vi.mocked(saveRemoteProfile).mockResolvedValue([
+      {
+        id: 'release-ftp',
+        name: 'Release FTP',
+        protocol: 'ftp',
+        host: 'ftp.example.com',
+        port: 21,
+        rootPath: '/',
+        implemented: true,
+        uri: 'ftp://profile/release-ftp/',
+      },
+    ])
+    vi.mocked(testRemoteProfile).mockResolvedValue(
+      'FTP connected to ftp.example.com:21 and listed 0 entries',
+    )
+    vi.mocked(deleteRemoteProfile).mockResolvedValue([])
+
     const wrapper = mount(RemoteProfileView)
 
     await wrapper.find('[data-testid="new-remote-profile"]').trigger('click')
@@ -42,22 +91,37 @@ describe('RemoteProfileView', () => {
     await wrapper.find('[data-testid="remote-profile-protocol-select"]').setValue('ftp')
     await wrapper.find('[data-testid="remote-profile-host-input"]').setValue('ftp.example.com')
     await wrapper.find('[data-testid="remote-profile-port-input"]').setValue('21')
+    await wrapper.find('[data-testid="remote-profile-username-input"]').setValue('deploy')
+    await wrapper.find('[data-testid="remote-profile-password-input"]').setValue('secret')
     await wrapper
       .find('[data-testid="remote-profile-credential-key-input"]')
       .setValue('release-ftp')
     await wrapper.find('[data-testid="save-remote-profile"]').trigger('click')
+    await flushPromises()
 
+    expect(saveRemoteProfile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'Release FTP',
+        protocol: 'ftp',
+        host: 'ftp.example.com',
+        username: 'deploy',
+        password: 'secret',
+      }),
+    )
     expect(wrapper.find('[data-testid="remote-profile-list"]').text()).toContain('Release FTP')
+    expect(
+      wrapper.find('[data-testid="test-remote-profile"]').attributes('disabled'),
+    ).toBeUndefined()
 
     await wrapper.find('[data-testid="test-remote-profile"]').trigger('click')
+    await flushPromises()
 
-    expect(wrapper.find('[data-testid="test-remote-profile"]').attributes('disabled')).toBeDefined()
-    expect(wrapper.find('[data-testid="remote-profile-test-status"]').text()).toContain(
-      'Remote connection testing is not implemented',
-    )
+    expect(testRemoteProfile).toHaveBeenCalled()
+    expect(wrapper.find('[data-testid="remote-profile-test-status"]').text()).toContain('Connected')
 
     await wrapper.find('[data-testid="delete-remote-profile"]').trigger('click')
+    await flushPromises()
 
-    expect(wrapper.find('[data-testid="remote-profile-list"]').text()).not.toContain('Release FTP')
+    expect(deleteRemoteProfile).toHaveBeenCalledWith('release-ftp')
   })
 })
