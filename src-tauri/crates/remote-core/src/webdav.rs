@@ -41,7 +41,7 @@ impl WebDavNetworkProvider {
 
         Ok(Self {
             agent,
-            base_url: webdav_base_url(&profile.endpoint),
+            base_url: webdav_origin(&profile.endpoint),
             authorization,
         })
     }
@@ -128,10 +128,10 @@ impl RemoteFileProvider for WebDavNetworkProvider {
     }
 }
 
-pub fn webdav_base_url(endpoint: &RemoteEndpoint) -> String {
+pub fn webdav_origin(endpoint: &RemoteEndpoint) -> String {
     let host = endpoint.host.trim().trim_end_matches('/');
     if host.starts_with("http://") || host.starts_with("https://") {
-        return join_url(host, endpoint.root_path.as_deref().unwrap_or("/"));
+        return host.to_owned();
     }
 
     let https = endpoint.port == Some(443);
@@ -142,8 +142,12 @@ pub fn webdav_base_url(endpoint: &RemoteEndpoint) -> String {
     } else {
         format!("{host}:{port}")
     };
+    format!("{scheme}://{authority}")
+}
+
+pub fn webdav_base_url(endpoint: &RemoteEndpoint) -> String {
     join_url(
-        &format!("{scheme}://{authority}"),
+        &webdav_origin(endpoint),
         endpoint.root_path.as_deref().unwrap_or("/"),
     )
 }
@@ -354,10 +358,25 @@ mod tests {
             .with_port(8080)
             .with_root_path("/shared");
 
+        assert_eq!(webdav_origin(&endpoint), "http://dav.example.com:8080");
         assert_eq!(
             webdav_base_url(&endpoint),
             "http://dav.example.com:8080/shared"
         );
+    }
+
+    #[test]
+    fn skips_the_collection_itself_when_parsing_propfind() {
+        let xml = r#"<?xml version="1.0"?><d:multistatus xmlns:d="DAV:">
+            <d:response><d:href>/shared/docs</d:href><d:propstat><d:prop><d:resourcetype><d:collection/></d:resourcetype></d:prop></d:propstat></d:response>
+            <d:response><d:href>/shared/docs/readme.md</d:href><d:propstat><d:prop><d:resourcetype/><d:getcontentlength>6</d:getcontentlength></d:prop></d:propstat></d:response>
+        </d:multistatus>"#;
+
+        let entries = parse_dav_multistatus(xml, "/shared/docs");
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].path, "/shared/docs/readme.md");
+        assert_eq!(entries[0].kind, RemoteEntryKind::File);
+        assert_eq!(entries[0].size, 6);
     }
 
     #[test]
@@ -421,23 +440,56 @@ mod tests {
         }
     }
 
+    fn read_http_request(stream: &mut std::net::TcpStream) -> std::io::Result<(String, Vec<u8>)> {
+        stream.set_read_timeout(Some(Duration::from_secs(2))).ok();
+        let mut buffer = Vec::new();
+        let mut chunk = [0u8; 4096];
+
+        loop {
+            let read = stream.read(&mut chunk)?;
+            if read == 0 {
+                break;
+            }
+            buffer.extend_from_slice(&chunk[..read]);
+            if let Some(header_end) = buffer.windows(4).position(|window| window == b"\r\n\r\n") {
+                let headers = String::from_utf8_lossy(&buffer[..header_end]).into_owned();
+                let content_length = headers
+                    .lines()
+                    .find(|line| line.to_ascii_lowercase().starts_with("content-length:"))
+                    .and_then(|line| line.split_once(':').map(|(_, value)| value.trim()))
+                    .and_then(|value| value.parse::<usize>().ok())
+                    .unwrap_or(0);
+                let body_start = header_end + 4;
+                while buffer.len() < body_start + content_length {
+                    let read = stream.read(&mut chunk)?;
+                    if read == 0 {
+                        break;
+                    }
+                    buffer.extend_from_slice(&chunk[..read]);
+                }
+                let body = buffer
+                    .get(body_start..body_start + content_length)
+                    .unwrap_or(&[])
+                    .to_vec();
+                return Ok((headers, body));
+            }
+        }
+
+        Ok((String::from_utf8_lossy(&buffer).into_owned(), Vec::new()))
+    }
+
     fn handle_mock_request(
         mut stream: std::net::TcpStream,
         files: &Arc<Mutex<BTreeMap<String, Vec<u8>>>>,
     ) -> std::io::Result<()> {
-        stream.set_read_timeout(Some(Duration::from_secs(2))).ok();
-        let mut buffer = [0u8; 16_384];
-        let read = stream.read(&mut buffer)?;
-        let request = String::from_utf8_lossy(&buffer[..read]);
-        let mut lines = request.split("\r\n");
+        let (headers, body) = read_http_request(&mut stream)?;
+        let mut lines = headers.split("\r\n");
         let request_line = lines.next().unwrap_or_default();
         let mut parts = request_line.split_whitespace();
         let method = parts.next().unwrap_or_default().to_ascii_uppercase();
         let raw_path = parts.next().unwrap_or("/");
         let path = raw_path.split('?').next().unwrap_or(raw_path);
-        let headers = request.split("\r\n\r\n").next().unwrap_or("");
         let authorized = headers.contains("Authorization: Basic ");
-        let body = request.split("\r\n\r\n").nth(1).unwrap_or("").as_bytes();
 
         if !authorized {
             write_response(&mut stream, 401, "text/plain", b"unauthorized")?;

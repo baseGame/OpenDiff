@@ -45,7 +45,7 @@ export const useSettingsStore = defineStore('settings', () => {
       localStorage.setItem('open-diff-theme', nextTheme)
       document.documentElement.dataset.theme = nextResolved
     },
-    { immediate: true },
+    { immediate: true, flush: 'sync' },
   )
 
   watch(
