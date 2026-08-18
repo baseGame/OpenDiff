@@ -627,10 +627,12 @@ export const esES: LanguagePack = {
     'ui.applyPatch': 'Apply Patch',
     'ui.patchedOutput': 'Patched output',
     'ui.leftSheet': 'Left sheet',
-    'ui.remoteNotImplemented': 'Remote protocols are not implemented. Profile editing is local only; connection tests stay disabled.',
+    'ui.remoteNotImplemented':
+      'Remote protocols are not implemented. Profile editing is local only; connection tests stay disabled.',
     'ui.reportKind': 'Report kind',
     'ui.rightSheet': 'Right sheet',
-    'ui.scriptingNotImplemented': 'BC-style scripting is not implemented. Export the current Text or Folder Compare result instead.',
+    'ui.scriptingNotImplemented':
+      'BC-style scripting is not implemented. Export the current Text or Folder Compare result instead.',
     'ui.sourceFile': 'Source file',
     'ui.tableFormat': 'Table format',
     'ui.tsv': 'TSV',

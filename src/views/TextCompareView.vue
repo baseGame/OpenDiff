@@ -761,7 +761,7 @@ function toggleSourceEditors(): void {
           data-testid="export-text-html-report"
           @click="exportCurrentReport('html')"
         >
-          {{ $t('ui.export') }} HTML
+          {{ $t('ui.export') }} {{ $t('ui.html') }}
         </button>
         <button
           type="button"

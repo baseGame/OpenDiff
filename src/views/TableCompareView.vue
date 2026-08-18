@@ -349,7 +349,9 @@ async function runTableCompare(): Promise<void> {
 
     leftColumns.value = result.leftColumns
     rightColumns.value = result.rightColumns
-    availableSheets.value = [...new Set([...(result.leftSheets ?? []), ...(result.rightSheets ?? [])])]
+    availableSheets.value = [
+      ...new Set([...(result.leftSheets ?? []), ...(result.rightSheets ?? [])]),
+    ]
     if (result.leftSheet) {
       leftSheet.value = result.leftSheet
     }

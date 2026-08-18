@@ -99,7 +99,9 @@ describe('VersionCompareView', () => {
     expect(wrapper.text()).toContain('Version Compare')
     expect(wrapper.text()).not.toContain('left-app.exe')
     expect(wrapper.find('[data-testid="version-summary-modified"]').text()).toContain('0')
-    expect(wrapper.find('[data-testid="version-toolbar-home"]').attributes('disabled')).toBeDefined()
+    expect(
+      wrapper.find('[data-testid="version-toolbar-home"]').attributes('disabled'),
+    ).toBeDefined()
   })
 
   it('filters diffs and swaps paths from the toolbar', async () => {
@@ -120,8 +122,8 @@ describe('VersionCompareView', () => {
 
     await wrapper.find('[data-testid="version-toolbar-swap"]').trigger('click')
 
-    expect((wrapper.find('[data-testid="version-left-path"]').element as HTMLInputElement).value).toBe(
-      'C:/apps/fixture-right.exe',
-    )
+    expect(
+      (wrapper.find('[data-testid="version-left-path"]').element as HTMLInputElement).value,
+    ).toBe('C:/apps/fixture-right.exe')
   })
 })

@@ -20,7 +20,9 @@ interface ReportJob {
 
 const lastCompare = useLastCompareStore()
 const { t } = useI18n()
-const reportKind = ref<ReportKind>(lastCompare.text ? 'text' : lastCompare.folder ? 'folder' : 'text')
+const reportKind = ref<ReportKind>(
+  lastCompare.text ? 'text' : lastCompare.folder ? 'folder' : 'text',
+)
 const reportFormat = ref<ReportFormat>('html')
 const leftPath = ref(lastCompare.text?.leftSource ?? lastCompare.folder?.leftRoot ?? '')
 const rightPath = ref(lastCompare.text?.rightSource ?? lastCompare.folder?.rightRoot ?? '')
@@ -32,7 +34,9 @@ const running = ref(false)
 const error = ref('')
 const lastExport = ref('')
 
-const completedCount = computed(() => jobs.value.filter((job) => job.stateKey === 'ui.completed').length)
+const completedCount = computed(
+  () => jobs.value.filter((job) => job.stateKey === 'ui.completed').length,
+)
 const failedCount = computed(() => jobs.value.filter((job) => job.stateKey === 'ui.error').length)
 
 async function runExport(): Promise<void> {
@@ -41,9 +45,7 @@ async function runExport(): Promise<void> {
 
   try {
     const extension = reportFormat.value === 'text' ? 'txt' : reportFormat.value
-    const target =
-      outputPath.value.trim() ||
-      `${reportKind.value}-compare.${extension}`
+    const target = outputPath.value.trim() || `${reportKind.value}-compare.${extension}`
 
     const response =
       reportKind.value === 'folder'

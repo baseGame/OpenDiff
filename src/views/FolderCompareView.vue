@@ -964,7 +964,8 @@ function handleTreeScroll(event: Event): void {
             secondary
             data-testid="export-folder-html-report"
             @click="exportFolderReport('html')"
-            >{{ $t('ui.export') }} HTML</NButton
+            >{{ $t('ui.export') }} {{ $t('ui.html') }}</NButton
+          >
           >
           <NButton
             size="small"

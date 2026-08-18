@@ -5,14 +5,7 @@ import WorkbenchInspector from '@/components/workbench/WorkbenchInspector.vue'
 import { useI18n } from '@/i18n'
 
 type RemoteProtocol =
-  | 'ftp'
-  | 'ftps'
-  | 'sftp'
-  | 'web-dav'
-  | 's3'
-  | 'dropbox'
-  | 'one-drive'
-  | 'subversion'
+  'ftp' | 'ftps' | 'sftp' | 'web-dav' | 's3' | 'dropbox' | 'one-drive' | 'subversion'
 type CredentialReferenceKind = 'system-keychain' | 'environment' | 'profile-store'
 
 interface RemoteEndpoint {
@@ -80,7 +73,7 @@ const profiles = ref<RemoteProfile[]>(builtInProfiles.map((profile) => cloneProf
 const { t } = useI18n()
 const selectedProfileId = ref(profiles.value[0]?.id ?? '')
 const draft = ref<RemoteProfileDraft>(toDraft(profiles.value[0] ?? emptyProfile()))
-const testStatusKey = ref('status.noConnectionTestRun')
+const testStatusKey = ref('status.remoteUnavailable')
 const testStatusParams = ref<Record<string, string | number>>({})
 
 const sortedProfiles = computed(() =>
@@ -109,13 +102,13 @@ function selectProfile(profileId: string): void {
 
   selectedProfileId.value = profile.id
   draft.value = toDraft(profile)
-  setTestStatus('status.noConnectionTestRun')
+  setTestStatus('status.remoteUnavailable')
 }
 
 function createNewProfile(): void {
   selectedProfileId.value = ''
   draft.value = toDraft(emptyProfile())
-  setTestStatus('status.noConnectionTestRun')
+  setTestStatus('status.remoteUnavailable')
 }
 
 function saveProfile(): void {

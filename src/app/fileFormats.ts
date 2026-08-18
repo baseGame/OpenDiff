@@ -1,6 +1,7 @@
 import type { SessionType } from '@/types/session'
 
-export type FileFormatViewMode = 'text' | 'table' | 'hex' | 'picture' | 'registry' | 'media' | 'version' | 'patch'
+export type FileFormatViewMode =
+  'text' | 'table' | 'hex' | 'picture' | 'registry' | 'media' | 'version' | 'patch'
 
 export interface FileFormatMatcher {
   extensions: string[]
@@ -217,7 +218,9 @@ export function matchFileFormat(
         return true
       }
 
-      if (format.matcher.fileNames.some((name) => name.toLowerCase() === displayName.toLowerCase())) {
+      if (
+        format.matcher.fileNames.some((name) => name.toLowerCase() === displayName.toLowerCase())
+      ) {
         return true
       }
 
@@ -252,9 +255,15 @@ export function extensionOf(path: string): string | undefined {
 
 function matchesGlob(path: string, glob: string): boolean {
   const normalized = path.replaceAll('\\', '/')
-  const escaped = glob.replaceAll(/[.+^${}()|[\]\\]/gu, '\\$&').replaceAll('**', '.*').replaceAll('*', '[^/]*')
+  const escaped = glob
+    .replaceAll(/[.+^${}()|[\]\\]/gu, '\\$&')
+    .replaceAll('**', '.*')
+    .replaceAll('*', '[^/]*')
 
-  return new RegExp(`^${escaped}$`, 'u').test(normalized) || new RegExp(`${escaped}$`, 'u').test(normalized)
+  return (
+    new RegExp(`^${escaped}$`, 'u').test(normalized) ||
+    new RegExp(`${escaped}$`, 'u').test(normalized)
+  )
 }
 
 function isFileFormatDefinition(value: unknown): value is FileFormatDefinition {

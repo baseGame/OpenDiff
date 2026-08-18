@@ -58,7 +58,9 @@ describe('HexCompareView', () => {
 
     expect(wrapper.findAll('[data-testid="hex-row"]')).toHaveLength(0)
     expect(wrapper.text()).not.toContain('ABCD')
-    expect((wrapper.find('[data-testid="hex-left-path"]').element as HTMLInputElement).value).toBe('')
+    expect((wrapper.find('[data-testid="hex-left-path"]').element as HTMLInputElement).value).toBe(
+      '',
+    )
   })
 
   it('runs a hex comparison request and renders returned byte windows', async () => {

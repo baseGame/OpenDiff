@@ -29,7 +29,10 @@ const leftPath = ref('')
 const rightPath = ref('')
 const sessionLaunch = useSessionLaunchStore()
 const leftMedia = ref<MediaSideSummary>({ ...emptyMediaSide, stream: { ...emptyMediaSide.stream } })
-const rightMedia = ref<MediaSideSummary>({ ...emptyMediaSide, stream: { ...emptyMediaSide.stream } })
+const rightMedia = ref<MediaSideSummary>({
+  ...emptyMediaSide,
+  stream: { ...emptyMediaSide.stream },
+})
 const mediaFields = ref<MediaFieldRow[]>([])
 const mediaSummaryOverride = ref<Record<MediaFieldStatus, number> | null>(null)
 const loading = ref(false)

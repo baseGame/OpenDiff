@@ -57,8 +57,10 @@ describe('ReportsScriptView', () => {
         outputPath: 'out.html',
       }),
     )
-    expect(wrapper.find('[data-testid="report-export-status"]').text()).toContain('text-compare.html')
-    expect(wrapper.text()).not.toContain('No comparison yet')
+    expect(wrapper.find('[data-testid="report-export-status"]').text()).toContain(
+      'text-compare.html',
+    )
+    expect(wrapper.find('[data-testid="report-empty-jobs"]').exists()).toBe(false)
   })
 
   it('exports a folder compare report', async () => {

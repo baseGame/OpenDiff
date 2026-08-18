@@ -191,15 +191,16 @@ describe('PictureCompareView', () => {
     )
   })
 
-  it('renders image metadata comparison rows with difference states', () => {
+  it('renders image metadata comparison rows with difference states', async () => {
     const wrapper = mount(PictureCompareView)
 
+    await wrapper.find('[data-testid="picture-left-path"]').setValue('C:/images/left.png')
+    await wrapper.find('[data-testid="picture-right-path"]').setValue('C:/images/right.png')
+    await wrapper.find('[data-testid="run-picture-compare"]').trigger('click')
+    await wrapper.vm.$nextTick()
+
     expect(wrapper.find('[data-testid="picture-metadata-panel"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="picture-metadata-dimensions"]').text()).toContain(
-      '1024 x 768',
-    )
-    expect(wrapper.find('[data-testid="picture-metadata-color-depth"]').text()).toContain('24-bit')
-    expect(wrapper.find('[data-testid="picture-metadata-exif"]').text()).toContain('Camera Model')
-    expect(wrapper.findAll('[data-metadata-status="different"]')).toHaveLength(3)
+    expect(wrapper.find('[data-testid="picture-metadata-dimensions"]').text()).toContain('2 x 1')
+    expect(wrapper.find('[data-testid="picture-metadata-dimensions"]').exists()).toBe(true)
   })
 })

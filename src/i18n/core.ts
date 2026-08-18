@@ -11,14 +11,7 @@ import {
 export const fallbackLocale = 'en-US'
 
 export type SupportedLocale =
-  | 'en-US'
-  | 'zh-CN'
-  | 'zh-TW'
-  | 'de-DE'
-  | 'fr-FR'
-  | 'es-ES'
-  | 'ko-KR'
-  | 'ja-JP'
+  'en-US' | 'zh-CN' | 'zh-TW' | 'de-DE' | 'fr-FR' | 'es-ES' | 'ko-KR' | 'ja-JP'
 
 export interface LanguagePack {
   locale: SupportedLocale

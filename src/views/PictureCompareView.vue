@@ -855,11 +855,11 @@ h2 {
   position: relative;
   width: min(78%, 420px);
   aspect-ratio: 4 / 3;
+  overflow: hidden;
   transform-origin: center;
   border: 1px solid rgb(15 23 42 / 0.18);
   border-radius: 6px;
   box-shadow: 0 16px 42px rgb(15 23 42 / 0.16);
-  overflow: hidden;
   background: rgb(15 23 42 / 0.06);
 }
 

@@ -80,9 +80,9 @@ describe('TableCompareView', () => {
 
     expect(wrapper.text()).not.toContain('R1C1')
     expect(wrapper.findAll('[data-testid="table-grid-row"]')).toHaveLength(0)
-    expect((wrapper.find('[data-testid="table-left-path"]').element as HTMLInputElement).value).toBe(
-      '',
-    )
+    expect(
+      (wrapper.find('[data-testid="table-left-path"]').element as HTMLInputElement).value,
+    ).toBe('')
   })
 
   it('runs a table comparison with format, keys, and mappings', async () => {

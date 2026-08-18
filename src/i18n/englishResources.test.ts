@@ -2,7 +2,6 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { join, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import tseslint from 'typescript-eslint'
 import { commandRegistry } from '@/app/commandRegistry'
 import { sessionCatalog } from '@/app/sessionCatalog'
 import { enUS } from './locales/en-US'
@@ -82,10 +81,9 @@ describe('English UI resources', () => {
 })
 
 function findHardcodedTemplateText(filePath: string): string[] {
-  const source = readFileSync(resolve(process.cwd(), filePath), 'utf8')
+  const source = extractTemplateSource(readFileSync(resolve(process.cwd(), filePath), 'utf8'))
   const templateBody = parseForESLint(source, {
     ecmaVersion: 'latest',
-    parser: tseslint.parser,
     sourceType: 'module',
   }).ast.templateBody
   const textNodeMatches: string[] = []
@@ -135,6 +133,17 @@ function walkTemplate(node: TemplateNode, visit: (node: TemplateNode) => void): 
   for (const child of node.children ?? []) {
     walkTemplate(child, visit)
   }
+}
+
+function extractTemplateSource(source: string): string {
+  const start = source.search(/<template[\s>]/u)
+  const end = source.lastIndexOf('</template>')
+
+  if (start < 0 || end < 0) {
+    return '<template></template>'
+  }
+
+  return `${source.slice(start, end + '</template>'.length)}\n`
 }
 
 function normalize(value: string): string {

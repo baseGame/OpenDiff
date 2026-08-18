@@ -42,7 +42,9 @@ async function fillMergePaths(wrapper: VueWrapper): Promise<void> {
   await wrapper.find('[data-testid="folder-merge-left-path"]').setValue('D:/workspace/merge/left')
   await wrapper.find('[data-testid="folder-merge-base-path"]').setValue('D:/workspace/merge/base')
   await wrapper.find('[data-testid="folder-merge-right-path"]').setValue('D:/workspace/merge/right')
-  await wrapper.find('[data-testid="folder-merge-output-path"]').setValue('D:/workspace/merge/output')
+  await wrapper
+    .find('[data-testid="folder-merge-output-path"]')
+    .setValue('D:/workspace/merge/output')
 }
 
 describe('FolderMergeView', () => {

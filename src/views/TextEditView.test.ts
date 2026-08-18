@@ -129,7 +129,9 @@ describe('TextEditView', () => {
     expect((wrapper.find('[data-testid="text-edit-path"]').element as HTMLInputElement).value).toBe(
       '',
     )
-    expect(wrapper.find('[data-testid="text-edit-toolbar-syntax"]').attributes('disabled')).toBeDefined()
+    expect(
+      wrapper.find('[data-testid="text-edit-toolbar-syntax"]').attributes('disabled'),
+    ).toBeDefined()
 
     await wrapper.find('[data-testid="text-edit-path"]').setValue('D:/workspace/notes.txt')
     await wrapper.find('[data-testid="text-edit-open"]').trigger('click')
