@@ -1,20 +1,31 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { buildFolderMergePlan as requestFolderMergePlan } from '@/api/folderMerge'
+import {
+  buildFolderMergePlan as requestFolderMergePlan,
+  executeFolderMergePlan,
+} from '@/api/folderMerge'
 import type {
   FolderMergeConflict,
+  FolderMergeExecutionResponse,
   FolderMergePlanResponse,
   FolderMergePlanRow,
   FolderMergeSide,
 } from '@/types/folderMerge'
+import WorkbenchShell from '@/components/workbench/WorkbenchShell.vue'
+import WorkbenchInspector from '@/components/workbench/WorkbenchInspector.vue'
+import { useI18n } from '@/i18n'
 
 const leftPath = ref('D:/workspace/merge/left')
 const basePath = ref('D:/workspace/merge/base')
 const rightPath = ref('D:/workspace/merge/right')
 const outputPath = ref('D:/workspace/merge/output')
 const plan = ref<FolderMergePlanResponse>()
+const execution = ref<FolderMergeExecutionResponse>()
+const mergeExecuting = ref(false)
+const mergeExecutionError = ref<string>()
 const router = useRouter()
+const { t } = useI18n()
 const lastOpenedConflictPath = ref('')
 
 const planRows = computed<FolderMergePlanRow[]>(() => plan.value?.rows ?? [])
@@ -27,6 +38,7 @@ const summary = computed(() => ({
   automatic: plan.value?.summary.automatic ?? 0,
   conflicts: plan.value?.summary.conflicts ?? 0,
 }))
+const executionSummary = computed(() => execution.value?.summary)
 
 async function buildFolderMergePlan(): Promise<void> {
   plan.value = await requestFolderMergePlan({
@@ -35,14 +47,56 @@ async function buildFolderMergePlan(): Promise<void> {
     rightRoot: rightPath.value,
     outputRoot: outputPath.value,
   })
+  execution.value = undefined
+  mergeExecutionError.value = undefined
+}
+
+async function runFolderMerge(): Promise<void> {
+  mergeExecuting.value = true
+  mergeExecutionError.value = undefined
+
+  try {
+    execution.value = await executeFolderMergePlan({
+      leftRoot: leftPath.value,
+      baseRoot: basePath.value,
+      rightRoot: rightPath.value,
+      outputRoot: outputPath.value,
+    })
+  } catch (error) {
+    mergeExecutionError.value = error instanceof Error ? error.message : String(error)
+  } finally {
+    mergeExecuting.value = false
+  }
 }
 
 function sideLabel(side: FolderMergeSide): string {
   if (side.kind === 'Missing') {
-    return 'Missing'
+    return t('ui.missing')
   }
 
-  return `${side.kind} | ${side.size ?? '--'} | ${side.modified ?? '--'}`
+  return `${folderMergeEntryKindLabel(side.kind)} | ${side.size ?? '--'} | ${side.modified ?? '--'}`
+}
+
+function folderMergeEntryKindLabel(kind: FolderMergeSide['kind']): string {
+  const keys: Record<FolderMergeSide['kind'], string> = {
+    Directory: 'ui.directory',
+    File: 'ui.file',
+    Missing: 'ui.missing',
+  }
+
+  return t(keys[kind])
+}
+
+function folderMergeActionLabel(action: FolderMergePlanRow['action']): string {
+  const keys: Record<FolderMergePlanRow['action'], string> = {
+    'Copy left to output': 'merge.action.copyLeftToOutput',
+    'Copy right to output': 'merge.action.copyRightToOutput',
+    'Delete output': 'merge.action.deleteOutput',
+    'Keep output': 'merge.action.keepOutput',
+    'Mark conflict': 'merge.action.markConflict',
+  }
+
+  return t(keys[action])
 }
 
 function openConflictInTextMerge(conflict: FolderMergeConflict): void {
@@ -52,144 +106,224 @@ function openConflictInTextMerge(conflict: FolderMergeConflict): void {
 </script>
 
 <template>
-  <section class="folder-merge-view">
-    <header class="merge-header">
-      <div>
-        <p class="eyebrow">{{ $t('ui.folderMerge') }}</p>
-        <h1>{{ $t('ui.folderMerge') }}</h1>
-      </div>
-      <section
-        class="merge-summary"
-        data-testid="folder-merge-summary"
-      >
+  <WorkbenchShell
+    :title="$t('ui.folderMerge')"
+    :eyebrow="$t('ui.merge')"
+    :subtitle="$t('status.actionCount', { count: summary.actions })"
+    :inspector-label="$t('ui.folderMergeInspector')"
+  >
+    <section class="folder-merge-view">
+      <header class="merge-header">
         <div>
-          <strong>{{ summary.actions }}</strong>
-          <span>{{ $t('ui.actions') }}</span>
+          <p class="eyebrow">{{ $t('ui.folderMerge') }}</p>
+          <h1>{{ $t('ui.folderMerge') }}</h1>
         </div>
-        <div>
-          <strong>{{ summary.automatic }}</strong>
-          <span>{{ $t('ui.automatic') }}</span>
-        </div>
-        <div>
-          <strong>{{ summary.conflicts }}</strong>
-          <span>{{ $t('ui.conflicts') }}</span>
+        <section
+          class="merge-summary"
+          data-testid="folder-merge-summary"
+        >
+          <div>
+            <strong>{{ summary.actions }}</strong>
+            <span>{{ $t('ui.actions') }}</span>
+          </div>
+          <div>
+            <strong>{{ summary.automatic }}</strong>
+            <span>{{ $t('ui.automatic') }}</span>
+          </div>
+          <div>
+            <strong>{{ summary.conflicts }}</strong>
+            <span>{{ $t('ui.conflicts') }}</span>
+          </div>
+        </section>
+      </header>
+
+      <section class="merge-paths">
+        <label>
+          <span>{{ $t('ui.leftFolder') }}</span>
+          <input
+            v-model="leftPath"
+            data-testid="folder-merge-left-path"
+          />
+        </label>
+        <label>
+          <span>{{ $t('ui.baseFolder') }}</span>
+          <input
+            v-model="basePath"
+            data-testid="folder-merge-base-path"
+          />
+        </label>
+        <label>
+          <span>{{ $t('ui.rightFolder') }}</span>
+          <input
+            v-model="rightPath"
+            data-testid="folder-merge-right-path"
+          />
+        </label>
+        <label>
+          <span>{{ $t('ui.outputFolder') }}</span>
+          <input
+            v-model="outputPath"
+            data-testid="folder-merge-output-path"
+          />
+        </label>
+        <div class="merge-actions">
+          <NButton
+            size="small"
+            type="primary"
+            data-testid="folder-merge-build-plan"
+            @click="buildFolderMergePlan"
+            >{{ $t('ui.buildPlan') }}</NButton
+          >
+          <NButton
+            size="small"
+            secondary
+            data-testid="folder-merge-execute-plan"
+            :disabled="!hasPlan || mergeExecuting"
+            :loading="mergeExecuting"
+            @click="runFolderMerge"
+            >{{ $t('ui.merge') }} -> {{ $t('ui.output') }}</NButton
+          >
         </div>
       </section>
-    </header>
 
-    <section class="merge-paths">
-      <label>
-        <span>{{ $t('ui.leftFolder') }}</span>
-        <input
-          v-model="leftPath"
-          data-testid="folder-merge-left-path"
-        />
-      </label>
-      <label>
-        <span>{{ $t('ui.baseFolder') }}</span>
-        <input
-          v-model="basePath"
-          data-testid="folder-merge-base-path"
-        />
-      </label>
-      <label>
-        <span>{{ $t('ui.rightFolder') }}</span>
-        <input
-          v-model="rightPath"
-          data-testid="folder-merge-right-path"
-        />
-      </label>
-      <label>
-        <span>{{ $t('ui.outputFolder') }}</span>
-        <input
-          v-model="outputPath"
-          data-testid="folder-merge-output-path"
-        />
-      </label>
-      <div class="merge-actions">
-        <NButton
-          size="small"
-          type="primary"
-          data-testid="folder-merge-build-plan"
-          @click="buildFolderMergePlan"
-          >{{ $t('ui.buildPlan') }}</NButton
-        >
-      </div>
-    </section>
+      <section
+        v-if="lastOpenedConflictPath"
+        class="merge-open-status"
+        data-testid="folder-merge-open-status"
+      >
+        {{
+          $t('status.openingTextMergeRouteFor', {
+            path: lastOpenedConflictPath,
+            route: '/merge/text',
+          })
+        }}
+      </section>
 
-    <section
-      v-if="lastOpenedConflictPath"
-      class="merge-open-status"
-      data-testid="folder-merge-open-status"
-    >
-      Opening Text Merge for {{ lastOpenedConflictPath }} -> /merge/text
-    </section>
+      <section
+        v-if="mergeExecutionError"
+        class="merge-open-status"
+        data-testid="folder-merge-execution-error"
+      >
+        {{ mergeExecutionError }}
+      </section>
 
-    <section
-      v-if="hasPlan"
-      class="merge-plan"
-      data-testid="folder-merge-plan"
-    >
-      <header>
-        <strong>{{ $t('ui.mergePlan') }}</strong>
-        <span>{{ outputPath }}</span>
-      </header>
-      <div class="merge-plan-table">
-        <div class="merge-plan-row merge-plan-head">
-          <span>{{ $t('ui.path') }}</span>
-          <span>{{ $t('ui.base') }}</span>
-          <span>{{ $t('ui.left') }}</span>
-          <span>{{ $t('ui.right') }}</span>
-          <span>{{ $t('ui.action') }}</span>
-          <span>{{ $t('ui.detail') }}</span>
-        </div>
-        <div
-          v-for="row in planRows"
-          :key="row.id"
-          class="merge-plan-row"
-          :class="{ conflict: row.action === 'Mark conflict' }"
-          data-testid="folder-merge-row"
-        >
-          <strong>{{ row.path }}</strong>
-          <span>{{ sideLabel(row.base) }}</span>
-          <span>{{ sideLabel(row.left) }}</span>
-          <span>{{ sideLabel(row.right) }}</span>
-          <strong>{{ row.action }}</strong>
-          <span>{{ row.detail }}</span>
-        </div>
-      </div>
-    </section>
+      <section
+        v-if="executionSummary"
+        class="merge-open-status"
+        data-testid="folder-merge-execution-status"
+      >
+        <strong>{{
+          $t('status.completedCount', {
+            count:
+              executionSummary.executed + executionSummary.skipped + executionSummary.conflicts,
+            total: executionSummary.total,
+          })
+        }}</strong>
+        <span>
+          {{ $t('ui.actions') }}: {{ executionSummary.executed }} / {{ $t('ui.conflicts') }}:
+          {{ executionSummary.conflicts }} / {{ $t('ui.errors') }}: {{ executionSummary.failed }}
+        </span>
+      </section>
 
-    <section
-      v-if="conflicts.length > 0"
-      class="conflict-panel"
-      data-testid="folder-merge-conflict-list"
-    >
-      <header>
-        <strong>{{ $t('ui.conflicts') }}</strong>
-        <span>{{ conflicts.length }} item requires review</span>
-      </header>
-      <ul>
-        <li
-          v-for="conflict in conflicts"
-          :key="conflict.path"
-        >
-          <strong>{{ conflict.path }}</strong>
-          <span>{{ conflict.reason }}</span>
-          <span>{{ conflict.baseContext }}</span>
-          <span>{{ conflict.leftContext }}</span>
-          <span>{{ conflict.rightContext }}</span>
-          <NButton
-            size="tiny"
-            secondary
-            :data-testid="`open-folder-conflict-${conflict.path}`"
-            @click="openConflictInTextMerge(conflict)"
-            >{{ $t('ui.openTextMerge') }}</NButton
+      <section
+        v-if="hasPlan"
+        class="merge-plan"
+        data-testid="folder-merge-plan"
+      >
+        <header>
+          <strong>{{ $t('ui.mergePlan') }}</strong>
+          <span>{{ outputPath }}</span>
+        </header>
+        <div class="merge-plan-table">
+          <div class="merge-plan-row merge-plan-head">
+            <span>{{ $t('ui.path') }}</span>
+            <span>{{ $t('ui.base') }}</span>
+            <span>{{ $t('ui.left') }}</span>
+            <span>{{ $t('ui.right') }}</span>
+            <span>{{ $t('ui.action') }}</span>
+            <span>{{ $t('ui.detail') }}</span>
+          </div>
+          <div
+            v-for="row in planRows"
+            :key="row.id"
+            class="merge-plan-row"
+            :class="{ conflict: row.action === 'Mark conflict' }"
+            data-testid="folder-merge-row"
           >
-        </li>
-      </ul>
+            <strong>{{ row.path }}</strong>
+            <span>{{ sideLabel(row.base) }}</span>
+            <span>{{ sideLabel(row.left) }}</span>
+            <span>{{ sideLabel(row.right) }}</span>
+            <strong>{{ folderMergeActionLabel(row.action) }}</strong>
+            <span>{{ row.detail }}</span>
+          </div>
+        </div>
+      </section>
+
+      <section
+        v-if="conflicts.length > 0"
+        class="conflict-panel"
+        data-testid="folder-merge-conflict-list"
+      >
+        <header>
+          <strong>{{ $t('ui.conflicts') }}</strong>
+          <span>{{
+            $t(
+              conflicts.length === 1
+                ? 'status.itemRequiresReview'
+                : 'status.itemRequiresReviewPlural',
+              { count: conflicts.length },
+            )
+          }}</span>
+        </header>
+        <ul>
+          <li
+            v-for="conflict in conflicts"
+            :key="conflict.path"
+          >
+            <strong>{{ conflict.path }}</strong>
+            <span>{{ conflict.reason }}</span>
+            <span>{{ conflict.baseContext }}</span>
+            <span>{{ conflict.leftContext }}</span>
+            <span>{{ conflict.rightContext }}</span>
+            <NButton
+              size="tiny"
+              secondary
+              :data-testid="`open-folder-conflict-${conflict.path}`"
+              @click="openConflictInTextMerge(conflict)"
+              >{{ $t('ui.openTextMerge') }}</NButton
+            >
+          </li>
+        </ul>
+      </section>
     </section>
-  </section>
+
+    <template #inspector>
+      <WorkbenchInspector>
+        <section class="workbench-inspector-section">
+          <h2>{{ $t('ui.mergePlan') }}</h2>
+          <dl>
+            <div>
+              <dt>{{ $t('ui.actions') }}</dt>
+              <dd>{{ summary.actions }}</dd>
+            </div>
+            <div>
+              <dt>{{ $t('ui.automatic') }}</dt>
+              <dd data-tone="added">{{ summary.automatic }}</dd>
+            </div>
+            <div>
+              <dt>{{ $t('ui.conflicts') }}</dt>
+              <dd data-tone="conflict">{{ summary.conflicts }}</dd>
+            </div>
+            <div>
+              <dt>{{ $t('ui.outputFolder') }}</dt>
+              <dd>{{ outputPath }}</dd>
+            </div>
+          </dl>
+        </section>
+      </WorkbenchInspector>
+    </template>
+  </WorkbenchShell>
 </template>
 <style scoped>
 .folder-merge-view {

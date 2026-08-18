@@ -1,9 +1,11 @@
-import { mount, type VueWrapper } from '@vue/test-utils'
+import { mount, flushPromises, type VueWrapper } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { defineComponent } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import TextCompareView from './TextCompareView.vue'
-import { diffText } from '@/api/diff'
+import { diffText, readTextFile } from '@/api/diff'
+import { createAppI18n, installI18n } from '@/i18n'
+import { useSessionLaunchStore } from '@/stores/sessionLaunch'
 import { useStatusBarStore } from '@/stores/statusBar'
 import type { TextDiffRequest } from '@/types/diff'
 
@@ -12,6 +14,15 @@ vi.mock('@/api/diff', () => ({
     lines: [],
     stats: { added: 0, deleted: 0, modified: 0, equal: 0 },
   }),
+  readTextFile: vi.fn().mockImplementation((path: string) =>
+    Promise.resolve({
+      path,
+      text: path.includes('left') ? 'left from file' : 'right from file',
+      encoding: 'UTF-8',
+      lineEnding: 'LF',
+      fileStamp: { size: 12, modifiedAtMs: 1 },
+    }),
+  ),
 }))
 
 const NInputStub = defineComponent({
@@ -45,6 +56,13 @@ const TextDiffPanelStub = {
 function mountTextCompareView(): VueWrapper {
   return mount(TextCompareView, {
     global: {
+      plugins: [
+        {
+          install(app) {
+            installI18n(app, createAppI18n('en-US'))
+          },
+        },
+      ],
       stubs: {
         NButton: {
           props: ['loading'],
@@ -65,6 +83,7 @@ describe('TextCompareView', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.mocked(diffText).mockClear()
+    vi.mocked(readTextFile).mockClear()
   })
 
   it('passes the selected algorithm when running a diff', async () => {
@@ -78,6 +97,32 @@ describe('TextCompareView', () => {
         algorithm: 'histogram',
       }),
     )
+  })
+
+  it('renders the dual diff workspace without requiring a manual sample run', async () => {
+    vi.mocked(diffText).mockResolvedValueOnce({
+      lines: [
+        {
+          leftNumber: 1,
+          rightNumber: 1,
+          leftText: 'line one',
+          rightText: 'line one',
+          kind: 'equal',
+          inlineSegments: { left: [], right: [] },
+        },
+      ],
+      stats: { added: 0, deleted: 0, modified: 0, equal: 1 },
+    })
+
+    const wrapper = mountTextCompareView()
+
+    await wrapper.vm.$nextTick()
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('[data-testid="text-workbench"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="text-diff-panel-stub"]').exists()).toBe(true)
+    expect(wrapper.find('.empty').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('Run the sample comparison')
   })
 
   it('shows detected line endings for the current text inputs', async () => {
@@ -98,8 +143,8 @@ describe('TextCompareView', () => {
 
     expect(statusBar.report).toEqual(
       expect.objectContaining({
-        comparisonStatus: 'Editing',
-        differenceCount: null,
+        comparisonStatus: 'Compared',
+        differenceCount: 2,
         encoding: 'UTF-8 | Left: LF | Right: LF',
         filterStatus: 'All rows',
         source: 'text-compare',
@@ -432,5 +477,35 @@ describe('TextCompareView', () => {
     expect(
       wrapper.find('[data-testid="text-diff-panel-stub"]').attributes('data-grammar-items'),
     ).toBe('2')
+  })
+
+  it('loads dropped text file paths from a launch payload and runs the diff', async () => {
+    useSessionLaunchStore().setPendingLaunch({
+      id: 'launch-text',
+      source: 'drop',
+      sessionType: 'text-compare',
+      title: 'left.txt vs right.txt',
+      route: '/compare/text',
+      autoRun: true,
+      locations: {
+        left: { uri: 'C:/work/left.txt', kind: 'file', readOnly: false },
+        right: { uri: 'C:/work/right.txt', kind: 'file', readOnly: false },
+      },
+    })
+
+    const wrapper = mountTextCompareView()
+
+    await flushPromises()
+
+    expect(readTextFile).toHaveBeenCalledWith('C:/work/left.txt')
+    expect(readTextFile).toHaveBeenCalledWith('C:/work/right.txt')
+    expect(diffText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        left: 'left from file',
+        right: 'right from file',
+      }),
+    )
+    expect(wrapper.find('[data-testid="left-path-label"]').text()).toContain('left.txt')
+    expect(wrapper.find('[data-testid="right-path-label"]').text()).toContain('right.txt')
   })
 })

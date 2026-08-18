@@ -7,9 +7,15 @@ import { useSettingsStore } from '@/stores/settings'
 import { useStatusBarStore } from '@/stores/statusBar'
 
 const push = vi.fn()
+let routePath = '/compare/text'
 
 vi.mock('vue-router', () => ({
   RouterView: { template: '<div />' },
+  useRoute: () => ({
+    get path() {
+      return routePath
+    },
+  }),
   useRouter: () => ({ push }),
 }))
 
@@ -17,6 +23,7 @@ describe('AppLayout command palette', () => {
   beforeEach(() => {
     localStorage.clear()
     setActivePinia(createPinia())
+    routePath = '/compare/text'
     push.mockClear()
   })
 
@@ -30,10 +37,25 @@ describe('AppLayout command palette', () => {
     expect(push).toHaveBeenCalledWith('/compare/text')
   })
 
-  it('opens folder compare from the toolbar', async () => {
+  it('renders only global chrome outside routed workbench content', () => {
     const wrapper = mountAppLayout()
 
-    await wrapper.find('[data-testid="toolbar-command-open.folderCompare"]').trigger('click')
+    expect(wrapper.find('.menu-bar').exists()).toBe(true)
+    expect(wrapper.find('.sidebar').exists()).toBe(true)
+    expect(wrapper.find('.status-bar').exists()).toBe(true)
+    expect(wrapper.find('.command-bar').exists()).toBe(false)
+    expect(wrapper.find('.pathbar').exists()).toBe(false)
+    expect(wrapper.find('.page-head').exists()).toBe(false)
+    expect(wrapper.find('.inspector').exists()).toBe(false)
+  })
+
+  it('opens folder compare from the side navigation', async () => {
+    const wrapper = mountAppLayout()
+
+    await wrapper
+      .findAll('.nav-item')
+      .find((item) => item.text().includes('Folder Compare'))
+      ?.trigger('click')
 
     expect(push).toHaveBeenCalledWith('/compare/folder')
   })
@@ -46,17 +68,142 @@ describe('AppLayout command palette', () => {
     expect(push).toHaveBeenCalledWith('/settings')
   })
 
+  it('executes menu and toolbar commands through the shared command system', async () => {
+    const wrapper = mountAppLayout()
+
+    await wrapper.find('[data-testid="menu-file"]').trigger('click')
+
+    expect(wrapper.find('[data-testid="menu-panel"]').exists()).toBe(true)
+
+    await wrapper.find('[data-testid="menu-command-open.textPatch"]').trigger('click')
+
+    expect(push).toHaveBeenCalledWith('/patch/text')
+
+    await wrapper.find('[data-testid="toolbar-command-session.save"]').trigger('click')
+
+    expect(wrapper.find('[data-testid="last-view-action"]').text()).toContain('save')
+
+    await wrapper.find('[data-testid="toolbar-command-edit.copyRight"]').trigger('click')
+
+    expect(wrapper.find('[data-testid="last-view-action"]').text()).toContain('copy-right')
+
+    await wrapper.find('[data-testid="view-show-differences"]').trigger('click')
+
+    expect(wrapper.find('[data-testid="last-view-action"]').text()).toContain('show-differences')
+  })
+
+  it('shows the commands that belong to the selected application menu', async () => {
+    const wrapper = mountAppLayout()
+
+    await wrapper.find('[data-testid="menu-file"]').trigger('click')
+
+    expect(
+      wrapper.find('[data-testid="menu-file-group"] [data-testid="menu-panel"]').exists(),
+    ).toBe(true)
+    expect(wrapper.find('[data-testid="menu-command-open.textCompare"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="menu-command-edit.copyLeft"]').exists()).toBe(false)
+
+    await wrapper.find('[data-testid="menu-edit"]').trigger('click')
+
+    expect(
+      wrapper.find('[data-testid="menu-edit-group"] [data-testid="menu-panel"]').exists(),
+    ).toBe(true)
+    expect(wrapper.find('[data-testid="menu-command-edit.copyLeft"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="menu-command-open.textCompare"]').exists()).toBe(false)
+
+    await wrapper.find('[data-testid="menu-view"]').trigger('click')
+
+    expect(
+      wrapper.find('[data-testid="menu-view-group"] [data-testid="menu-panel"]').exists(),
+    ).toBe(true)
+    expect(wrapper.find('[data-testid="menu-command-view.showDifferences"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="menu-command-edit.copyLeft"]').exists()).toBe(false)
+  })
+
+  it('closes an open application menu when clicking outside it', async () => {
+    const wrapper = mountAppLayout()
+
+    await wrapper.find('[data-testid="menu-file"]').trigger('click')
+
+    expect(wrapper.find('[data-testid="menu-panel"]').exists()).toBe(true)
+
+    await wrapper.find('.desktop').trigger('click')
+
+    expect(wrapper.find('[data-testid="menu-panel"]').exists()).toBe(false)
+  })
+
+  it('prompts before closing a dirty tab and closes after confirmation', async () => {
+    const wrapper = mountAppLayout()
+
+    await wrapper.find('[data-testid="open-command-palette"]').trigger('click')
+    await wrapper.find('[data-testid="command-search"]').setValue('text')
+    await wrapper.find('[data-command-id="open.textCompare"]').trigger('click')
+
+    const closeButton = wrapper
+      .findAll('button')
+      .find((button) => button.attributes('data-testid')?.startsWith('close-tab-'))
+
+    if (!closeButton) {
+      throw new Error('Expected close tab button.')
+    }
+
+    await wrapper.find('[data-testid="toolbar-command-session.save"]').trigger('click')
+    await closeButton.trigger('click')
+
+    expect(wrapper.find('[data-testid="close-dirty-tab-prompt"]').exists()).toBe(true)
+
+    await wrapper.find('[data-testid="confirm-close-dirty-tab"]').trigger('click')
+
+    expect(wrapper.find('[data-testid="close-dirty-tab-prompt"]').exists()).toBe(false)
+  })
+
   it('executes theme toggle command', async () => {
     const wrapper = mountAppLayout()
     const settings = useSettingsStore()
 
-    expect(settings.theme).toBe('dark')
+    expect(settings.theme).toBe('light')
 
     await wrapper.find('[data-testid="open-command-palette"]').trigger('click')
     await wrapper.find('[data-testid="command-search"]').setValue('theme')
     await wrapper.find('[data-command-id="theme.toggle"]').trigger('click')
 
-    expect(settings.theme).toBe('light')
+    expect(settings.theme).toBe('dark')
+  })
+
+  it('opens a language menu and applies the selected locale', async () => {
+    const wrapper = mountAppLayout()
+    const settings = useSettingsStore()
+
+    await wrapper.find('[data-testid="language-menu-trigger"]').trigger('click')
+
+    expect(wrapper.find('[data-testid="language-menu"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="language-menu"]').text()).not.toContain('zh-CN')
+
+    await wrapper.find('[data-testid="language-option-zh-CN"]').trigger('click')
+
+    expect(settings.locale).toBe('zh-CN')
+    expect(wrapper.find('[data-testid="language-menu"]').exists()).toBe(false)
+    expect(wrapper.text()).toContain('文件')
+  })
+
+  it('localizes side navigation and existing tab titles when the locale changes', async () => {
+    const wrapper = mountAppLayout()
+
+    await wrapper.find('[data-testid="menu-file"]').trigger('click')
+    await wrapper.find('[data-testid="menu-command-open.textCompare"]').trigger('click')
+
+    expect(wrapper.find('[data-testid="tab-strip"]').text()).toContain('Text Compare')
+    expect(wrapper.find('.session-nav').text()).toContain('Folder Compare')
+
+    await wrapper.find('[data-testid="language-menu-trigger"]').trigger('click')
+    await wrapper.find('[data-testid="language-option-zh-CN"]').trigger('click')
+
+    expect(wrapper.find('[data-testid="tab-strip"]').text()).toContain('文本比较')
+    expect(wrapper.find('[data-testid="tab-strip"]').text()).not.toContain('Text Compare')
+    expect(wrapper.find('.session-nav').text()).toContain('文件夹比较')
+    expect(wrapper.find('.session-nav').text()).not.toContain('Folder Compare')
+    expect(wrapper.find('[data-testid="status-bar"]').text()).toContain('就绪')
+    expect(wrapper.find('[data-testid="status-bar"]').text()).toContain('差异: -')
   })
 
   it('renders status bar segments from the shared status protocol', async () => {

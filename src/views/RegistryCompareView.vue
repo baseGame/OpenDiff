@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { compareRegistryExports } from '@/api/diff'
+import { computed, onMounted, ref } from 'vue'
+import { compareRegistryExports, readTextFile } from '@/api/diff'
 import type {
   RegistryCompareResponse,
   RegistryDiffStatus,
@@ -8,6 +8,10 @@ import type {
   RegistryValueRow,
   RegistryValueSide,
 } from '@/types/diff'
+import WorkbenchShell from '@/components/workbench/WorkbenchShell.vue'
+import WorkbenchInspector from '@/components/workbench/WorkbenchInspector.vue'
+import { useSessionLaunchStore } from '@/stores/sessionLaunch'
+import { useI18n } from '@/i18n'
 
 interface FlatRegistryKeyNode extends RegistryKeyNode {
   depth: number
@@ -102,6 +106,8 @@ const defaultRightExport = `Windows Registry Editor Version 5.00
 `
 const leftExport = ref(defaultLeftExport)
 const rightExport = ref(defaultRightExport)
+const sessionLaunch = useSessionLaunchStore()
+const { t } = useI18n()
 const leftName = ref('left.reg')
 const rightName = ref('right.reg')
 const registryTree = ref<RegistryKeyNode[]>(defaultRegistryTree)
@@ -110,6 +116,26 @@ const registrySummaryOverride = ref<Record<RegistryDiffStatus, number> | null>(
 )
 const loading = ref(false)
 const error = ref('')
+
+onMounted(() => {
+  const launch = sessionLaunch.consumeLaunch('/compare/registry')
+
+  if (!launch) {
+    return
+  }
+
+  if (launch.locations.left?.displayName) {
+    leftName.value = launch.locations.left.displayName
+  }
+
+  if (launch.locations.right?.displayName) {
+    rightName.value = launch.locations.right.displayName
+  }
+
+  if (launch.autoRun && launch.locations.left?.uri && launch.locations.right?.uri) {
+    void loadLaunchRegistryExports(launch.locations.left.uri, launch.locations.right.uri)
+  }
+})
 const flatRegistryKeys = computed<FlatRegistryKeyNode[]>(() =>
   flattenRegistryKeys(registryTree.value),
 )
@@ -144,13 +170,13 @@ function flattenRegistryKeys(nodes: RegistryKeyNode[], depth = 0): FlatRegistryK
 
 function statusLabel(status: RegistryDiffStatus): string {
   const labels: Record<RegistryDiffStatus, string> = {
-    added: 'Added',
-    removed: 'Removed',
-    modified: 'Modified',
-    unchanged: 'Unchanged',
+    added: 'ui.added',
+    removed: 'ui.removed',
+    modified: 'ui.modified',
+    unchanged: 'ui.unchanged',
   }
 
-  return labels[status]
+  return t(labels[status])
 }
 
 function registryValueText(value?: RegistryValueSide): string {
@@ -186,121 +212,179 @@ async function runRegistryCompare(): Promise<void> {
     loading.value = false
   }
 }
+
+async function loadLaunchRegistryExports(leftPath: string, rightPath: string): Promise<void> {
+  loading.value = true
+  error.value = ''
+
+  try {
+    const [leftFile, rightFile] = await Promise.all([
+      readTextFile(leftPath),
+      readTextFile(rightPath),
+    ])
+
+    leftExport.value = leftFile.text
+    rightExport.value = rightFile.text
+    leftName.value = fileNameFromPath(leftFile.path)
+    rightName.value = fileNameFromPath(rightFile.path)
+    await runRegistryCompare()
+  } catch (event) {
+    error.value = String(event)
+    loading.value = false
+  }
+}
+
+function fileNameFromPath(path: string): string {
+  return path.replaceAll('\\', '/').split('/').filter(Boolean).at(-1) ?? path
+}
 </script>
 
 <template>
-  <section class="registry-compare-view">
-    <header class="registry-header">
-      <div>
-        <p class="eyebrow">{{ $t('ui.registryCompare') }}</p>
-        <h1>{{ $t('ui.registryCompare') }}</h1>
-      </div>
-      <div class="registry-source-pair">
-        <span>{{ leftName }}</span>
-        <span>{{ rightName }}</span>
-      </div>
-    </header>
-
-    <section class="registry-input-panel">
-      <label>
-        <span>{{ $t('ui.leftCurrentExport') }}</span>
-        <textarea
-          v-model="leftExport"
-          data-testid="registry-left-export"
-        />
-      </label>
-      <label>
-        <span>{{ $t('ui.rightUpdatedExport') }}</span>
-        <textarea
-          v-model="rightExport"
-          data-testid="registry-right-export"
-        />
-      </label>
-      <button
-        type="button"
-        data-testid="run-registry-compare"
-        :disabled="loading"
-        @click="runRegistryCompare"
-      >
-        {{ $t('ui.runDiff') }}
-      </button>
-    </section>
-
-    <p
-      v-if="error"
-      class="registry-error"
-      data-testid="registry-compare-error"
-    >
-      {{ error }}
-    </p>
-
-    <section class="registry-summary-grid">
-      <article
-        v-for="status in registryStatuses"
-        :key="status"
-        class="registry-summary-item"
-        :class="`status-${status}`"
-      >
-        <strong :data-testid="`registry-summary-${status}`">
-          {{ registrySummary[status] }}
-        </strong>
-        <span>{{ statusLabel(status) }}</span>
-      </article>
-    </section>
-
-    <section class="registry-layout">
-      <aside class="registry-key-pane">
-        <header>
-          <strong>{{ $t('ui.keys') }}</strong>
-          <span>{{ flatRegistryKeys.length }} keys</span>
-        </header>
-        <div class="registry-key-list">
-          <button
-            v-for="key in flatRegistryKeys"
-            :key="key.path"
-            type="button"
-            class="registry-key-row"
-            :class="`status-${key.status}`"
-            :style="{ paddingLeft: `${10 + key.depth * 18}px` }"
-            :data-testid="`registry-key-${key.path}`"
-          >
-            <span>{{ key.label }}</span>
-            <small>{{ key.path }}</small>
-            <strong>{{ statusLabel(key.status) }}</strong>
-          </button>
+  <WorkbenchShell
+    :title="$t('ui.registryCompare')"
+    :eyebrow="$t('ui.registry')"
+    :subtitle="`${leftName} -> ${rightName}`"
+    :inspector-label="$t('ui.registryCompareInspector')"
+  >
+    <section class="registry-compare-view">
+      <header class="registry-header">
+        <div>
+          <p class="eyebrow">{{ $t('ui.registryCompare') }}</p>
+          <h1>{{ $t('ui.registryCompare') }}</h1>
         </div>
-      </aside>
-
-      <section class="registry-value-pane">
-        <header>
-          <strong>{{ $t('ui.values') }}</strong>
-          <span>{{ allRegistryValues.length }} values</span>
-        </header>
-        <div class="registry-value-table">
-          <div class="registry-value-row registry-value-head">
-            <span>{{ $t('ui.key') }}</span>
-            <span>{{ $t('ui.name') }}</span>
-            <span>{{ $t('ui.left') }}</span>
-            <span>{{ $t('ui.right') }}</span>
-            <span>{{ $t('ui.status') }}</span>
-          </div>
-          <div
-            v-for="value in allRegistryValues"
-            :key="`${value.keyPath}::${value.name}`"
-            class="registry-value-row"
-            :class="`status-${value.status}`"
-            :data-testid="`registry-value-${value.keyPath}::${value.name}`"
-          >
-            <span>{{ value.keyPath }}</span>
-            <strong>{{ value.name }}</strong>
-            <code>{{ registryValueText(value.left) }}</code>
-            <code>{{ registryValueText(value.right) }}</code>
-            <em>{{ statusLabel(value.status) }}</em>
-          </div>
+        <div class="registry-source-pair">
+          <span>{{ leftName }}</span>
+          <span>{{ rightName }}</span>
         </div>
+      </header>
+
+      <section class="registry-input-panel">
+        <label>
+          <span>{{ $t('ui.leftCurrentExport') }}</span>
+          <textarea
+            v-model="leftExport"
+            data-testid="registry-left-export"
+          />
+        </label>
+        <label>
+          <span>{{ $t('ui.rightUpdatedExport') }}</span>
+          <textarea
+            v-model="rightExport"
+            data-testid="registry-right-export"
+          />
+        </label>
+        <button
+          type="button"
+          data-testid="run-registry-compare"
+          :disabled="loading"
+          @click="runRegistryCompare"
+        >
+          {{ $t('ui.runDiff') }}
+        </button>
+      </section>
+
+      <p
+        v-if="error"
+        class="registry-error"
+        data-testid="registry-compare-error"
+      >
+        {{ error }}
+      </p>
+
+      <section class="registry-summary-grid">
+        <article
+          v-for="status in registryStatuses"
+          :key="status"
+          class="registry-summary-item"
+          :class="`status-${status}`"
+        >
+          <strong :data-testid="`registry-summary-${status}`">
+            {{ registrySummary[status] }}
+          </strong>
+          <span>{{ statusLabel(status) }}</span>
+        </article>
+      </section>
+
+      <section class="registry-layout">
+        <aside class="registry-key-pane">
+          <header>
+            <strong>{{ $t('ui.keys') }}</strong>
+            <span>{{ $t('status.keyCount', { count: flatRegistryKeys.length }) }}</span>
+          </header>
+          <div class="registry-key-list">
+            <button
+              v-for="key in flatRegistryKeys"
+              :key="key.path"
+              type="button"
+              class="registry-key-row"
+              :class="`status-${key.status}`"
+              :style="{ paddingLeft: `${10 + key.depth * 18}px` }"
+              :data-testid="`registry-key-${key.path}`"
+            >
+              <span>{{ key.label }}</span>
+              <small>{{ key.path }}</small>
+              <strong>{{ statusLabel(key.status) }}</strong>
+            </button>
+          </div>
+        </aside>
+
+        <section class="registry-value-pane">
+          <header>
+            <strong>{{ $t('ui.values') }}</strong>
+            <span>{{ $t('status.valueCount', { count: allRegistryValues.length }) }}</span>
+          </header>
+          <div class="registry-value-table">
+            <div class="registry-value-row registry-value-head">
+              <span>{{ $t('ui.key') }}</span>
+              <span>{{ $t('ui.name') }}</span>
+              <span>{{ $t('ui.left') }}</span>
+              <span>{{ $t('ui.right') }}</span>
+              <span>{{ $t('ui.status') }}</span>
+            </div>
+            <div
+              v-for="value in allRegistryValues"
+              :key="`${value.keyPath}::${value.name}`"
+              class="registry-value-row"
+              :class="`status-${value.status}`"
+              :data-testid="`registry-value-${value.keyPath}::${value.name}`"
+            >
+              <span>{{ value.keyPath }}</span>
+              <strong>{{ value.name }}</strong>
+              <code>{{ registryValueText(value.left) }}</code>
+              <code>{{ registryValueText(value.right) }}</code>
+              <em>{{ statusLabel(value.status) }}</em>
+            </div>
+          </div>
+        </section>
       </section>
     </section>
-  </section>
+
+    <template #inspector>
+      <WorkbenchInspector>
+        <section class="workbench-inspector-section">
+          <h2>{{ $t('ui.values') }}</h2>
+          <dl>
+            <div>
+              <dt>{{ $t('ui.add') }}</dt>
+              <dd data-tone="added">{{ registrySummary.added }}</dd>
+            </div>
+            <div>
+              <dt>{{ $t('ui.delete') }}</dt>
+              <dd data-tone="deleted">{{ registrySummary.removed }}</dd>
+            </div>
+            <div>
+              <dt>{{ $t('ui.modified') }}</dt>
+              <dd data-tone="modified">{{ registrySummary.modified }}</dd>
+            </div>
+            <div>
+              <dt>{{ $t('ui.keys') }}</dt>
+              <dd>{{ flatRegistryKeys.length }}</dd>
+            </div>
+          </dl>
+        </section>
+      </WorkbenchInspector>
+    </template>
+  </WorkbenchShell>
 </template>
 <style scoped>
 .registry-compare-view {

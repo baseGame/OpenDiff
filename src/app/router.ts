@@ -4,6 +4,7 @@ import ClipboardCompareView from '@/views/ClipboardCompareView.vue'
 import TextCompareView from '@/views/TextCompareView.vue'
 import TextEditView from '@/views/TextEditView.vue'
 import TextMergeView from '@/views/TextMergeView.vue'
+import TextPatchView from '@/views/TextPatchView.vue'
 import FolderCompareView from '@/views/FolderCompareView.vue'
 import FolderMergeView from '@/views/FolderMergeView.vue'
 import FolderSyncView from '@/views/FolderSyncView.vue'
@@ -16,6 +17,7 @@ import VersionCompareView from '@/views/VersionCompareView.vue'
 import SettingsView from '@/views/SettingsView.vue'
 import FileFormatView from '@/views/FileFormatView.vue'
 import RemoteProfileView from '@/views/RemoteProfileView.vue'
+import ReportsScriptView from '@/views/reports/ReportsScriptView.vue'
 
 export const router = createRouter({
   history: createWebHistory(),
@@ -24,6 +26,7 @@ export const router = createRouter({
     { path: '/compare/clipboard', name: 'clipboard-compare', component: ClipboardCompareView },
     { path: '/compare/text', name: 'text-compare', component: TextCompareView },
     { path: '/edit/text', name: 'text-edit', component: TextEditView },
+    { path: '/patch/text', name: 'text-patch', component: TextPatchView },
     { path: '/merge/text', name: 'text-merge', component: TextMergeView },
     { path: '/compare/folder', name: 'folder-compare', component: FolderCompareView },
     { path: '/merge/folder', name: 'folder-merge', component: FolderMergeView },
@@ -37,5 +40,6 @@ export const router = createRouter({
     { path: '/settings', name: 'settings', component: SettingsView },
     { path: '/settings/file-formats', name: 'file-formats', component: FileFormatView },
     { path: '/settings/remote-profiles', name: 'remote-profiles', component: RemoteProfileView },
+    { path: '/reports/scripts', name: 'reports-scripts', component: ReportsScriptView },
   ],
 })

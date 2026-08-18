@@ -1,7 +1,12 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { comparePictureFiles } from '@/api/diff'
 import type { PictureCompareResponse, PictureMetadataRow } from '@/types/diff'
+import WorkbenchShell from '@/components/workbench/WorkbenchShell.vue'
+import WorkbenchInspector from '@/components/workbench/WorkbenchInspector.vue'
+import StatusSummaryGrid from '@/components/workbench/StatusSummaryGrid.vue'
+import { useSessionLaunchStore } from '@/stores/sessionLaunch'
+import { useI18n } from '@/i18n'
 
 const zoom = ref(100)
 const panX = ref(0)
@@ -18,24 +23,25 @@ const pixelPreview = ref<{
   y: number
   color: string
 } | null>(null)
+const { t } = useI18n()
 const defaultMetadataRows: PictureMetadataRow[] = [
   {
     key: 'dimensions',
-    label: 'Dimensions',
+    label: 'ui.dimensions',
     left: '1024 x 768',
     right: '1024 x 760',
     status: 'different',
   },
   {
     key: 'format',
-    label: 'Format',
+    label: 'ui.format',
     left: 'PNG',
     right: 'PNG',
     status: 'equal',
   },
   {
     key: 'color-depth',
-    label: 'Color Depth',
+    label: 'ui.colorDepth',
     left: '24-bit',
     right: '32-bit',
     status: 'different',
@@ -50,6 +56,7 @@ const defaultMetadataRows: PictureMetadataRow[] = [
 ] as const
 const leftPath = ref('C:/images/left.png')
 const rightPath = ref('C:/images/right.png')
+const sessionLaunch = useSessionLaunchStore()
 const leftPictureName = ref('left.png')
 const rightPictureName = ref('right.png')
 const loading = ref(false)
@@ -65,6 +72,21 @@ const pictureStatistics = ref<PictureCompareResponse['statistics']>({
     width: 210,
     height: 166,
   },
+})
+
+onMounted(() => {
+  const launch = sessionLaunch.consumeLaunch('/compare/picture')
+
+  if (!launch) {
+    return
+  }
+
+  leftPath.value = launch.locations.left?.uri ?? leftPath.value
+  rightPath.value = launch.locations.right?.uri ?? rightPath.value
+
+  if (launch.autoRun && launch.locations.left?.uri && launch.locations.right?.uri) {
+    void runPictureCompare()
+  }
 })
 
 const sharedTransformParts = computed(() => [
@@ -108,6 +130,10 @@ const pictureBoundingRectText = computed(() => {
 
 function rotatePicture(delta: number): void {
   rotationDeg.value = (rotationDeg.value + delta + 360) % 360
+}
+
+function metadataLabel(row: PictureMetadataRow): string {
+  return row.label.startsWith('ui.') ? t(row.label) : row.label
 }
 
 function buildPreviewColor(side: 'Left' | 'Right', x: number, y: number): string {
@@ -156,286 +182,342 @@ async function runPictureCompare(): Promise<void> {
 </script>
 
 <template>
-  <section class="picture-compare-view">
-    <header class="picture-header">
-      <div>
-        <p class="eyebrow">{{ $t('ui.pictureCompare') }}</p>
-        <h1>{{ $t('ui.pictureCompare') }}</h1>
-      </div>
-      <div class="picture-summary">
-        <strong data-testid="picture-zoom-value">{{ zoom }}%</strong>
-        <span>{{ $t('ui.sharedZoom') }}</span>
-      </div>
-    </header>
-
-    <section class="picture-path-panel">
-      <label>
-        <span>{{ $t('ui.left') }} {{ $t('ui.path') }}</span>
-        <input
-          v-model="leftPath"
-          type="text"
-          data-testid="picture-left-path"
-        />
-      </label>
-      <label>
-        <span>{{ $t('ui.right') }} {{ $t('ui.path') }}</span>
-        <input
-          v-model="rightPath"
-          type="text"
-          data-testid="picture-right-path"
-        />
-      </label>
-      <button
-        type="button"
-        data-testid="run-picture-compare"
-        :disabled="loading"
-        @click="runPictureCompare"
-      >
-        {{ $t('ui.runDiff') }}
-      </button>
-    </section>
-    <p
-      v-if="error"
-      class="picture-error"
-      data-testid="picture-compare-error"
-    >
-      {{ error }}
-    </p>
-
-    <section class="picture-stat-grid">
-      <article>
-        <span>{{ $t('ui.totalPixels') }}</span>
-        <strong data-testid="picture-total-pixels">{{ pictureStatistics.totalPixels }}</strong>
-      </article>
-      <article>
-        <span>{{ $t('ui.differentPixels') }}</span>
-        <strong data-testid="picture-different-pixels">
-          {{ pictureStatistics.differentPixels }}
-        </strong>
-      </article>
-      <article>
-        <span>{{ $t('ui.differenceRatio') }}</span>
-        <strong data-testid="picture-difference-ratio">{{ pictureDifferenceRatioText }}</strong>
-      </article>
-      <article>
-        <span>{{ $t('ui.boundingRect') }}</span>
-        <strong data-testid="picture-bounding-rect">{{ pictureBoundingRectText }}</strong>
-      </article>
-    </section>
-
-    <section class="picture-controls">
-      <label>
-        <span>{{ $t('ui.zoom') }}</span>
-        <input
-          v-model.number="zoom"
-          type="range"
-          min="50"
-          max="200"
-          step="10"
-          data-testid="picture-zoom-control"
-        />
-      </label>
-      <label>
-        <span>{{ $t('ui.panX') }}</span>
-        <input
-          v-model.number="panX"
-          type="range"
-          min="-80"
-          max="80"
-          step="4"
-          data-testid="picture-pan-x"
-        />
-      </label>
-      <label>
-        <span>{{ $t('ui.panY') }}</span>
-        <input
-          v-model.number="panY"
-          type="range"
-          min="-80"
-          max="80"
-          step="4"
-          data-testid="picture-pan-y"
-        />
-      </label>
-      <label class="picture-toggle">
-        <input
-          v-model="showOverlay"
-          type="checkbox"
-          data-testid="picture-overlay-toggle"
-        />
-        <span>{{ $t('ui.overlay') }}</span>
-      </label>
-      <div class="picture-transform-tools">
-        <button
-          type="button"
-          data-testid="picture-rotate-counterclockwise"
-          @click="rotatePicture(-90)"
-        >
-          {{ $t('ui.rotateLeft') }}
-        </button>
-        <button
-          type="button"
-          data-testid="picture-rotate-clockwise"
-          @click="rotatePicture(90)"
-        >
-          {{ $t('ui.rotateRight') }}
-        </button>
-        <button
-          type="button"
-          data-testid="picture-flip-horizontal"
-          @click="flipHorizontal = !flipHorizontal"
-        >
-          {{ $t('ui.flipH') }}
-        </button>
-        <button
-          type="button"
-          data-testid="picture-flip-vertical"
-          @click="flipVertical = !flipVertical"
-        >
-          {{ $t('ui.flipV') }}
-        </button>
-      </div>
-      <div class="picture-alignment-controls">
-        <label>
-          <span>{{ $t('ui.offsetX') }}</span>
-          <input
-            v-model.number="alignmentOffsetX"
-            type="number"
-            min="-200"
-            max="200"
-            step="1"
-            data-testid="picture-align-x"
-          />
-        </label>
-        <label>
-          <span>{{ $t('ui.offsetY') }}</span>
-          <input
-            v-model.number="alignmentOffsetY"
-            type="number"
-            min="-200"
-            max="200"
-            step="1"
-            data-testid="picture-align-y"
-          />
-        </label>
-      </div>
-      <div
-        class="picture-pixel-preview"
-        data-testid="picture-pixel-preview"
-      >
-        <span>{{ pixelPreview?.side ?? 'No pixel' }}</span>
-        <strong data-testid="picture-pixel-coordinates">
-          {{ pixelPreview ? `${pixelPreview.x}, ${pixelPreview.y}` : '--, --' }}
-        </strong>
-        <span
-          class="picture-pixel-swatch"
-          :style="{ backgroundColor: pixelPreview?.color ?? 'transparent' }"
-        ></span>
-        <strong data-testid="picture-pixel-color">{{
-          pixelPreview?.color ?? 'rgb(--, --, --)'
-        }}</strong>
-      </div>
-    </section>
-
-    <section class="picture-pane-grid">
-      <section
-        class="picture-side"
-        data-testid="left-picture-pane"
-      >
-        <h2>{{ $t('ui.left') }}: {{ leftPictureName }}</h2>
-        <div
-          class="picture-canvas-frame"
-          data-testid="picture-canvas-frame"
-        >
-          <div
-            class="picture-image left-image"
-            :style="imageStyle"
-            data-testid="left-picture-image"
-            @mousemove="updatePixelPreview('Left', $event)"
-            @mouseleave="pixelPreview = null"
-          >
-            <span class="picture-marker marker-a"></span>
-            <span class="picture-marker marker-b"></span>
-            <span
-              v-if="showOverlay"
-              class="picture-diff-overlay"
-              data-testid="picture-diff-overlay"
-            >
-              <span
-                class="picture-diff-region"
-                data-testid="picture-diff-region"
-              ></span>
-            </span>
-          </div>
+  <WorkbenchShell
+    :title="$t('ui.pictureCompare')"
+    :eyebrow="$t('ui.picture')"
+    :subtitle="pictureDifferenceRatioText"
+    :inspector-label="$t('ui.pictureCompareInspector')"
+  >
+    <section class="picture-compare-view">
+      <header class="picture-header">
+        <div>
+          <p class="eyebrow">{{ $t('ui.pictureCompare') }}</p>
+          <h1>{{ $t('ui.pictureCompare') }}</h1>
         </div>
-      </section>
-
-      <section
-        class="picture-side"
-        data-testid="right-picture-pane"
-      >
-        <h2>{{ $t('ui.right') }}: {{ rightPictureName }}</h2>
-        <div
-          class="picture-canvas-frame"
-          data-testid="picture-canvas-frame"
-        >
-          <div
-            class="picture-image right-image"
-            :style="rightImageStyle"
-            data-testid="right-picture-image"
-            @mousemove="updatePixelPreview('Right', $event)"
-            @mouseleave="pixelPreview = null"
-          >
-            <span class="picture-marker marker-a"></span>
-            <span class="picture-marker marker-b marker-shifted"></span>
-            <span
-              v-if="showOverlay"
-              class="picture-diff-overlay"
-              data-testid="picture-diff-overlay"
-            >
-              <span
-                class="picture-diff-region shifted-region"
-                data-testid="picture-diff-region"
-              ></span>
-            </span>
-          </div>
+        <div class="picture-summary">
+          <strong data-testid="picture-zoom-value">{{ zoom }}%</strong>
+          <span>{{ $t('ui.sharedZoom') }}</span>
         </div>
-      </section>
-    </section>
-
-    <section
-      class="picture-metadata-panel"
-      data-testid="picture-metadata-panel"
-    >
-      <header class="metadata-header">
-        <h2>{{ $t('ui.metadata') }}</h2>
-        <span>{{ $t('ui.leftVsRight') }}</span>
       </header>
-      <div class="metadata-grid">
-        <div class="metadata-grid-heading">{{ $t('ui.field') }}</div>
-        <div class="metadata-grid-heading">{{ $t('ui.left') }}</div>
-        <div class="metadata-grid-heading">{{ $t('ui.right') }}</div>
-        <div class="metadata-grid-heading">{{ $t('ui.state') }}</div>
-        <template
-          v-for="row in metadataRows"
-          :key="row.key"
+
+      <section class="picture-path-panel">
+        <label>
+          <span>{{ $t('ui.left') }} {{ $t('ui.path') }}</span>
+          <input
+            v-model="leftPath"
+            type="text"
+            data-testid="picture-left-path"
+          />
+        </label>
+        <label>
+          <span>{{ $t('ui.right') }} {{ $t('ui.path') }}</span>
+          <input
+            v-model="rightPath"
+            type="text"
+            data-testid="picture-right-path"
+          />
+        </label>
+        <button
+          type="button"
+          data-testid="run-picture-compare"
+          :disabled="loading"
+          @click="runPictureCompare"
         >
-          <div
-            class="metadata-row"
-            :data-testid="`picture-metadata-${row.key}`"
-            :data-metadata-status="row.status"
+          {{ $t('ui.runDiff') }}
+        </button>
+      </section>
+      <p
+        v-if="error"
+        class="picture-error"
+        data-testid="picture-compare-error"
+      >
+        {{ error }}
+      </p>
+
+      <section class="picture-stat-grid">
+        <article>
+          <span>{{ $t('ui.totalPixels') }}</span>
+          <strong data-testid="picture-total-pixels">{{ pictureStatistics.totalPixels }}</strong>
+        </article>
+        <article>
+          <span>{{ $t('ui.differentPixels') }}</span>
+          <strong data-testid="picture-different-pixels">
+            {{ pictureStatistics.differentPixels }}
+          </strong>
+        </article>
+        <article>
+          <span>{{ $t('ui.differenceRatio') }}</span>
+          <strong data-testid="picture-difference-ratio">{{ pictureDifferenceRatioText }}</strong>
+        </article>
+        <article>
+          <span>{{ $t('ui.boundingRect') }}</span>
+          <strong data-testid="picture-bounding-rect">{{ pictureBoundingRectText }}</strong>
+        </article>
+      </section>
+
+      <section class="picture-controls">
+        <label>
+          <span>{{ $t('ui.zoom') }}</span>
+          <input
+            v-model.number="zoom"
+            type="range"
+            min="50"
+            max="200"
+            step="10"
+            data-testid="picture-zoom-control"
+          />
+        </label>
+        <label>
+          <span>{{ $t('ui.panX') }}</span>
+          <input
+            v-model.number="panX"
+            type="range"
+            min="-80"
+            max="80"
+            step="4"
+            data-testid="picture-pan-x"
+          />
+        </label>
+        <label>
+          <span>{{ $t('ui.panY') }}</span>
+          <input
+            v-model.number="panY"
+            type="range"
+            min="-80"
+            max="80"
+            step="4"
+            data-testid="picture-pan-y"
+          />
+        </label>
+        <label class="picture-toggle">
+          <input
+            v-model="showOverlay"
+            type="checkbox"
+            data-testid="picture-overlay-toggle"
+          />
+          <span>{{ $t('ui.overlay') }}</span>
+        </label>
+        <div class="picture-transform-tools">
+          <button
+            type="button"
+            data-testid="picture-rotate-counterclockwise"
+            @click="rotatePicture(-90)"
           >
-            <div class="metadata-cell metadata-label">{{ row.label }}</div>
-            <div class="metadata-cell">{{ row.left }}</div>
-            <div class="metadata-cell">{{ row.right }}</div>
-            <div class="metadata-cell metadata-status">
-              {{ row.status }}
+            {{ $t('ui.rotateLeft') }}
+          </button>
+          <button
+            type="button"
+            data-testid="picture-rotate-clockwise"
+            @click="rotatePicture(90)"
+          >
+            {{ $t('ui.rotateRight') }}
+          </button>
+          <button
+            type="button"
+            data-testid="picture-flip-horizontal"
+            @click="flipHorizontal = !flipHorizontal"
+          >
+            {{ $t('ui.flipH') }}
+          </button>
+          <button
+            type="button"
+            data-testid="picture-flip-vertical"
+            @click="flipVertical = !flipVertical"
+          >
+            {{ $t('ui.flipV') }}
+          </button>
+        </div>
+        <div class="picture-alignment-controls">
+          <label>
+            <span>{{ $t('ui.offsetX') }}</span>
+            <input
+              v-model.number="alignmentOffsetX"
+              type="number"
+              min="-200"
+              max="200"
+              step="1"
+              data-testid="picture-align-x"
+            />
+          </label>
+          <label>
+            <span>{{ $t('ui.offsetY') }}</span>
+            <input
+              v-model.number="alignmentOffsetY"
+              type="number"
+              min="-200"
+              max="200"
+              step="1"
+              data-testid="picture-align-y"
+            />
+          </label>
+        </div>
+        <div
+          class="picture-pixel-preview"
+          data-testid="picture-pixel-preview"
+        >
+          <span>{{ pixelPreview?.side ?? $t('ui.noPixel') }}</span>
+          <strong data-testid="picture-pixel-coordinates">
+            {{ pixelPreview ? `${pixelPreview.x}, ${pixelPreview.y}` : '--, --' }}
+          </strong>
+          <span
+            class="picture-pixel-swatch"
+            :style="{ backgroundColor: pixelPreview?.color ?? 'transparent' }"
+          ></span>
+          <strong data-testid="picture-pixel-color">{{
+            pixelPreview?.color ?? 'rgb(--, --, --)'
+          }}</strong>
+        </div>
+      </section>
+
+      <section class="picture-pane-grid">
+        <section
+          class="picture-side"
+          data-testid="left-picture-pane"
+        >
+          <h2>{{ $t('ui.left') }}: {{ leftPictureName }}</h2>
+          <div
+            class="picture-canvas-frame"
+            data-testid="picture-canvas-frame"
+          >
+            <div
+              class="picture-image left-image"
+              :style="imageStyle"
+              data-testid="left-picture-image"
+              @mousemove="updatePixelPreview('Left', $event)"
+              @mouseleave="pixelPreview = null"
+            >
+              <span class="picture-marker marker-a"></span>
+              <span class="picture-marker marker-b"></span>
+              <span
+                v-if="showOverlay"
+                class="picture-diff-overlay"
+                data-testid="picture-diff-overlay"
+              >
+                <span
+                  class="picture-diff-region"
+                  data-testid="picture-diff-region"
+                ></span>
+              </span>
             </div>
           </div>
-        </template>
-      </div>
+        </section>
+
+        <section
+          class="picture-side"
+          data-testid="right-picture-pane"
+        >
+          <h2>{{ $t('ui.right') }}: {{ rightPictureName }}</h2>
+          <div
+            class="picture-canvas-frame"
+            data-testid="picture-canvas-frame"
+          >
+            <div
+              class="picture-image right-image"
+              :style="rightImageStyle"
+              data-testid="right-picture-image"
+              @mousemove="updatePixelPreview('Right', $event)"
+              @mouseleave="pixelPreview = null"
+            >
+              <span class="picture-marker marker-a"></span>
+              <span class="picture-marker marker-b marker-shifted"></span>
+              <span
+                v-if="showOverlay"
+                class="picture-diff-overlay"
+                data-testid="picture-diff-overlay"
+              >
+                <span
+                  class="picture-diff-region shifted-region"
+                  data-testid="picture-diff-region"
+                ></span>
+              </span>
+            </div>
+          </div>
+        </section>
+      </section>
+
+      <section
+        class="picture-metadata-panel"
+        data-testid="picture-metadata-panel"
+      >
+        <header class="metadata-header">
+          <h2>{{ $t('ui.metadata') }}</h2>
+          <span>{{ $t('ui.leftVsRight') }}</span>
+        </header>
+        <div class="metadata-grid">
+          <div class="metadata-grid-heading">{{ $t('ui.field') }}</div>
+          <div class="metadata-grid-heading">{{ $t('ui.left') }}</div>
+          <div class="metadata-grid-heading">{{ $t('ui.right') }}</div>
+          <div class="metadata-grid-heading">{{ $t('ui.state') }}</div>
+          <template
+            v-for="row in metadataRows"
+            :key="row.key"
+          >
+            <div
+              class="metadata-row"
+              :data-testid="`picture-metadata-${row.key}`"
+              :data-metadata-status="row.status"
+            >
+              <div class="metadata-cell metadata-label">{{ metadataLabel(row) }}</div>
+              <div class="metadata-cell">{{ row.left }}</div>
+              <div class="metadata-cell">{{ row.right }}</div>
+              <div class="metadata-cell metadata-status">
+                {{ row.status }}
+              </div>
+            </div>
+          </template>
+        </div>
+      </section>
     </section>
-  </section>
+
+    <template #inspector>
+      <WorkbenchInspector>
+        <section class="workbench-inspector-section">
+          <h2>{{ $t('ui.overlay') }}</h2>
+          <StatusSummaryGrid
+            :items="[
+              { label: $t('ui.zoom'), value: `${zoom}%` },
+              {
+                label: $t('ui.differentPixels'),
+                value: pictureStatistics.differentPixels,
+                tone: 'modified',
+              },
+              {
+                label: $t('ui.differenceRatio'),
+                value: pictureDifferenceRatioText,
+                tone: 'modified',
+              },
+              { label: $t('ui.boundingRect'), value: pictureBoundingRectText },
+            ]"
+          />
+        </section>
+        <section class="workbench-inspector-section">
+          <h2>{{ $t('ui.metadata') }}</h2>
+          <dl>
+            <div>
+              <dt>{{ $t('ui.left') }}</dt>
+              <dd>{{ leftPath }}</dd>
+            </div>
+            <div>
+              <dt>{{ $t('ui.right') }}</dt>
+              <dd>{{ rightPath }}</dd>
+            </div>
+            <div>
+              <dt>{{ $t('ui.overlay') }}</dt>
+              <dd>{{ showOverlay ? $t('ui.on') : $t('ui.off') }}</dd>
+            </div>
+            <div>
+              <dt>{{ $t('ui.field') }}</dt>
+              <dd>
+                {{
+                  pixelPreview ? `${pixelPreview.side} ${pixelPreview.x}, ${pixelPreview.y}` : '--'
+                }}
+              </dd>
+            </div>
+          </dl>
+        </section>
+      </WorkbenchInspector>
+    </template>
+  </WorkbenchShell>
 </template>
 <style scoped>
 .picture-compare-view {

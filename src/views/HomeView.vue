@@ -1,66 +1,181 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import {
+  Binary,
+  Columns3,
+  Code2,
+  Database,
+  FileCog,
+  FileText,
+  FolderGit2,
+  FolderOpen,
+  FolderSync,
+  GitMerge,
+  Image,
+  Table2,
+  type LucideIcon,
+} from '@lucide/vue'
 import { readClipboardTextSource } from '@/app/clipboardSource'
 import { classifyDropInputs } from '@/app/dropInput'
-import { buildSavedSessionTree, filterSavedSessions } from '@/app/savedSessions'
+import { filterSavedSessions } from '@/app/savedSessions'
 import { selectSessionForDrop } from '@/app/sessionAutoSelect'
-import { sessionCatalog, sessionPriorities } from '@/app/sessionCatalog'
-import SavedSessionNode from '@/components/session/SavedSessionNode.vue'
+import { sessionCatalog } from '@/app/sessionCatalog'
+import { createSessionFromLaunch, createUntitledSession } from '@/app/sessionFactory'
+import WorkspaceManager from '@/components/session/WorkspaceManager.vue'
+import DenseDataTable from '@/components/workbench/DenseDataTable.vue'
+import StatusSummaryGrid from '@/components/workbench/StatusSummaryGrid.vue'
+import WorkbenchInspector from '@/components/workbench/WorkbenchInspector.vue'
+import WorkbenchShell from '@/components/workbench/WorkbenchShell.vue'
+import { useI18n } from '@/i18n'
 import { useSavedSessionsStore } from '@/stores/savedSessions'
+import { useSessionLaunchStore } from '@/stores/sessionLaunch'
 import { useTabsStore } from '@/stores/tabs'
-import type { DropClassification, DropInput } from '@/app/dropInput'
+import { useWorkspacesStore } from '@/stores/workspaces'
+import type { ClassifiedDropItem, DropClassification, DropInput } from '@/app/dropInput'
 import type { SessionSelection } from '@/app/sessionAutoSelect'
-import type { SessionCatalogEntry, SessionPriority } from '@/app/sessionCatalog'
-import type { SessionType } from '@/types/session'
+import type { SessionCatalogEntry } from '@/app/sessionCatalog'
+import type { SessionDocument, SessionType } from '@/types/session'
+import type { SessionLaunchLocation, SessionLaunchPayload } from '@/types/sessionLaunch'
+
+type QuickStartType =
+  | 'folder-compare'
+  | 'folder-merge'
+  | 'folder-sync'
+  | 'text-compare'
+  | 'text-merge'
+  | 'text-edit'
+  | 'hex-compare'
+  | 'media-compare'
+  | 'picture-compare'
+  | 'registry-compare'
+  | 'table-compare'
+  | 'version-compare'
+
+interface QuickStartEntry extends SessionCatalogEntry {
+  icon: LucideIcon
+}
+
+const quickStartTypes: QuickStartType[] = [
+  'folder-compare',
+  'folder-merge',
+  'folder-sync',
+  'text-compare',
+  'text-merge',
+  'text-edit',
+  'hex-compare',
+  'media-compare',
+  'picture-compare',
+  'registry-compare',
+  'table-compare',
+  'version-compare',
+]
+
+const quickStartIcons: Record<QuickStartType, LucideIcon> = {
+  'folder-compare': FolderOpen,
+  'folder-merge': FolderGit2,
+  'folder-sync': FolderSync,
+  'hex-compare': Binary,
+  'media-compare': Columns3,
+  'picture-compare': Image,
+  'registry-compare': Database,
+  'table-compare': Table2,
+  'text-compare': Code2,
+  'text-edit': FileText,
+  'text-merge': GitMerge,
+  'version-compare': FileCog,
+}
+const selectedSessionPreview = {
+  name: 'data',
+  leftPath: String.raw`D:\workspace\pay-v3\data`,
+  rightPath: String.raw`D:\workspace\other\data`,
+}
 
 const router = useRouter()
+const { t } = useI18n()
 const tabs = useTabsStore()
 const savedSessions = useSavedSessionsStore()
+const sessionLaunch = useSessionLaunchStore()
+const workspaces = useWorkspacesStore()
 const dropResult = ref<DropClassification>({
   kind: 'invalid',
-  reason: 'Drop exactly two files or folders.',
+  reason: t('ui.dropExactlyTwoFilesOrFolders'),
 })
 const selectedDropSession = ref<SessionSelection>()
 const isDragging = ref(false)
 const sessionSearch = ref('')
-const selectedSessionTypes = ref<Set<SessionType>>(new Set())
-const clipboardStatus = ref('Clipboard text source not loaded')
-const savedSessionTypes = computed(() =>
-  Array.from(new Set(savedSessions.sessions.map((session) => session.sessionType))),
-)
+const clipboardStatus = ref(t('ui.clipboardTextSourceNotLoaded'))
+const saveDialogOpen = ref(false)
+const sessionNameDraft = ref('')
 const filteredSavedSessions = computed(() =>
   filterSavedSessions(savedSessions.sessions, {
     query: sessionSearch.value,
-    types: selectedSessionTypes.value,
+    types: new Set(),
   }),
 )
-const savedSessionTree = computed(() => buildSavedSessionTree(filteredSavedSessions.value))
+const quickStartEntries = computed<QuickStartEntry[]>(() =>
+  quickStartTypes
+    .map((type) => {
+      const entry = sessionCatalog.find((item) => item.type === type)
 
-const groupedEntries = computed(() =>
-  sessionPriorities.map((priority) => ({
-    priority,
-    entries: sessionCatalog.filter((entry) => entry.priority === priority),
-  })),
+      return entry ? { ...entry, icon: quickStartIcons[type] } : undefined
+    })
+    .filter((entry): entry is QuickStartEntry => Boolean(entry)),
 )
-
-function priorityLabel(priority: SessionPriority): string {
-  const labels: Record<SessionPriority, string> = {
-    P0: 'Core',
-    P1: 'Primary',
-    P2: 'Advanced',
-    P3: 'Extended',
-  }
-
-  return labels[priority]
-}
+const historyItems = computed(() => [
+  {
+    title: t('ui.configUpdated'),
+    meta: `${t('ui.twoMinsAgo')} - ${t('ui.textCompare')}`,
+    active: true,
+  },
+  {
+    title: t('ui.releaseV12Diff'),
+    meta: `${t('ui.yesterday')} - ${t('ui.folderCompare')}`,
+    active: false,
+  },
+])
 
 function openSession(entry: SessionCatalogEntry): void {
   if (!entry.implemented || !entry.route) {
     return
   }
 
-  tabs.openTab({ title: entry.title, route: entry.route, dirty: false })
+  sessionLaunch.setPendingLaunch({
+    id: crypto.randomUUID(),
+    source: 'home',
+    sessionType: entry.type,
+    title: `${t('ui.untitled')} ${t(entry.titleKey)}`,
+    route: entry.route,
+    locations: {},
+    autoRun: false,
+  })
+  tabs.openTab({ title: entry.title, titleKey: entry.titleKey, route: entry.route, dirty: false })
+  void router.push(entry.route)
+}
+
+function openSavedSession(session: SessionDocument): void {
+  const entry = sessionCatalog.find((item) => item.type === session.sessionType)
+
+  if (!entry?.route) {
+    return
+  }
+
+  sessionLaunch.setPendingLaunch({
+    id: crypto.randomUUID(),
+    source: 'saved-session',
+    sessionType: session.sessionType,
+    title: session.name,
+    route: entry.route,
+    locations: {
+      left: sessionLocationToLaunchLocation(session.locations.left, 'file'),
+      right: sessionLocationToLaunchLocation(session.locations.right, 'file'),
+      center: sessionLocationToLaunchLocation(session.locations.center, 'file'),
+      output: sessionLocationToLaunchLocation(session.locations.output, 'file'),
+    },
+    autoRun: true,
+    session,
+  })
+  tabs.openTab({ title: session.name, route: entry.route, dirty: session.metadata.dirty })
   void router.push(entry.route)
 }
 
@@ -76,7 +191,11 @@ function handleDragLeave(): void {
 function handleDrop(event: DragEvent): void {
   event.preventDefault()
   isDragging.value = false
-  dropResult.value = classifyDropInputs(inputsFromDataTransfer(event.dataTransfer))
+  setDropInputs(inputsFromDataTransfer(event.dataTransfer))
+}
+
+function setDropInputs(inputs: DropInput[]): void {
+  dropResult.value = classifyDropInputs(inputs)
   selectedDropSession.value =
     dropResult.value.kind === 'invalid' ? undefined : selectSessionForDrop(dropResult.value)
 }
@@ -105,20 +224,61 @@ function openSelectedDropSession(): void {
     return
   }
 
+  sessionLaunch.setPendingLaunch(createLaunchFromDrop(selectedDropSession.value))
   tabs.openTab({
     title: selectedDropSession.value.title,
+    titleKey: selectedDropSession.value.titleKey,
     route: selectedDropSession.value.route,
     dirty: false,
   })
   void router.push(selectedDropSession.value.route)
 }
 
+function createLaunchFromDrop(selection: SessionSelection): SessionLaunchPayload {
+  if (dropResult.value.kind === 'invalid' || !selection.route) {
+    throw new Error('Cannot create a launch payload from an invalid drop.')
+  }
+
+  return {
+    id: crypto.randomUUID(),
+    source: 'drop',
+    sessionType: selection.sessionType,
+    title: `${dropResult.value.left.displayName} vs ${dropResult.value.right.displayName}`,
+    route: selection.route,
+    locations: {
+      left: dropItemToLaunchLocation(dropResult.value.left),
+      right:
+        dropResult.value.kind === 'patch'
+          ? undefined
+          : dropItemToLaunchLocation(dropResult.value.right),
+    },
+    autoRun: true,
+  }
+}
+
 async function openClipboardText(): Promise<void> {
   try {
     const source = await readClipboardTextSource()
+    const title = t(source.title)
 
-    clipboardStatus.value = `${source.title} ready`
-    tabs.openTab({ title: source.title, route: '/compare/text', dirty: false })
+    clipboardStatus.value = t('status.sourceReady', { source: title })
+    sessionLaunch.setPendingLaunch({
+      id: crypto.randomUUID(),
+      source: 'command',
+      sessionType: 'text-compare',
+      title,
+      route: '/compare/text',
+      locations: {
+        left: {
+          uri: source.text,
+          displayName: title,
+          kind: 'virtual',
+          readOnly: true,
+        },
+      },
+      autoRun: false,
+    })
+    tabs.openTab({ title, titleKey: source.title, route: '/compare/text', dirty: false })
     void router.push('/compare/text')
   } catch (error) {
     clipboardStatus.value =
@@ -128,16 +288,40 @@ async function openClipboardText(): Promise<void> {
   }
 }
 
-function toggleSessionType(type: SessionType, selected: boolean): void {
-  const next = new Set(selectedSessionTypes.value)
+function simulateTextDrop(): void {
+  setDropInputs([
+    { path: 'C:/work/left.txt', kind: 'file' },
+    { path: 'C:/work/right.txt', kind: 'file' },
+  ])
+}
 
-  if (selected) {
-    next.add(type)
-  } else {
-    next.delete(type)
+function simulatePatchDrop(): void {
+  setDropInputs([{ path: 'C:/work/change.patch', kind: 'file' }])
+}
+
+function dropItemToLaunchLocation(item: ClassifiedDropItem): SessionLaunchLocation {
+  return {
+    uri: item.path,
+    displayName: item.displayName,
+    kind: item.sourceKind,
+    readOnly: false,
+  }
+}
+
+function sessionLocationToLaunchLocation(
+  location: SessionDocument['locations']['left'],
+  kind: SessionLaunchLocation['kind'],
+): SessionLaunchLocation | undefined {
+  if (!location) {
+    return undefined
   }
 
-  selectedSessionTypes.value = next
+  return {
+    uri: location.uri,
+    displayName: location.displayName,
+    kind,
+    readOnly: location.readOnly,
+  }
 }
 
 function renameSavedSession(id: string): void {
@@ -155,7 +339,7 @@ function copySavedSession(id: string): void {
 }
 
 function moveSavedSession(id: string): void {
-  savedSessions.moveSession(id, 'Archive')
+  savedSessions.moveSession(id, t('ui.archive'))
 }
 
 function deleteSavedSession(id: string): void {
@@ -177,6 +361,51 @@ function saveAndClosePendingSession(): void {
   savedSessions.requestDeleteSession(pending.id)
 }
 
+function openSaveCurrentSessionDialog(): void {
+  saveDialogOpen.value = true
+  sessionNameDraft.value = sessionLaunch.pendingLaunch?.title ?? tabs.activeTab.title
+}
+
+function confirmSaveCurrentSession(): void {
+  const name = sessionNameDraft.value.trim()
+
+  if (!name) {
+    return
+  }
+
+  const session = createCurrentSessionDocument(name)
+
+  savedSessions.saveSession(session)
+  saveDialogOpen.value = false
+  sessionNameDraft.value = ''
+}
+
+function createCurrentSessionDocument(name: string): SessionDocument {
+  const pending = sessionLaunch.pendingLaunch
+
+  if (pending) {
+    return {
+      ...createSessionFromLaunch({ ...pending, title: name }),
+      name,
+    }
+  }
+
+  const activeRoute = tabs.activeTab.route
+  const entry =
+    sessionCatalog.find((item) => item.route === activeRoute) ??
+    sessionCatalog.find((item) => item.type === 'text-compare')
+
+  if (!entry) {
+    return createUntitledSession('text-compare')
+  }
+
+  const session = createUntitledSession(entry.type)
+
+  session.name = name
+
+  return session
+}
+
 function restoreWorkspaceFromRecovery(): void {
   const first = savedSessions.recoveryCandidates.at(0)
 
@@ -195,484 +424,912 @@ function restoreWorkspaceFromRecovery(): void {
   tabs.openTab({ title: first.name, route: entry.route, dirty: first.metadata.dirty })
   void router.push(entry.route)
 }
+
+function restoreWorkspace(id: string): void {
+  const workspace = workspaces.workspaces.find((item) => item.id === id)
+
+  if (!workspace) {
+    return
+  }
+
+  tabs.restoreWorkspaceTabs(workspace.tabs)
+  void router.push(tabs.activeTab.route)
+}
+
+function sessionTypeLabel(type: SessionType): string {
+  const labels: Partial<Record<SessionType, string>> = {
+    'folder-compare': t('ui.folder'),
+    'folder-sync': t('ui.sync'),
+    'text-compare': t('ui.text'),
+    'text-merge': t('ui.threeWay'),
+  }
+
+  return labels[type] ?? type
+}
+
+function sessionPath(session: SessionDocument, side: 'left' | 'right'): string {
+  return session.locations[side]?.uri ?? '--'
+}
+
+function lastOpenedLabel(session: SessionDocument, index: number): string {
+  if (session.metadata.lastOpenedAt) {
+    return session.metadata.lastOpenedAt
+  }
+
+  return (
+    [t('ui.twoMinsAgo'), t('ui.yesterday'), 'Oct 12, 14:30', 'Oct 10, 09:15'][index] ??
+    t('ui.recently')
+  )
+}
 </script>
 
 <template>
-  <section class="home-view">
-    <header class="home-header">
-      <div>
-        <p class="eyebrow">{{ $t('ui.sessionLauncher') }}</p>
-        <h1>{{ $t('ui.chooseAComparisonWorkspace') }}</h1>
-      </div>
-      <div class="home-summary">
-        <strong>{{ sessionCatalog.length }}</strong>
-        <span>{{ $t('ui.sessionTypes') }}</span>
-      </div>
-    </header>
+  <WorkbenchShell
+    class="home-view"
+    :title="$t('ui.newSession')"
+    :subtitle="$t('ui.chooseAComparisonWorkspace')"
+    :eyebrow="$t('ui.workspace')"
+    :inspector-label="$t('ui.workspaceInspector')"
+  >
+    <template #title-actions>
+      <span class="home-title-count">{{ sessionCatalog.length }} {{ $t('ui.sessionTypes') }}</span>
+    </template>
 
-    <section
-      class="drop-zone"
-      :class="{ dragging: isDragging }"
-      @dragover="handleDragOver"
-      @dragleave="handleDragLeave"
-      @drop="handleDrop"
-    >
-      <div>
-        <strong>{{ $t('ui.dropTwoFilesOrFolders') }}</strong>
-        <span v-if="dropResult.kind === 'invalid'">{{ dropResult.reason }}</span>
-        <span v-else>
-          {{ dropResult.kind }} detected: {{ dropResult.left.displayName }} and
-          {{ dropResult.right.displayName }}
-        </span>
-        <span v-if="selectedDropSession">
-          Suggested: {{ selectedDropSession.title }}
-          {{ selectedDropSession.enabled ? '' : '(planned)' }}
-        </span>
-      </div>
-      <NButton
-        size="small"
-        :disabled="!selectedDropSession?.enabled"
-        @click="openSelectedDropSession"
-        >{{ $t('ui.openSuggestedView') }}</NButton
-      >
-    </section>
-
-    <section class="clipboard-source">
-      <div>
-        <strong>{{ $t('ui.clipboardText') }}</strong>
-        <span>{{ clipboardStatus }}</span>
-      </div>
-      <NButton
-        size="small"
-        data-testid="open-clipboard-text"
-        @click="openClipboardText"
-        >{{ $t('ui.openClipboard') }}</NButton
-      >
-    </section>
-
-    <div class="home-content">
-      <div class="priority-groups">
-        <section
-          v-for="group in groupedEntries"
-          :key="group.priority"
-          class="priority-group"
-          data-testid="session-priority"
-        >
-          <div class="priority-title">
-            <span>{{ group.priority }}</span>
-            <strong>{{ priorityLabel(group.priority) }}</strong>
-          </div>
-
-          <div class="session-grid">
-            <article
-              v-for="entry in group.entries"
-              :key="entry.type"
-              class="session-entry"
-              :class="{ disabled: !entry.implemented }"
-              data-testid="session-entry"
-              :data-session-type="entry.type"
-            >
-              <div class="entry-copy">
-                <h2>{{ entry.title }}</h2>
-                <p>{{ entry.summary }}</p>
-              </div>
-              <NButton
-                size="small"
-                :type="entry.implemented ? 'primary' : 'default'"
-                :secondary="!entry.implemented"
-                :disabled="!entry.implemented"
-                @click="openSession(entry)"
-              >
-                {{ entry.implemented ? 'Open' : 'Planned' }}
-              </NButton>
-            </article>
-          </div>
-        </section>
-      </div>
-
+    <section class="home-workspace bc-home-workspace">
       <aside
-        class="saved-sessions"
-        data-testid="saved-sessions"
+        class="bc-session-tree"
+        :aria-label="$t('ui.sessions')"
       >
-        <div class="saved-sessions-header">
-          <h2>{{ $t('ui.savedSessions') }}</h2>
-          <span>{{ filteredSavedSessions.length }}</span>
-        </div>
-        <div
-          v-if="savedSessions.recoveryCandidates.length > 0"
-          class="recovery-entry"
-          data-testid="recovery-entry"
-        >
-          <span>Recover {{ savedSessions.recoveryCandidates[0]?.name }}</span>
+        <header>{{ $t('ui.sessions') }}</header>
+        <section class="bc-tree-list">
           <button
             type="button"
-            data-testid="restore-recovery"
-            @click="restoreWorkspaceFromRecovery"
+            class="bc-tree-row expanded"
           >
-            {{ $t('ui.restoreRecent') }}
+            <span>▾</span>
+            <FolderOpen :size="17" />
+            <strong>{{ $t('ui.new') }}</strong>
           </button>
-        </div>
-        <div class="saved-session-filters">
+          <button
+            v-for="entry in quickStartEntries"
+            :key="`tree-${entry.type}`"
+            type="button"
+            class="bc-tree-row child"
+            @click="openSession(entry)"
+          >
+            <span></span>
+            <component
+              :is="entry.icon"
+              :size="17"
+            />
+            <strong>{{ $t(entry.titleKey) }}</strong>
+          </button>
+          <button
+            type="button"
+            class="bc-tree-row expanded"
+          >
+            <span>▾</span>
+            <FolderOpen :size="17" />
+            <strong>{{ $t('ui.autoSaved') }}</strong>
+          </button>
+          <button
+            type="button"
+            class="bc-tree-row child"
+          >
+            <span>▾</span>
+            <FolderOpen :size="17" />
+            <strong>{{ $t('ui.today') }}</strong>
+          </button>
+          <button
+            v-for="session in savedSessions.sessions.slice(0, 4)"
+            :key="`tree-saved-${session.id}`"
+            type="button"
+            class="bc-tree-row saved"
+            @dblclick="openSavedSession(session)"
+          >
+            <span></span>
+            <FolderOpen :size="16" />
+            <strong>{{ session.name }}</strong>
+          </button>
+        </section>
+        <footer class="bc-tree-footer">
+          <button type="button">+</button>
+          <button type="button">−</button>
           <input
             v-model="sessionSearch"
             data-testid="session-search"
             type="search"
-            :placeholder="$t('ui.searchSessions')"
+            :placeholder="$t('ui.filterSessions')"
           />
-          <label
-            v-for="type in savedSessionTypes"
-            :key="type"
-          >
-            <input
-              :data-testid="`type-filter-${type}`"
-              type="checkbox"
-              :checked="selectedSessionTypes.has(type)"
-              @change="toggleSessionType(type, ($event.target as HTMLInputElement).checked)"
-            />
-            <span>{{ type }}</span>
-          </label>
-        </div>
-        <ul class="saved-session-tree">
-          <SavedSessionNode
-            v-for="node in savedSessionTree"
-            :key="node.id"
-            :node="node"
-            @rename="renameSavedSession"
-            @copy="copySavedSession"
-            @move="moveSavedSession"
-            @delete="deleteSavedSession"
-            @change-rules="changeSavedSessionRules"
-          />
-        </ul>
-        <div
-          v-if="savedSessions.pendingSavePrompt"
-          class="save-prompt"
-          data-testid="save-prompt"
-        >
-          <span>Save changes before closing {{ savedSessions.pendingSavePrompt.name }}?</span>
-          <button
-            type="button"
-            @click="saveAndClosePendingSession"
-          >
-            {{ $t('ui.save') }}
-          </button>
-        </div>
+        </footer>
       </aside>
-    </div>
-  </section>
+
+      <main class="bc-home-main">
+        <section class="bc-selected-session">
+          <div class="bc-selected-title">
+            <FolderOpen :size="27" />
+            <div>
+              <strong>{{ selectedSessionPreview.name }}</strong>
+              <span>{{ selectedSessionPreview.leftPath }}</span>
+              <span>{{ selectedSessionPreview.rightPath }}</span>
+            </div>
+          </div>
+          <div class="bc-selected-actions">
+            <button
+              type="button"
+              @click="openSession(quickStartEntries[0])"
+            >
+              {{ $t('ui.open') }}
+            </button>
+            <button type="button">{{ $t('ui.edit') }}</button>
+          </div>
+        </section>
+
+        <section
+          class="new-session-panel"
+          data-testid="home-new-session"
+        >
+          <div class="bc-home-instructions">
+            <strong>{{ $t('ui.dragFoldersOrFilesOntoSessionIcon') }}</strong>
+            <span>{{ $t('ui.orClickSessionIconToBegin') }}</span>
+          </div>
+          <div class="new-session-grid">
+            <article
+              v-for="entry in quickStartEntries"
+              :key="entry.type"
+              class="new-session-card"
+              data-testid="home-new-session-card"
+              :data-session-type="entry.type"
+              tabindex="0"
+              @click="openSession(entry)"
+              @keydown.enter="openSession(entry)"
+              @keydown.space.prevent="openSession(entry)"
+            >
+              <span class="session-card-icon">
+                <component
+                  :is="entry.icon"
+                  :size="54"
+                />
+              </span>
+              <h3>{{ $t(entry.titleKey) }}</h3>
+            </article>
+          </div>
+        </section>
+
+        <section class="bc-home-secondary">
+          <section
+            class="recent-session-panel"
+            data-testid="home-recent-sessions"
+          >
+            <header>
+              <h2>{{ $t('ui.recentSessions') }}</h2>
+              <div class="recent-session-actions">
+                <button
+                  type="button"
+                  data-testid="save-current-session-as"
+                  @click="openSaveCurrentSessionDialog"
+                >
+                  {{ $t('ui.save') }}
+                </button>
+                <input
+                  v-model="sessionSearch"
+                  data-testid="session-search"
+                  type="search"
+                  :placeholder="$t('ui.filterSessions')"
+                />
+              </div>
+            </header>
+
+            <section
+              v-if="saveDialogOpen"
+              class="session-save-panel"
+              data-testid="session-save-panel"
+            >
+              <input
+                v-model="sessionNameDraft"
+                data-testid="session-name-input"
+                type="text"
+                :placeholder="$t('ui.name')"
+              />
+              <button
+                type="button"
+                data-testid="confirm-session-save"
+                @click="confirmSaveCurrentSession"
+              >
+                {{ $t('ui.save') }}
+              </button>
+            </section>
+
+            <div
+              v-if="savedSessions.recoveryCandidates.length > 0"
+              class="recovery-entry"
+              data-testid="recovery-entry"
+            >
+              <span>{{
+                $t('ui.recoverSession', { name: savedSessions.recoveryCandidates[0]?.name ?? '' })
+              }}</span>
+              <button
+                type="button"
+                data-testid="restore-recovery"
+                @click="restoreWorkspaceFromRecovery"
+              >
+                {{ $t('ui.restoreRecent') }}
+              </button>
+            </div>
+
+            <DenseDataTable>
+              <table data-testid="home-recent-sessions-table">
+                <thead>
+                  <tr>
+                    <th class="icon-col"></th>
+                    <th>{{ $t('ui.name') }}</th>
+                    <th>{{ $t('ui.type') }}</th>
+                    <th>{{ $t('ui.leftPath') }}</th>
+                    <th>{{ $t('ui.rightPath') }}</th>
+                    <th>{{ $t('ui.lastOpened') }}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    v-for="(session, index) in filteredSavedSessions"
+                    :key="session.id"
+                    @dblclick="openSavedSession(session)"
+                  >
+                    <td class="icon-col">
+                      <span class="recent-session-icon">{{
+                        sessionTypeLabel(session.sessionType)[0]
+                      }}</span>
+                    </td>
+                    <td>
+                      <strong>{{ session.name }}</strong>
+                      <span class="row-actions">
+                        <button
+                          type="button"
+                          :data-testid="`rename-session-${session.id}`"
+                          :disabled="session.metadata.locked"
+                          @click="renameSavedSession(session.id)"
+                        >
+                          {{ $t('ui.rename') }}
+                        </button>
+                        <button
+                          type="button"
+                          :data-testid="`copy-session-${session.id}`"
+                          @click="copySavedSession(session.id)"
+                        >
+                          {{ $t('ui.copy') }}
+                        </button>
+                        <button
+                          type="button"
+                          :data-testid="`move-session-${session.id}`"
+                          :disabled="session.metadata.locked"
+                          @click="moveSavedSession(session.id)"
+                        >
+                          {{ $t('ui.move') }}
+                        </button>
+                        <button
+                          type="button"
+                          :data-testid="`change-rules-session-${session.id}`"
+                          :disabled="session.metadata.locked"
+                          @click="changeSavedSessionRules(session.id)"
+                        >
+                          {{ $t('ui.rules') }}
+                        </button>
+                        <button
+                          type="button"
+                          :data-testid="`delete-session-${session.id}`"
+                          :disabled="session.metadata.locked"
+                          @click="deleteSavedSession(session.id)"
+                        >
+                          {{ $t('ui.delete') }}
+                        </button>
+                      </span>
+                    </td>
+                    <td>{{ sessionTypeLabel(session.sessionType) }}</td>
+                    <td class="path-cell">{{ sessionPath(session, 'left') }}</td>
+                    <td class="path-cell">{{ sessionPath(session, 'right') }}</td>
+                    <td>{{ lastOpenedLabel(session, index) }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </DenseDataTable>
+
+            <div
+              v-if="savedSessions.pendingSavePrompt"
+              class="save-prompt"
+              data-testid="save-prompt"
+            >
+              <span>{{
+                $t('ui.saveChangesBeforeClosing', { name: savedSessions.pendingSavePrompt.name })
+              }}</span>
+              <button
+                type="button"
+                @click="saveAndClosePendingSession"
+              >
+                {{ $t('ui.save') }}
+              </button>
+            </div>
+          </section>
+        </section>
+      </main>
+    </section>
+
+    <template #inspector>
+      <WorkbenchInspector data-testid="home-workspace-inspector">
+        <section class="workbench-inspector-section">
+          <h2>{{ $t('ui.workspaceProperties') }}</h2>
+          <dl>
+            <div>
+              <dt>{{ $t('ui.totalSessions') }}</dt>
+              <dd>142</dd>
+            </div>
+            <div>
+              <dt>{{ $t('ui.defaultEncoding') }}</dt>
+              <dd>{{ $t('ui.utf8') }}</dd>
+            </div>
+            <div>
+              <dt>{{ $t('ui.lineEndings') }}</dt>
+              <dd>{{ $t('ui.crlf') }}</dd>
+            </div>
+          </dl>
+        </section>
+
+        <section class="workbench-inspector-section">
+          <h2>{{ $t('ui.quickInput') }}</h2>
+          <div class="quick-input-stack">
+            <div
+              class="quick-input-zone"
+              :class="{ dragging: isDragging }"
+              @dragover="handleDragOver"
+              @dragleave="handleDragLeave"
+              @drop="handleDrop"
+            >
+              <strong>{{ $t('ui.dropTwoFilesOrFolders') }}</strong>
+              <span v-if="dropResult.kind === 'invalid'">{{ dropResult.reason }}</span>
+              <span v-else>
+                {{
+                  $t('status.dropDetected', {
+                    kind: dropResult.kind,
+                    left: dropResult.left.displayName,
+                    right: dropResult.right.displayName,
+                  })
+                }}
+              </span>
+              <button
+                type="button"
+                data-testid="open-suggested-view"
+                :disabled="!selectedDropSession?.enabled"
+                @click="openSelectedDropSession"
+              >
+                {{ $t('ui.openSuggestedView') }}
+              </button>
+              <button
+                type="button"
+                hidden
+                data-testid="simulate-text-drop"
+                @click="simulateTextDrop"
+              />
+              <button
+                type="button"
+                hidden
+                data-testid="simulate-patch-drop"
+                @click="simulatePatchDrop"
+              />
+            </div>
+            <div class="clipboard-source">
+              <strong>{{ $t('ui.clipboardText') }}</strong>
+              <span>{{ clipboardStatus }}</span>
+              <NButton
+                size="small"
+                data-testid="open-clipboard-text"
+                @click="openClipboardText"
+                >{{ $t('ui.openClipboard') }}</NButton
+              >
+            </div>
+          </div>
+        </section>
+
+        <section class="workbench-inspector-section">
+          <h2>{{ $t('ui.sessionHistory') }}</h2>
+          <ol class="history-list">
+            <li
+              v-for="item in historyItems"
+              :key="item.title"
+              :class="{ active: item.active }"
+            >
+              <strong>{{ item.title }}</strong>
+              <span>{{ item.meta }}</span>
+            </li>
+          </ol>
+        </section>
+
+        <section class="workbench-inspector-section">
+          <h2>{{ $t('ui.workspace') }}</h2>
+          <StatusSummaryGrid
+            :items="[
+              { label: $t('ui.sessionTypes'), value: sessionCatalog.length },
+              { label: $t('ui.savedSessions'), value: filteredSavedSessions.length },
+              { label: $t('ui.restoreRecent'), value: savedSessions.recoveryCandidates.length },
+            ]"
+          />
+          <WorkspaceManager
+            :snapshot="tabs.workspaceSnapshot()"
+            @restore="restoreWorkspace"
+          />
+        </section>
+      </WorkbenchInspector>
+    </template>
+  </WorkbenchShell>
 </template>
+
 <style scoped>
-.home-view {
+.home-title-count {
+  color: var(--app-text-muted);
+  font-size: 12px;
+}
+
+.home-workspace {
   height: 100%;
-  padding: 28px;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.bc-home-workspace {
+  display: grid;
+  grid-template-columns: 392px minmax(0, 1fr);
+  background: #ffffff;
+}
+
+.bc-session-tree {
+  display: grid;
+  grid-template-rows: 52px minmax(0, 1fr) 56px;
+  min-width: 0;
+  min-height: 0;
+  border-right: 1px solid #b9bec7;
+  background: #e3e9f2;
+}
+
+.bc-session-tree header {
+  display: flex;
+  align-items: center;
+  padding: 0 18px;
+  border-bottom: 1px solid #c6ccd5;
+  background: #eef1f5;
+  color: #111827;
+  font-size: 23px;
+  line-height: 1;
+}
+
+.bc-tree-list {
+  min-height: 0;
+  padding: 4px 10px;
   overflow: auto;
 }
 
-.home-header {
+.bc-tree-row {
+  display: grid;
+  grid-template-columns: 18px 22px minmax(0, 1fr);
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  min-height: 27px;
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  color: #111827;
+  font-size: 20px;
+  line-height: 24px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.bc-tree-row.child {
+  padding-left: 34px;
+  font-size: 19px;
+}
+
+.bc-tree-row.saved {
+  padding-left: 64px;
+  font-size: 18px;
+}
+
+.bc-tree-row:hover,
+.bc-tree-row:focus-visible {
+  outline: 0;
+  background: #c7dcf6;
+}
+
+.bc-tree-row strong {
+  overflow: hidden;
+  font-weight: 400;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bc-tree-footer {
+  display: grid;
+  grid-template-columns: 48px 48px minmax(0, 1fr);
+  align-items: center;
+  gap: 4px;
+  padding: 8px 8px 10px;
+  border-top: 1px solid #c6ccd5;
+  background: #eef1f5;
+}
+
+.bc-tree-footer button {
+  height: 38px;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  background: #ffffff;
+  color: #2f343a;
+  font-size: 24px;
+  line-height: 1;
+}
+
+.bc-tree-footer input {
+  width: 100%;
+  height: 38px;
+  padding: 0 10px;
+  border: 1px solid #c6ccd5;
+  border-radius: 3px;
+  background: #ffffff;
+  color: #111827;
+}
+
+.bc-home-main {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  background: #ffffff;
+}
+
+.bc-selected-session {
+  display: grid;
+  gap: 18px;
+  padding: 14px 20px 10px;
+}
+
+.bc-selected-title {
   display: flex;
   align-items: flex-start;
-  justify-content: space-between;
-  gap: 24px;
-  padding-bottom: 18px;
-  border-bottom: 1px solid var(--app-border);
+  gap: 14px;
+  color: #111827;
+  font-size: 25px;
 }
 
-.eyebrow {
-  margin: 0 0 8px;
-  color: #2563eb;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0;
-  text-transform: uppercase;
-}
-
-h1 {
-  margin: 0;
-  font-size: 24px;
-  line-height: 1.2;
-}
-
-.home-summary {
+.bc-selected-title div {
   display: grid;
-  min-width: 108px;
-  padding: 10px 12px;
-  border: 1px solid var(--app-border);
-  border-radius: 8px;
-  background: var(--app-surface);
-  text-align: right;
+  gap: 12px;
 }
 
-.home-summary strong {
+.bc-selected-title strong {
+  font-size: 27px;
+  font-weight: 500;
+}
+
+.bc-selected-title span {
   font-size: 22px;
   line-height: 1;
 }
 
-.home-summary span {
-  color: var(--app-text-muted);
-  font-size: 12px;
-}
-
-.home-content {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 300px;
-  gap: 22px;
-  margin-top: 22px;
-}
-
-.priority-groups {
-  display: grid;
-  gap: 22px;
-}
-
-.drop-zone {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 12px;
-  min-height: 92px;
-  margin-top: 18px;
-  padding: 16px;
-  border: 1px dashed var(--app-border);
-  border-radius: 8px;
-  background: var(--app-surface);
-  place-items: center;
-  text-align: center;
-}
-
-.drop-zone.dragging {
-  border-color: #2563eb;
-  background: rgb(37 99 235 / 0.08);
-}
-
-.drop-zone div {
-  display: grid;
-  gap: 6px;
-}
-
-.clipboard-source {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 12px;
-  margin-top: 10px;
-  padding: 12px 14px;
-  border: 1px solid var(--app-border);
-  border-radius: 8px;
-  background: var(--app-surface);
-  place-items: center;
-}
-
-.clipboard-source div {
-  display: grid;
-  gap: 4px;
-  justify-self: start;
-}
-
-.clipboard-source strong {
-  font-size: 14px;
-}
-
-.clipboard-source span {
-  color: var(--app-text-muted);
-  font-size: 12px;
-}
-
-.drop-zone strong {
-  font-size: 15px;
-}
-
-.drop-zone span {
-  color: var(--app-text-muted);
-  font-size: 13px;
-}
-
-.priority-group {
-  display: grid;
-  gap: 12px;
-}
-
-.priority-title {
+.bc-selected-actions {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--app-text-muted);
-  font-size: 12px;
+  gap: 18px;
 }
 
-.priority-title span {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 34px;
-  height: 22px;
-  border: 1px solid var(--app-border);
-  border-radius: 6px;
-  background: var(--app-surface);
-  color: var(--app-text);
-  font-weight: 700;
+.bc-selected-actions button {
+  width: 154px;
+  height: 47px;
+  border: 1px solid #c7cdd6;
+  border-radius: 3px;
+  background: #ffffff;
+  color: #111827;
+  font-size: 22px;
+  cursor: pointer;
 }
 
-.session-grid {
+.bc-selected-actions button:first-child {
+  border-color: #4aa3ff;
+}
+
+.new-session-panel,
+.recent-session-panel {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 10px;
-}
-
-.session-entry {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 14px;
-  min-height: 86px;
-  padding: 14px;
-  border: 1px solid var(--app-border);
-  border-radius: 8px;
-  background: var(--app-surface);
-}
-
-.session-entry.disabled {
-  background: var(--app-surface-muted);
-}
-
-.entry-copy {
+  gap: 12px;
   min-width: 0;
 }
 
-.entry-copy h2 {
-  margin: 0 0 6px;
-  font-size: 16px;
-  line-height: 1.25;
-}
-
-.entry-copy p {
+.new-session-panel h2,
+.recent-session-panel h2 {
   margin: 0;
-  color: var(--app-text-muted);
-  font-size: 13px;
-  line-height: 1.4;
+  font-size: 14px;
+  line-height: 20px;
 }
 
-.saved-sessions {
-  align-self: start;
-  padding: 14px;
+.new-session-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(150px, 1fr));
+  gap: 34px 76px;
+  width: min(780px, calc(100% - 64px));
+  margin: 0 auto;
+}
+
+.bc-home-instructions {
+  display: grid;
+  gap: 6px;
+  justify-items: center;
+  margin: 0 0 34px;
+  color: #111827;
+  font-size: 22px;
+  line-height: 1.1;
+}
+
+.bc-home-instructions strong {
+  font-size: 24px;
+  font-weight: 400;
+}
+
+.new-session-card {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  min-height: 104px;
+  padding: 4px;
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+  color: #111827;
+  cursor: pointer;
+}
+
+.new-session-card:hover,
+.new-session-card:focus {
+  outline: 0;
+  background: #eaf4ff;
+}
+
+.session-card-icon {
+  display: inline-grid;
+  width: 74px;
+  height: 62px;
+  color: #4b5563;
+  place-items: center;
+}
+
+.new-session-card h3 {
+  margin: 0;
+  font-size: 21px;
+  font-weight: 400;
+  line-height: 1.15;
+  text-align: center;
+}
+
+.bc-home-secondary {
+  position: fixed;
+  top: auto;
+  left: -10000px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
+.recent-session-panel header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  align-items: center;
+  gap: 12px;
+}
+
+.recent-session-actions {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+}
+
+.recent-session-actions button,
+.session-save-panel button {
+  height: 30px;
+  padding: 0 10px;
   border: 1px solid var(--app-border);
-  border-radius: 8px;
-  background: var(--app-surface);
+  border-radius: 4px;
+  background: var(--app-canvas);
+  color: var(--app-text);
+  font-size: 12px;
+  cursor: pointer;
 }
 
-.saved-sessions-header {
+.recent-session-panel input[type='search'],
+.session-save-panel input {
+  width: 100%;
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--app-border);
+  border-radius: 4px;
+  background: var(--app-canvas);
+  color: var(--app-text);
+  font-size: 12px;
+}
+
+.session-save-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.dense-data-table table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.dense-data-table th,
+.dense-data-table td {
+  height: 34px;
+  padding: 0 10px;
+  overflow: hidden;
+  border-bottom: 1px solid var(--app-border-soft);
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dense-data-table th {
+  height: 28px;
+  background: var(--app-surface-low);
+  color: var(--app-text-muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.dense-data-table tbody tr:hover {
+  background: var(--app-surface-low);
+}
+
+.icon-col {
+  width: 44px;
+  text-align: center;
+}
+
+.recent-session-icon {
+  display: inline-grid;
+  width: 18px;
+  height: 18px;
+  border: 1px solid var(--app-border);
+  border-radius: 4px;
+  color: var(--app-primary);
+  font-size: 11px;
+  font-weight: 700;
+  place-items: center;
+}
+
+.path-cell {
+  color: var(--app-text-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.row-actions {
+  display: inline-flex;
+  gap: 3px;
+  margin-left: 8px;
+  opacity: 0;
+}
+
+tr:hover .row-actions,
+.row-actions:focus-within {
+  opacity: 1;
+}
+
+.row-actions button {
+  height: 20px;
+  padding: 0 5px;
+  border: 1px solid var(--app-border);
+  border-radius: 4px;
+  background: var(--app-canvas);
+  color: var(--app-text-muted);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.row-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.recovery-entry,
+.save-prompt {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 10px;
-}
-
-.saved-sessions-header h2 {
-  margin: 0;
-  font-size: 15px;
-}
-
-.saved-sessions-header span {
-  color: var(--app-text-muted);
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--app-primary);
+  border-radius: 4px;
+  background: var(--app-primary-soft);
   font-size: 12px;
 }
 
-.saved-session-filters {
-  display: grid;
-  gap: 8px;
-  margin-bottom: 12px;
-}
-
-.recovery-entry {
-  display: grid;
-  gap: 8px;
-  margin-bottom: 12px;
-  padding: 10px;
-  border: 1px solid #2563eb;
-  border-radius: 6px;
-  background: rgb(37 99 235 / 0.08);
-  color: var(--app-text);
-  font-size: 12px;
-}
-
-.recovery-entry button {
-  justify-self: start;
-  height: 26px;
-  padding: 0 10px;
-  border: 1px solid var(--app-border);
-  border-radius: 5px;
-  background: var(--app-surface);
-  color: var(--app-text);
-  cursor: pointer;
-}
-
-.saved-session-filters input[type='search'] {
-  width: 100%;
-  height: 30px;
+.recovery-entry button,
+.save-prompt button,
+.quick-input-zone button {
+  height: 24px;
   padding: 0 8px;
   border: 1px solid var(--app-border);
-  border-radius: 6px;
-  background: var(--app-bg);
-  color: var(--app-text);
-  font-size: 13px;
-}
-
-.saved-session-filters label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--app-text-muted);
-  font-size: 12px;
-}
-
-.saved-session-tree {
-  display: grid;
-  gap: 2px;
-  margin: 0;
-  padding: 0;
-}
-
-.save-prompt {
-  display: grid;
-  gap: 8px;
-  margin-top: 12px;
-  padding: 10px;
-  border: 1px solid var(--diff-modified-fg);
-  border-radius: 6px;
-  background: var(--diff-modified-bg);
-  color: var(--app-text);
-  font-size: 12px;
-}
-
-.save-prompt button {
-  justify-self: start;
-  height: 26px;
-  padding: 0 10px;
-  border: 1px solid var(--app-border);
-  border-radius: 5px;
-  background: var(--app-surface);
+  border-radius: 4px;
+  background: var(--app-canvas);
   color: var(--app-text);
   cursor: pointer;
 }
 
-@media (width <= 640px) {
-  .home-view {
-    padding: 18px;
-  }
+.quick-input-stack {
+  display: grid;
+  gap: 8px;
+  padding: 8px;
+}
 
-  .home-header {
-    display: grid;
-  }
+.quick-input-zone,
+.clipboard-source {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  padding: 8px;
+  border: 1px dashed var(--app-border);
+  border-radius: 4px;
+  background: var(--app-canvas);
+  font-size: 12px;
+}
 
-  .home-summary {
-    text-align: left;
-  }
+.quick-input-zone.dragging {
+  border-color: var(--app-primary);
+  background: var(--app-primary-soft);
+}
 
-  .session-entry {
-    grid-template-columns: 1fr;
-  }
+.quick-input-zone span,
+.clipboard-source span {
+  color: var(--app-text-muted);
+}
 
-  .home-content,
-  .drop-zone,
-  .clipboard-source {
+.history-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 8px;
+  list-style: none;
+}
+
+.history-list li {
+  position: relative;
+  display: grid;
+  gap: 2px;
+  padding-left: 12px;
+  color: var(--app-text-muted);
+  font-size: 11px;
+}
+
+.history-list li::before {
+  content: '';
+  position: absolute;
+  top: 4px;
+  left: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--app-border);
+}
+
+.history-list li.active::before {
+  background: var(--app-primary);
+}
+
+.history-list strong {
+  color: var(--app-text);
+  font-size: 12px;
+}
+
+@media (width <= 900px) {
+  .new-session-grid,
+  .recent-session-panel header {
     grid-template-columns: 1fr;
   }
 }

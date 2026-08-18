@@ -71,13 +71,32 @@ interface PackageManifest {
   scripts: Record<string, string>
 }
 
+function readIcnsChunks(icon: Buffer): string[] {
+  const chunks: string[] = []
+  let offset = 8
+
+  while (offset + 8 <= icon.length) {
+    const type = icon.subarray(offset, offset + 4).toString('ascii')
+    const length = icon.readUInt32BE(offset + 4)
+
+    if (length < 8) {
+      break
+    }
+
+    chunks.push(type)
+    offset += length
+  }
+
+  return chunks
+}
+
 describe('packagingConfig', () => {
   it('defines complete Windows MSI metadata', () => {
     const config = JSON.parse(
       readFileSync(resolve(process.cwd(), 'src-tauri/tauri.conf.json'), 'utf8'),
     ) as TauriConfig
 
-    expect(config.productName).toBe('Open Diff')
+    expect(config.productName).toBe('OpenDiff')
     expect(config.identifier).toBe('io.github.kygo8.open-diff')
     expect(config.bundle.targets).toEqual(['msi'])
     expect(config.bundle.icon).toContain('icons/icon.ico')
@@ -104,7 +123,7 @@ describe('packagingConfig', () => {
     expect(config.bundle.targets).toEqual(['app', 'dmg'])
     expect(config.bundle.category).toBe('DeveloperTool')
     expect(config.bundle.icon).toContain('icons/icon.icns')
-    expect(config.bundle.macOS?.bundleName).toBe('Open Diff')
+    expect(config.bundle.macOS?.bundleName).toBe('OpenDiff')
     expect(config.bundle.macOS?.bundleVersion).toBe(baseConfig.version)
     expect(config.bundle.macOS?.minimumSystemVersion).toBe('11.0')
     expect(config.bundle.macOS?.hardenedRuntime).toBe(true)
@@ -117,9 +136,12 @@ describe('packagingConfig', () => {
     expect(existsSync(iconPath)).toBe(true)
 
     const icon = readFileSync(iconPath)
+    const iconLength = icon.readUInt32BE(4)
+    const iconChunks = readIcnsChunks(icon)
 
     expect(icon.subarray(0, 4).toString('ascii')).toBe('icns')
-    expect(icon.subarray(8, 12).toString('ascii')).toBe('icp5')
+    expect(iconLength).toBe(icon.length)
+    expect(iconChunks).toEqual(expect.arrayContaining(['ic10', 'ic09', 'ic08']))
   })
 
   it('exposes a macOS bundle script for macOS release runners', () => {

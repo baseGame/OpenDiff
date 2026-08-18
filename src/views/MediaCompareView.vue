@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { compareMediaFiles } from '@/api/diff'
 import type {
   MediaCompareResponse,
@@ -7,8 +7,13 @@ import type {
   MediaFieldStatus,
   MediaSideSummary,
 } from '@/types/diff'
+import WorkbenchShell from '@/components/workbench/WorkbenchShell.vue'
+import WorkbenchInspector from '@/components/workbench/WorkbenchInspector.vue'
+import { useSessionLaunchStore } from '@/stores/sessionLaunch'
+import { useI18n } from '@/i18n'
 
 const mediaStatuses: MediaFieldStatus[] = ['added', 'removed', 'modified', 'unchanged']
+const { t } = useI18n()
 const defaultLeftMedia: MediaSideSummary = {
   name: 'left-track.flac',
   container: 'FLAC',
@@ -63,12 +68,28 @@ const defaultMediaFields: MediaFieldRow[] = [
 ]
 const leftPath = ref('C:/music/left-track.flac')
 const rightPath = ref('C:/music/right-track.flac')
+const sessionLaunch = useSessionLaunchStore()
 const leftMedia = ref<MediaSideSummary>(defaultLeftMedia)
 const rightMedia = ref<MediaSideSummary>(defaultRightMedia)
 const mediaFields = ref<MediaFieldRow[]>(defaultMediaFields)
 const mediaSummaryOverride = ref<Record<MediaFieldStatus, number> | null>(null)
 const loading = ref(false)
 const error = ref('')
+
+onMounted(() => {
+  const launch = sessionLaunch.consumeLaunch('/compare/media')
+
+  if (!launch) {
+    return
+  }
+
+  leftPath.value = launch.locations.left?.uri ?? leftPath.value
+  rightPath.value = launch.locations.right?.uri ?? rightPath.value
+
+  if (launch.autoRun && launch.locations.left?.uri && launch.locations.right?.uri) {
+    void runMediaCompare()
+  }
+})
 
 const mediaSummary = computed<Record<MediaFieldStatus, number>>(() => {
   if (mediaSummaryOverride.value) {
@@ -91,13 +112,13 @@ const mediaSummary = computed<Record<MediaFieldStatus, number>>(() => {
 
 function statusLabel(status: MediaFieldStatus): string {
   const labels: Record<MediaFieldStatus, string> = {
-    added: 'Added',
-    removed: 'Removed',
-    modified: 'Modified',
-    unchanged: 'Unchanged',
+    added: 'ui.added',
+    removed: 'ui.removed',
+    modified: 'ui.modified',
+    unchanged: 'ui.unchanged',
   }
 
-  return labels[status]
+  return t(labels[status])
 }
 
 function valueText(value?: string): string {
@@ -130,154 +151,187 @@ async function runMediaCompare(): Promise<void> {
 </script>
 
 <template>
-  <section class="media-compare-view">
-    <header class="media-header">
-      <div>
-        <p class="eyebrow">{{ $t('ui.mediaCompare') }}</p>
-        <h1>{{ $t('ui.mediaCompare') }}</h1>
-      </div>
-      <div class="media-source-pair">
-        <span>Left: {{ leftMedia.name }}</span>
-        <span>Right: {{ rightMedia.name }}</span>
-      </div>
-    </header>
-
-    <section class="media-path-panel">
-      <label>
-        <span>{{ $t('ui.left') }} {{ $t('ui.path') }}</span>
-        <input
-          v-model="leftPath"
-          type="text"
-          data-testid="media-left-path"
-        />
-      </label>
-      <label>
-        <span>{{ $t('ui.right') }} {{ $t('ui.path') }}</span>
-        <input
-          v-model="rightPath"
-          type="text"
-          data-testid="media-right-path"
-        />
-      </label>
-      <button
-        type="button"
-        data-testid="run-media-compare"
-        :disabled="loading"
-        @click="runMediaCompare"
-      >
-        {{ $t('ui.runDiff') }}
-      </button>
-    </section>
-    <p
-      v-if="error"
-      class="media-error"
-      data-testid="media-compare-error"
-    >
-      {{ error }}
-    </p>
-
-    <section class="media-summary-grid">
-      <article
-        v-for="status in mediaStatuses"
-        :key="status"
-        class="media-summary-item"
-        :class="`status-${status}`"
-      >
-        <strong :data-testid="`media-summary-${status}`">{{ mediaSummary[status] }}</strong>
-        <span>{{ statusLabel(status) }}</span>
-      </article>
-    </section>
-
-    <section class="media-side-grid">
-      <article class="media-side">
-        <header>
-          <strong>{{ leftMedia.name }}</strong>
-          <span>{{ leftMedia.container }}</span>
-        </header>
-        <dl>
-          <div>
-            <dt>{{ $t('ui.duration') }}</dt>
-            <dd>{{ leftMedia.duration }}</dd>
-          </div>
-          <div>
-            <dt>{{ $t('ui.codec') }}</dt>
-            <dd>{{ leftMedia.stream.codec }}</dd>
-          </div>
-          <div>
-            <dt>{{ $t('ui.sampleRate') }}</dt>
-            <dd>{{ leftMedia.stream.sampleRate }}</dd>
-          </div>
-          <div>
-            <dt>{{ $t('ui.channels') }}</dt>
-            <dd>{{ leftMedia.stream.channels }}</dd>
-          </div>
-          <div>
-            <dt>{{ $t('ui.bitrate') }}</dt>
-            <dd>{{ leftMedia.stream.bitrate }}</dd>
-          </div>
-        </dl>
-      </article>
-
-      <article class="media-side">
-        <header>
-          <strong>{{ rightMedia.name }}</strong>
-          <span>{{ rightMedia.container }}</span>
-        </header>
-        <dl>
-          <div>
-            <dt>{{ $t('ui.duration') }}</dt>
-            <dd>{{ rightMedia.duration }}</dd>
-          </div>
-          <div>
-            <dt>{{ $t('ui.codec') }}</dt>
-            <dd>{{ rightMedia.stream.codec }}</dd>
-          </div>
-          <div>
-            <dt>{{ $t('ui.sampleRate') }}</dt>
-            <dd>{{ rightMedia.stream.sampleRate }}</dd>
-          </div>
-          <div>
-            <dt>{{ $t('ui.channels') }}</dt>
-            <dd>{{ rightMedia.stream.channels }}</dd>
-          </div>
-          <div>
-            <dt>{{ $t('ui.bitrate') }}</dt>
-            <dd>{{ rightMedia.stream.bitrate }}</dd>
-          </div>
-        </dl>
-      </article>
-    </section>
-
-    <section class="media-report-panel">
-      <header>
-        <strong>{{ $t('ui.tagFieldReport') }}</strong>
-        <span>{{ mediaFields.length }} fields</span>
+  <WorkbenchShell
+    :title="$t('ui.mediaCompare')"
+    :eyebrow="$t('ui.media')"
+    :subtitle="`${leftMedia.name} -> ${rightMedia.name}`"
+    :inspector-label="$t('ui.mediaCompareInspector')"
+  >
+    <section class="media-compare-view">
+      <header class="media-header">
+        <div>
+          <p class="eyebrow">{{ $t('ui.mediaCompare') }}</p>
+          <h1>{{ $t('ui.mediaCompare') }}</h1>
+        </div>
+        <div class="media-source-pair">
+          <span>{{ $t('ui.left') }}: {{ leftMedia.name }}</span>
+          <span>{{ $t('ui.right') }}: {{ rightMedia.name }}</span>
+        </div>
       </header>
-      <div
-        class="media-report-table"
-        data-testid="media-report-table"
-      >
-        <div class="media-field-row media-field-head">
-          <span>{{ $t('ui.field') }}</span>
-          <span>{{ $t('ui.left') }}</span>
-          <span>{{ $t('ui.right') }}</span>
-          <span>{{ $t('ui.status') }}</span>
-        </div>
-        <div
-          v-for="row in mediaFields"
-          :key="row.field"
-          class="media-field-row"
-          :class="`status-${row.status}`"
-          :data-testid="`media-field-${row.field}`"
+
+      <section class="media-path-panel">
+        <label>
+          <span>{{ $t('ui.left') }} {{ $t('ui.path') }}</span>
+          <input
+            v-model="leftPath"
+            type="text"
+            data-testid="media-left-path"
+          />
+        </label>
+        <label>
+          <span>{{ $t('ui.right') }} {{ $t('ui.path') }}</span>
+          <input
+            v-model="rightPath"
+            type="text"
+            data-testid="media-right-path"
+          />
+        </label>
+        <button
+          type="button"
+          data-testid="run-media-compare"
+          :disabled="loading"
+          @click="runMediaCompare"
         >
-          <strong>{{ row.field }}</strong>
-          <code>{{ valueText(row.left) }}</code>
-          <code>{{ valueText(row.right) }}</code>
-          <em>{{ statusLabel(row.status) }}</em>
+          {{ $t('ui.runDiff') }}
+        </button>
+      </section>
+      <p
+        v-if="error"
+        class="media-error"
+        data-testid="media-compare-error"
+      >
+        {{ error }}
+      </p>
+
+      <section class="media-summary-grid">
+        <article
+          v-for="status in mediaStatuses"
+          :key="status"
+          class="media-summary-item"
+          :class="`status-${status}`"
+        >
+          <strong :data-testid="`media-summary-${status}`">{{ mediaSummary[status] }}</strong>
+          <span>{{ statusLabel(status) }}</span>
+        </article>
+      </section>
+
+      <section class="media-side-grid">
+        <article class="media-side">
+          <header>
+            <strong>{{ leftMedia.name }}</strong>
+            <span>{{ leftMedia.container }}</span>
+          </header>
+          <dl>
+            <div>
+              <dt>{{ $t('ui.duration') }}</dt>
+              <dd>{{ leftMedia.duration }}</dd>
+            </div>
+            <div>
+              <dt>{{ $t('ui.codec') }}</dt>
+              <dd>{{ leftMedia.stream.codec }}</dd>
+            </div>
+            <div>
+              <dt>{{ $t('ui.sampleRate') }}</dt>
+              <dd>{{ leftMedia.stream.sampleRate }}</dd>
+            </div>
+            <div>
+              <dt>{{ $t('ui.channels') }}</dt>
+              <dd>{{ leftMedia.stream.channels }}</dd>
+            </div>
+            <div>
+              <dt>{{ $t('ui.bitrate') }}</dt>
+              <dd>{{ leftMedia.stream.bitrate }}</dd>
+            </div>
+          </dl>
+        </article>
+
+        <article class="media-side">
+          <header>
+            <strong>{{ rightMedia.name }}</strong>
+            <span>{{ rightMedia.container }}</span>
+          </header>
+          <dl>
+            <div>
+              <dt>{{ $t('ui.duration') }}</dt>
+              <dd>{{ rightMedia.duration }}</dd>
+            </div>
+            <div>
+              <dt>{{ $t('ui.codec') }}</dt>
+              <dd>{{ rightMedia.stream.codec }}</dd>
+            </div>
+            <div>
+              <dt>{{ $t('ui.sampleRate') }}</dt>
+              <dd>{{ rightMedia.stream.sampleRate }}</dd>
+            </div>
+            <div>
+              <dt>{{ $t('ui.channels') }}</dt>
+              <dd>{{ rightMedia.stream.channels }}</dd>
+            </div>
+            <div>
+              <dt>{{ $t('ui.bitrate') }}</dt>
+              <dd>{{ rightMedia.stream.bitrate }}</dd>
+            </div>
+          </dl>
+        </article>
+      </section>
+
+      <section class="media-report-panel">
+        <header>
+          <strong>{{ $t('ui.tagFieldReport') }}</strong>
+          <span>{{ $t('status.fieldCount', { count: mediaFields.length }) }}</span>
+        </header>
+        <div
+          class="media-report-table"
+          data-testid="media-report-table"
+        >
+          <div class="media-field-row media-field-head">
+            <span>{{ $t('ui.field') }}</span>
+            <span>{{ $t('ui.left') }}</span>
+            <span>{{ $t('ui.right') }}</span>
+            <span>{{ $t('ui.status') }}</span>
+          </div>
+          <div
+            v-for="row in mediaFields"
+            :key="row.field"
+            class="media-field-row"
+            :class="`status-${row.status}`"
+            :data-testid="`media-field-${row.field}`"
+          >
+            <strong>{{ row.field }}</strong>
+            <code>{{ valueText(row.left) }}</code>
+            <code>{{ valueText(row.right) }}</code>
+            <em>{{ statusLabel(row.status) }}</em>
+          </div>
         </div>
-      </div>
+      </section>
     </section>
-  </section>
+
+    <template #inspector>
+      <WorkbenchInspector>
+        <section class="workbench-inspector-section">
+          <h2>{{ $t('ui.metadata') }}</h2>
+          <dl>
+            <div>
+              <dt>{{ $t('ui.add') }}</dt>
+              <dd data-tone="added">{{ mediaSummary.added }}</dd>
+            </div>
+            <div>
+              <dt>{{ $t('ui.delete') }}</dt>
+              <dd data-tone="deleted">{{ mediaSummary.removed }}</dd>
+            </div>
+            <div>
+              <dt>{{ $t('ui.modified') }}</dt>
+              <dd data-tone="modified">{{ mediaSummary.modified }}</dd>
+            </div>
+            <div>
+              <dt>{{ $t('ui.codec') }}</dt>
+              <dd>{{ leftMedia.stream.codec }} / {{ rightMedia.stream.codec }}</dd>
+            </div>
+          </dl>
+        </section>
+      </WorkbenchInspector>
+    </template>
+  </WorkbenchShell>
 </template>
 <style scoped>
 .media-compare-view {

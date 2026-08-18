@@ -1,15 +1,19 @@
 <script setup lang="ts">
-import { previewFolderSync } from '@/api/sync'
+import { executeFolderSync, previewFolderSync } from '@/api/sync'
 import type {
+  FolderSyncExecutionLog,
   FolderSyncPreviewAction,
   FolderSyncPreviewRow,
   FolderSyncStrategy,
 } from '@/types/sync'
 import { computed, ref } from 'vue'
+import WorkbenchShell from '@/components/workbench/WorkbenchShell.vue'
+import WorkbenchInspector from '@/components/workbench/WorkbenchInspector.vue'
+import { useI18n } from '@/i18n'
 
 interface SyncStrategyOption {
   value: FolderSyncStrategy
-  label: string
+  labelKey: string
 }
 
 interface SyncPreviewRow {
@@ -22,28 +26,32 @@ interface SyncPreviewRow {
 }
 
 const strategyOptions: SyncStrategyOption[] = [
-  { value: 'updateRight', label: 'Update Right' },
-  { value: 'updateLeft', label: 'Update Left' },
-  { value: 'updateBoth', label: 'Update Both' },
-  { value: 'mirrorRight', label: 'Mirror to Right' },
-  { value: 'mirrorLeft', label: 'Mirror to Left' },
+  { value: 'updateRight', labelKey: 'sync.strategy.updateRight' },
+  { value: 'updateLeft', labelKey: 'sync.strategy.updateLeft' },
+  { value: 'updateBoth', labelKey: 'sync.strategy.updateBoth' },
+  { value: 'mirrorRight', labelKey: 'sync.strategy.mirrorRight' },
+  { value: 'mirrorLeft', labelKey: 'sync.strategy.mirrorLeft' },
 ]
+const { t } = useI18n()
 const leftPath = ref('D:/workspace/left')
 const rightPath = ref('D:/workspace/right')
 const selectedStrategy = ref<FolderSyncStrategy>('updateBoth')
-const previewName = ref('Update Both')
+const previewName = ref('')
 const previewLoading = ref(false)
 const previewError = ref<string>()
+const syncRunning = ref(false)
+const syncRunError = ref<string>()
 const previewRows = ref<SyncPreviewRow[]>([])
 const completedOperations = ref(0)
 const syncLogs = ref<string[]>([])
 
-const selectedStrategyLabel = computed(
-  () =>
-    strategyOptions.find((option) => option.value === selectedStrategy.value)?.label ??
-    'Update Both',
+const selectedStrategyLabel = computed(() =>
+  t(
+    strategyOptions.find((option) => option.value === selectedStrategy.value)?.labelKey ??
+      'sync.strategy.updateBoth',
+  ),
 )
-const canRunSync = computed(() => previewRows.value.length > 0)
+const canRunSync = computed(() => previewRows.value.length > 0 && !syncRunning.value)
 
 async function previewSync(): Promise<void> {
   previewLoading.value = true
@@ -62,6 +70,7 @@ async function previewSync(): Promise<void> {
     rightPath.value = response.rightRoot
     completedOperations.value = 0
     syncLogs.value = []
+    syncRunError.value = undefined
   } catch (error) {
     previewError.value = error instanceof Error ? error.message : String(error)
   } finally {
@@ -69,27 +78,39 @@ async function previewSync(): Promise<void> {
   }
 }
 
-function runSync(): void {
+async function runSync(): Promise<void> {
   if (!canRunSync.value) {
     return
   }
 
-  completedOperations.value = previewRows.value.length
-  syncLogs.value = previewRows.value.map((row) => {
-    if (row.action === 'Delete') {
-      return `Deleted ${row.relativePath}`
-    }
+  syncRunning.value = true
+  syncRunError.value = undefined
 
-    if (row.action === 'Leave') {
-      return `Left ${row.relativePath} unchanged`
-    }
+  try {
+    const response = await executeFolderSync({
+      leftRoot: leftPath.value,
+      rightRoot: rightPath.value,
+      strategy: selectedStrategy.value,
+    })
 
-    if (row.action === 'Conflict') {
-      return `Conflict ${row.relativePath}`
-    }
+    completedOperations.value = response.succeeded + response.failed + response.cancelled
+    syncLogs.value = response.logs.map(folderSyncExecutionLogLabel)
+  } catch (error) {
+    syncRunError.value = error instanceof Error ? error.message : String(error)
+  } finally {
+    syncRunning.value = false
+  }
+}
 
-    return `Copied ${row.relativePath}`
-  })
+function folderSyncActionLabel(action: FolderSyncPreviewAction): string {
+  const keys: Record<FolderSyncPreviewAction, string> = {
+    Conflict: 'ui.conflicts',
+    Copy: 'ui.copy',
+    Delete: 'ui.delete',
+    Leave: 'ui.leave',
+  }
+
+  return t(keys[action])
 }
 
 function syncPreviewResponseRowToViewRow(row: FolderSyncPreviewRow): SyncPreviewRow {
@@ -102,125 +123,191 @@ function syncPreviewResponseRowToViewRow(row: FolderSyncPreviewRow): SyncPreview
     detail: row.detail,
   }
 }
+
+function folderSyncExecutionLogLabel(log: FolderSyncExecutionLog): string {
+  if (log.status === 'failed') {
+    return `${log.relativePath} -> ${log.error ?? log.status}`
+  }
+
+  if (log.action === 'delete') {
+    return t('status.deletedPath', { path: log.relativePath })
+  }
+
+  if (log.action === 'leave') {
+    return `${t('ui.leave')} -> ${log.relativePath}`
+  }
+
+  if (log.action === 'conflict') {
+    return `${t('ui.conflicts')} -> ${log.relativePath}`
+  }
+
+  return t('status.copiedPath', { path: log.relativePath })
+}
 </script>
 
 <template>
-  <section class="folder-sync-view">
-    <header class="folder-sync-header">
-      <div>
-        <p class="eyebrow">{{ $t('ui.folderSync') }}</p>
-        <h1>{{ $t('ui.folderSync') }}</h1>
-      </div>
-      <div class="sync-progress">
-        <strong>{{ completedOperations }} / {{ previewRows.length }}</strong>
-        <span>{{ $t('ui.completed') }}</span>
-      </div>
-    </header>
-
-    <section class="sync-settings">
-      <label>
-        <span>{{ $t('ui.leftFolder') }}</span>
-        <input
-          v-model="leftPath"
-          data-testid="folder-sync-left-path"
-        />
-      </label>
-      <label>
-        <span>{{ $t('ui.rightFolder') }}</span>
-        <input
-          v-model="rightPath"
-          data-testid="folder-sync-right-path"
-        />
-      </label>
-      <label>
-        <span>{{ $t('ui.strategy') }}</span>
-        <select
-          v-model="selectedStrategy"
-          data-testid="folder-sync-strategy"
-        >
-          <option
-            v-for="option in strategyOptions"
-            :key="option.value"
-            :value="option.value"
-          >
-            {{ option.label }}
-          </option>
-        </select>
-      </label>
-      <div class="sync-setting-actions">
-        <NButton
-          size="small"
-          secondary
-          data-testid="folder-sync-preview"
-          :disabled="previewLoading || !leftPath || !rightPath"
-          :loading="previewLoading"
-          @click="previewSync"
-          >{{ $t('ui.preview') }}</NButton
-        >
-        <NButton
-          size="small"
-          type="primary"
-          data-testid="folder-sync-run"
-          :disabled="!canRunSync"
-          @click="runSync"
-          >{{ $t('ui.runSync') }}</NButton
-        >
-      </div>
-    </section>
-
-    <section
-      v-if="previewError"
-      class="sync-run-status"
-      data-testid="folder-sync-preview-error"
-    >
-      {{ previewError }}
-    </section>
-
-    <section
-      v-if="previewRows.length > 0"
-      class="sync-preview"
-      data-testid="folder-sync-preview-panel"
-    >
-      <header>
-        <strong>{{ previewName || selectedStrategyLabel }}</strong>
-        <span>{{ leftPath }} -> {{ rightPath }}</span>
+  <WorkbenchShell
+    :title="$t('ui.folderSync')"
+    :eyebrow="$t('ui.sync')"
+    :subtitle="selectedStrategyLabel"
+    :inspector-label="$t('ui.folderSyncInspector')"
+  >
+    <section class="folder-sync-view">
+      <header class="folder-sync-header">
+        <div>
+          <p class="eyebrow">{{ $t('ui.folderSync') }}</p>
+          <h1>{{ $t('ui.folderSync') }}</h1>
+        </div>
+        <div class="sync-progress">
+          <strong>{{ completedOperations }} / {{ previewRows.length }}</strong>
+          <span>{{ $t('ui.completed') }}</span>
+        </div>
       </header>
-      <div class="sync-preview-table">
-        <div class="sync-preview-row sync-preview-head">
-          <span>{{ $t('ui.action') }}</span>
-          <span>{{ $t('ui.source') }}</span>
-          <span>{{ $t('ui.target') }}</span>
-          <span>{{ $t('ui.detail') }}</span>
+
+      <section class="sync-settings">
+        <label>
+          <span>{{ $t('ui.leftFolder') }}</span>
+          <input
+            v-model="leftPath"
+            data-testid="folder-sync-left-path"
+          />
+        </label>
+        <label>
+          <span>{{ $t('ui.rightFolder') }}</span>
+          <input
+            v-model="rightPath"
+            data-testid="folder-sync-right-path"
+          />
+        </label>
+        <label>
+          <span>{{ $t('ui.strategy') }}</span>
+          <select
+            v-model="selectedStrategy"
+            data-testid="folder-sync-strategy"
+          >
+            <option
+              v-for="option in strategyOptions"
+              :key="option.value"
+              :value="option.value"
+            >
+              {{ $t(option.labelKey) }}
+            </option>
+          </select>
+        </label>
+        <div class="sync-setting-actions">
+          <NButton
+            size="small"
+            secondary
+            data-testid="folder-sync-preview"
+            :disabled="previewLoading || !leftPath || !rightPath"
+            :loading="previewLoading"
+            @click="previewSync"
+            >{{ $t('ui.preview') }}</NButton
+          >
+          <NButton
+            size="small"
+            type="primary"
+            data-testid="folder-sync-run"
+            :disabled="!canRunSync"
+            :loading="syncRunning"
+            @click="runSync"
+            >{{ $t('ui.runSync') }}</NButton
+          >
         </div>
-        <div
-          v-for="row in previewRows"
-          :key="row.id"
-          class="sync-preview-row"
-        >
-          <strong>{{ row.action }}</strong>
-          <span>{{ row.sourcePath ?? '--' }}</span>
-          <span>{{ row.targetPath ?? '--' }}</span>
-          <span>{{ row.detail }}</span>
+      </section>
+
+      <section
+        v-if="previewError"
+        class="sync-run-status"
+        data-testid="folder-sync-preview-error"
+      >
+        {{ previewError }}
+      </section>
+
+      <section
+        v-if="syncRunError"
+        class="sync-run-status"
+        data-testid="folder-sync-run-error"
+      >
+        {{ syncRunError }}
+      </section>
+
+      <section
+        v-if="previewRows.length > 0"
+        class="sync-preview"
+        data-testid="folder-sync-preview-panel"
+      >
+        <header>
+          <strong>{{ previewName || selectedStrategyLabel }}</strong>
+          <span>{{ leftPath }} -> {{ rightPath }}</span>
+        </header>
+        <div class="sync-preview-table">
+          <div class="sync-preview-row sync-preview-head">
+            <span>{{ $t('ui.action') }}</span>
+            <span>{{ $t('ui.source') }}</span>
+            <span>{{ $t('ui.target') }}</span>
+            <span>{{ $t('ui.detail') }}</span>
+          </div>
+          <div
+            v-for="row in previewRows"
+            :key="row.id"
+            class="sync-preview-row"
+          >
+            <strong>{{ folderSyncActionLabel(row.action) }}</strong>
+            <span>{{ row.sourcePath ?? '--' }}</span>
+            <span>{{ row.targetPath ?? '--' }}</span>
+            <span>{{ row.detail }}</span>
+          </div>
         </div>
-      </div>
+      </section>
+
+      <section
+        v-if="completedOperations > 0"
+        class="sync-run-status"
+        data-testid="folder-sync-run-status"
+      >
+        <strong>{{
+          $t('status.completedCount', { count: completedOperations, total: previewRows.length })
+        }}</strong>
+        <ul>
+          <li
+            v-for="log in syncLogs"
+            :key="log"
+          >
+            {{ log }}
+          </li>
+        </ul>
+      </section>
     </section>
 
-    <section
-      v-if="completedOperations > 0"
-      class="sync-run-status"
-      data-testid="folder-sync-run-status"
-    >
-      <strong>Completed {{ completedOperations }} / {{ previewRows.length }}</strong>
-      <ul>
-        <li
-          v-for="log in syncLogs"
-          :key="log"
-        >
-          {{ log }}
-        </li>
-      </ul>
-    </section>
-  </section>
+    <template #inspector>
+      <WorkbenchInspector>
+        <section class="workbench-inspector-section">
+          <h2>{{ $t('ui.syncPreview') }}</h2>
+          <dl>
+            <div>
+              <dt>{{ $t('ui.strategy') }}</dt>
+              <dd>{{ selectedStrategyLabel }}</dd>
+            </div>
+            <div>
+              <dt>{{ $t('ui.items') }}</dt>
+              <dd>{{ previewRows.length }}</dd>
+            </div>
+            <div>
+              <dt>{{ $t('ui.completed') }}</dt>
+              <dd>{{ completedOperations }}</dd>
+            </div>
+            <div>
+              <dt>{{ $t('ui.status') }}</dt>
+              <dd>
+                {{ previewLoading ? $t('status.running') : previewName || selectedStrategyLabel }}
+              </dd>
+            </div>
+          </dl>
+        </section>
+      </WorkbenchInspector>
+    </template>
+  </WorkbenchShell>
 </template>
 <style scoped>
 .folder-sync-view {

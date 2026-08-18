@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import WorkbenchShell from '@/components/workbench/WorkbenchShell.vue'
+import WorkbenchInspector from '@/components/workbench/WorkbenchInspector.vue'
+import { useI18n } from '@/i18n'
 
 type RemoteProtocol =
   | 'ftp'
@@ -74,9 +77,11 @@ const builtInProfiles: RemoteProfile[] = [
 ]
 
 const profiles = ref<RemoteProfile[]>(builtInProfiles.map((profile) => cloneProfile(profile)))
+const { t } = useI18n()
 const selectedProfileId = ref(profiles.value[0]?.id ?? '')
 const draft = ref<RemoteProfileDraft>(toDraft(profiles.value[0] ?? emptyProfile()))
-const testStatus = ref('No connection test run')
+const testStatusKey = ref('status.noConnectionTestRun')
+const testStatusParams = ref<Record<string, string | number>>({})
 
 const sortedProfiles = computed(() =>
   [...profiles.value].sort((left, right) => left.name.localeCompare(right.name)),
@@ -93,6 +98,7 @@ const profileSummary = computed(() => {
 const credentialSummary = computed(
   () => `${credentialKindLabel(draft.value.credentialKind)}: ${draft.value.credentialKey || '--'}`,
 )
+const testStatus = computed(() => t(testStatusKey.value, testStatusParams.value))
 
 function selectProfile(profileId: string): void {
   const profile = profiles.value.find((item) => item.id === profileId)
@@ -103,13 +109,13 @@ function selectProfile(profileId: string): void {
 
   selectedProfileId.value = profile.id
   draft.value = toDraft(profile)
-  testStatus.value = 'No connection test run'
+  setTestStatus('status.noConnectionTestRun')
 }
 
 function createNewProfile(): void {
   selectedProfileId.value = ''
   draft.value = toDraft(emptyProfile())
-  testStatus.value = 'No connection test run'
+  setTestStatus('status.noConnectionTestRun')
 }
 
 function saveProfile(): void {
@@ -148,9 +154,18 @@ function deleteProfile(): void {
 function testProfileConnection(): void {
   const host = draft.value.host.trim()
 
-  testStatus.value = host
-    ? `Connection check queued for ${host}`
-    : 'Connection check requires a host'
+  if (host) {
+    setTestStatus('status.connectionCheckQueuedFor', { host })
+
+    return
+  }
+
+  setTestStatus('status.connectionCheckRequiresHost')
+}
+
+function setTestStatus(key: string, params: Record<string, string | number> = {}): void {
+  testStatusKey.value = key
+  testStatusParams.value = params
 }
 
 function toDraft(profile: RemoteProfile): RemoteProfileDraft {
@@ -226,195 +241,228 @@ function slugify(value: string): string {
 
 function protocolLabel(protocol: RemoteProtocol): string {
   const labels: Record<RemoteProtocol, string> = {
-    ftp: 'FTP',
-    ftps: 'FTPS',
-    sftp: 'SFTP',
-    'web-dav': 'WebDAV',
-    s3: 'S3',
-    dropbox: 'Dropbox',
-    'one-drive': 'OneDrive',
-    subversion: 'Subversion',
+    dropbox: 'ui.dropbox',
+    ftp: 'ui.ftp',
+    ftps: 'ui.ftps',
+    'one-drive': 'ui.onedrive',
+    s3: 'ui.s3',
+    sftp: 'ui.sftp',
+    subversion: 'ui.subversion',
+    'web-dav': 'ui.webDav',
   }
 
-  return labels[protocol]
+  return t(labels[protocol])
 }
 
 function credentialKindLabel(kind: CredentialReferenceKind): string {
   const labels: Record<CredentialReferenceKind, string> = {
-    'system-keychain': 'System keychain',
-    environment: 'Environment variable',
-    'profile-store': 'Profile store',
+    environment: 'ui.environmentVariable',
+    'profile-store': 'ui.profileStore',
+    'system-keychain': 'ui.systemKeychain',
   }
 
-  return labels[kind]
+  return t(labels[kind])
 }
 </script>
 
 <template>
-  <section class="remote-profile-view">
-    <header class="profile-header">
-      <div>
-        <p class="eyebrow">{{ $t('ui.settings') }}</p>
-        <h1>{{ $t('ui.remoteProfiles') }}</h1>
-      </div>
-      <div class="profile-count">
-        <strong>{{ profiles.length }}</strong>
-        <span>{{ $t('ui.profileCountLabel') }}</span>
-      </div>
-    </header>
-
-    <section class="profile-workspace">
-      <aside class="profile-list-panel">
-        <div class="panel-title">
-          <h2>{{ $t('ui.profiles') }}</h2>
-          <button
-            type="button"
-            data-testid="new-remote-profile"
-            @click="createNewProfile"
-          >
-            {{ $t('ui.new') }}
-          </button>
+  <WorkbenchShell
+    :title="$t('ui.remoteProfiles')"
+    :eyebrow="$t('ui.remote')"
+    :subtitle="profileSummary"
+    :inspector-label="$t('ui.remoteProfileInspector')"
+  >
+    <section class="remote-profile-view">
+      <header class="profile-header">
+        <div>
+          <p class="eyebrow">{{ $t('ui.settings') }}</p>
+          <h1>{{ $t('ui.remoteProfiles') }}</h1>
         </div>
-        <div
-          class="profile-list"
-          data-testid="remote-profile-list"
-        >
-          <button
-            v-for="profile in sortedProfiles"
-            :key="profile.id"
-            type="button"
-            class="profile-row"
-            :class="{ active: profile.id === selectedProfileId }"
-            :data-testid="`select-remote-profile-${profile.id}`"
-            @click="selectProfile(profile.id)"
-          >
-            <span>{{ profile.name }}</span>
-            <small>{{ protocolLabel(profile.protocol) }} · {{ profile.endpoint.host }}</small>
-          </button>
+        <div class="profile-count">
+          <strong>{{ profiles.length }}</strong>
+          <span>{{ $t('ui.profileCountLabel') }}</span>
         </div>
-      </aside>
+      </header>
 
-      <section
-        class="profile-detail-panel"
-        data-testid="remote-profile-detail"
-      >
-        <div class="panel-title">
-          <h2>{{ $t('ui.profileDetails') }}</h2>
-          <div class="profile-actions">
+      <section class="profile-workspace">
+        <aside class="profile-list-panel">
+          <div class="panel-title">
+            <h2>{{ $t('ui.profiles') }}</h2>
             <button
               type="button"
-              data-testid="test-remote-profile"
-              @click="testProfileConnection"
+              data-testid="new-remote-profile"
+              @click="createNewProfile"
             >
-              {{ $t('ui.test') }}
-            </button>
-            <button
-              type="button"
-              data-testid="delete-remote-profile"
-              :disabled="!selectedProfile"
-              @click="deleteProfile"
-            >
-              {{ $t('ui.delete') }}
-            </button>
-            <button
-              type="button"
-              data-testid="save-remote-profile"
-              @click="saveProfile"
-            >
-              {{ $t('ui.save') }}
+              {{ $t('ui.new') }}
             </button>
           </div>
-        </div>
-
-        <p
-          class="profile-summary"
-          data-testid="remote-profile-summary"
-        >
-          {{ profileSummary }}
-        </p>
-
-        <div class="profile-form">
-          <label>
-            <span>{{ $t('ui.name') }}</span>
-            <input
-              v-model="draft.name"
-              data-testid="remote-profile-name-input"
-              type="text"
-            />
-          </label>
-          <label>
-            <span>{{ $t('ui.protocol') }}</span>
-            <select
-              v-model="draft.protocol"
-              data-testid="remote-profile-protocol-select"
+          <div
+            class="profile-list"
+            data-testid="remote-profile-list"
+          >
+            <button
+              v-for="profile in sortedProfiles"
+              :key="profile.id"
+              type="button"
+              class="profile-row"
+              :class="{ active: profile.id === selectedProfileId }"
+              :data-testid="`select-remote-profile-${profile.id}`"
+              @click="selectProfile(profile.id)"
             >
-              <option value="ftp">{{ $t('ui.ftp') }}</option>
-              <option value="ftps">{{ $t('ui.ftps') }}</option>
-              <option value="sftp">{{ $t('ui.sftp') }}</option>
-              <option value="web-dav">{{ $t('ui.webDav') }}</option>
-              <option value="s3">{{ $t('ui.s3') }}</option>
-              <option value="dropbox">{{ $t('ui.dropbox') }}</option>
-              <option value="one-drive">{{ $t('ui.onedrive') }}</option>
-              <option value="subversion">{{ $t('ui.subversion') }}</option>
-            </select>
-          </label>
-          <label>
-            <span>{{ $t('ui.host') }}</span>
-            <input
-              v-model="draft.host"
-              data-testid="remote-profile-host-input"
-              type="text"
-            />
-          </label>
-          <label>
-            <span>{{ $t('ui.port') }}</span>
-            <input
-              v-model.number="draft.port"
-              data-testid="remote-profile-port-input"
-              type="number"
-              min="1"
-              max="65535"
-            />
-          </label>
-          <label>
-            <span>{{ $t('ui.rootPath') }}</span>
-            <input
-              v-model="draft.rootPath"
-              data-testid="remote-profile-root-input"
-              type="text"
-            />
-          </label>
-          <label>
-            <span>{{ $t('ui.credentialReference') }}</span>
-            <select
-              v-model="draft.credentialKind"
-              data-testid="remote-profile-credential-kind-select"
-            >
-              <option value="system-keychain">{{ $t('ui.systemKeychain') }}</option>
-              <option value="environment">{{ $t('ui.environmentVariable') }}</option>
-              <option value="profile-store">{{ $t('ui.profileStore') }}</option>
-            </select>
-          </label>
-          <label class="credential-key">
-            <span>{{ $t('ui.credentialKey') }}</span>
-            <input
-              v-model="draft.credentialKey"
-              data-testid="remote-profile-credential-key-input"
-              type="text"
-            />
-          </label>
-        </div>
+              <span>{{ profile.name }}</span>
+              <small>{{ protocolLabel(profile.protocol) }} · {{ profile.endpoint.host }}</small>
+            </button>
+          </div>
+        </aside>
 
-        <p class="credential-summary">{{ credentialSummary }}</p>
-        <p
-          class="test-status"
-          data-testid="remote-profile-test-status"
+        <section
+          class="profile-detail-panel"
+          data-testid="remote-profile-detail"
         >
-          {{ testStatus }}
-        </p>
+          <div class="panel-title">
+            <h2>{{ $t('ui.profileDetails') }}</h2>
+            <div class="profile-actions">
+              <button
+                type="button"
+                data-testid="test-remote-profile"
+                @click="testProfileConnection"
+              >
+                {{ $t('ui.test') }}
+              </button>
+              <button
+                type="button"
+                data-testid="delete-remote-profile"
+                :disabled="!selectedProfile"
+                @click="deleteProfile"
+              >
+                {{ $t('ui.delete') }}
+              </button>
+              <button
+                type="button"
+                data-testid="save-remote-profile"
+                @click="saveProfile"
+              >
+                {{ $t('ui.save') }}
+              </button>
+            </div>
+          </div>
+
+          <p
+            class="profile-summary"
+            data-testid="remote-profile-summary"
+          >
+            {{ profileSummary }}
+          </p>
+
+          <div class="profile-form">
+            <label>
+              <span>{{ $t('ui.name') }}</span>
+              <input
+                v-model="draft.name"
+                data-testid="remote-profile-name-input"
+                type="text"
+              />
+            </label>
+            <label>
+              <span>{{ $t('ui.protocol') }}</span>
+              <select
+                v-model="draft.protocol"
+                data-testid="remote-profile-protocol-select"
+              >
+                <option value="ftp">{{ $t('ui.ftp') }}</option>
+                <option value="ftps">{{ $t('ui.ftps') }}</option>
+                <option value="sftp">{{ $t('ui.sftp') }}</option>
+                <option value="web-dav">{{ $t('ui.webDav') }}</option>
+                <option value="s3">{{ $t('ui.s3') }}</option>
+                <option value="dropbox">{{ $t('ui.dropbox') }}</option>
+                <option value="one-drive">{{ $t('ui.onedrive') }}</option>
+                <option value="subversion">{{ $t('ui.subversion') }}</option>
+              </select>
+            </label>
+            <label>
+              <span>{{ $t('ui.host') }}</span>
+              <input
+                v-model="draft.host"
+                data-testid="remote-profile-host-input"
+                type="text"
+              />
+            </label>
+            <label>
+              <span>{{ $t('ui.port') }}</span>
+              <input
+                v-model.number="draft.port"
+                data-testid="remote-profile-port-input"
+                type="number"
+                min="1"
+                max="65535"
+              />
+            </label>
+            <label>
+              <span>{{ $t('ui.rootPath') }}</span>
+              <input
+                v-model="draft.rootPath"
+                data-testid="remote-profile-root-input"
+                type="text"
+              />
+            </label>
+            <label>
+              <span>{{ $t('ui.credentialReference') }}</span>
+              <select
+                v-model="draft.credentialKind"
+                data-testid="remote-profile-credential-kind-select"
+              >
+                <option value="system-keychain">{{ $t('ui.systemKeychain') }}</option>
+                <option value="environment">{{ $t('ui.environmentVariable') }}</option>
+                <option value="profile-store">{{ $t('ui.profileStore') }}</option>
+              </select>
+            </label>
+            <label class="credential-key">
+              <span>{{ $t('ui.credentialKey') }}</span>
+              <input
+                v-model="draft.credentialKey"
+                data-testid="remote-profile-credential-key-input"
+                type="text"
+              />
+            </label>
+          </div>
+
+          <p class="credential-summary">{{ credentialSummary }}</p>
+          <p
+            class="test-status"
+            data-testid="remote-profile-test-status"
+          >
+            {{ testStatus }}
+          </p>
+        </section>
       </section>
     </section>
-  </section>
+
+    <template #inspector>
+      <WorkbenchInspector>
+        <section class="workbench-inspector-section">
+          <h2>{{ $t('ui.profileDetails') }}</h2>
+          <dl>
+            <div>
+              <dt>{{ $t('ui.profiles') }}</dt>
+              <dd>{{ profiles.length }}</dd>
+            </div>
+            <div>
+              <dt>{{ $t('ui.protocol') }}</dt>
+              <dd>{{ protocolLabel(draft.protocol) }}</dd>
+            </div>
+            <div>
+              <dt>{{ $t('ui.credentialReference') }}</dt>
+              <dd>{{ credentialSummary }}</dd>
+            </div>
+            <div>
+              <dt>{{ $t('ui.status') }}</dt>
+              <dd>{{ testStatus }}</dd>
+            </div>
+          </dl>
+        </section>
+      </WorkbenchInspector>
+    </template>
+  </WorkbenchShell>
 </template>
 <style scoped>
 .remote-profile-view {

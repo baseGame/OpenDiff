@@ -1,14 +1,29 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { compareVersionFiles } from '@/api/diff'
+import { useI18n } from '@/i18n'
 import type {
   VersionCompareResponse,
   VersionFieldRow,
   VersionFieldStatus,
   VersionSideSummary,
 } from '@/types/diff'
+import { useSessionLaunchStore } from '@/stores/sessionLaunch'
 
 const versionStatuses: VersionFieldStatus[] = ['added', 'removed', 'modified', 'unchanged']
+const versionToolbarCommands = [
+  { glyph: 'H', labelKey: 'ui.home' },
+  { glyph: '*', labelKey: 'ui.all' },
+  { glyph: '!=', labelKey: 'ui.diffs' },
+  { glyph: '=', labelKey: 'ui.same' },
+  { glyph: '~', labelKey: 'ui.minor' },
+  { glyph: 'R', labelKey: 'ui.rules' },
+  { glyph: 'N', labelKey: 'ui.nextDifference' },
+  { glyph: 'P', labelKey: 'ui.previousDifference' },
+  { glyph: '<>', labelKey: 'ui.swap' },
+  { glyph: 'R', labelKey: 'ui.reload' },
+]
+const { t } = useI18n()
 const defaultLeftVersion: VersionSideSummary = {
   name: 'left-app.exe',
   fileType: 'Application',
@@ -67,12 +82,28 @@ const defaultVersionFields: VersionFieldRow[] = [
 ]
 const leftPath = ref('C:/apps/left-app.exe')
 const rightPath = ref('C:/apps/right-app.exe')
+const sessionLaunch = useSessionLaunchStore()
 const leftVersion = ref<VersionSideSummary>(defaultLeftVersion)
 const rightVersion = ref<VersionSideSummary>(defaultRightVersion)
 const versionFields = ref<VersionFieldRow[]>(defaultVersionFields)
 const versionSummaryOverride = ref<Record<VersionFieldStatus, number> | null>(null)
 const loading = ref(false)
 const error = ref('')
+
+onMounted(() => {
+  const launch = sessionLaunch.consumeLaunch('/compare/version')
+
+  if (!launch) {
+    return
+  }
+
+  leftPath.value = launch.locations.left?.uri ?? leftPath.value
+  rightPath.value = launch.locations.right?.uri ?? rightPath.value
+
+  if (launch.autoRun && launch.locations.left?.uri && launch.locations.right?.uri) {
+    void runVersionCompare()
+  }
+})
 
 const versionSummary = computed<Record<VersionFieldStatus, number>>(() => {
   if (versionSummaryOverride.value) {
@@ -95,13 +126,13 @@ const versionSummary = computed<Record<VersionFieldStatus, number>>(() => {
 
 function statusLabel(status: VersionFieldStatus): string {
   const labels: Record<VersionFieldStatus, string> = {
-    added: 'Added',
-    removed: 'Removed',
-    modified: 'Modified',
-    unchanged: 'Unchanged',
+    added: 'ui.added',
+    removed: 'ui.removed',
+    modified: 'ui.modified',
+    unchanged: 'ui.unchanged',
   }
 
-  return labels[status]
+  return t(labels[status])
 }
 
 function valueText(value?: string): string {
@@ -134,6 +165,17 @@ async function runVersionCompare(): Promise<void> {
 </script>
 
 <template>
+  <section class="bc-session-toolbar">
+    <button
+      v-for="command in versionToolbarCommands"
+      :key="`${command.glyph}-${command.labelKey}`"
+      class="bc-toolbar-command"
+      type="button"
+    >
+      <span class="bc-toolbar-glyph">{{ command.glyph }}</span
+      ><span>{{ $t(command.labelKey) }}</span>
+    </button>
+  </section>
   <section class="version-compare-view">
     <header class="version-header">
       <div>
@@ -141,8 +183,8 @@ async function runVersionCompare(): Promise<void> {
         <h1>{{ $t('ui.versionCompare') }}</h1>
       </div>
       <div class="version-source-pair">
-        <span>Left: {{ leftVersion.name }}</span>
-        <span>Right: {{ rightVersion.name }}</span>
+        <span>{{ $t('status.sideName', { side: $t('ui.left'), name: leftVersion.name }) }}</span>
+        <span>{{ $t('status.sideName', { side: $t('ui.right'), name: rightVersion.name }) }}</span>
       </div>
     </header>
 
@@ -239,7 +281,7 @@ async function runVersionCompare(): Promise<void> {
     <section class="version-report-panel">
       <header>
         <strong>{{ $t('ui.versionFieldReport') }}</strong>
-        <span>{{ versionFields.length }} fields</span>
+        <span>{{ $t('status.fieldCount', { count: versionFields.length }) }}</span>
       </header>
       <div
         class="version-report-table"
