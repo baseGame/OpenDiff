@@ -1,4 +1,5 @@
 import { sessionCatalog } from '@/app/sessionCatalog'
+import { sessionTypeForPath } from '@/app/fileFormats'
 import type { ValidDropClassification } from '@/app/dropInput'
 import type { SessionType } from '@/types/session'
 
@@ -10,31 +11,6 @@ export interface SessionSelection {
   route?: string
 }
 
-const textExtensions = new Set([
-  'cfg',
-  'css',
-  'csv',
-  'html',
-  'ini',
-  'js',
-  'json',
-  'jsx',
-  'log',
-  'md',
-  'rs',
-  'toml',
-  'ts',
-  'tsx',
-  'txt',
-  'vue',
-  'xml',
-  'yaml',
-  'yml',
-])
-
-const patchExtensions = new Set(['diff', 'patch'])
-const imageExtensions = new Set(['bmp', 'gif', 'jpeg', 'jpg', 'png', 'tif', 'tiff', 'webp'])
-
 export function selectSessionForDrop(drop: ValidDropClassification): SessionSelection {
   if (drop.kind === 'folders') {
     return selectionFor('folder-compare')
@@ -44,21 +20,15 @@ export function selectSessionForDrop(drop: ValidDropClassification): SessionSele
     return selectionFor('hex-compare')
   }
 
-  const extensions = [extensionOf(drop.left.path), extensionOf(drop.right.path)]
-
-  if (
-    drop.kind === 'patch' ||
-    extensions.every((extension) => extension && patchExtensions.has(extension))
-  ) {
+  if (drop.kind === 'patch') {
     return selectionFor('text-patch')
   }
 
-  if (extensions.every((extension) => extension && textExtensions.has(extension))) {
-    return selectionFor('text-compare')
-  }
+  const leftType = sessionTypeForPath(drop.left.path)
+  const rightType = sessionTypeForPath(drop.right.path)
 
-  if (extensions.every((extension) => extension && imageExtensions.has(extension))) {
-    return selectionFor('picture-compare')
+  if (leftType === rightType) {
+    return selectionFor(leftType)
   }
 
   return selectionFor('hex-compare')
@@ -78,15 +48,4 @@ function selectionFor(sessionType: SessionType): SessionSelection {
     enabled: entry.implemented,
     route: entry.route,
   }
-}
-
-function extensionOf(path: string): string | undefined {
-  const displayName = path.replaceAll('\\', '/').split('/').at(-1) ?? path
-  const index = displayName.lastIndexOf('.')
-
-  if (index < 0 || index === displayName.length - 1) {
-    return undefined
-  }
-
-  return displayName.slice(index + 1).toLowerCase()
 }

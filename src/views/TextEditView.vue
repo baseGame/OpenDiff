@@ -12,11 +12,15 @@ interface LoadedTextDocument {
   fileStamp: FileStamp
 }
 
-const pathInput = ref('D:/workspace/notes.txt')
+const pathInput = ref('')
 const { t } = useI18n()
 const document = ref<LoadedTextDocument | null>(null)
 const editorText = ref('')
 const savedText = ref('')
+const undoStack = ref<string[]>([])
+const redoStack = ref<string[]>([])
+const localClipboard = ref('')
+const applyingHistory = ref(false)
 const loading = ref(false)
 const saving = ref(false)
 const error = ref('')
@@ -131,8 +135,121 @@ async function saveDocument(): Promise<void> {
 }
 
 function updateEditorText(value: string): void {
+  if (!applyingHistory.value) {
+    undoStack.value.push(editorText.value)
+    redoStack.value = []
+  }
+
   editorText.value = value
   clampFindIndex()
+}
+
+function undoEdit(): void {
+  const previous = undoStack.value.pop()
+
+  if (previous === undefined) {
+    return
+  }
+
+  redoStack.value.push(editorText.value)
+  applyingHistory.value = true
+  editorText.value = previous
+  applyingHistory.value = false
+  clampFindIndex()
+}
+
+function redoEdit(): void {
+  const next = redoStack.value.pop()
+
+  if (next === undefined) {
+    return
+  }
+
+  undoStack.value.push(editorText.value)
+  applyingHistory.value = true
+  editorText.value = next
+  applyingHistory.value = false
+  clampFindIndex()
+}
+
+async function copyEdit(): Promise<void> {
+  const selected = window.getSelection()?.toString() || editorText.value
+  localClipboard.value = selected
+
+  try {
+    await navigator.clipboard.writeText(selected)
+  } catch {
+    // Browser clipboard may be unavailable in tests or restricted contexts.
+  }
+}
+
+async function cutEdit(): Promise<void> {
+  const selected = window.getSelection()?.toString() || editorText.value
+  await copyEdit()
+
+  if (selected && editorText.value.includes(selected)) {
+    updateEditorText(editorText.value.replace(selected, ''))
+  }
+}
+
+async function pasteEdit(): Promise<void> {
+  let pasted = localClipboard.value
+
+  try {
+    pasted = (await navigator.clipboard.readText()) || pasted
+  } catch {
+    // Fall back to the in-session clipboard.
+  }
+
+  updateEditorText(`${editorText.value}${pasted}`)
+}
+
+function deleteEdit(): void {
+  const selected = window.getSelection()?.toString()
+
+  if (selected && editorText.value.includes(selected)) {
+    updateEditorText(editorText.value.replace(selected, ''))
+
+    return
+  }
+
+  updateEditorText('')
+}
+
+function runTextEditCommand(commandId: string): void {
+  if (commandId === 'undo') {
+    undoEdit()
+
+    return
+  }
+
+  if (commandId === 'redo') {
+    redoEdit()
+
+    return
+  }
+
+  if (commandId === 'cut') {
+    void cutEdit()
+
+    return
+  }
+
+  if (commandId === 'copy') {
+    void copyEdit()
+
+    return
+  }
+
+  if (commandId === 'paste') {
+    void pasteEdit()
+
+    return
+  }
+
+  if (commandId === 'delete') {
+    deleteEdit()
+  }
 }
 
 function updateFindQuery(event: Event): void {
@@ -209,14 +326,14 @@ function setSaveStatus(key: string, params: Record<string, string | number> = {}
 
 const saveStatus = computed(() => t(saveStatusKey.value, saveStatusParams.value))
 const textEditToolbarCommands = [
-  { glyph: 'H', labelKey: 'ui.home' },
-  { glyph: 'U', labelKey: 'ui.undo' },
-  { glyph: 'R', labelKey: 'ui.redo' },
-  { glyph: 'X', labelKey: 'ui.cut' },
-  { glyph: 'C', labelKey: 'ui.copy' },
-  { glyph: 'P', labelKey: 'ui.paste' },
-  { glyph: 'D', labelKey: 'ui.delete' },
-  { glyph: 'S', labelKey: 'ui.syntax' },
+  { id: 'home', glyph: 'H', labelKey: 'ui.home', enabled: false },
+  { id: 'undo', glyph: 'U', labelKey: 'ui.undo', enabled: true },
+  { id: 'redo', glyph: 'R', labelKey: 'ui.redo', enabled: true },
+  { id: 'cut', glyph: 'X', labelKey: 'ui.cut', enabled: true },
+  { id: 'copy', glyph: 'C', labelKey: 'ui.copy', enabled: true },
+  { id: 'paste', glyph: 'P', labelKey: 'ui.paste', enabled: true },
+  { id: 'delete', glyph: 'D', labelKey: 'ui.delete', enabled: true },
+  { id: 'syntax', glyph: 'S', labelKey: 'ui.syntax', enabled: false },
 ]
 </script>
 
@@ -224,9 +341,12 @@ const textEditToolbarCommands = [
   <section class="bc-session-toolbar">
     <button
       v-for="command in textEditToolbarCommands"
-      :key="command.labelKey"
+      :key="command.id"
       class="bc-toolbar-command"
       type="button"
+      :disabled="!command.enabled"
+      :data-testid="`text-edit-toolbar-${command.id}`"
+      @click="runTextEditCommand(command.id)"
     >
       <span class="bc-toolbar-glyph">{{ command.glyph }}</span
       ><span>{{ $t(command.labelKey) }}</span>

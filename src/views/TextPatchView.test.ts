@@ -3,11 +3,16 @@ import { createPinia, setActivePinia } from 'pinia'
 import { defineComponent } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import TextPatchView from './TextPatchView.vue'
-import { parseTextPatch, readTextFile } from '@/api/diff'
+import { applyTextPatch, parseTextPatch, readTextFile } from '@/api/diff'
 import { createAppI18n, installI18n } from '@/i18n'
 import { useSessionLaunchStore } from '@/stores/sessionLaunch'
 
 vi.mock('@/api/diff', () => ({
+  applyTextPatch: vi.fn().mockResolvedValue({
+    text: 'const a = 1\nnew\n',
+    appliedHunks: 1,
+    files: 1,
+  }),
   parseTextPatch: vi.fn().mockResolvedValue({
     files: [
       {
@@ -79,6 +84,7 @@ describe('TextPatchView', () => {
     setActivePinia(createPinia())
     vi.mocked(parseTextPatch).mockClear()
     vi.mocked(readTextFile).mockClear()
+    vi.mocked(applyTextPatch).mockClear()
   })
 
   it('parses pasted unified patch text and renders files, hunks, and lines', async () => {
@@ -129,5 +135,22 @@ describe('TextPatchView', () => {
     expect(parseTextPatch).toHaveBeenCalledWith('diff --git a/src/main.ts b/src/main.ts')
     expect(launchStore.pendingLaunch).toBeUndefined()
     expect(wrapper.find('[data-testid="patch-source-path"]').text()).toContain('change.patch')
+  })
+
+  it('applies a unified patch to source text', async () => {
+    const wrapper = mountTextPatchView()
+    const inputs = wrapper.findAllComponents(NInputStub)
+
+    inputs[0]?.vm.$emit('update:value', 'diff --git a/src/main.ts b/src/main.ts')
+    inputs[1]?.vm.$emit('update:value', 'const a = 1\nold\n')
+    await wrapper.vm.$nextTick()
+    await wrapper.find('[data-testid="apply-text-patch"]').trigger('click')
+    await flushPromises()
+
+    expect(applyTextPatch).toHaveBeenCalledWith({
+      source: 'const a = 1\nold\n',
+      patch: 'diff --git a/src/main.ts b/src/main.ts',
+    })
+    expect(wrapper.find('[data-testid="patch-apply-status"]').text()).toContain('Patch applied')
   })
 })

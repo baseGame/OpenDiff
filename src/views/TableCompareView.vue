@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { compareTableCsv, readTextFile } from '@/api/diff'
+import { compareTable, readTextFile } from '@/api/diff'
+import { extensionOf } from '@/app/fileFormats'
 import type {
   TableCompareChangedCell,
   TableCompareColumnMapping,
+  TableCompareRequest,
   TableCompareResponse,
 } from '@/types/diff'
 import WorkbenchShell from '@/components/workbench/WorkbenchShell.vue'
@@ -46,36 +48,23 @@ interface TableCellLocation {
   text: string
 }
 
-const defaultLeftCsv = 'SKU,Region,Quantity,Price,Updated\nA-1,North,12,19.99,2026-06-01'
-const defaultRightCsv = 'sku,Region,Quantity,Price,Updated\nA-1,North,14,19.99,2026-06-01'
-const defaultLeftColumns: TableColumnModel[] = [
-  { side: 'left', name: 'SKU' },
-  { side: 'left', name: 'Unit Price' },
-  { side: 'left', name: 'Left Only' },
-]
-const defaultRightColumns: TableColumnModel[] = [
-  { side: 'right', name: 'sku' },
-  { side: 'right', name: 'unitprice' },
-  { side: 'right', name: 'Right Only' },
-]
-const defaultVirtualGridColumns: VirtualGridColumn[] = [
-  { key: 'sku', label: 'SKU' },
-  { key: 'region', label: 'Region' },
-  { key: 'quantity', label: 'Quantity' },
-  { key: 'price', label: 'Price' },
-  { key: 'updated', label: 'Updated' },
-]
-const visibleRows = 8
-const leftCsv = ref(defaultLeftCsv)
-const rightCsv = ref(defaultRightCsv)
+const leftCsv = ref('')
+const rightCsv = ref('')
+const leftPath = ref('')
+const rightPath = ref('')
+const tableFormat = ref<NonNullable<TableCompareRequest['format']>>('csv')
+const leftSheet = ref('')
+const rightSheet = ref('')
+const keyColumnsInput = ref('0')
+const delimiterInput = ref('')
 const sessionLaunch = useSessionLaunchStore()
 const { t } = useI18n()
-const leftColumns = ref<TableColumnModel[]>(defaultLeftColumns)
-const rightColumns = ref<TableColumnModel[]>(defaultRightColumns)
-const virtualGridColumns = ref<VirtualGridColumn[]>(defaultVirtualGridColumns)
+const leftColumns = ref<TableColumnModel[]>([])
+const rightColumns = ref<TableColumnModel[]>([])
+const virtualGridColumns = ref<VirtualGridColumn[]>([])
 const comparedRows = ref<VirtualGridRow[] | null>(null)
-const manualLeftColumn = ref('SKU')
-const manualRightColumn = ref('sku')
+const manualLeftColumn = ref('')
+const manualRightColumn = ref('')
 const manualMappings = ref<ColumnMappingModel[]>([])
 const leftGridViewport = ref<HTMLElement | null>(null)
 const rightGridViewport = ref<HTMLElement | null>(null)
@@ -84,10 +73,8 @@ const tableSearchQuery = ref('')
 const activeDifferenceIndex = ref(0)
 const loading = ref(false)
 const error = ref('')
-const tableDifferenceCells = ref<TableCellLocation[]>([
-  { key: 'row-2-quantity', text: 'R2C3' },
-  { key: 'row-5-price', text: 'R5C4' },
-])
+const tableDifferenceCells = ref<TableCellLocation[]>([])
+const availableSheets = ref<string[]>([])
 
 onMounted(() => {
   const launch = sessionLaunch.consumeLaunch('/compare/table')
@@ -111,14 +98,14 @@ const virtualGridStyle = computed<Record<string, string>>(() => ({
   '--visible-rows': String(visibleRowCount.value),
 }))
 const virtualGridRows = computed<VirtualGridRow[]>(() => {
-  if (comparedRows.value) {
-    return comparedRows.value.map((row) => ({
-      ...row,
-      cells: row.cells.filter((cell) => !ignoredColumnKeys.value.includes(cell.columnKey)),
-    }))
+  if (!comparedRows.value) {
+    return []
   }
 
-  return buildDefaultVirtualRows()
+  return comparedRows.value.map((row) => ({
+    ...row,
+    cells: row.cells.filter((cell) => !ignoredColumnKeys.value.includes(cell.columnKey)),
+  }))
 })
 const columnRules = computed(() =>
   virtualGridColumns.value.map((column) => {
@@ -218,25 +205,33 @@ const columnMappings = computed<ColumnMappingModel[]>(() => {
   return mappings
 })
 
-function buildDefaultVirtualRows(): VirtualGridRow[] {
-  return Array.from({ length: visibleRows }, (_, rowIndex) => {
-    const rowNumber = rowIndex + 1
-    const rowLabel = String(rowNumber)
+function formatFromPath(path: string): NonNullable<TableCompareRequest['format']> {
+  const extension = extensionOf(path)
 
-    return {
-      key: `row-${rowLabel}`,
-      cells: visibleGridColumns.value.map((column, columnIndex) => {
-        const columnLabel = String(columnIndex + 1)
+  if (extension === 'tsv' || extension === 'tab') {
+    return 'tsv'
+  }
 
-        return {
-          key: `cell-${rowLabel}-${column.key}`,
-          columnKey: column.key,
-          testId: `table-grid-cell-${column.key}`,
-          text: `R${rowLabel}C${columnLabel}`,
-        }
-      }),
-    }
-  })
+  if (extension === 'xlsx') {
+    return 'xlsx'
+  }
+
+  if (extension === 'xls') {
+    return 'xls'
+  }
+
+  if (extension === 'html' || extension === 'htm') {
+    return 'html'
+  }
+
+  return 'csv'
+}
+
+function parseKeyColumnIndices(): number[] {
+  return keyColumnsInput.value
+    .split(',')
+    .map((value) => Number.parseInt(value.trim(), 10))
+    .filter((value) => Number.isInteger(value) && value >= 0)
 }
 
 function normalizeColumnName(name: string): string {
@@ -330,20 +325,43 @@ async function runTableCompare(): Promise<void> {
   loading.value = true
   error.value = ''
   try {
-    const result = await compareTableCsv({
+    const result = await compareTable({
       left: leftCsv.value,
       right: rightCsv.value,
+      format: tableFormat.value,
+      leftPath: leftPath.value || undefined,
+      rightPath: rightPath.value || undefined,
+      leftSheet: leftSheet.value || undefined,
+      rightSheet: rightSheet.value || undefined,
+      keyColumnIndices: parseKeyColumnIndices(),
+      ignoredColumns: ignoredColumnKeys.value
+        .map((key) => virtualGridColumns.value.find((column) => column.key === key)?.label)
+        .filter((label): label is string => Boolean(label)),
+      manualMappings: manualMappings.value
+        .filter((mapping) => mapping.source === 'Manual')
+        .map((mapping) => ({
+          leftColumn: mapping.leftColumn,
+          rightColumn: mapping.rightColumn,
+        })),
+      delimiter: delimiterInput.value || undefined,
     })
     const columns = columnsFromResult(result)
 
     leftColumns.value = result.leftColumns
     rightColumns.value = result.rightColumns
-    manualMappings.value = result.columnMappings.map(normalizeMapping)
+    availableSheets.value = [...new Set([...(result.leftSheets ?? []), ...(result.rightSheets ?? [])])]
+    if (result.leftSheet) {
+      leftSheet.value = result.leftSheet
+    }
+    if (result.rightSheet) {
+      rightSheet.value = result.rightSheet
+    }
     virtualGridColumns.value = columns
     comparedRows.value = rowsFromResult(result, columns)
     tableDifferenceCells.value = changedCellsFromResult(result.changedCells, columns)
     activeDifferenceIndex.value = 0
-    ignoredColumnKeys.value = []
+    manualLeftColumn.value = result.leftColumns[0]?.name ?? ''
+    manualRightColumn.value = result.rightColumns[0]?.name ?? ''
   } catch (event) {
     error.value = String(event)
   } finally {
@@ -351,14 +369,24 @@ async function runTableCompare(): Promise<void> {
   }
 }
 
-async function loadLaunchTables(leftPath: string, rightPath: string): Promise<void> {
+async function loadLaunchTables(nextLeftPath: string, nextRightPath: string): Promise<void> {
+  leftPath.value = nextLeftPath
+  rightPath.value = nextRightPath
+  tableFormat.value = formatFromPath(nextLeftPath)
+
+  if (tableFormat.value === 'xlsx' || tableFormat.value === 'xls') {
+    await runTableCompare()
+
+    return
+  }
+
   loading.value = true
   error.value = ''
 
   try {
     const [leftFile, rightFile] = await Promise.all([
-      readTextFile(leftPath),
-      readTextFile(rightPath),
+      readTextFile(nextLeftPath),
+      readTextFile(nextRightPath),
     ])
 
     leftCsv.value = leftFile.text
@@ -419,6 +447,80 @@ function goToNextTableDifference(): void {
           <span>{{ $t('ui.columnMappings') }}</span>
         </div>
       </header>
+
+      <section class="table-source-controls">
+        <label>
+          <span>{{ $t('ui.leftPath') }}</span>
+          <input
+            v-model="leftPath"
+            type="text"
+            data-testid="table-left-path"
+          />
+        </label>
+        <label>
+          <span>{{ $t('ui.rightPath') }}</span>
+          <input
+            v-model="rightPath"
+            type="text"
+            data-testid="table-right-path"
+          />
+        </label>
+        <label>
+          <span>{{ $t('ui.tableFormat') }}</span>
+          <select
+            v-model="tableFormat"
+            data-testid="table-format"
+          >
+            <option value="csv">{{ $t('ui.csv') }}</option>
+            <option value="tsv">{{ $t('ui.tsv') }}</option>
+            <option value="xlsx">{{ $t('ui.xlsx') }}</option>
+            <option value="xls">{{ $t('ui.xls') }}</option>
+            <option value="html">{{ $t('ui.html') }}</option>
+          </select>
+        </label>
+        <label>
+          <span>{{ $t('ui.leftSheet') }}</span>
+          <input
+            v-model="leftSheet"
+            type="text"
+            list="table-sheet-options"
+            data-testid="table-left-sheet"
+          />
+        </label>
+        <label>
+          <span>{{ $t('ui.rightSheet') }}</span>
+          <input
+            v-model="rightSheet"
+            type="text"
+            list="table-sheet-options"
+            data-testid="table-right-sheet"
+          />
+        </label>
+        <label>
+          <span>{{ $t('ui.keyColumns') }}</span>
+          <input
+            v-model="keyColumnsInput"
+            type="text"
+            data-testid="table-key-columns"
+          />
+        </label>
+        <label>
+          <span>{{ $t('ui.delimiter') }}</span>
+          <input
+            v-model="delimiterInput"
+            type="text"
+            maxlength="1"
+            data-testid="table-delimiter"
+          />
+        </label>
+        <datalist id="table-sheet-options">
+          <option
+            v-for="sheet in availableSheets"
+            :key="sheet"
+            :value="sheet"
+          />
+        </datalist>
+      </section>
 
       <section class="column-map-controls">
         <label>
@@ -735,6 +837,7 @@ h2 {
   font-size: 12px;
 }
 
+.table-source-controls,
 .column-map-controls {
   display: grid;
   grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr) auto;
@@ -744,6 +847,27 @@ h2 {
   border: 1px solid var(--app-border);
   border-radius: 8px;
   background: var(--app-surface);
+}
+
+.table-source-controls {
+  grid-template-columns: repeat(4, minmax(140px, 1fr));
+}
+
+.table-source-controls label {
+  display: grid;
+  gap: 5px;
+}
+
+.table-source-controls input,
+.table-source-controls select {
+  width: 100%;
+  height: 32px;
+  padding: 0 9px;
+  border: 1px solid var(--app-border);
+  border-radius: 6px;
+  background: var(--app-bg);
+  color: var(--app-text);
+  font-size: 13px;
 }
 
 .column-map-controls label {

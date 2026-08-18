@@ -1,13 +1,13 @@
 import type { LanguagePack } from '../core'
 
-export const enUS: LanguagePack = {
-  locale: 'en-US',
-  label: 'English',
+export const jaJP: LanguagePack = {
+  locale: 'ja-JP',
+  label: '日本語',
   messages: {
     'app.brand': 'Open Diff',
     'app.greeting': 'Hello, {name}!',
     'app.missing': 'Missing message',
-    'app.ready': 'Ready',
+    'app.ready': '準備完了',
     'app.workspaceStatus': 'Local-first comparison workspace',
     'command.nextDifference': 'Next Difference',
     'command.openSettings': 'Open Settings',
@@ -361,7 +361,7 @@ export const enUS: LanguagePack = {
     'ui.sessionLauncher': 'Session launcher',
     'ui.sessionTypes': 'session types',
     'ui.set': 'Set',
-    'ui.settings': 'Settings',
+    'ui.settings': '設定',
     'ui.settingsInspector': 'Settings inspector',
     'ui.sftp': 'SFTP',
     'ui.sharedSessionPathPlaceholder': 'C:/team/shared.open-diff-session.json',
@@ -396,7 +396,7 @@ export const enUS: LanguagePack = {
     'ui.test': 'Test',
     'ui.text': 'Text',
     'ui.textAndHexDetails': 'Text and hex details',
-    'ui.textCompare': 'Text Compare',
+    'ui.textCompare': 'テキスト比較',
     'ui.textCompareInspector': 'Text compare inspector',
     'ui.textDetails': 'Text Details',
     'ui.textEdit': 'Text Edit',

@@ -33,8 +33,8 @@ const strategyOptions: SyncStrategyOption[] = [
   { value: 'mirrorLeft', labelKey: 'sync.strategy.mirrorLeft' },
 ]
 const { t } = useI18n()
-const leftPath = ref('D:/workspace/left')
-const rightPath = ref('D:/workspace/right')
+const leftPath = ref('')
+const rightPath = ref('')
 const selectedStrategy = ref<FolderSyncStrategy>('updateBoth')
 const previewName = ref('')
 const previewLoading = ref(false)

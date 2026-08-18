@@ -36,6 +36,7 @@ import { sessionCatalog } from '@/app/sessionCatalog'
 import { useI18n } from '@/i18n'
 import { useSettingsStore } from '@/stores/settings'
 import { useStatusBarStore } from '@/stores/statusBar'
+import { useSavedSessionsStore } from '@/stores/savedSessions'
 import { useTabsStore } from '@/stores/tabs'
 import type { AppCommand, CommandId } from '@/app/commandRegistry'
 import type { ViewActionName } from '@/app/commandSystem'
@@ -67,6 +68,7 @@ const { t } = i18n
 const settings = useSettingsStore()
 const statusBar = useStatusBarStore()
 const tabs = useTabsStore()
+const savedSessions = useSavedSessionsStore()
 const commandPaletteOpen = ref(false)
 const commandQuery = ref('')
 const languageMenuOpen = ref(false)
@@ -317,23 +319,13 @@ function sessionIcon(type: SessionType): LucideIcon {
 }
 
 function sessionCount(type: SessionType): string {
-  const counts: Partial<Record<SessionType, string>> = {
-    'clipboard-compare': '2',
-    'folder-compare': '42',
-    'folder-merge': '8',
-    'folder-sync': '61',
-    'hex-compare': '128',
-    'media-compare': '6',
-    'picture-compare': '4.8%',
-    'registry-compare': '11',
-    'table-compare': '17',
-    'text-compare': '14',
-    'text-edit': '1',
-    'text-merge': '3',
-    'version-compare': '6',
+  const route = sessionCatalog.find((entry) => entry.type === type)?.route
+
+  if (!route) {
+    return '0'
   }
 
-  return counts[type] ?? '0'
+  return String(tabs.tabs.filter((tab) => tab.route === route).length)
 }
 
 const sourceSessionTypes = new Set<SessionType>([
@@ -495,7 +487,7 @@ const sourceSessionTypes = new Set<SessionType>([
           >
             <Home :size="15" />
             <span>{{ t('ui.home') }}</span>
-            <b>142</b>
+            <b data-testid="home-session-count">{{ savedSessions.sessions.length }}</b>
           </button>
           <button
             v-for="item in navigationItems.filter((entry) => entry.group === 'compare')"

@@ -11,11 +11,14 @@ import {
   createFileOperationConfirmation,
   type FileOperationConfirmation,
 } from '@/app/fileOperationConfirmation'
+import { createChildCompareLaunch } from '@/app/childSession'
 import {
   changeFolderEntryAttributes,
   compareFolderPaths,
   copyFolderCompareEntry,
   deleteFolderEntry,
+  exportFolderCompareReport,
+  moveFolderEntry,
   renameFolderEntry,
   touchFolderEntry,
 } from '@/api/diff'
@@ -25,10 +28,13 @@ import type {
   FolderCompareSideEntry,
 } from '@/types/diff'
 import { computed, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import WorkbenchShell from '@/components/workbench/WorkbenchShell.vue'
 import WorkbenchInspector from '@/components/workbench/WorkbenchInspector.vue'
 import StatusSummaryGrid from '@/components/workbench/StatusSummaryGrid.vue'
+import { previewFolderSync } from '@/api/sync'
 import { useI18n } from '@/i18n'
+import { useLastCompareStore } from '@/stores/lastCompare'
 import { useSessionLaunchStore } from '@/stores/sessionLaunch'
 
 type FolderSide = 'left' | 'right'
@@ -90,103 +96,14 @@ const displayStatusOptions: { statuses: FolderStatus[]; labelKey: string; testId
 const alignWithTargetId = ref('')
 const manualAlignments = ref<Record<string, string>>({})
 const lastAlignmentAction = ref<string>()
-const generatedRows: FolderTreeRow[] = Array.from({ length: 180 }, (_, index): FolderTreeRow => {
-  const number = index + 1
-  const padded = String(number).padStart(3, '0')
-  const sizeLabel = `${String(number + 1)}.0 KB`
-
-  return {
-    id: `generated-${padded}`,
-    relativePath: `generated-${padded}.log`,
-    depth: 0,
-    leftName: `generated-${padded}.log`,
-    rightName: `generated-${padded}.log`,
-    leftSize: sizeLabel,
-    rightSize: sizeLabel,
-    leftModified: '2026-06-24 10:00',
-    rightModified: '2026-06-24 10:00',
-    leftPath: `D:/workspace/left/generated-${padded}.log`,
-    rightPath: `D:/workspace/right/generated-${padded}.log`,
-    status: 'Same',
-    kind: 'file',
-  }
-})
-
-const rows = ref<FolderTreeRow[]>([
-  {
-    id: 'src',
-    relativePath: 'src',
-    depth: 0,
-    leftName: 'src',
-    rightName: 'src',
-    leftSize: '--',
-    rightSize: '--',
-    leftModified: '2026-06-20 10:12',
-    rightModified: '2026-06-20 10:12',
-    leftPath: 'D:/workspace/left/src',
-    rightPath: 'D:/workspace/right/src',
-    status: 'Same',
-    kind: 'directory',
-  },
-  {
-    id: 'src-main',
-    relativePath: 'src/main.ts',
-    parentId: 'src',
-    depth: 1,
-    leftName: 'main.ts',
-    rightName: 'main.ts',
-    leftSize: '8.4 KB',
-    rightSize: '9.1 KB',
-    leftModified: '2026-06-21 15:44',
-    rightModified: '2026-06-22 09:08',
-    leftPath: 'D:/workspace/left/src/main.ts',
-    rightPath: 'D:/workspace/right/src/main.ts',
-    status: 'Different',
-    kind: 'file',
-  },
-  {
-    id: 'readme',
-    relativePath: 'README.md',
-    depth: 0,
-    leftName: 'README.md',
-    rightName: 'README.md',
-    leftSize: '12.2 KB',
-    rightSize: '12.2 KB',
-    leftModified: '2026-06-18 08:30',
-    rightModified: '2026-06-18 08:30',
-    leftPath: 'D:/workspace/left/README.md',
-    rightPath: 'D:/workspace/right/README.md',
-    status: 'Same',
-    kind: 'file',
-  },
-  {
-    id: 'notes',
-    relativePath: 'release-notes.md',
-    depth: 0,
-    leftName: 'release-notes.md',
-    leftSize: '3.5 KB',
-    leftModified: '2026-06-23 11:02',
-    leftPath: 'D:/workspace/left/release-notes.md',
-    status: 'Left only',
-    kind: 'file',
-  },
-  {
-    id: 'release-summary',
-    relativePath: 'release-summary.md',
-    depth: 0,
-    rightName: 'release-summary.md',
-    rightSize: '3.8 KB',
-    rightModified: '2026-06-23 11:40',
-    rightPath: 'D:/workspace/right/release-summary.md',
-    status: 'Right only',
-    kind: 'file',
-  },
-  ...generatedRows,
-])
-const expandedDirectoryIds = ref<Set<string>>(new Set(['src']))
-const leftRoot = ref('D:/workspace/left')
-const rightRoot = ref('D:/workspace/right')
+const rows = ref<FolderTreeRow[]>([])
+const expandedDirectoryIds = ref<Set<string>>(new Set())
+const leftRoot = ref('')
+const rightRoot = ref('')
 const sessionLaunch = useSessionLaunchStore()
+const lastCompare = useLastCompareStore()
+const router = useRouter()
+const reportStatus = ref('')
 const { t } = useI18n()
 const folderCompareLoading = ref(false)
 const folderCompareError = ref<string>()
@@ -450,6 +367,10 @@ async function runFolderCompare(): Promise<void> {
     })
 
     applyFolderCompareResponse(response)
+    lastCompare.recordFolderCompare({
+      leftRoot: response.leftRoot,
+      rightRoot: response.rightRoot,
+    })
   } catch (error) {
     folderCompareError.value = error instanceof Error ? error.message : String(error)
   } finally {
@@ -570,11 +491,7 @@ function recordOpenAction(action: FileOpenAction): void {
 }
 
 function openSelectedFile(): void {
-  if (!selectedFilePath.value) {
-    return
-  }
-
-  recordOpenAction(createDefaultOpenAction(selectedFilePath.value))
+  openChildCompareForSelected('open')
 }
 
 function openSelectedFileWithTextEdit(): void {
@@ -604,28 +521,38 @@ function openSelectedFileWithAssociatedApplication(): void {
 }
 
 function quickCompareSelectedFile(): void {
-  if (!selectedFilePath.value) {
-    return
-  }
-
-  lastCompareAction.value = `${t('ui.quickCompare')} -> ${selectedFilePath.value}`
+  openChildCompareForSelected('quick')
 }
 
 function compareSelectedFileToCounterpart(): void {
+  openChildCompareForSelected('compare')
+}
+
+function openChildCompareForSelected(kind: 'open' | 'quick' | 'compare'): void {
   const row = selectedRow.value
 
   if (row?.kind !== 'file') {
     return
   }
 
-  const sourcePath = row.leftPath ?? row.rightPath
-  const targetPath = row.rightPath ?? row.leftPath
+  const leftPath = row.leftPath ?? folderSidePath(leftRoot.value, row.relativePath)
+  const rightPath = row.rightPath ?? folderSidePath(rightRoot.value, row.relativePath)
+  const launch = createChildCompareLaunch(leftPath, rightPath)
 
-  if (!sourcePath || !targetPath) {
+  if (!launch) {
     return
   }
 
-  lastCompareAction.value = `${t('ui.compareTo')} -> ${sourcePath} => ${targetPath}`
+  if (selectedFilePath.value) {
+    recordOpenAction(createDefaultOpenAction(selectedFilePath.value))
+  }
+
+  lastCompareAction.value =
+    kind === 'quick'
+      ? `${t('ui.quickCompare')} -> ${launch.route}`
+      : `${t('ui.compareTo')} -> ${launch.route}`
+  sessionLaunch.setPendingLaunch(launch)
+  void router.push(launch.route)
 }
 
 function copySelectedTo(direction: 'Left' | 'Right'): void {
@@ -754,14 +681,17 @@ async function confirmRenameFile(): Promise<void> {
   await runFolderCompare()
 }
 
-function moveSelectedFile(): void {
+async function moveSelectedFile(): Promise<void> {
   const path = selectedFilePath.value
 
   if (!path) {
     return
   }
 
-  lastFileOperationAction.value = `${t('ui.move')} -> ${archivePath(path)}`
+  const targetPath = archivePath(path)
+  await moveFolderEntry({ sourcePath: path, targetPath })
+  lastFileOperationAction.value = `${t('ui.move')} -> ${targetPath}`
+  await runFolderCompare()
 }
 
 function deleteSelectedFile(): void {
@@ -829,49 +759,61 @@ function excludeSelectedRow(): void {
   lastSelectionAction.value = t('status.excludedPath', { path: displayName(row) })
 }
 
-function refreshSelectedRow(): void {
+async function refreshSelectedRow(): Promise<void> {
+  await runFolderCompare()
   const row = selectedRow.value
+  lastSelectionAction.value = row
+    ? t('status.refreshedPath', { path: displayName(row) })
+    : t('ui.refresh')
+}
 
-  if (!row) {
+async function previewSyncPlan(): Promise<void> {
+  if (!leftRoot.value || !rightRoot.value) {
+    syncPreviewItems.value = []
     return
   }
 
-  lastSelectionAction.value = t('status.refreshedPath', { path: displayName(row) })
+  const preview = await previewFolderSync({
+    leftRoot: leftRoot.value,
+    rightRoot: rightRoot.value,
+    strategy: 'updateRight',
+  })
+  syncPreviewItems.value = preview.rows.map((row) => ({
+    id: row.id,
+    action: mapSyncPreviewAction(row.action),
+    sourcePath: row.sourcePath,
+    targetPath: row.targetPath,
+    originalSourcePath: row.sourcePath,
+    originalTargetPath: row.targetPath,
+    detailKey: row.detail || 'sync.detail.leftOnlyCopiedToRight',
+  }))
 }
 
-function previewSyncPlan(): void {
-  syncPreviewItems.value = [
-    {
-      id: 'copy-release-notes',
-      action: 'Copy',
-      sourcePath: 'D:/workspace/left/release-notes.md',
-      targetPath: 'D:/workspace/right/release-notes.md',
-      originalSourcePath: 'D:/workspace/left/release-notes.md',
-      originalTargetPath: 'D:/workspace/right/release-notes.md',
-      detailKey: 'sync.detail.leftOnlyCopiedToRight',
-    },
-    {
-      id: 'overwrite-main',
-      action: 'Overwrite',
-      sourcePath: 'D:/workspace/left/src/main.ts',
-      targetPath: 'D:/workspace/right/src/main.ts',
-      originalSourcePath: 'D:/workspace/left/src/main.ts',
-      originalTargetPath: 'D:/workspace/right/src/main.ts',
-      detailKey: 'sync.detail.differentFileOverwriteTarget',
-    },
-    {
-      id: 'delete-legacy',
-      action: 'Delete',
-      targetPath: 'D:/workspace/right/archive/legacy.tmp',
-      detailKey: 'sync.detail.rightOnlyRemoved',
-    },
-    {
-      id: 'permission-error',
-      action: 'Error',
-      targetPath: 'D:/workspace/right/protected/settings.json',
-      detailKey: 'sync.detail.permissionDenied',
-    },
-  ]
+function mapSyncPreviewAction(action: string): SyncPreviewAction {
+  if (action === 'Delete') {
+    return 'Delete'
+  }
+  if (action === 'Leave') {
+    return 'Leave'
+  }
+  if (action === 'Error' || action === 'Conflict') {
+    return 'Error'
+  }
+  return action === 'Overwrite' ? 'Overwrite' : 'Copy'
+}
+
+async function exportFolderReport(format: 'html' | 'text'): Promise<void> {
+  if (!leftRoot.value || !rightRoot.value) {
+    return
+  }
+
+  const response = await exportFolderCompareReport({
+    leftRoot: leftRoot.value,
+    rightRoot: rightRoot.value,
+    format,
+    outputPath: `${leftRoot.value}/folder-compare.${format === 'text' ? 'txt' : 'html'}`,
+  })
+  reportStatus.value = response.outputPath ?? format
 }
 
 function markSyncPreviewItemAsLeave(itemId: string): void {
@@ -1013,7 +955,16 @@ function handleTreeScroll(event: Event): void {
           <NButton
             size="small"
             secondary
+            data-testid="refresh-folder-compare"
+            @click="runFolderCompare"
             >{{ $t('ui.refresh') }}</NButton
+          >
+          <NButton
+            size="small"
+            secondary
+            data-testid="export-folder-html-report"
+            @click="exportFolderReport('html')"
+            >{{ $t('ui.export') }} HTML</NButton
           >
           <NButton
             size="small"

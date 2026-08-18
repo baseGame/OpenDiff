@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watchEffect } from 'vue'
-import { parseTextPatch, readTextFile } from '@/api/diff'
+import { applyTextPatch, parseTextPatch, readTextFile } from '@/api/diff'
 import WorkbenchInspector from '@/components/workbench/WorkbenchInspector.vue'
 import WorkbenchShell from '@/components/workbench/WorkbenchShell.vue'
 import WorkbenchToolbar from '@/components/workbench/WorkbenchToolbar.vue'
@@ -14,6 +14,9 @@ const result = ref<TextPatchResponse | null>(null)
 const loading = ref(false)
 const error = ref('')
 const sourcePath = ref('')
+const sourceText = ref('')
+const patchedText = ref('')
+const applyStatus = ref('')
 const sourceEncoding = ref('UTF-8')
 const sourceLineEnding = ref('LF')
 const statusBar = useStatusBarStore()
@@ -109,6 +112,25 @@ async function loadAndParsePatchFile(path: string): Promise<void> {
   }
 }
 
+async function applyCurrentPatch(): Promise<void> {
+  loading.value = true
+  error.value = ''
+  applyStatus.value = ''
+
+  try {
+    const response = await applyTextPatch({
+      source: sourceText.value,
+      patch: patchInput.value,
+    })
+    patchedText.value = response.text
+    applyStatus.value = t('status.patchApplied')
+  } catch (event) {
+    error.value = event instanceof Error ? event.message : String(event)
+  } finally {
+    loading.value = false
+  }
+}
+
 async function parseCurrentPatch(): Promise<void> {
   loading.value = true
   error.value = ''
@@ -173,6 +195,14 @@ function lineNumber(value: number | null): string {
         >
           {{ $t('ui.parsePatch') }}
         </NButton>
+        <NButton
+          size="small"
+          :loading="loading"
+          data-testid="apply-text-patch"
+          @click="applyCurrentPatch"
+        >
+          {{ $t('ui.applyPatch') }}
+        </NButton>
         <span class="status-chip">{{ $t('status.fileCount', { count: fileCount }) }}</span>
         <span class="status-chip">{{ $t('status.hunkCount', { count: hunkCount }) }}</span>
       </WorkbenchToolbar>
@@ -191,6 +221,33 @@ function lineNumber(value: number | null): string {
           :placeholder="$t('ui.pasteOrDropUnifiedDiff')"
           @update:value="patchInput = $event"
         />
+        <label>
+          <span>{{ $t('ui.sourceFile') }}</span>
+          <input
+            v-model="sourcePath"
+            type="text"
+            data-testid="patch-source-file"
+          />
+        </label>
+        <NInput
+          :value="sourceText"
+          type="textarea"
+          data-testid="patch-source-text"
+          :placeholder="$t('ui.sourceFile')"
+          @update:value="sourceText = $event"
+        />
+        <NInput
+          :value="patchedText"
+          type="textarea"
+          data-testid="patch-output-text"
+          :placeholder="$t('ui.patchedOutput')"
+          readonly
+        />
+        <span
+          v-if="applyStatus"
+          data-testid="patch-apply-status"
+          >{{ applyStatus }}</span
+        >
       </section>
 
       <NAlert

@@ -95,9 +95,23 @@ export interface PatchLine {
 
 export type PatchLineKind = 'context' | 'added' | 'removed'
 
+export interface TableManualColumnMapping {
+  leftColumn?: string
+  rightColumn?: string
+}
+
 export interface TableCompareRequest {
   left: string
   right: string
+  format?: 'csv' | 'tsv' | 'html' | 'xlsx' | 'xls'
+  leftPath?: string
+  rightPath?: string
+  leftSheet?: string
+  rightSheet?: string
+  keyColumnIndices?: number[]
+  ignoredColumns?: string[]
+  manualMappings?: TableManualColumnMapping[]
+  delimiter?: string
 }
 
 export interface TableCompareColumn {
@@ -137,6 +151,10 @@ export interface TableCompareResponse {
     changedRowCount: number
     changedCellCount: number
   }
+  leftSheets?: string[]
+  rightSheets?: string[]
+  leftSheet?: string
+  rightSheet?: string
 }
 
 export interface FolderCompareRequest {
@@ -315,9 +333,14 @@ export interface HexCompareResponse {
 export interface PictureCompareRequest {
   leftPath: string
   rightPath: string
+  rgbTolerance?: number
+  compareAlpha?: boolean
+  ignoreColorFrom?: number[]
+  ignoreColorTo?: number[]
 }
 
 export interface PictureSideSummary {
+  path?: string
   name: string
   format: string
   dimensions: string
@@ -414,4 +437,103 @@ export interface VersionCompareResponse {
   right: VersionSideSummary
   fields: VersionFieldRow[]
   summary: Record<VersionFieldStatus, number>
+}
+
+export interface TextMergeConflictRow {
+  lineIndex: number
+  title: string
+  base: string
+  left: string
+  right: string
+}
+
+export interface TextMergeRequest {
+  leftPath: string
+  rightPath: string
+  centerPath?: string
+  outputPath?: string
+  conflictPolicy?: 'markConflict' | 'favorLeft' | 'favorRight'
+}
+
+export interface TextMergeResponse {
+  leftPath: string
+  rightPath: string
+  centerPath?: string
+  outputPath?: string
+  leftText: string
+  rightText: string
+  centerText: string
+  outputText: string
+  conflicts: TextMergeConflictRow[]
+}
+
+export interface ExportReportRequest {
+  format: 'html' | 'text' | 'json' | 'xml'
+  outputPath?: string
+}
+
+export interface ExportTextCompareReportRequest extends ExportReportRequest {
+  left: string
+  right: string
+  leftSource?: string
+  rightSource?: string
+  algorithm?: TextDiffAlgorithm
+  ignoreWhitespace?: boolean
+  ignoreCase?: boolean
+  ignoreLineEndings?: boolean
+  ignoreRegexes?: string[]
+}
+
+export interface ExportFolderCompareReportRequest extends ExportReportRequest {
+  leftRoot: string
+  rightRoot: string
+}
+
+export interface ExportReportResponse {
+  format: string
+  content: string
+  outputPath?: string
+  bytesWritten?: number
+}
+
+export interface HexFindRequest {
+  path: string
+  queryKind: 'text' | 'hex'
+  query: string
+}
+
+export interface HexFindMatch {
+  offset: number
+  length: number
+}
+
+export interface HexByteEdit {
+  offset: number
+  value: number
+}
+
+export interface HexSaveRequest {
+  path: string
+  edits: HexByteEdit[]
+}
+
+export interface HexSaveResult {
+  bytesWritten: number
+  backupPath?: string
+}
+
+export interface MoveFolderEntryRequest {
+  sourcePath: string
+  targetPath: string
+}
+
+export interface ApplyTextPatchRequest {
+  source: string
+  patch: string
+}
+
+export interface ApplyTextPatchResponse {
+  text: string
+  appliedHunks: number
+  files: number
 }

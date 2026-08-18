@@ -1,29 +1,14 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import {
+  loadFileFormats,
+  saveFileFormats,
+  type FileFormatDefinition,
+  type FileFormatMatcher,
+  type FileFormatRuleRefs,
+  type FileFormatViewMode,
+} from '@/app/fileFormats'
 import { useI18n } from '@/i18n'
-
-type FileFormatViewMode = 'text' | 'table' | 'hex' | 'picture'
-
-interface FileFormatMatcher {
-  extensions: string[]
-  fileNames: string[]
-  globs: string[]
-}
-
-interface FileFormatRuleRefs {
-  grammar: string
-  ignore: string[]
-  conversion: string
-}
-
-interface FileFormatDefinition {
-  id: string
-  name: string
-  priority: number
-  defaultView: FileFormatViewMode
-  matcher: FileFormatMatcher
-  rules: FileFormatRuleRefs
-}
 
 interface FileFormatDraft {
   id: string
@@ -47,58 +32,7 @@ interface ImportedFileFormat {
   rules?: Partial<FileFormatRuleRefs>
 }
 
-const builtInFormats: FileFormatDefinition[] = [
-  {
-    id: 'plain-text',
-    name: 'Plain Text',
-    priority: 10,
-    defaultView: 'text',
-    matcher: {
-      extensions: ['txt', 'text', 'log'],
-      fileNames: ['README', 'LICENSE'],
-      globs: ['*.env.*'],
-    },
-    rules: {
-      grammar: 'plain-text',
-      ignore: ['whitespace-trim'],
-      conversion: '',
-    },
-  },
-  {
-    id: 'rust',
-    name: 'Rust Source',
-    priority: 80,
-    defaultView: 'text',
-    matcher: {
-      extensions: ['rs'],
-      fileNames: ['Cargo.toml', 'Cargo.lock'],
-      globs: ['**/src-tauri/**/*.rs'],
-    },
-    rules: {
-      grammar: 'rust-grammar',
-      ignore: ['comments', 'formatting'],
-      conversion: '',
-    },
-  },
-  {
-    id: 'csv',
-    name: 'Delimited Table',
-    priority: 60,
-    defaultView: 'table',
-    matcher: {
-      extensions: ['csv', 'tsv'],
-      fileNames: [],
-      globs: ['*.tab'],
-    },
-    rules: {
-      grammar: '',
-      ignore: ['empty-trailing-columns'],
-      conversion: 'table-delimiter',
-    },
-  },
-]
-
-const formats = ref<FileFormatDefinition[]>(builtInFormats.map((format) => cloneFormat(format)))
+const formats = ref<FileFormatDefinition[]>(loadFileFormats())
 const { t } = useI18n()
 const selectedFormatId = ref(formats.value[0]?.id ?? '')
 const draft = ref<FileFormatDraft>(toDraft(formats.value[0] ?? emptyFormat()))
@@ -184,6 +118,7 @@ function saveFormat(): void {
 
   selectedFormatId.value = nextFormat.id
   draft.value = toDraft(nextFormat)
+  persistFormats()
 }
 
 function exportFormats(): void {
@@ -216,6 +151,7 @@ function importFormats(): void {
     formats.value = nextFormats
     selectedFormatId.value = importedFormats[0].id
     draft.value = toDraft(importedFormats[0])
+    persistFormats()
     setImportStatus(
       importedFormats.length === 1
         ? 'status.importedFormatCount'
@@ -307,10 +243,6 @@ function emptyFormat(): FileFormatDefinition {
   }
 }
 
-function cloneFormat(format: FileFormatDefinition): FileFormatDefinition {
-  return JSON.parse(JSON.stringify(format)) as FileFormatDefinition
-}
-
 function splitList(value: string): string[] {
   return value
     .split(',')
@@ -336,8 +268,15 @@ function slugify(value: string): string {
   )
 }
 
+function persistFormats(): void {
+  saveFileFormats(formats.value)
+}
+
 function isViewMode(value: unknown): value is FileFormatViewMode {
-  return typeof value === 'string' && ['text', 'table', 'hex', 'picture'].includes(value)
+  return (
+    typeof value === 'string' &&
+    ['text', 'table', 'hex', 'picture', 'registry', 'media', 'version', 'patch'].includes(value)
+  )
 }
 
 function viewLabel(value: FileFormatViewMode): string {
@@ -346,6 +285,10 @@ function viewLabel(value: FileFormatViewMode): string {
     table: 'ui.table',
     hex: 'ui.hex',
     picture: 'ui.picture',
+    registry: 'ui.registry',
+    media: 'ui.media',
+    version: 'ui.versionCompare',
+    patch: 'ui.patch',
   }
 
   return t(labels[value])
@@ -455,6 +398,10 @@ function setImportStatus(key: string, params: Record<string, string | number> = 
               <option value="table">{{ $t('ui.table') }}</option>
               <option value="hex">{{ $t('ui.hex') }}</option>
               <option value="picture">{{ $t('ui.picture') }}</option>
+              <option value="registry">{{ $t('ui.registry') }}</option>
+              <option value="media">{{ $t('ui.media') }}</option>
+              <option value="version">{{ $t('ui.versionCompare') }}</option>
+              <option value="patch">{{ $t('ui.patch') }}</option>
             </select>
           </label>
           <label>

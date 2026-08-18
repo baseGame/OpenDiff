@@ -4,6 +4,7 @@ import { deDE } from './de-DE'
 import { enUS } from './en-US'
 import { esES } from './es-ES'
 import { frFR } from './fr-FR'
+import { jaJP } from './ja-JP'
 import { koKR } from './ko-KR'
 import { zhCN } from './zh-CN'
 import { zhTW } from './zh-TW'
@@ -39,6 +40,10 @@ const nonEnglishLocales: SkeletonLocaleExpectation[] = [
     locale: 'ko-KR',
     label: '한국어',
   },
+  {
+    locale: 'ja-JP',
+    label: '日本語',
+  },
 ]
 
 describe('localized language packs', () => {
@@ -55,7 +60,7 @@ describe('localized language packs', () => {
     },
   )
 
-  it.each([zhCN, zhTW, deDE, esES, frFR, koKR])(
+  it.each([zhCN, zhTW, deDE, esES, frFR, koKR, jaJP])(
     'covers every English message key for $locale',
     (pack) => {
       const missingKeys = Object.keys(enUS.messages).filter((key) => !pack.messages[key])

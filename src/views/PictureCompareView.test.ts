@@ -66,7 +66,10 @@ describe('PictureCompareView', () => {
     expect(comparePictureFiles).toHaveBeenCalledWith({
       leftPath: 'C:/images/left-fixture.png',
       rightPath: 'C:/images/right-fixture.png',
+      rgbTolerance: 0,
+      compareAlpha: true,
     })
+    expect(wrapper.find('[data-testid="left-picture-img"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('left-fixture.png')
     expect(wrapper.text()).toContain('right-fixture.png')
     expect(wrapper.find('[data-testid="picture-different-pixels"]').text()).toContain('1')
@@ -94,6 +97,8 @@ describe('PictureCompareView', () => {
     expect(comparePictureFiles).toHaveBeenCalledWith({
       leftPath: 'C:/drop/left.png',
       rightPath: 'C:/drop/right.png',
+      rgbTolerance: 0,
+      compareAlpha: true,
     })
   })
 

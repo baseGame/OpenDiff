@@ -5,6 +5,7 @@ import {
   buildFolderMergePlan as requestFolderMergePlan,
   executeFolderMergePlan,
 } from '@/api/folderMerge'
+import { useSessionLaunchStore } from '@/stores/sessionLaunch'
 import type {
   FolderMergeConflict,
   FolderMergeExecutionResponse,
@@ -16,15 +17,16 @@ import WorkbenchShell from '@/components/workbench/WorkbenchShell.vue'
 import WorkbenchInspector from '@/components/workbench/WorkbenchInspector.vue'
 import { useI18n } from '@/i18n'
 
-const leftPath = ref('D:/workspace/merge/left')
-const basePath = ref('D:/workspace/merge/base')
-const rightPath = ref('D:/workspace/merge/right')
-const outputPath = ref('D:/workspace/merge/output')
+const leftPath = ref('')
+const basePath = ref('')
+const rightPath = ref('')
+const outputPath = ref('')
 const plan = ref<FolderMergePlanResponse>()
 const execution = ref<FolderMergeExecutionResponse>()
 const mergeExecuting = ref(false)
 const mergeExecutionError = ref<string>()
 const router = useRouter()
+const sessionLaunch = useSessionLaunchStore()
 const { t } = useI18n()
 const lastOpenedConflictPath = ref('')
 
@@ -101,7 +103,27 @@ function folderMergeActionLabel(action: FolderMergePlanRow['action']): string {
 
 function openConflictInTextMerge(conflict: FolderMergeConflict): void {
   lastOpenedConflictPath.value = conflict.path
+  sessionLaunch.setPendingLaunch({
+    id: crypto.randomUUID(),
+    source: 'command',
+    sessionType: 'text-merge',
+    title: conflict.path,
+    route: '/merge/text',
+    autoRun: true,
+    locations: {
+      left: { uri: joinRoot(leftPath.value, conflict.path), kind: 'file', readOnly: false },
+      right: { uri: joinRoot(rightPath.value, conflict.path), kind: 'file', readOnly: false },
+      center: { uri: joinRoot(basePath.value, conflict.path), kind: 'file', readOnly: false },
+      output: { uri: joinRoot(outputPath.value, conflict.path), kind: 'file', readOnly: false },
+    },
+  })
   void router.push('/merge/text')
+}
+
+function joinRoot(root: string, relativePath: string): string {
+  const normalizedRoot = root.replaceAll('\\', '/').replace(/\/$/u, '')
+  const normalizedRelative = relativePath.replaceAll('\\', '/').replace(/^\//u, '')
+  return normalizedRelative ? `${normalizedRoot}/${normalizedRelative}` : normalizedRoot
 }
 </script>
 

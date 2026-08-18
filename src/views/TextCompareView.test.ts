@@ -3,7 +3,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { defineComponent } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import TextCompareView from './TextCompareView.vue'
-import { diffText, readTextFile } from '@/api/diff'
+import { diffText, exportTextCompareReport, readTextFile } from '@/api/diff'
 import { createAppI18n, installI18n } from '@/i18n'
 import { useSessionLaunchStore } from '@/stores/sessionLaunch'
 import { useStatusBarStore } from '@/stores/statusBar'
@@ -13,6 +13,12 @@ vi.mock('@/api/diff', () => ({
   diffText: vi.fn().mockResolvedValue({
     lines: [],
     stats: { added: 0, deleted: 0, modified: 0, equal: 0 },
+  }),
+  exportTextCompareReport: vi.fn().mockResolvedValue({
+    format: 'html',
+    content: '<html></html>',
+    outputPath: 'text-compare.html',
+    bytesWritten: 13,
   }),
   readTextFile: vi.fn().mockImplementation((path: string) =>
     Promise.resolve({
@@ -99,37 +105,55 @@ describe('TextCompareView', () => {
     )
   })
 
-  it('renders the dual diff workspace without requiring a manual sample run', async () => {
-    vi.mocked(diffText).mockResolvedValueOnce({
-      lines: [
-        {
-          leftNumber: 1,
-          rightNumber: 1,
-          leftText: 'line one',
-          rightText: 'line one',
-          kind: 'equal',
-          inlineSegments: { left: [], right: [] },
-        },
-      ],
-      stats: { added: 0, deleted: 0, modified: 0, equal: 1 },
-    })
-
+  it('starts empty until the user runs a comparison', async () => {
     const wrapper = mountTextCompareView()
 
     await wrapper.vm.$nextTick()
-    await wrapper.vm.$nextTick()
 
     expect(wrapper.find('[data-testid="text-workbench"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="text-diff-panel-stub"]').exists()).toBe(true)
-    expect(wrapper.find('.empty').exists()).toBe(false)
-    expect(wrapper.text()).not.toContain('Run the sample comparison')
+    expect(wrapper.find('.empty').exists()).toBe(true)
+    expect(wrapper.text()).not.toContain('line one')
+    expect(wrapper.text()).not.toContain('line two')
+  })
+
+  it('passes ignore rules through to the text diff command', async () => {
+    const wrapper = mountTextCompareView()
+
+    await wrapper.find('[data-testid="ignore-whitespace"]').setValue(true)
+    await wrapper.find('[data-testid="ignore-case"]').setValue(true)
+    await wrapper.find('[data-testid="ignore-line-endings"]').setValue(true)
+    await wrapper.find('[data-testid="ignore-regexes"]').setValue('^#')
+    await wrapper.find('[data-testid="run-diff"]').trigger('click')
+
+    expect(diffText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ignoreWhitespace: true,
+        ignoreCase: true,
+        ignoreLineEndings: true,
+        ignoreRegexes: ['^#'],
+      }),
+    )
+  })
+
+  it('exports the current text compare as an HTML report', async () => {
+    const wrapper = mountTextCompareView()
+
+    await wrapper.find('[data-testid="export-text-html-report"]').trigger('click')
+    await flushPromises()
+
+    expect(exportTextCompareReport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        format: 'html',
+      }),
+    )
+    expect(wrapper.find('[data-testid="text-report-status"]').text()).toContain('text-compare.html')
   })
 
   it('shows detected line endings for the current text inputs', async () => {
     const wrapper = mountTextCompareView()
 
-    expect(wrapper.find('[data-testid="line-ending-status"]').text()).toContain('Left: LF')
-    expect(wrapper.find('[data-testid="line-ending-status"]').text()).toContain('Right: LF')
+    expect(wrapper.find('[data-testid="line-ending-status"]').text()).toContain('Left: None')
+    expect(wrapper.find('[data-testid="line-ending-status"]').text()).toContain('Right: None')
 
     wrapper.findAllComponents(NInputStub)[0]?.vm.$emit('update:value', 'one\r\ntwo')
     await wrapper.vm.$nextTick()
@@ -143,10 +167,8 @@ describe('TextCompareView', () => {
 
     expect(statusBar.report).toEqual(
       expect.objectContaining({
-        comparisonStatus: 'Compared',
-        differenceCount: 2,
-        encoding: 'UTF-8 | Left: LF | Right: LF',
-        filterStatus: 'All rows',
+        comparisonStatus: 'Editing',
+        differenceCount: null,
         source: 'text-compare',
       }),
     )
@@ -157,7 +179,7 @@ describe('TextCompareView', () => {
       expect.objectContaining({
         comparisonStatus: 'Compared',
         differenceCount: 0,
-        encoding: 'UTF-8 | Left: LF | Right: LF',
+        encoding: 'UTF-8 | Left: None | Right: None',
         filterStatus: 'All rows',
         source: 'text-compare',
       }),
@@ -280,22 +302,28 @@ describe('TextCompareView', () => {
 
   it('finds text matches and navigates between them', async () => {
     const wrapper = mountTextCompareView()
+    wrapper.findAllComponents(NInputStub)[0]?.vm.$emit('update:value', 'line one\nline two')
+    wrapper.findAllComponents(NInputStub)[1]?.vm.$emit('update:value', 'line one\nline two')
+    await wrapper.vm.$nextTick()
 
     await wrapper.find('[data-testid="find-query"]').setValue('line')
 
-    expect(wrapper.find('[data-testid="find-status"]').text()).toContain('1 / 7')
+    expect(wrapper.find('[data-testid="find-status"]').text()).toContain('1 / 4')
 
     await wrapper.find('[data-testid="find-next"]').trigger('click')
 
-    expect(wrapper.find('[data-testid="find-status"]').text()).toContain('2 / 7')
+    expect(wrapper.find('[data-testid="find-status"]').text()).toContain('2 / 4')
 
     await wrapper.find('[data-testid="find-previous"]').trigger('click')
 
-    expect(wrapper.find('[data-testid="find-status"]').text()).toContain('1 / 7')
+    expect(wrapper.find('[data-testid="find-status"]').text()).toContain('1 / 4')
   })
 
   it('replaces matches with regex search enabled', async () => {
     const wrapper = mountTextCompareView()
+    wrapper.findAllComponents(NInputStub)[0]?.vm.$emit('update:value', 'line one\nline two')
+    wrapper.findAllComponents(NInputStub)[1]?.vm.$emit('update:value', 'line one\nline two')
+    await wrapper.vm.$nextTick()
 
     await wrapper.find('[data-testid="find-query"]').setValue('line\\s+(one|two)')
     await wrapper.find('[data-testid="replace-query"]').setValue('row')

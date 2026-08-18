@@ -152,15 +152,7 @@ function deleteProfile(): void {
 }
 
 function testProfileConnection(): void {
-  const host = draft.value.host.trim()
-
-  if (host) {
-    setTestStatus('status.connectionCheckQueuedFor', { host })
-
-    return
-  }
-
-  setTestStatus('status.connectionCheckRequiresHost')
+  setTestStatus('status.remoteUnavailable')
 }
 
 function setTestStatus(key: string, params: Record<string, string | number> = {}): void {
@@ -273,6 +265,12 @@ function credentialKindLabel(kind: CredentialReferenceKind): string {
     :inspector-label="$t('ui.remoteProfileInspector')"
   >
     <section class="remote-profile-view">
+      <p
+        class="remote-unavailable"
+        data-testid="remote-unavailable-notice"
+      >
+        {{ $t('ui.remoteNotImplemented') }}
+      </p>
       <header class="profile-header">
         <div>
           <p class="eyebrow">{{ $t('ui.settings') }}</p>
@@ -325,6 +323,7 @@ function credentialKindLabel(kind: CredentialReferenceKind): string {
               <button
                 type="button"
                 data-testid="test-remote-profile"
+                disabled
                 @click="testProfileConnection"
               >
                 {{ $t('ui.test') }}
@@ -465,6 +464,16 @@ function credentialKindLabel(kind: CredentialReferenceKind): string {
   </WorkbenchShell>
 </template>
 <style scoped>
+.remote-unavailable {
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--app-border);
+  border-radius: 6px;
+  background: var(--app-surface-muted);
+  color: var(--app-text-muted);
+  font-size: 12px;
+}
+
 .remote-profile-view {
   display: grid;
   gap: 14px;

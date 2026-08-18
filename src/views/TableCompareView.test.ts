@@ -2,12 +2,12 @@ import { mount, type VueWrapper } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import TableCompareView from './TableCompareView.vue'
-import { compareTableCsv, readTextFile } from '@/api/diff'
+import { compareTable, readTextFile } from '@/api/diff'
 import { useSessionLaunchStore } from '@/stores/sessionLaunch'
 import type { TableCompareRequest } from '@/types/diff'
 
 vi.mock('@/api/diff', () => ({
-  compareTableCsv: vi.fn().mockResolvedValue({
+  compareTable: vi.fn().mockResolvedValue({
     leftColumns: [
       { side: 'left', name: 'SKU' },
       { side: 'left', name: 'Quantity' },
@@ -71,27 +71,37 @@ function mountTableCompareView(): VueWrapper {
 describe('TableCompareView', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
-    vi.mocked(compareTableCsv).mockClear()
+    vi.mocked(compareTable).mockClear()
     vi.mocked(readTextFile).mockClear()
   })
 
-  it('runs a CSV comparison and renders returned table cells', async () => {
+  it('starts empty without a demo grid or sample CSV', () => {
     const wrapper = mountTableCompareView()
 
+    expect(wrapper.text()).not.toContain('R1C1')
+    expect(wrapper.findAll('[data-testid="table-grid-row"]')).toHaveLength(0)
+    expect((wrapper.find('[data-testid="table-left-path"]').element as HTMLInputElement).value).toBe(
+      '',
+    )
+  })
+
+  it('runs a table comparison with format, keys, and mappings', async () => {
+    const wrapper = mountTableCompareView()
+
+    await wrapper.find('[data-testid="table-left-path"]').setValue('C:/data/left.tsv')
+    await wrapper.find('[data-testid="table-right-path"]').setValue('C:/data/right.tsv')
+    await wrapper.find('[data-testid="table-format"]').setValue('tsv')
+    await wrapper.find('[data-testid="table-key-columns"]').setValue('0')
     await wrapper.find('[data-testid="run-table-compare"]').trigger('click')
     await wrapper.vm.$nextTick()
 
-    const lastCall = vi.mocked(compareTableCsv).mock.lastCall
-
+    const lastCall = vi.mocked(compareTable).mock.lastCall
     expect(lastCall).toBeDefined()
-
     const [request] = lastCall as [TableCompareRequest]
-
-    expect(request.left).toContain('SKU')
-    expect(request.right).toContain('sku')
-    expect(wrapper.find('[data-testid="column-mapping-list"]').text()).toContain(
-      'Quantity -> Quantity',
-    )
+    expect(request.format).toBe('tsv')
+    expect(request.leftPath).toBe('C:/data/left.tsv')
+    expect(request.rightPath).toBe('C:/data/right.tsv')
+    expect(request.keyColumnIndices).toEqual([0])
     expect(wrapper.find('[data-testid="table-grid-cell-quantity"]').text()).toContain('12')
     expect(wrapper.find('[data-testid="active-table-cell"]').text()).toContain('12 -> 14')
   })
@@ -116,42 +126,33 @@ describe('TableCompareView', () => {
 
     expect(readTextFile).toHaveBeenCalledWith('C:/drop/left.csv')
     expect(readTextFile).toHaveBeenCalledWith('C:/drop/right.csv')
-    expect(compareTableCsv).toHaveBeenCalledWith({
-      left: 'SKU,Quantity\nA-1,12',
-      right: 'sku,Quantity\nA-1,14',
-    })
-  })
-
-  it('allows manual column mapping and renders the applied mapping list', async () => {
-    const wrapper = mountTableCompareView()
-
-    expect(wrapper.text()).toContain('Table Compare')
-    expect(wrapper.text()).toContain('Left Columns')
-    expect(wrapper.text()).toContain('Right Columns')
-    expect(wrapper.text()).toContain('SKU -> sku')
-
-    await wrapper.find('[data-testid="manual-left-column"]').setValue('Unit Price')
-    await wrapper.find('[data-testid="manual-right-column"]').setValue('unitprice')
-    await wrapper.find('[data-testid="add-column-mapping"]').trigger('click')
-
-    expect(wrapper.find('[data-testid="column-mapping-list"]').text()).toContain(
-      'Unit Price -> unitprice',
+    expect(compareTable).toHaveBeenCalledWith(
+      expect.objectContaining({
+        left: 'SKU,Quantity\nA-1,12',
+        right: 'sku,Quantity\nA-1,14',
+        format: 'csv',
+        leftPath: 'C:/drop/left.csv',
+        rightPath: 'C:/drop/right.csv',
+      }),
     )
-    expect(wrapper.text()).toContain('Manual')
   })
 
-  it('renders a fixed virtual grid window for large table data', () => {
+  it('passes ignored columns and manual mappings to the backend', async () => {
     const wrapper = mountTableCompareView()
 
-    const grid = wrapper.find('[data-testid="table-virtual-grid"]')
+    await wrapper.find('[data-testid="run-table-compare"]').trigger('click')
+    await wrapper.vm.$nextTick()
+    await wrapper.find('[data-testid="manual-left-column"]').setValue('SKU')
+    await wrapper.find('[data-testid="manual-right-column"]').setValue('sku')
+    await wrapper.find('[data-testid="add-column-mapping"]').trigger('click')
+    await wrapper.find('[data-testid="ignore-column-quantity"]').setValue(true)
+    await wrapper.find('[data-testid="run-table-compare"]').trigger('click')
+    await wrapper.vm.$nextTick()
 
-    expect(grid.exists()).toBe(true)
-    expect(grid.attributes('style')).toContain('--visible-rows: 8')
-    expect(grid.attributes('style')).toContain('--visible-columns: 5')
-    expect(grid.findAll('[data-testid="table-grid-row"]')).toHaveLength(8)
-    expect(grid.findAll('[data-testid="table-grid-cell"]').length).toBe(40)
-    expect(wrapper.text()).toContain('R1C1')
-    expect(wrapper.text()).toContain('R8C5')
+    const request = vi.mocked(compareTable).mock.calls.at(-1)?.[0] as TableCompareRequest
+    expect(request.ignoredColumns).toContain('Quantity')
+    expect(request.manualMappings).toEqual([{ leftColumn: 'SKU', rightColumn: 'sku' }])
+    expect(wrapper.find('[data-testid="column-mapping-list"]').text()).toContain('SKU -> sku')
   })
 
   it('keeps left and right table grid scroll positions synchronized', async () => {
@@ -168,11 +169,11 @@ describe('TableCompareView', () => {
       attachTo: document.body,
     })
 
+    await wrapper.find('[data-testid="run-table-compare"]').trigger('click')
+    await wrapper.vm.$nextTick()
+
     const leftViewport = wrapper.find<HTMLElement>('[data-testid="left-table-grid-viewport"]')
     const rightViewport = wrapper.find<HTMLElement>('[data-testid="right-table-grid-viewport"]')
-
-    expect(leftViewport.exists()).toBe(true)
-    expect(rightViewport.exists()).toBe(true)
 
     leftViewport.element.scrollTop = 96
     leftViewport.element.scrollLeft = 44
@@ -184,29 +185,18 @@ describe('TableCompareView', () => {
     wrapper.unmount()
   })
 
-  it('hides ignored columns and marks them as unimportant', async () => {
+  it('searches compared table cells and navigates to the next difference', async () => {
     const wrapper = mountTableCompareView()
+    await wrapper.find('[data-testid="run-table-compare"]').trigger('click')
+    await wrapper.vm.$nextTick()
 
-    expect(wrapper.find('[data-testid="table-grid-cell-quantity"]').exists()).toBe(true)
-
-    await wrapper.find('[data-testid="ignore-column-quantity"]').setValue(true)
-
-    expect(wrapper.find('[data-testid="table-grid-cell-quantity"]').exists()).toBe(false)
-    expect(wrapper.find('[data-testid="column-rule-quantity"]').text()).toContain('Ignored')
-    expect(wrapper.find('[data-testid="column-rule-quantity"]').text()).toContain('Unimportant')
-  })
-
-  it('searches table cells and navigates to the next difference', async () => {
-    const wrapper = mountTableCompareView()
-
-    await wrapper.find('[data-testid="table-search-input"]').setValue('R8C5')
+    await wrapper.find('[data-testid="table-search-input"]').setValue('A-1')
 
     expect(wrapper.find('[data-testid="table-search-summary"]').text()).toContain('1 match')
-    expect(wrapper.find('[data-testid="active-table-cell"]').text()).toContain('R8C5')
+    expect(wrapper.find('[data-testid="active-table-cell"]').text()).toContain('A-1')
 
     await wrapper.find('[data-testid="next-table-difference"]').trigger('click')
 
-    expect(wrapper.find('[data-testid="active-table-cell"]').text()).toContain('R2C3')
-    expect(wrapper.find('[data-testid="table-difference-summary"]').text()).toContain('1 / 2')
+    expect(wrapper.find('[data-testid="active-table-cell"]').text()).toContain('12 -> 14')
   })
 })
