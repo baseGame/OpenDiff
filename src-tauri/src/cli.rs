@@ -151,6 +151,19 @@ fn main() {
                 "session: {} | name: {} | type: {}",
                 result.id, result.name, result.session_type
             );
+            if let Some(left) = &result.left {
+                println!("left: {left}");
+            }
+            if let Some(right) = &result.right {
+                println!("right: {right}");
+            }
+            if let Some(center) = &result.center {
+                println!("center: {center}");
+            }
+            if let Some(output) = &result.output {
+                println!("output: {output}");
+            }
+            println!("{}", result.note);
             std::process::exit(cli_exit_code_value(result.exit_code));
         }
         CliCommand::MergeText(args) => {

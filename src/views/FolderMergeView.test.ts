@@ -1,5 +1,7 @@
 import { flushPromises, mount } from '@vue/test-utils'
+import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { useSessionLaunchStore } from '@/stores/sessionLaunch'
 import { buildFolderMergePlan, executeFolderMergePlan } from '@/api/folderMerge'
 import FolderMergeView from './FolderMergeView.vue'
 import type {
@@ -36,8 +38,18 @@ function mountFolderMergeView(): VueWrapper {
   })
 }
 
+async function fillMergePaths(wrapper: VueWrapper): Promise<void> {
+  await wrapper.find('[data-testid="folder-merge-left-path"]').setValue('D:/workspace/merge/left')
+  await wrapper.find('[data-testid="folder-merge-base-path"]').setValue('D:/workspace/merge/base')
+  await wrapper.find('[data-testid="folder-merge-right-path"]').setValue('D:/workspace/merge/right')
+  await wrapper
+    .find('[data-testid="folder-merge-output-path"]')
+    .setValue('D:/workspace/merge/output')
+}
+
 describe('FolderMergeView', () => {
   beforeEach(() => {
+    setActivePinia(createPinia())
     push.mockClear()
     vi.mocked(buildFolderMergePlan).mockReset()
     vi.mocked(executeFolderMergePlan).mockReset()
@@ -60,6 +72,7 @@ describe('FolderMergeView', () => {
 
   it('builds a folder merge plan with automatic actions and conflicts', async () => {
     const wrapper = mountFolderMergeView()
+    await fillMergePaths(wrapper)
 
     expect(wrapper.find('[data-testid="folder-merge-plan"]').exists()).toBe(false)
 
@@ -88,6 +101,7 @@ describe('FolderMergeView', () => {
 
   it('executes the folder merge plan into the output folder', async () => {
     const wrapper = mountFolderMergeView()
+    await fillMergePaths(wrapper)
 
     await wrapper.find('[data-testid="folder-merge-build-plan"]').trigger('click')
     await flushPromises()
@@ -107,6 +121,7 @@ describe('FolderMergeView', () => {
 
   it('shows conflict details with three-way context', async () => {
     const wrapper = mountFolderMergeView()
+    await fillMergePaths(wrapper)
 
     await wrapper.find('[data-testid="folder-merge-build-plan"]').trigger('click')
     await flushPromises()
@@ -123,14 +138,23 @@ describe('FolderMergeView', () => {
 
   it('opens a folder conflict in the text merge workspace', async () => {
     const wrapper = mountFolderMergeView()
+    await fillMergePaths(wrapper)
 
     await wrapper.find('[data-testid="folder-merge-build-plan"]').trigger('click')
     await flushPromises()
     await wrapper.find('[data-testid="open-folder-conflict-config"]').trigger('click')
 
-    expect(wrapper.text()).toContain('Opening Text Merge for config')
-    expect(wrapper.text()).toContain('/merge/text')
     expect(push).toHaveBeenCalledWith('/merge/text')
+    expect(useSessionLaunchStore().pendingLaunch).toMatchObject({
+      route: '/merge/text',
+      autoRun: true,
+      locations: {
+        left: { uri: 'D:/workspace/merge/left/config' },
+        right: { uri: 'D:/workspace/merge/right/config' },
+        center: { uri: 'D:/workspace/merge/base/config' },
+        output: { uri: 'D:/workspace/merge/output/config' },
+      },
+    })
   })
 })
 

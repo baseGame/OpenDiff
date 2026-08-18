@@ -9,16 +9,19 @@ use media_core::{
     AudioCodec, MediaCodec, MediaContainer, MediaDiffStatistics, MediaDocument, MediaFieldStatus,
     MediaReadError, MediaStream, VideoCodec,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use shared_types::{
     AppErrorCode, AppErrorPayload, FileStamp, ReadTextFileResponse, SaveTextFileResponse,
     TextDiffRequest, TextDiffResponse, TextPatchResponse,
 };
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
+use std::fs::File;
+use std::io::{Read, Seek, SeekFrom};
 use std::path::{Component, Path, PathBuf};
 use table_core::{
-    ColumnMappingSource, RowAlignmentOptions, TableCellValue, TableDiffStatus, TableParseError,
+    ColumnMapping, ColumnMappingSource, RowAlignmentOptions, TableCellValue, TableDiffStatus,
+    TableParseError, TableSheet, TableWorkbook,
 };
 #[cfg(any(windows, test))]
 use version_core::{
@@ -77,6 +80,58 @@ pub struct TableCompareResponse {
     pub rows: Vec<TableCompareRow>,
     pub changed_cells: Vec<TableCompareChangedCell>,
     pub summary: TableCompareSummary,
+    pub left_sheets: Vec<String>,
+    pub right_sheets: Vec<String>,
+    pub left_sheet: String,
+    pub right_sheet: String,
+}
+
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct TableManualColumnMapping {
+    pub left_column: Option<String>,
+    pub right_column: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct TextMergeConflictRow {
+    pub line_index: usize,
+    pub title: String,
+    pub base: String,
+    pub left: String,
+    pub right: String,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct TextMergeCommandResponse {
+    pub left_path: String,
+    pub right_path: String,
+    pub center_path: Option<String>,
+    pub output_path: Option<String>,
+    pub left_text: String,
+    pub right_text: String,
+    pub center_text: String,
+    pub output_text: String,
+    pub conflicts: Vec<TextMergeConflictRow>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ExportReportResponse {
+    pub format: String,
+    pub content: String,
+    pub output_path: Option<String>,
+    pub bytes_written: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ApplyTextPatchResponse {
+    pub text: String,
+    pub applied_hunks: usize,
+    pub files: usize,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
@@ -161,6 +216,7 @@ pub struct PictureCompareResponse {
 #[derive(Debug, Clone, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct PictureSideSummary {
+    pub path: String,
     pub name: String,
     pub format: String,
     pub dimensions: String,
@@ -476,14 +532,52 @@ pub fn compare_table_csv(
     left: String,
     right: String,
 ) -> Result<TableCompareResponse, AppErrorPayload> {
-    let left_workbook = table_core::parse_csv(&left).map_err(table_parse_error)?;
-    let right_workbook = table_core::parse_csv(&right).map_err(table_parse_error)?;
-    let left_sheet = left_workbook.sheets.first().ok_or_else(empty_table_error)?;
-    let right_sheet = right_workbook
-        .sheets
-        .first()
-        .ok_or_else(empty_table_error)?;
-    let column_mappings = table_core::map_columns(
+    compare_table(
+        left,
+        right,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+    )
+}
+
+#[tauri::command]
+pub fn compare_table(
+    left: String,
+    right: String,
+    format: Option<String>,
+    left_path: Option<String>,
+    right_path: Option<String>,
+    left_sheet: Option<String>,
+    right_sheet: Option<String>,
+    key_column_indices: Option<Vec<usize>>,
+    ignored_columns: Option<Vec<String>>,
+    manual_mappings: Option<Vec<TableManualColumnMapping>>,
+    delimiter: Option<String>,
+) -> Result<TableCompareResponse, AppErrorPayload> {
+    let left_workbook = load_table_workbook(
+        &left,
+        left_path.as_deref(),
+        format.as_deref(),
+        delimiter.as_deref(),
+    )?;
+    let right_workbook = load_table_workbook(
+        &right,
+        right_path.as_deref(),
+        format.as_deref(),
+        delimiter.as_deref(),
+    )?;
+    let left_sheet_names = workbook_sheet_names(&left_workbook);
+    let right_sheet_names = workbook_sheet_names(&right_workbook);
+    let left_sheet = select_table_sheet(&left_workbook, left_sheet.as_deref())?;
+    let right_sheet = select_table_sheet(&right_workbook, right_sheet.as_deref())?;
+    let mut column_mappings = table_core::map_columns(
         left_sheet,
         right_sheet,
         &table_core::ColumnMappingOptions {
@@ -491,15 +585,25 @@ pub fn compare_table_csv(
             ignore_whitespace: true,
         },
     );
+    apply_manual_table_mappings(&mut column_mappings, left_sheet, right_sheet, &manual_mappings);
+    if let Some(ignored) = ignored_columns.as_ref() {
+        column_mappings.retain(|mapping| {
+            !column_name_ignored(mapping.left_column.as_deref(), ignored)
+                && !column_name_ignored(mapping.right_column.as_deref(), ignored)
+        });
+    }
+    let projected_left = project_table_sheet(left_sheet, &column_mappings, true);
+    let projected_right = project_table_sheet(right_sheet, &column_mappings, false);
     let alignments = table_core::align_rows_by_key_columns(
-        left_sheet,
-        right_sheet,
+        &projected_left,
+        &projected_right,
         &RowAlignmentOptions {
-            key_column_indices: vec![0],
+            key_column_indices: key_column_indices.unwrap_or_else(|| vec![0]),
             case_sensitive: false,
         },
     );
-    let row_diffs = table_core::compare_aligned_rows(left_sheet, right_sheet, &alignments);
+    let row_diffs =
+        table_core::compare_aligned_rows(&projected_left, &projected_right, &alignments);
     let changed_cells = row_diffs
         .iter()
         .flat_map(|row| {
@@ -521,7 +625,7 @@ pub fn compare_table_csv(
         .count();
 
     Ok(TableCompareResponse {
-        left_columns: left_sheet
+        left_columns: projected_left
             .columns
             .iter()
             .map(|column| TableCompareColumn {
@@ -529,7 +633,7 @@ pub fn compare_table_csv(
                 side: "left".to_owned(),
             })
             .collect(),
-        right_columns: right_sheet
+        right_columns: projected_right
             .columns
             .iter()
             .map(|column| TableCompareColumn {
@@ -582,6 +686,10 @@ pub fn compare_table_csv(
                 .filter(|cell| cell.status != TableDiffStatus::Same)
                 .count(),
         },
+        left_sheets: left_sheet_names,
+        right_sheets: right_sheet_names,
+        left_sheet: left_sheet.name.clone(),
+        right_sheet: right_sheet.name.clone(),
     })
 }
 
@@ -839,32 +947,291 @@ pub fn compare_hex_files(
     offset: Option<u64>,
     length: Option<usize>,
 ) -> Result<HexCompareResponse, AppErrorPayload> {
-    let left_bytes = fs::read(&left_path).map_err(|error| file_io_error(&left_path, error))?;
-    let right_bytes = fs::read(&right_path).map_err(|error| file_io_error(&right_path, error))?;
-    let diff = hex_core::scan_binary_differences(&left_bytes, &right_bytes);
     let offset = offset.unwrap_or(0);
     let length = length.unwrap_or(256);
-    let left_window = hex_core::build_hex_view_window(&left_bytes, offset, length, Some(&diff));
-    let right_window = hex_core::build_hex_view_window(&right_bytes, offset, length, Some(&diff));
-    let different_ranges = diff.ranges.len();
+    let left_len = file_len(&left_path)?;
+    let right_len = file_len(&right_path)?;
+    let left_bytes = read_file_window(&left_path, offset, length)?;
+    let right_bytes = read_file_window(&right_path, offset, length)?;
+    let window_diff = hex_core::scan_binary_differences(&left_bytes, &right_bytes);
+    let left_window =
+        hex_core::build_hex_view_window(&left_bytes, 0, left_bytes.len(), Some(&window_diff));
+    let right_window =
+        hex_core::build_hex_view_window(&right_bytes, 0, right_bytes.len(), Some(&window_diff));
+    let left_cells = shift_hex_cells(left_window.cells, offset);
+    let right_cells = shift_hex_cells(right_window.cells, offset);
+    let diff_ranges = shift_binary_diff_ranges(window_diff.ranges, offset);
+    let different_ranges = diff_ranges.len();
 
     Ok(HexCompareResponse {
         left: HexSideWindow {
             path: left_path,
-            total_len: left_window.total_len,
-            cells: left_window.cells,
+            total_len: left_len,
+            cells: left_cells,
         },
         right: HexSideWindow {
             path: right_path,
-            total_len: right_window.total_len,
-            cells: right_window.cells,
+            total_len: right_len,
+            cells: right_cells,
         },
-        diff_ranges: diff.ranges,
+        diff_ranges,
         summary: HexCompareSummary {
-            left_bytes: diff.left_len,
-            right_bytes: diff.right_len,
+            left_bytes: left_len,
+            right_bytes: right_len,
             different_ranges,
         },
+    })
+}
+
+#[tauri::command]
+pub fn find_hex_in_file(
+    path: String,
+    query_kind: String,
+    query: String,
+) -> Result<Vec<hex_core::HexFindMatch>, AppErrorPayload> {
+    let query = match query_kind.to_ascii_lowercase().as_str() {
+        "hex" => hex_core::HexFindQuery::Hex(query),
+        _ => hex_core::HexFindQuery::Text(query),
+    };
+
+    find_hex_matches_in_file(&path, query)
+}
+
+#[tauri::command]
+pub fn save_hex_edits(
+    path: String,
+    edits: Vec<hex_core::HexByteEdit>,
+) -> Result<hex_core::HexSaveResult, AppErrorPayload> {
+    hex_core::save_hex_byte_edits(&path, &edits).map_err(|error| {
+        AppErrorPayload::new(
+            AppErrorCode::FileWriteFailed,
+            "error.file.writeFailed.message",
+            format!("{error:?}"),
+        )
+        .with_param("path", &path)
+        .with_suggestion_key("error.file.writeFailed.suggestion")
+    })
+}
+
+#[tauri::command]
+pub fn merge_text_files(
+    left_path: String,
+    right_path: String,
+    center_path: Option<String>,
+    output_path: Option<String>,
+    conflict_policy: Option<String>,
+) -> Result<TextMergeCommandResponse, AppErrorPayload> {
+    let left =
+        file_core::read_text_file(&left_path).map_err(|error| file_error("read", &left_path, error))?;
+    let right = file_core::read_text_file(&right_path)
+        .map_err(|error| file_error("read", &right_path, error))?;
+    let (center_path, center_text) = if let Some(path) = center_path.filter(|value| !value.is_empty())
+    {
+        let document =
+            file_core::read_text_file(&path).map_err(|error| file_error("read", &path, error))?;
+        (Some(path), document.text)
+    } else {
+        (None, left.text.clone())
+    };
+    let document = merge_core::TextMergeDocument::from_inputs(merge_core::TextMergeInput {
+        base: merge_core::TextMergeSide::new(
+            center_path.clone().unwrap_or_else(|| left_path.clone()),
+            center_text.clone(),
+        ),
+        left: merge_core::TextMergeSide::new(left_path.clone(), left.text.clone()),
+        right: merge_core::TextMergeSide::new(right_path.clone(), right.text.clone()),
+        output_path: output_path.clone(),
+    });
+    let policy = match conflict_policy.as_deref() {
+        Some("favorLeft") => merge_core::TextMergeConflictPolicy::FavorLeft,
+        Some("favorRight") => merge_core::TextMergeConflictPolicy::FavorRight,
+        _ => merge_core::TextMergeConflictPolicy::MarkConflict,
+    };
+    let result = merge_core::auto_merge_text_with_options(
+        &document,
+        merge_core::TextMergeOptions {
+            conflict_policy: policy,
+        },
+    );
+    let conflicts = result
+        .sections
+        .iter()
+        .filter_map(|section| {
+            section.conflict.as_ref().map(|conflict| TextMergeConflictRow {
+                line_index: section.line_index,
+                title: format!("Line {}", section.line_index + 1),
+                base: conflict.base.first().cloned().unwrap_or_default(),
+                left: conflict.left.first().cloned().unwrap_or_default(),
+                right: conflict.right.first().cloned().unwrap_or_default(),
+            })
+        })
+        .collect();
+
+    Ok(TextMergeCommandResponse {
+        left_path,
+        right_path,
+        center_path,
+        output_path,
+        left_text: left.text,
+        right_text: right.text,
+        center_text,
+        output_text: result.output_text,
+        conflicts,
+    })
+}
+
+#[tauri::command]
+pub fn move_folder_entry(
+    source_path: String,
+    target_path: String,
+) -> Result<folder_core::FileOperationResult, AppErrorPayload> {
+    let error_path = source_path.clone();
+
+    folder_core::perform_file_operation(folder_core::FileOperationRequest::Move {
+        source_path,
+        target_path,
+    })
+    .map_err(|error| folder_scan_error(&error_path, error))
+}
+
+#[tauri::command]
+pub fn export_text_compare_report(
+    left: String,
+    right: String,
+    left_source: Option<String>,
+    right_source: Option<String>,
+    format: String,
+    output_path: Option<String>,
+    algorithm: Option<String>,
+    ignore_whitespace: Option<bool>,
+    ignore_case: Option<bool>,
+    ignore_line_endings: Option<bool>,
+    ignore_regexes: Option<Vec<String>>,
+) -> Result<ExportReportResponse, AppErrorPayload> {
+    let diff = diff_text(
+        left,
+        right,
+        algorithm,
+        ignore_whitespace,
+        ignore_case,
+        ignore_line_endings,
+        ignore_regexes,
+    );
+    let report = report_core::UnifiedReport::new(
+        report_core::ReportKind::Text,
+        "Text Compare",
+        report_core::ReportMetadata {
+            generated_at: current_timestamp(),
+            left_source,
+            right_source,
+        },
+    )
+    .with_section(report_core::ReportSection {
+        kind: report_core::ReportSectionKind::Summary,
+        title: "Summary".to_owned(),
+        rows: vec![
+            report_row("Added", Some(diff.stats.added.to_string()), None, report_core::ReportRowStatus::Added),
+            report_row(
+                "Deleted",
+                Some(diff.stats.deleted.to_string()),
+                None,
+                report_core::ReportRowStatus::Removed,
+            ),
+            report_row(
+                "Modified",
+                Some(diff.stats.modified.to_string()),
+                None,
+                report_core::ReportRowStatus::Different,
+            ),
+            report_row(
+                "Equal",
+                Some(diff.stats.equal.to_string()),
+                None,
+                report_core::ReportRowStatus::Equal,
+            ),
+        ],
+    })
+    .with_section(report_core::ReportSection {
+        kind: report_core::ReportSectionKind::Differences,
+        title: "Lines".to_owned(),
+        rows: diff
+            .lines
+            .iter()
+            .filter(|line| line.kind != shared_types::DiffLineKind::Equal)
+            .map(|line| report_core::ReportRow {
+                label: format!(
+                    "L{} / R{}",
+                    line.left_number.unwrap_or(0),
+                    line.right_number.unwrap_or(0)
+                ),
+                left: Some(line.left_text.clone()),
+                right: Some(line.right_text.clone()),
+                status: match line.kind {
+                    shared_types::DiffLineKind::Added => report_core::ReportRowStatus::Added,
+                    shared_types::DiffLineKind::Deleted => report_core::ReportRowStatus::Removed,
+                    _ => report_core::ReportRowStatus::Different,
+                },
+            })
+            .collect(),
+    });
+
+    write_rendered_report(&report, &format, output_path)
+}
+
+#[tauri::command]
+pub fn export_folder_compare_report(
+    left_root: String,
+    right_root: String,
+    format: String,
+    output_path: Option<String>,
+) -> Result<ExportReportResponse, AppErrorPayload> {
+    let cancellation_token = job_core::CancellationToken::default();
+    let left_tree = folder_core::scan_local_folder(&left_root, &cancellation_token)
+        .map_err(|error| folder_scan_error(&left_root, error))?;
+    let right_tree = folder_core::scan_local_folder(&right_root, &cancellation_token)
+        .map_err(|error| folder_scan_error(&right_root, error))?;
+    let alignment_rows = folder_core::align_folder_trees(&left_tree, &right_tree);
+    let model = folder_core::build_folder_report_model(
+        &alignment_rows,
+        &folder_core::FolderCompareOptions::default(),
+        true,
+    );
+    let content = match format.to_ascii_lowercase().as_str() {
+        "text" | "txt" => folder_core::render_folder_report_text(&model, "Folder Compare"),
+        "xml" => folder_core::render_folder_report_xml(&model),
+        "json" => {
+            let report = folder_report_to_unified(&model, &left_root, &right_root);
+            report_core::render_json_report(&report).map_err(|error| {
+                AppErrorPayload::new(
+                    AppErrorCode::Unknown,
+                    "error.app.unknown.title",
+                    error.to_string(),
+                )
+            })?
+        }
+        _ => folder_core::render_folder_report_html(&model, "Folder Compare"),
+    };
+
+    persist_report_content(format, content, output_path)
+}
+
+#[tauri::command]
+pub fn apply_text_patch(
+    source: String,
+    patch: String,
+) -> Result<ApplyTextPatchResponse, AppErrorPayload> {
+    let result = diff_core::apply_text_patch(&source, &patch).map_err(|error| {
+        AppErrorPayload::new(
+            AppErrorCode::Unknown,
+            "error.app.unknown.title",
+            error.to_string(),
+        )
+    })?;
+
+    Ok(ApplyTextPatchResponse {
+        text: result.text,
+        applied_hunks: result.applied_hunks,
+        files: result.files,
     })
 }
 
@@ -872,19 +1239,29 @@ pub fn compare_hex_files(
 pub fn compare_picture_files(
     left_path: String,
     right_path: String,
+    rgb_tolerance: Option<u8>,
+    compare_alpha: Option<bool>,
+    ignore_color_from: Option<Vec<u8>>,
+    ignore_color_to: Option<Vec<u8>>,
 ) -> Result<PictureCompareResponse, AppErrorPayload> {
     let left = read_picture_path(&left_path)?;
     let right = read_picture_path(&right_path)?;
     let metadata_rows = picture_metadata_rows(&left.metadata, &right.metadata);
     let total_pixels = u64::from(left.metadata.width) * u64::from(left.metadata.height);
+    let options = image_core::PixelDiffOptions {
+        rgb_tolerance: rgb_tolerance.unwrap_or(0),
+        compare_alpha: compare_alpha.unwrap_or(true),
+        ignored_replacements: picture_ignore_replacements(ignore_color_from, ignore_color_to),
+    };
     let diff = if left.metadata.width == right.metadata.width
         && left.metadata.height == right.metadata.height
     {
-        image_core::scan_pixel_differences(
+        image_core::scan_pixel_differences_with_options(
             &left.pixels,
             &right.pixels,
             left.metadata.width,
             left.metadata.height,
+            options,
         )
         .map_err(picture_pixel_error)?
     } else {
@@ -2015,6 +2392,7 @@ fn picture_pixel_error(error: PixelDiffError) -> AppErrorPayload {
 
 fn picture_side_summary(path: &str, metadata: &ImageMetadata) -> PictureSideSummary {
     PictureSideSummary {
+        path: path.to_owned(),
         name: Path::new(path)
             .file_name()
             .and_then(|name| name.to_str())
@@ -2470,6 +2848,446 @@ fn version_target_os_label(target_os: &VersionTargetOs) -> String {
     .to_owned()
 }
 
+fn file_len(path: &str) -> Result<u64, AppErrorPayload> {
+    fs::metadata(path)
+        .map(|metadata| metadata.len())
+        .map_err(|error| file_io_error(path, error))
+}
+
+fn read_file_window(path: &str, offset: u64, length: usize) -> Result<Vec<u8>, AppErrorPayload> {
+    let mut file = File::open(path).map_err(|error| file_io_error(path, error))?;
+    file.seek(SeekFrom::Start(offset))
+        .map_err(|error| file_io_error(path, error))?;
+    let mut buffer = vec![0_u8; length];
+    let read = file
+        .read(&mut buffer)
+        .map_err(|error| file_io_error(path, error))?;
+    buffer.truncate(read);
+    Ok(buffer)
+}
+
+fn shift_hex_cells(cells: Vec<hex_core::HexViewCell>, offset: u64) -> Vec<hex_core::HexViewCell> {
+    cells
+        .into_iter()
+        .map(|mut cell| {
+            cell.offset += offset;
+            cell
+        })
+        .collect()
+}
+
+fn shift_binary_diff_ranges(
+    ranges: Vec<hex_core::BinaryDiffRange>,
+    offset: u64,
+) -> Vec<hex_core::BinaryDiffRange> {
+    ranges
+        .into_iter()
+        .map(|mut range| {
+            range.offset += offset;
+            range
+        })
+        .collect()
+}
+
+fn find_hex_matches_in_file(
+    path: &str,
+    query: hex_core::HexFindQuery,
+) -> Result<Vec<hex_core::HexFindMatch>, AppErrorPayload> {
+    let pattern = match &query {
+        hex_core::HexFindQuery::Text(value) if value.is_empty() => {
+            return Err(AppErrorPayload::new(
+                AppErrorCode::Unknown,
+                "error.app.unknown.title",
+                "empty hex find query",
+            ))
+        }
+        hex_core::HexFindQuery::Hex(value) if value.trim().is_empty() => {
+            return Err(AppErrorPayload::new(
+                AppErrorCode::Unknown,
+                "error.app.unknown.title",
+                "empty hex find query",
+            ))
+        }
+        _ => hex_core::find_hex_matches(&[], query.clone()).map(|_| Vec::new()),
+    };
+    let _ = pattern;
+    let total_len = file_len(path)?;
+    let mut matches = Vec::new();
+    let mut offset = 0_u64;
+    let chunk_size = 64 * 1024;
+
+    while offset < total_len {
+        let overlap = 64_u64;
+        let read_offset = offset.saturating_sub(if offset == 0 { 0 } else { overlap });
+        let bytes = read_file_window(path, read_offset, chunk_size + overlap as usize)?;
+        let found = hex_core::find_hex_matches(&bytes, query.clone()).map_err(|error| {
+            AppErrorPayload::new(
+                AppErrorCode::Unknown,
+                "error.app.unknown.title",
+                format!("{error:?}"),
+            )
+        })?;
+
+        for mut found_match in found {
+            found_match.offset += read_offset;
+            if found_match.offset >= offset {
+                matches.push(found_match);
+            }
+        }
+
+        if bytes.len() < chunk_size + if offset == 0 { 0 } else { overlap as usize } {
+            break;
+        }
+        offset += chunk_size as u64;
+    }
+
+    Ok(matches)
+}
+
+fn load_table_workbook(
+    content: &str,
+    path: Option<&str>,
+    format: Option<&str>,
+    delimiter: Option<&str>,
+) -> Result<TableWorkbook, AppErrorPayload> {
+    let inferred = path
+        .and_then(|value| Path::new(value).extension())
+        .and_then(|value| value.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    let format = format.unwrap_or("").to_ascii_lowercase();
+    let is_excel = format == "xlsx"
+        || format == "xls"
+        || inferred == "xlsx"
+        || inferred == "xls"
+        || path.is_some_and(|value| value.ends_with(".xlsx") || value.ends_with(".xls"));
+
+    if is_excel {
+        let path = path.ok_or_else(|| {
+            AppErrorPayload::new(
+                AppErrorCode::Unknown,
+                "error.table.parseFailed.message",
+                "Excel compare requires a file path",
+            )
+            .with_suggestion_key("error.table.parseFailed.suggestion")
+        })?;
+        return table_core::read_excel_workbook(path).map_err(table_parse_error);
+    }
+
+    let source = if content.is_empty() {
+        if let Some(path) = path {
+            fs::read_to_string(path).map_err(|error| file_io_error(path, error))?
+        } else {
+            String::new()
+        }
+    } else {
+        content.to_owned()
+    };
+
+    if format == "html" || inferred == "html" || inferred == "htm" {
+        return table_core::parse_html_tables(&source).map_err(table_parse_error);
+    }
+
+    if let Some(delimiter) = delimiter.and_then(|value| value.chars().next()) {
+        return table_core::parse_delimited_table(&source, delimiter).map_err(table_parse_error);
+    }
+
+    if format == "tsv" || inferred == "tsv" || inferred == "tab" {
+        return table_core::parse_tsv(&source).map_err(table_parse_error);
+    }
+
+    table_core::parse_csv(&source).map_err(table_parse_error)
+}
+
+fn workbook_sheet_names(workbook: &TableWorkbook) -> Vec<String> {
+    workbook
+        .sheets
+        .iter()
+        .map(|sheet| sheet.name.clone())
+        .collect()
+}
+
+fn select_table_sheet<'a>(
+    workbook: &'a TableWorkbook,
+    name: Option<&str>,
+) -> Result<&'a TableSheet, AppErrorPayload> {
+    if let Some(name) = name.filter(|value| !value.is_empty()) {
+        return workbook
+            .sheets
+            .iter()
+            .find(|sheet| sheet.name.eq_ignore_ascii_case(name))
+            .ok_or_else(empty_table_error);
+    }
+
+    workbook.sheets.first().ok_or_else(empty_table_error)
+}
+
+fn apply_manual_table_mappings(
+    mappings: &mut Vec<ColumnMapping>,
+    left_sheet: &TableSheet,
+    right_sheet: &TableSheet,
+    manual_mappings: &Option<Vec<TableManualColumnMapping>>,
+) {
+    let Some(manual_mappings) = manual_mappings else {
+        return;
+    };
+
+    for manual in manual_mappings {
+        let left_name = manual.left_column.as_deref();
+        let right_name = manual.right_column.as_deref();
+        let left_column = left_name.and_then(|name| {
+            left_sheet
+                .columns
+                .iter()
+                .find(|column| column.name.eq_ignore_ascii_case(name))
+        });
+        let right_column = right_name.and_then(|name| {
+            right_sheet
+                .columns
+                .iter()
+                .find(|column| column.name.eq_ignore_ascii_case(name))
+        });
+
+        mappings.retain(|mapping| {
+            mapping.left_column.as_deref() != left_name
+                && mapping.right_column.as_deref() != right_name
+        });
+        mappings.push(ColumnMapping {
+            left_column_index: left_column.map(|column| column.index),
+            right_column_index: right_column.map(|column| column.index),
+            left_column: left_column.map(|column| column.name.clone()),
+            right_column: right_column.map(|column| column.name.clone()),
+            source: ColumnMappingSource::Automatic,
+        });
+    }
+}
+
+fn column_name_ignored(name: Option<&str>, ignored: &[String]) -> bool {
+    name.is_some_and(|value| {
+        ignored
+            .iter()
+            .any(|ignored_name| ignored_name.eq_ignore_ascii_case(value))
+    })
+}
+
+fn project_table_sheet(sheet: &TableSheet, mappings: &[ColumnMapping], left: bool) -> TableSheet {
+    let columns = mappings
+        .iter()
+        .enumerate()
+        .map(|(index, mapping)| table_core::TableColumn {
+            index,
+            name: if left {
+                mapping
+                    .left_column
+                    .clone()
+                    .or_else(|| mapping.right_column.clone())
+                    .unwrap_or_else(|| format!("Column {index}"))
+            } else {
+                mapping
+                    .right_column
+                    .clone()
+                    .or_else(|| mapping.left_column.clone())
+                    .unwrap_or_else(|| format!("Column {index}"))
+            },
+        })
+        .collect::<Vec<_>>();
+    let rows = sheet
+        .rows
+        .iter()
+        .map(|row| table_core::TableRow {
+            index: row.index,
+            cells: mappings
+                .iter()
+                .enumerate()
+                .map(|(column_index, mapping)| {
+                    let source_index = if left {
+                        mapping.left_column_index
+                    } else {
+                        mapping.right_column_index
+                    };
+                    let value = source_index
+                        .and_then(|index| {
+                            row.cells
+                                .iter()
+                                .find(|cell| cell.column_index == index)
+                                .map(|cell| cell.value.clone())
+                        })
+                        .unwrap_or(TableCellValue::Empty);
+
+                    table_core::TableCell {
+                        row_index: row.index,
+                        column_index,
+                        value,
+                    }
+                })
+                .collect(),
+        })
+        .collect();
+
+    TableSheet {
+        name: sheet.name.clone(),
+        index: sheet.index,
+        columns,
+        rows,
+    }
+}
+
+fn picture_ignore_replacements(
+    from: Option<Vec<u8>>,
+    to: Option<Vec<u8>>,
+) -> Vec<image_core::ColorReplacementRule> {
+    match (rgba_from_bytes(from), rgba_from_bytes(to)) {
+        (Some(from), Some(to)) => vec![image_core::ColorReplacementRule { from, to }],
+        _ => Vec::new(),
+    }
+}
+
+fn rgba_from_bytes(value: Option<Vec<u8>>) -> Option<[u8; 4]> {
+    let value = value.filter(|bytes| bytes.len() >= 3)?;
+    Some([
+        value[0],
+        value[1],
+        value[2],
+        value.get(3).copied().unwrap_or(255),
+    ])
+}
+
+fn current_timestamp() -> String {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|duration| duration.as_secs().to_string())
+        .unwrap_or_else(|_| "0".to_owned())
+}
+
+fn report_row(
+    label: &str,
+    left: Option<String>,
+    right: Option<String>,
+    status: report_core::ReportRowStatus,
+) -> report_core::ReportRow {
+    report_core::ReportRow {
+        label: label.to_owned(),
+        left,
+        right,
+        status,
+    }
+}
+
+fn write_rendered_report(
+    report: &report_core::UnifiedReport,
+    format: &str,
+    output_path: Option<String>,
+) -> Result<ExportReportResponse, AppErrorPayload> {
+    let content = match format.to_ascii_lowercase().as_str() {
+        "text" | "txt" => report_core::render_text_report(report),
+        "json" => report_core::render_json_report(report).map_err(|error| {
+            AppErrorPayload::new(
+                AppErrorCode::Unknown,
+                "error.app.unknown.title",
+                error.to_string(),
+            )
+        })?,
+        "xml" => report_core::render_xml_report(report),
+        _ => report_core::render_html_report(report),
+    };
+
+    persist_report_content(format.to_owned(), content, output_path)
+}
+
+fn persist_report_content(
+    format: String,
+    content: String,
+    output_path: Option<String>,
+) -> Result<ExportReportResponse, AppErrorPayload> {
+    if let Some(path) = output_path.as_ref() {
+        if let Some(parent) = Path::new(path).parent() {
+            if !parent.as_os_str().is_empty() {
+                fs::create_dir_all(parent).map_err(|error| file_io_error(path, error))?;
+            }
+        }
+        fs::write(path, &content).map_err(|error| file_io_error(path, error))?;
+        let bytes_written = content.len() as u64;
+        return Ok(ExportReportResponse {
+            format,
+            content,
+            output_path,
+            bytes_written: Some(bytes_written),
+        });
+    }
+
+    Ok(ExportReportResponse {
+        format,
+        content,
+        output_path: None,
+        bytes_written: None,
+    })
+}
+
+fn folder_report_to_unified(
+    model: &folder_core::FolderReportModel,
+    left_root: &str,
+    right_root: &str,
+) -> report_core::UnifiedReport {
+    report_core::UnifiedReport::new(
+        report_core::ReportKind::Folder,
+        "Folder Compare",
+        report_core::ReportMetadata {
+            generated_at: current_timestamp(),
+            left_source: Some(left_root.to_owned()),
+            right_source: Some(right_root.to_owned()),
+        },
+    )
+    .with_section(report_core::ReportSection {
+        kind: report_core::ReportSectionKind::Summary,
+        title: "Summary".to_owned(),
+        rows: vec![
+            report_row(
+                "Same",
+                Some(model.summary.same.to_string()),
+                None,
+                report_core::ReportRowStatus::Equal,
+            ),
+            report_row(
+                "Different",
+                Some(model.summary.different.to_string()),
+                None,
+                report_core::ReportRowStatus::Different,
+            ),
+            report_row(
+                "Left only",
+                Some(model.summary.left_only.to_string()),
+                None,
+                report_core::ReportRowStatus::Removed,
+            ),
+            report_row(
+                "Right only",
+                Some(model.summary.right_only.to_string()),
+                None,
+                report_core::ReportRowStatus::Added,
+            ),
+        ],
+    })
+    .with_section(report_core::ReportSection {
+        kind: report_core::ReportSectionKind::Differences,
+        title: "Paths".to_owned(),
+        rows: model
+            .rows
+            .iter()
+            .map(|row| report_core::ReportRow {
+                label: row.relative_path.clone(),
+                left: row.left_path.clone(),
+                right: row.right_path.clone(),
+                status: match row.status {
+                    FolderCompareStatus::Same => report_core::ReportRowStatus::Equal,
+                    FolderCompareStatus::LeftOnly => report_core::ReportRowStatus::Removed,
+                    FolderCompareStatus::RightOnly => report_core::ReportRowStatus::Added,
+                    _ => report_core::ReportRowStatus::Different,
+                },
+            })
+            .collect(),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2909,9 +3727,15 @@ mod tests {
         fs::write(&right, fixture_png(&[[255, 0, 0, 255], [0, 255, 0, 255]]))
             .expect("right fixture should be writable");
 
-        let response =
-            compare_picture_files(left.display().to_string(), right.display().to_string())
-                .expect("valid image fixtures should compare");
+        let response = compare_picture_files(
+            left.display().to_string(),
+            right.display().to_string(),
+            None,
+            None,
+            None,
+            None,
+        )
+        .expect("valid image fixtures should compare");
 
         assert_eq!(response.left.name, "left.png");
         assert_eq!(response.right.name, "right.png");
@@ -3021,6 +3845,117 @@ mod tests {
             ((value >> 7) & 0x7f) as u8,
             (value & 0x7f) as u8,
         ]
+    }
+
+    #[test]
+    fn compare_table_supports_tsv_key_columns_and_ignored_columns() {
+        let response = compare_table(
+            "id\tname\tnote\n1\talpha\tkeep\n".to_owned(),
+            "id\tname\tnote\n1\tbeta\tdrop\n".to_owned(),
+            Some("tsv".to_owned()),
+            None,
+            None,
+            None,
+            None,
+            Some(vec![0]),
+            Some(vec!["note".to_owned()]),
+            None,
+            None,
+        )
+        .expect("valid tsv inputs should compare");
+
+        assert_eq!(response.left_sheet, "Sheet1");
+        assert_eq!(response.summary.changed_cell_count, 1);
+        assert_eq!(response.changed_cells[0].left_value.as_deref(), Some("alpha"));
+        assert_eq!(response.changed_cells[0].right_value.as_deref(), Some("beta"));
+        assert!(response
+            .column_mappings
+            .iter()
+            .all(|mapping| mapping.left_column.as_deref() != Some("note")));
+    }
+
+    #[test]
+    fn merge_text_files_loads_real_conflicts() {
+        let root = unique_temp_dir("merge-command");
+        fs::create_dir_all(&root).expect("fixture directory should be created");
+        let base = root.join("base.txt");
+        let left = root.join("left.txt");
+        let right = root.join("right.txt");
+        fs::write(&base, "one\ntwo\nthree").expect("base should be writable");
+        fs::write(&left, "one\nleft change\nthree").expect("left should be writable");
+        fs::write(&right, "one\nright change\nthree").expect("right should be writable");
+
+        let response = merge_text_files(
+            left.display().to_string(),
+            right.display().to_string(),
+            Some(base.display().to_string()),
+            Some(root.join("out.txt").display().to_string()),
+            None,
+        )
+        .expect("valid merge inputs should load");
+
+        assert_eq!(response.conflicts.len(), 1);
+        assert_eq!(response.conflicts[0].left, "left change");
+        assert_eq!(response.conflicts[0].right, "right change");
+        assert_eq!(response.output_text, "one\ntwo\nthree");
+    }
+
+    #[test]
+    fn export_text_compare_report_writes_html() {
+        let root = unique_temp_dir("text-report-command");
+        fs::create_dir_all(&root).expect("fixture directory should be created");
+        let output = root.join("report.html");
+
+        let response = export_text_compare_report(
+            "line one\nline two".to_owned(),
+            "line one\nline 2".to_owned(),
+            Some("left.txt".to_owned()),
+            Some("right.txt".to_owned()),
+            "html".to_owned(),
+            Some(output.display().to_string()),
+            None,
+            Some(true),
+            None,
+            None,
+            None,
+        )
+        .expect("text report should render");
+
+        assert!(response.content.contains("Text Compare"));
+        assert_eq!(
+            fs::read_to_string(&output).expect("report should be written"),
+            response.content
+        );
+    }
+
+    #[test]
+    fn move_folder_entry_moves_a_local_file() {
+        let root = unique_temp_dir("move-command");
+        fs::create_dir_all(root.join("archive")).expect("archive directory should be created");
+        let source = root.join("notes.txt");
+        let target = root.join("archive").join("notes.txt");
+        fs::write(&source, "moved").expect("source should be writable");
+
+        let result = move_folder_entry(source.display().to_string(), target.display().to_string())
+            .expect("move should succeed");
+
+        assert_eq!(result.status, folder_core::FileOperationStatus::Moved);
+        assert!(!source.exists());
+        assert_eq!(fs::read_to_string(&target).expect("target should exist"), "moved");
+    }
+
+    #[test]
+    fn find_hex_in_file_returns_text_matches() {
+        let root = unique_temp_dir("hex-find-command");
+        fs::create_dir_all(&root).expect("fixture directory should be created");
+        let path = root.join("data.bin");
+        fs::write(&path, b"AAAABCDEAAAA").expect("fixture should be writable");
+
+        let matches = find_hex_in_file(path.display().to_string(), "text".to_owned(), "BCDE".to_owned())
+            .expect("find should succeed");
+
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].offset, 4);
     }
 
     fn unique_temp_dir(label: &str) -> PathBuf {

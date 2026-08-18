@@ -64,8 +64,37 @@ describe('selectSessionForDrop', () => {
     })
   })
 
-  it('selects hex compare for binary or unknown file extensions', () => {
+  it('selects table compare for spreadsheet and delimited files', () => {
+    expect(selectSessionForDrop(pair('left.csv', 'right.tsv'))).toMatchObject({
+      sessionType: 'table-compare',
+      route: '/compare/table',
+      enabled: true,
+    })
+
+    expect(selectSessionForDrop(pair('sales.xlsx', 'sales.xlsx'))).toMatchObject({
+      sessionType: 'table-compare',
+      route: '/compare/table',
+      enabled: true,
+    })
+  })
+
+  it('selects registry, media, and version compares for those extensions', () => {
+    expect(selectSessionForDrop(pair('left.reg', 'right.reg'))).toMatchObject({
+      sessionType: 'registry-compare',
+      route: '/compare/registry',
+    })
+    expect(selectSessionForDrop(pair('left.mp3', 'right.flac'))).toMatchObject({
+      sessionType: 'media-compare',
+      route: '/compare/media',
+    })
     expect(selectSessionForDrop(pair('left.exe', 'right.dll'))).toMatchObject({
+      sessionType: 'version-compare',
+      route: '/compare/version',
+    })
+  })
+
+  it('selects hex compare for binary or unknown file extensions', () => {
+    expect(selectSessionForDrop(pair('left.bin', 'right.dat'))).toMatchObject({
       sessionType: 'hex-compare',
       route: '/compare/hex',
       enabled: true,

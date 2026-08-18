@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watchEffect } from 'vue'
-import { diffText, readTextFile } from '@/api/diff'
+import { diffText, exportTextCompareReport, readTextFile } from '@/api/diff'
 import { useStatusBarStore } from '@/stores/statusBar'
+import { useLastCompareStore } from '@/stores/lastCompare'
 import { useSessionLaunchStore } from '@/stores/sessionLaunch'
 import type { TextDiffAlgorithm, TextDiffResponse } from '@/types/diff'
 import TextDiffPanel from '@/components/diff/TextDiffPanel.vue'
@@ -30,58 +31,21 @@ const builtInSyntaxGrammar = {
   ],
 }
 
-const left = ref('line one\nline two\nline four')
-const right = ref('line one\nline 2\nline three\nline four')
-const leftPathLabel = ref('C:/Projects/app/main.ts')
-const rightPathLabel = ref('C:/Projects/app/main.remote.ts')
-const initialDiffResult: TextDiffResponse = {
-  lines: [
-    {
-      leftNumber: 1,
-      rightNumber: 1,
-      leftText: 'line one',
-      rightText: 'line one',
-      kind: 'equal',
-      inlineSegments: { left: [], right: [] },
-    },
-    {
-      leftNumber: 2,
-      rightNumber: 2,
-      leftText: 'line two',
-      rightText: 'line 2',
-      kind: 'modified',
-      inlineSegments: {
-        left: [{ text: 'line two', changed: true }],
-        right: [{ text: 'line 2', changed: true }],
-      },
-    },
-    {
-      leftNumber: null,
-      rightNumber: 3,
-      leftText: '',
-      rightText: 'line three',
-      kind: 'added',
-      inlineSegments: {
-        left: [],
-        right: [{ text: 'line three', changed: true }],
-      },
-    },
-    {
-      leftNumber: 3,
-      rightNumber: 4,
-      leftText: 'line four',
-      rightText: 'line four',
-      kind: 'equal',
-      inlineSegments: { left: [], right: [] },
-    },
-  ],
-  stats: { added: 1, deleted: 0, modified: 1, equal: 2 },
-}
+const left = ref('')
+const right = ref('')
+const leftPathLabel = ref('')
+const rightPathLabel = ref('')
 const statusBar = useStatusBarStore()
 const sessionLaunch = useSessionLaunchStore()
+const lastCompare = useLastCompareStore()
 const { t } = useI18n()
 const algorithm = ref<TextDiffAlgorithm>('myers')
-const result = ref<TextDiffResponse | null>(initialDiffResult)
+const ignoreWhitespace = ref(false)
+const ignoreCase = ref(false)
+const ignoreLineEndings = ref(false)
+const ignoreRegexInput = ref('')
+const reportStatus = ref('')
+const result = ref<TextDiffResponse | null>(null)
 const loading = ref(false)
 const error = ref('')
 const dirty = ref(false)
@@ -251,15 +215,35 @@ function detectLineEnding(value: string): string {
   return 'None'
 }
 
+function buildDiffRequest() {
+  return {
+    left: left.value,
+    right: right.value,
+    algorithm: algorithm.value,
+    ignoreWhitespace: ignoreWhitespace.value,
+    ignoreCase: ignoreCase.value,
+    ignoreLineEndings: ignoreLineEndings.value,
+    ignoreRegexes: ignoreRegexInput.value
+      .split('\n')
+      .map((value) => value.trim())
+      .filter(Boolean),
+  }
+}
+
+function recordCurrentTextCompare(): void {
+  lastCompare.recordTextCompare({
+    ...buildDiffRequest(),
+    leftSource: leftPathLabel.value || undefined,
+    rightSource: rightPathLabel.value || undefined,
+  })
+}
+
 async function runDiff(): Promise<void> {
   loading.value = true
   error.value = ''
   try {
-    result.value = await diffText({
-      left: left.value,
-      right: right.value,
-      algorithm: algorithm.value,
-    })
+    result.value = await diffText(buildDiffRequest())
+    recordCurrentTextCompare()
     ignoredDiffKeys.value = new Set()
     bookmarks.value = {}
     currentDiffIndex.value = 0
@@ -285,11 +269,8 @@ async function loadLaunchTextFiles(leftPath: string, rightPath: string): Promise
     right.value = rightFile.text
     leftPathLabel.value = leftFile.path
     rightPathLabel.value = rightFile.path
-    result.value = await diffText({
-      left: left.value,
-      right: right.value,
-      algorithm: algorithm.value,
-    })
+    result.value = await diffText(buildDiffRequest())
+    recordCurrentTextCompare()
     ignoredDiffKeys.value = new Set()
     bookmarks.value = {}
     currentDiffIndex.value = 0
@@ -299,6 +280,30 @@ async function loadLaunchTextFiles(leftPath: string, rightPath: string): Promise
   } finally {
     loading.value = false
   }
+}
+
+function swapPaths(): void {
+  const nextLeft = right.value
+  const nextRight = left.value
+  const nextLeftPath = rightPathLabel.value
+  left.value = nextLeft
+  right.value = nextRight
+  rightPathLabel.value = leftPathLabel.value
+  leftPathLabel.value = nextLeftPath
+  dirty.value = true
+}
+
+async function exportCurrentReport(format: 'html' | 'text' | 'json'): Promise<void> {
+  const extension = format === 'text' ? 'txt' : format
+  const outputPath = `${leftPathLabel.value || 'text-compare'}.${extension}`
+  const response = await exportTextCompareReport({
+    ...buildDiffRequest(),
+    format,
+    leftSource: leftPathLabel.value || undefined,
+    rightSource: rightPathLabel.value || undefined,
+    outputPath,
+  })
+  reportStatus.value = response.outputPath ?? outputPath
 }
 
 function updateLeft(value: string): void {
@@ -723,6 +728,53 @@ function toggleSourceEditors(): void {
           <option value="patience">{{ $t('ui.patience') }}</option>
           <option value="histogram">{{ $t('ui.histogram') }}</option>
         </select>
+        <label class="find-option">
+          <input
+            v-model="ignoreWhitespace"
+            data-testid="ignore-whitespace"
+            type="checkbox"
+          />{{ $t('ui.whitespace') }}</label
+        >
+        <label class="find-option">
+          <input
+            v-model="ignoreCase"
+            data-testid="ignore-case"
+            type="checkbox"
+          />{{ $t('ui.case') }}</label
+        >
+        <label class="find-option">
+          <input
+            v-model="ignoreLineEndings"
+            data-testid="ignore-line-endings"
+            type="checkbox"
+          />{{ $t('ui.lineEndings') }}</label
+        >
+        <input
+          v-model="ignoreRegexInput"
+          class="find-input"
+          data-testid="ignore-regexes"
+          type="text"
+          :placeholder="$t('ui.regex')"
+        />
+        <button
+          type="button"
+          data-testid="export-text-html-report"
+          @click="exportCurrentReport('html')"
+        >
+          {{ $t('ui.export') }} {{ $t('ui.html') }}
+        </button>
+        <button
+          type="button"
+          data-testid="export-text-text-report"
+          @click="exportCurrentReport('text')"
+        >
+          {{ $t('ui.export') }} {{ $t('ui.text') }}
+        </button>
+        <span
+          v-if="reportStatus"
+          data-testid="text-report-status"
+          >{{ reportStatus }}</span
+        >
         <NButton
           size="small"
           type="primary"
@@ -738,7 +790,13 @@ function toggleSourceEditors(): void {
           :value="leftPathLabel"
           readonly
         />
-        <button type="button">&lt;&gt;</button>
+        <button
+          type="button"
+          data-testid="swap-text-paths"
+          @click="swapPaths"
+        >
+          &lt;&gt;
+        </button>
         <input
           type="text"
           :value="rightPathLabel"

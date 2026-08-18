@@ -10,7 +10,8 @@ import {
 
 export const fallbackLocale = 'en-US'
 
-export type SupportedLocale = 'en-US' | 'zh-CN' | 'zh-TW' | 'de-DE' | 'fr-FR' | 'es-ES' | 'ko-KR'
+export type SupportedLocale =
+  'en-US' | 'zh-CN' | 'zh-TW' | 'de-DE' | 'fr-FR' | 'es-ES' | 'ko-KR' | 'ja-JP'
 
 export interface LanguagePack {
   locale: SupportedLocale
@@ -92,7 +93,7 @@ export function installI18n(app: App, i18n: I18nContext): void {
 }
 
 export function isSupportedLocale(value: string): value is SupportedLocale {
-  return ['en-US', 'zh-CN', 'zh-TW', 'de-DE', 'fr-FR', 'es-ES', 'ko-KR'].includes(value)
+  return ['en-US', 'zh-CN', 'zh-TW', 'de-DE', 'fr-FR', 'es-ES', 'ko-KR', 'ja-JP'].includes(value)
 }
 
 function resolveLocale(

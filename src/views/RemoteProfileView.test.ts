@@ -6,6 +6,7 @@ describe('RemoteProfileView', () => {
   it('renders built-in remote profiles without plaintext credentials', () => {
     const wrapper = mount(RemoteProfileView)
 
+    expect(wrapper.find('[data-testid="remote-unavailable-notice"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('Remote Profiles')
     expect(wrapper.find('[data-testid="remote-profile-list"]').text()).toContain('Production SFTP')
     expect(wrapper.find('[data-testid="remote-profile-list"]').text()).toContain('Team WebDAV')
@@ -50,8 +51,9 @@ describe('RemoteProfileView', () => {
 
     await wrapper.find('[data-testid="test-remote-profile"]').trigger('click')
 
+    expect(wrapper.find('[data-testid="test-remote-profile"]').attributes('disabled')).toBeDefined()
     expect(wrapper.find('[data-testid="remote-profile-test-status"]').text()).toContain(
-      'Connection check queued for ftp.example.com',
+      'Remote connection testing is not implemented',
     )
 
     await wrapper.find('[data-testid="delete-remote-profile"]').trigger('click')

@@ -17,103 +17,15 @@ interface FlatRegistryKeyNode extends RegistryKeyNode {
   depth: number
 }
 
-const defaultRegistryTree: RegistryKeyNode[] = [
-  {
-    path: 'HKCU/Software/OpenDiff',
-    label: 'OpenDiff',
-    status: 'modified',
-    values: [
-      {
-        keyPath: 'HKCU/Software/OpenDiff',
-        name: 'Theme',
-        status: 'modified',
-        left: { kind: 'REG_SZ', data: 'dark' },
-        right: { kind: 'REG_SZ', data: 'light' },
-      },
-      {
-        keyPath: 'HKCU/Software/OpenDiff',
-        name: 'AutoSave',
-        status: 'unchanged',
-        left: { kind: 'REG_DWORD', data: '1' },
-        right: { kind: 'REG_DWORD', data: '1' },
-      },
-      {
-        keyPath: 'HKCU/Software/OpenDiff',
-        name: 'CompareMode',
-        status: 'unchanged',
-        left: { kind: 'REG_SZ', data: 'SideBySide' },
-        right: { kind: 'REG_SZ', data: 'SideBySide' },
-      },
-      {
-        keyPath: 'HKCU/Software/OpenDiff',
-        name: 'RecentLimit',
-        status: 'modified',
-        left: { kind: 'REG_DWORD', data: '10' },
-        right: { kind: 'REG_DWORD', data: '20' },
-      },
-    ],
-    children: [
-      {
-        path: 'HKCU/Software/OpenDiff/Editor',
-        label: 'Editor',
-        status: 'added',
-        values: [
-          {
-            keyPath: 'HKCU/Software/OpenDiff/Editor',
-            name: 'FontSize',
-            status: 'added',
-            right: { kind: 'REG_DWORD', data: '14' },
-          },
-        ],
-        children: [],
-      },
-      {
-        path: 'HKCU/Software/OpenDiff/Legacy',
-        label: 'Legacy',
-        status: 'removed',
-        values: [
-          {
-            keyPath: 'HKCU/Software/OpenDiff/Legacy',
-            name: 'Enabled',
-            status: 'removed',
-            left: { kind: 'REG_DWORD', data: '0' },
-          },
-        ],
-        children: [],
-      },
-    ],
-  },
-]
-
 const registryStatuses: RegistryDiffStatus[] = ['added', 'removed', 'modified', 'unchanged']
-const defaultRegistrySummary: Record<RegistryDiffStatus, number> = {
-  added: 1,
-  removed: 1,
-  modified: 2,
-  unchanged: 2,
-}
-const defaultLeftExport = `Windows Registry Editor Version 5.00
-
-[HKEY_CURRENT_USER\\Software\\OpenDiff]
-"Theme"="dark"
-"AutoSave"=dword:00000001
-`
-const defaultRightExport = `Windows Registry Editor Version 5.00
-
-[HKEY_CURRENT_USER\\Software\\OpenDiff]
-"Theme"="light"
-"AutoSave"=dword:00000001
-`
-const leftExport = ref(defaultLeftExport)
-const rightExport = ref(defaultRightExport)
+const leftExport = ref('')
+const rightExport = ref('')
 const sessionLaunch = useSessionLaunchStore()
 const { t } = useI18n()
 const leftName = ref('left.reg')
 const rightName = ref('right.reg')
-const registryTree = ref<RegistryKeyNode[]>(defaultRegistryTree)
-const registrySummaryOverride = ref<Record<RegistryDiffStatus, number> | null>(
-  defaultRegistrySummary,
-)
+const registryTree = ref<RegistryKeyNode[]>([])
+const registrySummaryOverride = ref<Record<RegistryDiffStatus, number> | null>(null)
 const loading = ref(false)
 const error = ref('')
 

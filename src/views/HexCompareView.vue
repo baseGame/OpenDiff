@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { compareHexFiles } from '@/api/diff'
-import type { HexCompareResponse, HexViewCell } from '@/types/diff'
+import { compareHexFiles, findHexInFile, saveHexEdits } from '@/api/diff'
+import type { HexByteEdit, HexCompareResponse, HexFindMatch, HexViewCell } from '@/types/diff'
 import WorkbenchShell from '@/components/workbench/WorkbenchShell.vue'
 import WorkbenchInspector from '@/components/workbench/WorkbenchInspector.vue'
 import StatusSummaryGrid from '@/components/workbench/StatusSummaryGrid.vue'
@@ -22,17 +22,26 @@ interface HexSideRows {
 
 const leftViewport = ref<HTMLElement | null>(null)
 const rightViewport = ref<HTMLElement | null>(null)
-const bytes = Array.from({ length: 64 }, (_, index) => 0x41 + (index % 26))
-const differentOffsets = new Set([1])
-const leftPath = ref('C:/bin/left.bin')
-const rightPath = ref('C:/bin/right.bin')
-const leftCells = ref<HexViewCell[]>(defaultCells(bytes))
-const rightCells = ref<HexViewCell[]>(defaultCells(bytes))
-const leftTotalLen = ref(bytes.length)
-const rightTotalLen = ref(bytes.length)
-const diffRangeCount = ref(1)
+const leftPath = ref('')
+const rightPath = ref('')
+const leftCells = ref<HexViewCell[]>([])
+const rightCells = ref<HexViewCell[]>([])
+const leftTotalLen = ref(0)
+const rightTotalLen = ref(0)
+const diffRangeCount = ref(0)
 const viewportWidth = ref(640)
 const diffOnly = ref(false)
+const hexOffset = ref(0)
+const hexLength = ref(256)
+const jumpOffset = ref(0)
+const findQuery = ref('')
+const findKind = ref<'text' | 'hex'>('hex')
+const findMatches = ref<HexFindMatch[]>([])
+const findStatus = ref('')
+const pendingEdits = ref<HexByteEdit[]>([])
+const editOffset = ref(0)
+const editValue = ref('00')
+const saveStatus = ref('')
 const loading = ref(false)
 const error = ref('')
 const sessionLaunch = useSessionLaunchStore()
@@ -74,16 +83,6 @@ onMounted(() => {
     void runHexCompare()
   }
 })
-
-function defaultCells(source: number[]): HexViewCell[] {
-  return source.map((byte, offset) => ({
-    offset,
-    byte,
-    hex: byte.toString(16).toUpperCase().padStart(2, '0'),
-    ascii: String.fromCharCode(byte),
-    different: differentOffsets.has(offset),
-  }))
-}
 
 function buildHexRows(
   cells: HexViewCell[],
@@ -146,8 +145,8 @@ async function runHexCompare(): Promise<void> {
     const result = await compareHexFiles({
       leftPath: leftPath.value,
       rightPath: rightPath.value,
-      offset: 0,
-      length: 256,
+      offset: hexOffset.value,
+      length: hexLength.value,
     })
 
     applyHexResult(result)
@@ -155,6 +154,76 @@ async function runHexCompare(): Promise<void> {
     error.value = String(event)
   } finally {
     loading.value = false
+  }
+}
+
+function goToPreviousHexPage(): void {
+  hexOffset.value = Math.max(0, hexOffset.value - hexLength.value)
+  void runHexCompare()
+}
+
+function goToNextHexPage(): void {
+  hexOffset.value += hexLength.value
+  void runHexCompare()
+}
+
+function jumpToHexOffset(): void {
+  hexOffset.value = Math.max(0, jumpOffset.value)
+  void runHexCompare()
+}
+
+async function runHexFind(): Promise<void> {
+  if (!findQuery.value.trim() || !leftPath.value) {
+    return
+  }
+
+  try {
+    findMatches.value = await findHexInFile({
+      path: leftPath.value,
+      queryKind: findKind.value,
+      query: findQuery.value.trim(),
+    })
+    findStatus.value = `${findMatches.value.length}`
+    const firstMatch = findMatches.value[0]
+
+    if (firstMatch) {
+      hexOffset.value = firstMatch.offset
+      jumpOffset.value = firstMatch.offset
+      await runHexCompare()
+    }
+  } catch (event) {
+    error.value = String(event)
+  }
+}
+
+function queueHexEdit(): void {
+  const value = Number.parseInt(editValue.value, 16)
+
+  if (!Number.isInteger(value) || value < 0 || value > 255) {
+    return
+  }
+
+  pendingEdits.value = [
+    ...pendingEdits.value.filter((edit) => edit.offset !== editOffset.value),
+    { offset: editOffset.value, value },
+  ]
+}
+
+async function runHexSave(): Promise<void> {
+  if (!leftPath.value || pendingEdits.value.length === 0) {
+    return
+  }
+
+  try {
+    const result = await saveHexEdits({
+      path: leftPath.value,
+      edits: pendingEdits.value,
+    })
+    saveStatus.value = String(result.bytesWritten)
+    pendingEdits.value = []
+    await runHexCompare()
+  } catch (event) {
+    error.value = String(event)
   }
 }
 </script>
@@ -228,6 +297,115 @@ async function runHexCompare(): Promise<void> {
         >
           {{ $t('ui.runDiff') }}
         </button>
+        <label>
+          <span>{{ $t('ui.offset') }}</span>
+          <input
+            v-model.number="hexOffset"
+            type="number"
+            min="0"
+            data-testid="hex-offset"
+          />
+        </label>
+        <label>
+          <span>{{ $t('ui.chunkLength') }}</span>
+          <input
+            v-model.number="hexLength"
+            type="number"
+            min="16"
+            step="16"
+            data-testid="hex-length"
+          />
+        </label>
+        <label>
+          <span>{{ $t('ui.jump') }}</span>
+          <input
+            v-model.number="jumpOffset"
+            type="number"
+            min="0"
+            data-testid="hex-jump-offset"
+          />
+        </label>
+        <button
+          type="button"
+          data-testid="hex-previous-page"
+          :disabled="loading || hexOffset <= 0"
+          @click="goToPreviousHexPage"
+        >
+          {{ $t('ui.previous') }}
+        </button>
+        <button
+          type="button"
+          data-testid="hex-next-page"
+          :disabled="loading"
+          @click="goToNextHexPage"
+        >
+          {{ $t('ui.next') }}
+        </button>
+        <button
+          type="button"
+          data-testid="hex-jump"
+          :disabled="loading"
+          @click="jumpToHexOffset"
+        >
+          {{ $t('ui.jump') }}
+        </button>
+        <label>
+          <span>{{ $t('ui.find') }}</span>
+          <input
+            v-model="findQuery"
+            type="text"
+            data-testid="hex-find-query"
+          />
+        </label>
+        <select
+          v-model="findKind"
+          data-testid="hex-find-kind"
+        >
+          <option value="hex">{{ $t('ui.hex') }}</option>
+          <option value="text">{{ $t('ui.text') }}</option>
+        </select>
+        <button
+          type="button"
+          data-testid="hex-find"
+          @click="runHexFind"
+        >
+          {{ $t('ui.find') }}
+        </button>
+        <strong data-testid="hex-find-status">{{ findStatus }}</strong>
+        <label>
+          <span>{{ $t('ui.offset') }}</span>
+          <input
+            v-model.number="editOffset"
+            type="number"
+            min="0"
+            data-testid="hex-edit-offset"
+          />
+        </label>
+        <label>
+          <span>{{ $t('ui.hex') }}</span>
+          <input
+            v-model="editValue"
+            type="text"
+            maxlength="2"
+            data-testid="hex-edit-value"
+          />
+        </label>
+        <button
+          type="button"
+          data-testid="hex-add-edit"
+          @click="queueHexEdit"
+        >
+          {{ $t('ui.add') }}
+        </button>
+        <button
+          type="button"
+          data-testid="hex-save"
+          :disabled="pendingEdits.length === 0"
+          @click="runHexSave"
+        >
+          {{ $t('ui.save') }}
+        </button>
+        <strong data-testid="hex-save-status">{{ saveStatus }}</strong>
       </section>
 
       <p

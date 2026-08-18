@@ -14,64 +14,26 @@ import { useI18n } from '@/i18n'
 
 const mediaStatuses: MediaFieldStatus[] = ['added', 'removed', 'modified', 'unchanged']
 const { t } = useI18n()
-const defaultLeftMedia: MediaSideSummary = {
-  name: 'left-track.flac',
-  container: 'FLAC',
-  duration: '04:00.000',
+const emptyMediaSide: MediaSideSummary = {
+  name: '',
+  container: '',
+  duration: '',
   stream: {
-    codec: 'FLAC',
-    sampleRate: '44.1 kHz',
-    channels: '2 channels',
-    bitrate: 'Lossless',
+    codec: '',
+    sampleRate: '',
+    channels: '',
+    bitrate: '',
   },
 }
-const defaultRightMedia: MediaSideSummary = {
-  name: 'right-track.flac',
-  container: 'FLAC',
-  duration: '04:00.000',
-  stream: {
-    codec: 'FLAC',
-    sampleRate: '44.1 kHz',
-    channels: '2 channels',
-    bitrate: 'Lossless',
-  },
-}
-const defaultMediaFields: MediaFieldRow[] = [
-  {
-    field: 'Title',
-    left: 'Northern Lights',
-    right: 'Northern Lights (Remaster)',
-    status: 'modified',
-  },
-  {
-    field: 'Album',
-    left: 'Winter',
-    right: 'Winter',
-    status: 'unchanged',
-  },
-  {
-    field: 'Artist',
-    left: 'Aster',
-    right: 'Aster feat. Vega',
-    status: 'modified',
-  },
-  {
-    field: 'Comment',
-    left: 'Draft',
-    status: 'removed',
-  },
-  {
-    field: 'Genre',
-    right: 'Ambient',
-    status: 'added',
-  },
-]
-const leftPath = ref('C:/music/left-track.flac')
-const rightPath = ref('C:/music/right-track.flac')
+const leftPath = ref('')
+const rightPath = ref('')
 const sessionLaunch = useSessionLaunchStore()
-const leftMedia = ref<MediaSideSummary>(defaultLeftMedia)
-const rightMedia = ref<MediaSideSummary>(defaultRightMedia)
-const mediaFields = ref<MediaFieldRow[]>(defaultMediaFields)
+const leftMedia = ref<MediaSideSummary>({ ...emptyMediaSide, stream: { ...emptyMediaSide.stream } })
+const rightMedia = ref<MediaSideSummary>({
+  ...emptyMediaSide,
+  stream: { ...emptyMediaSide.stream },
+})
+const mediaFields = ref<MediaFieldRow[]>([])
 const mediaSummaryOverride = ref<Record<MediaFieldStatus, number> | null>(null)
 const loading = ref(false)
 const error = ref('')

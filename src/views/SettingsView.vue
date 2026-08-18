@@ -37,6 +37,7 @@ const localeOptions: SelectOption[] = [
   { label: 'Français', value: 'fr-FR' },
   { label: 'Español', value: 'es-ES' },
   { label: '한국어', value: 'ko-KR' },
+  { label: '日本語', value: 'ja-JP' },
 ]
 const filteredShortcutCommands = computed(() =>
   filterCommands(commandRegistry, shortcutSearch.value),

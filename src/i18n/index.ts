@@ -4,6 +4,7 @@ import { deDE } from './locales/de-DE'
 import { enUS } from './locales/en-US'
 import { esES } from './locales/es-ES'
 import { frFR } from './locales/fr-FR'
+import { jaJP } from './locales/ja-JP'
 import { koKR } from './locales/ko-KR'
 import { zhCN } from './locales/zh-CN'
 import { zhTW } from './locales/zh-TW'
@@ -12,7 +13,7 @@ export function createAppI18n(defaultLocale: string | null | undefined): I18nCon
   return createI18n({
     defaultLocale,
     fallbackLocale: 'en-US',
-    languagePacks: [enUS, zhCN, zhTW, deDE, frFR, esES, koKR],
+    languagePacks: [enUS, zhCN, zhTW, deDE, frFR, esES, koKR, jaJP],
   })
 }
 

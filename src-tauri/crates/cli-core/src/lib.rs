@@ -77,9 +77,9 @@ pub enum CliTextMergeFavor {
 pub enum CliExitCode {
     Success = 0,
     Different = 1,
-    UsageError = 2,
-    RuntimeError = 3,
-    Cancelled = 4,
+    Conflict = 2,
+    UsageError = 3,
+    IoError = 4,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -125,6 +125,11 @@ pub struct CliOpenSessionResult {
     pub id: String,
     pub name: String,
     pub session_type: String,
+    pub left: Option<String>,
+    pub right: Option<String>,
+    pub center: Option<String>,
+    pub output: Option<String>,
+    pub note: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -203,19 +208,19 @@ pub fn cli_exit_code_contract() -> [CliExitCodeSpec; 5] {
             meaning: "differences detected",
         },
         CliExitCodeSpec {
-            code: CliExitCode::UsageError,
+            code: CliExitCode::Conflict,
             value: 2,
+            meaning: "conflicts or partial failure",
+        },
+        CliExitCodeSpec {
+            code: CliExitCode::UsageError,
+            value: 3,
             meaning: "usage error",
         },
         CliExitCodeSpec {
-            code: CliExitCode::RuntimeError,
-            value: 3,
-            meaning: "runtime error",
-        },
-        CliExitCodeSpec {
-            code: CliExitCode::Cancelled,
+            code: CliExitCode::IoError,
             value: 4,
-            meaning: "cancelled",
+            meaning: "IO, network, permission or conversion error",
         },
     ]
 }
@@ -295,6 +300,11 @@ pub fn open_named_session(
         id: session.id,
         name: session.name,
         session_type: session_type_label(&session.session_type).to_owned(),
+        left: session.locations.left.as_ref().map(|location| location.uri.clone()),
+        right: session.locations.right.as_ref().map(|location| location.uri.clone()),
+        center: session.locations.center.as_ref().map(|location| location.uri.clone()),
+        output: session.locations.output.as_ref().map(|location| location.uri.clone()),
+        note: "Desktop handoff is not available from this CLI; open the session file in the app.".to_owned(),
     })
 }
 
@@ -324,7 +334,7 @@ pub fn automerge_text_files(args: CliTextMergeArgs) -> Result<CliTextMergeResult
 
     if result.conflicts > 0 {
         return Ok(CliTextMergeResult {
-            exit_code: CliExitCode::Different,
+            exit_code: CliExitCode::Conflict,
             conflicts: result.conflicts,
             output_path: Some(output_path),
             backup_path: None,
@@ -684,7 +694,7 @@ fn session_type_label(session_type: &session_core::SessionType) -> &'static str 
 fn runtime_error(error: impl std::fmt::Debug) -> CliRuntimeError {
     CliRuntimeError {
         message: format!("{error:?}"),
-        exit_code: CliExitCode::RuntimeError,
+        exit_code: CliExitCode::IoError,
     }
 }
 
@@ -988,9 +998,9 @@ mod tests {
     fn exposes_stable_exit_code_contract() {
         assert_eq!(cli_exit_code_value(CliExitCode::Success), 0);
         assert_eq!(cli_exit_code_value(CliExitCode::Different), 1);
-        assert_eq!(cli_exit_code_value(CliExitCode::UsageError), 2);
-        assert_eq!(cli_exit_code_value(CliExitCode::RuntimeError), 3);
-        assert_eq!(cli_exit_code_value(CliExitCode::Cancelled), 4);
+        assert_eq!(cli_exit_code_value(CliExitCode::Conflict), 2);
+        assert_eq!(cli_exit_code_value(CliExitCode::UsageError), 3);
+        assert_eq!(cli_exit_code_value(CliExitCode::IoError), 4);
 
         assert_eq!(
             cli_exit_code_contract(),
@@ -1006,19 +1016,19 @@ mod tests {
                     meaning: "differences detected",
                 },
                 CliExitCodeSpec {
-                    code: CliExitCode::UsageError,
+                    code: CliExitCode::Conflict,
                     value: 2,
+                    meaning: "conflicts or partial failure",
+                },
+                CliExitCodeSpec {
+                    code: CliExitCode::UsageError,
+                    value: 3,
                     meaning: "usage error",
                 },
                 CliExitCodeSpec {
-                    code: CliExitCode::RuntimeError,
-                    value: 3,
-                    meaning: "runtime error",
-                },
-                CliExitCodeSpec {
-                    code: CliExitCode::Cancelled,
+                    code: CliExitCode::IoError,
                     value: 4,
-                    meaning: "cancelled",
+                    meaning: "IO, network, permission or conversion error",
                 },
             ]
         );
@@ -1097,6 +1107,9 @@ mod tests {
         assert_eq!(opened.id, "session-1");
         assert_eq!(opened.name, "Daily compare");
         assert_eq!(opened.session_type, "text-compare");
+        assert_eq!(opened.left.as_deref(), Some("left.txt"));
+        assert_eq!(opened.right.as_deref(), Some("right.txt"));
+        assert!(opened.note.contains("Desktop handoff"));
 
         fs::remove_dir_all(root).expect("fixture should be removable");
     }
@@ -1157,7 +1170,7 @@ mod tests {
         })
         .expect("automerge should report conflicts");
 
-        assert_eq!(result.exit_code, CliExitCode::Different);
+        assert_eq!(result.exit_code, CliExitCode::Conflict);
         assert_eq!(result.conflicts, 1);
         assert_eq!(
             fs::read_to_string(&output).expect("output should remain unchanged"),

@@ -85,11 +85,6 @@ const quickStartIcons: Record<QuickStartType, LucideIcon> = {
   'text-merge': GitMerge,
   'version-compare': FileCog,
 }
-const selectedSessionPreview = {
-  name: 'data',
-  leftPath: String.raw`D:\workspace\pay-v3\data`,
-  rightPath: String.raw`D:\workspace\other\data`,
-}
 
 const router = useRouter()
 const { t } = useI18n()
@@ -97,6 +92,15 @@ const tabs = useTabsStore()
 const savedSessions = useSavedSessionsStore()
 const sessionLaunch = useSessionLaunchStore()
 const workspaces = useWorkspacesStore()
+const selectedSessionPreview = computed(() => {
+  const session = savedSessions.sessions[0]
+
+  return {
+    name: session?.name ?? t('ui.untitled'),
+    leftPath: session?.locations.left?.uri ?? '',
+    rightPath: session?.locations.right?.uri ?? '',
+  }
+})
 const dropResult = ref<DropClassification>({
   kind: 'invalid',
   reason: t('ui.dropExactlyTwoFilesOrFolders'),
@@ -760,7 +764,7 @@ function lastOpenedLabel(session: SessionDocument, index: number): string {
           <dl>
             <div>
               <dt>{{ $t('ui.totalSessions') }}</dt>
-              <dd>142</dd>
+              <dd data-testid="home-total-sessions">{{ savedSessions.sessions.length }}</dd>
             </div>
             <div>
               <dt>{{ $t('ui.defaultEncoding') }}</dt>

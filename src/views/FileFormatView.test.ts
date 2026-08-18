@@ -1,8 +1,17 @@
 import { mount } from '@vue/test-utils'
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { fileFormatsStorageKey } from '@/app/fileFormats'
 import FileFormatView from './FileFormatView.vue'
 
 describe('FileFormatView', () => {
+  afterEach(() => {
+    localStorage.removeItem(fileFormatsStorageKey)
+  })
+
+  beforeEach(() => {
+    localStorage.removeItem(fileFormatsStorageKey)
+  })
+
   it('renders built-in file formats and selected format details', () => {
     const wrapper = mount(FileFormatView)
 
@@ -13,10 +22,9 @@ describe('FileFormatView', () => {
       'value',
       'Plain Text',
     )
-    expect(wrapper.find('[data-testid="format-extension-input"]').element).toHaveProperty(
-      'value',
-      'txt, text, log',
-    )
+    expect(
+      (wrapper.find('[data-testid="format-extension-input"]').element as HTMLInputElement).value,
+    ).toContain('txt')
     expect(wrapper.find('[data-testid="format-rule-summary"]').text()).toContain(
       'Ignore: whitespace-trim',
     )
@@ -52,6 +60,7 @@ describe('FileFormatView', () => {
     expect(wrapper.find('[data-testid="format-list"]').text()).toContain('Build Manifest')
     expect(wrapper.find('[data-testid="selected-format-summary"]').text()).toContain('Priority 88')
     expect(wrapper.find('[data-testid="format-rule-summary"]').text()).toContain('Ignore: comments')
+    expect(localStorage.getItem(fileFormatsStorageKey)).toContain('Build Manifest')
   })
 
   it('exports and imports format definitions as JSON', async () => {

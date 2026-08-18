@@ -11,82 +11,37 @@ import type {
 import { useSessionLaunchStore } from '@/stores/sessionLaunch'
 
 const versionStatuses: VersionFieldStatus[] = ['added', 'removed', 'modified', 'unchanged']
+type VersionFieldFilter = 'all' | 'diffs' | 'same'
+
+const emptyVersionSide: VersionSideSummary = {
+  name: '',
+  fileType: '',
+  targetOs: '',
+  fileVersion: '',
+  productVersion: '',
+}
 const versionToolbarCommands = [
-  { glyph: 'H', labelKey: 'ui.home' },
-  { glyph: '*', labelKey: 'ui.all' },
-  { glyph: '!=', labelKey: 'ui.diffs' },
-  { glyph: '=', labelKey: 'ui.same' },
-  { glyph: '~', labelKey: 'ui.minor' },
-  { glyph: 'R', labelKey: 'ui.rules' },
-  { glyph: 'N', labelKey: 'ui.nextDifference' },
-  { glyph: 'P', labelKey: 'ui.previousDifference' },
-  { glyph: '<>', labelKey: 'ui.swap' },
-  { glyph: 'R', labelKey: 'ui.reload' },
+  { id: 'home', glyph: 'H', labelKey: 'ui.home', enabled: false },
+  { id: 'all', glyph: '*', labelKey: 'ui.all', enabled: true },
+  { id: 'diffs', glyph: '!=', labelKey: 'ui.diffs', enabled: true },
+  { id: 'same', glyph: '=', labelKey: 'ui.same', enabled: true },
+  { id: 'minor', glyph: '~', labelKey: 'ui.minor', enabled: false },
+  { id: 'rules', glyph: 'R', labelKey: 'ui.rules', enabled: false },
+  { id: 'next', glyph: 'N', labelKey: 'ui.nextDifference', enabled: true },
+  { id: 'prev', glyph: 'P', labelKey: 'ui.previousDifference', enabled: true },
+  { id: 'swap', glyph: '<>', labelKey: 'ui.swap', enabled: true },
+  { id: 'reload', glyph: 'R', labelKey: 'ui.reload', enabled: true },
 ]
 const { t } = useI18n()
-const defaultLeftVersion: VersionSideSummary = {
-  name: 'left-app.exe',
-  fileType: 'Application',
-  targetOs: 'Windows 32-bit',
-  fileVersion: '1.4.2.0',
-  productVersion: '1.5.0.0',
-}
-const defaultRightVersion: VersionSideSummary = {
-  name: 'right-app.exe',
-  fileType: 'Application',
-  targetOs: 'Windows 32-bit',
-  fileVersion: '1.5.0.0',
-  productVersion: '1.5.0.0',
-}
-const defaultVersionFields: VersionFieldRow[] = [
-  {
-    field: 'FileVersion',
-    group: 'Fixed Info',
-    left: '1.4.2.0',
-    right: '1.5.0.0',
-    status: 'modified',
-  },
-  {
-    field: 'ProductVersion',
-    group: 'Fixed Info',
-    left: '1.5.0.0',
-    right: '1.5.0.0',
-    status: 'unchanged',
-  },
-  {
-    field: 'FileType',
-    group: 'Fixed Info',
-    left: 'Application',
-    right: 'Application',
-    status: 'unchanged',
-  },
-  {
-    field: 'FileDescription',
-    group: 'String Info',
-    left: 'Open Diff Desktop',
-    right: 'Open Diff Desktop Preview',
-    status: 'modified',
-  },
-  {
-    field: 'CompanyName',
-    group: 'String Info',
-    right: 'Open Diff Labs',
-    status: 'added',
-  },
-  {
-    field: 'LegalCopyright',
-    group: 'String Info',
-    left: 'Copyright 2025',
-    status: 'removed',
-  },
-]
-const leftPath = ref('C:/apps/left-app.exe')
-const rightPath = ref('C:/apps/right-app.exe')
+const leftPath = ref('')
+const rightPath = ref('')
 const sessionLaunch = useSessionLaunchStore()
-const leftVersion = ref<VersionSideSummary>(defaultLeftVersion)
-const rightVersion = ref<VersionSideSummary>(defaultRightVersion)
-const versionFields = ref<VersionFieldRow[]>(defaultVersionFields)
+const leftVersion = ref<VersionSideSummary>({ ...emptyVersionSide })
+const rightVersion = ref<VersionSideSummary>({ ...emptyVersionSide })
+const versionFields = ref<VersionFieldRow[]>([])
 const versionSummaryOverride = ref<Record<VersionFieldStatus, number> | null>(null)
+const fieldFilter = ref<VersionFieldFilter>('all')
+const activeFieldIndex = ref(0)
 const loading = ref(false)
 const error = ref('')
 
@@ -123,6 +78,57 @@ const versionSummary = computed<Record<VersionFieldStatus, number>>(() => {
 
   return summary
 })
+const visibleVersionFields = computed(() => {
+  if (fieldFilter.value === 'diffs') {
+    return versionFields.value.filter((field) => field.status !== 'unchanged')
+  }
+
+  if (fieldFilter.value === 'same') {
+    return versionFields.value.filter((field) => field.status === 'unchanged')
+  }
+
+  return versionFields.value
+})
+const differenceFields = computed(() =>
+  versionFields.value.filter((field) => field.status !== 'unchanged'),
+)
+
+function runVersionToolbarCommand(commandId: string): void {
+  if (commandId === 'all' || commandId === 'diffs' || commandId === 'same') {
+    fieldFilter.value = commandId
+    activeFieldIndex.value = 0
+
+    return
+  }
+
+  if (commandId === 'swap') {
+    const nextLeftPath = rightPath.value
+    rightPath.value = leftPath.value
+    leftPath.value = nextLeftPath
+    const nextLeft = rightVersion.value
+    rightVersion.value = leftVersion.value
+    leftVersion.value = nextLeft
+
+    return
+  }
+
+  if (commandId === 'reload') {
+    void runVersionCompare()
+
+    return
+  }
+
+  if (commandId === 'next' && differenceFields.value.length > 0) {
+    activeFieldIndex.value = (activeFieldIndex.value + 1) % differenceFields.value.length
+
+    return
+  }
+
+  if (commandId === 'prev' && differenceFields.value.length > 0) {
+    activeFieldIndex.value =
+      (activeFieldIndex.value - 1 + differenceFields.value.length) % differenceFields.value.length
+  }
+}
 
 function statusLabel(status: VersionFieldStatus): string {
   const labels: Record<VersionFieldStatus, string> = {
@@ -168,9 +174,12 @@ async function runVersionCompare(): Promise<void> {
   <section class="bc-session-toolbar">
     <button
       v-for="command in versionToolbarCommands"
-      :key="`${command.glyph}-${command.labelKey}`"
+      :key="command.id"
       class="bc-toolbar-command"
       type="button"
+      :disabled="!command.enabled"
+      :data-testid="`version-toolbar-${command.id}`"
+      @click="runVersionToolbarCommand(command.id)"
     >
       <span class="bc-toolbar-glyph">{{ command.glyph }}</span
       ><span>{{ $t(command.labelKey) }}</span>
@@ -295,7 +304,7 @@ async function runVersionCompare(): Promise<void> {
           <span>{{ $t('ui.status') }}</span>
         </div>
         <div
-          v-for="row in versionFields"
+          v-for="row in visibleVersionFields"
           :key="row.field"
           class="version-field-row"
           :class="`status-${row.status}`"

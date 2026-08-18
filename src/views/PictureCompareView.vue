@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { comparePictureFiles } from '@/api/diff'
+import { localFileSrc } from '@/app/localFileSrc'
 import type { PictureCompareResponse, PictureMetadataRow } from '@/types/diff'
 import WorkbenchShell from '@/components/workbench/WorkbenchShell.vue'
 import WorkbenchInspector from '@/components/workbench/WorkbenchInspector.vue'
@@ -24,54 +25,35 @@ const pixelPreview = ref<{
   color: string
 } | null>(null)
 const { t } = useI18n()
-const defaultMetadataRows: PictureMetadataRow[] = [
-  {
-    key: 'dimensions',
-    label: 'ui.dimensions',
-    left: '1024 x 768',
-    right: '1024 x 760',
-    status: 'different',
-  },
-  {
-    key: 'format',
-    label: 'ui.format',
-    left: 'PNG',
-    right: 'PNG',
-    status: 'equal',
-  },
-  {
-    key: 'color-depth',
-    label: 'ui.colorDepth',
-    left: '24-bit',
-    right: '32-bit',
-    status: 'different',
-  },
-  {
-    key: 'exif',
-    label: 'EXIF',
-    left: 'Camera Model: Studio A',
-    right: 'Camera Model: Studio B',
-    status: 'different',
-  },
-] as const
-const leftPath = ref('C:/images/left.png')
-const rightPath = ref('C:/images/right.png')
+const leftPath = ref('')
+const rightPath = ref('')
 const sessionLaunch = useSessionLaunchStore()
-const leftPictureName = ref('left.png')
-const rightPictureName = ref('right.png')
+const leftPictureName = ref('')
+const rightPictureName = ref('')
 const loading = ref(false)
 const error = ref('')
-const metadataRows = ref<PictureMetadataRow[]>(defaultMetadataRows)
+const rgbTolerance = ref(0)
+const compareAlpha = ref(true)
+const metadataRows = ref<PictureMetadataRow[]>([])
 const pictureStatistics = ref<PictureCompareResponse['statistics']>({
-  totalPixels: 786_432,
-  differentPixels: 18_240,
-  differenceRatio: 18_240 / 786_432,
-  boundingRect: {
-    x: 752,
-    y: 572,
-    width: 210,
-    height: 166,
-  },
+  totalPixels: 0,
+  differentPixels: 0,
+  differenceRatio: 0,
+})
+const compared = ref(false)
+const leftImageSrc = computed(() => (compared.value ? localFileSrc(leftPath.value) : ''))
+const rightImageSrc = computed(() => (compared.value ? localFileSrc(rightPath.value) : ''))
+const overlayStyle = computed(() => {
+  const rect = pictureStatistics.value.boundingRect
+  if (!rect) {
+    return {}
+  }
+  return {
+    left: `${String(rect.x)}px`,
+    top: `${String(rect.y)}px`,
+    width: `${String(rect.width)}px`,
+    height: `${String(rect.height)}px`,
+  }
 })
 
 onMounted(() => {
@@ -170,9 +152,12 @@ async function runPictureCompare(): Promise<void> {
     const result = await comparePictureFiles({
       leftPath: leftPath.value,
       rightPath: rightPath.value,
+      rgbTolerance: rgbTolerance.value,
+      compareAlpha: compareAlpha.value,
     })
 
     applyPictureResult(result)
+    compared.value = true
   } catch (event) {
     error.value = String(event)
   } finally {
@@ -386,8 +371,12 @@ async function runPictureCompare(): Promise<void> {
               @mousemove="updatePixelPreview('Left', $event)"
               @mouseleave="pixelPreview = null"
             >
-              <span class="picture-marker marker-a"></span>
-              <span class="picture-marker marker-b"></span>
+              <img
+                v-if="leftImageSrc"
+                :src="leftImageSrc"
+                :alt="leftPictureName"
+                data-testid="left-picture-img"
+              />
               <span
                 v-if="showOverlay"
                 class="picture-diff-overlay"
@@ -396,6 +385,7 @@ async function runPictureCompare(): Promise<void> {
                 <span
                   class="picture-diff-region"
                   data-testid="picture-diff-region"
+                  :style="overlayStyle"
                 ></span>
               </span>
             </div>
@@ -418,8 +408,12 @@ async function runPictureCompare(): Promise<void> {
               @mousemove="updatePixelPreview('Right', $event)"
               @mouseleave="pixelPreview = null"
             >
-              <span class="picture-marker marker-a"></span>
-              <span class="picture-marker marker-b marker-shifted"></span>
+              <img
+                v-if="rightImageSrc"
+                :src="rightImageSrc"
+                :alt="rightPictureName"
+                data-testid="right-picture-img"
+              />
               <span
                 v-if="showOverlay"
                 class="picture-diff-overlay"
@@ -427,6 +421,7 @@ async function runPictureCompare(): Promise<void> {
               >
                 <span
                   class="picture-diff-region shifted-region"
+                  :style="overlayStyle"
                   data-testid="picture-diff-region"
                 ></span>
               </span>
@@ -860,22 +855,19 @@ h2 {
   position: relative;
   width: min(78%, 420px);
   aspect-ratio: 4 / 3;
+  overflow: hidden;
   transform-origin: center;
   border: 1px solid rgb(15 23 42 / 0.18);
   border-radius: 6px;
   box-shadow: 0 16px 42px rgb(15 23 42 / 0.16);
+  background: rgb(15 23 42 / 0.06);
 }
 
-.left-image {
-  background:
-    linear-gradient(135deg, rgb(28 128 145 / 0.85), rgb(240 183 77 / 0.88)),
-    radial-gradient(circle at 72% 28%, rgb(255 255 255 / 0.55), transparent 28%);
-}
-
-.right-image {
-  background:
-    linear-gradient(135deg, rgb(28 128 145 / 0.85), rgb(225 107 90 / 0.88)),
-    radial-gradient(circle at 72% 28%, rgb(255 255 255 / 0.55), transparent 28%);
+.picture-image img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 .picture-marker {

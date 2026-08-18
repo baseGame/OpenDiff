@@ -1,7 +1,12 @@
 import { invoke } from '@tauri-apps/api/core'
 import type {
+  ApplyTextPatchRequest,
+  ApplyTextPatchResponse,
   ChangeFolderEntryAttributesRequest,
   DeleteFolderEntryRequest,
+  ExportFolderCompareReportRequest,
+  ExportReportResponse,
+  ExportTextCompareReportRequest,
   FileStamp,
   FolderCompareCopyRequest,
   FolderCompareCopyResponse,
@@ -11,13 +16,20 @@ import type {
   FolderMetadataUpdateResponse,
   HexCompareRequest,
   HexCompareResponse,
+  HexFindMatch,
+  HexFindRequest,
+  HexSaveRequest,
+  HexSaveResult,
   MediaCompareRequest,
   MediaCompareResponse,
+  MoveFolderEntryRequest,
   PictureCompareRequest,
   PictureCompareResponse,
   RegistryCompareRequest,
   RegistryCompareResponse,
   RenameFolderEntryRequest,
+  TextMergeRequest,
+  TextMergeResponse,
   TextPatchResponse,
   VersionCompareRequest,
   VersionCompareResponse,
@@ -66,9 +78,22 @@ export function checkTextFileChanged(path: string, previousStamp: FileStamp): Pr
 }
 
 export function compareTableCsv(request: TableCompareRequest): Promise<TableCompareResponse> {
-  return invoke<TableCompareResponse>('compare_table_csv', {
+  return compareTable(request)
+}
+
+export function compareTable(request: TableCompareRequest): Promise<TableCompareResponse> {
+  return invoke<TableCompareResponse>('compare_table', {
     left: request.left,
     right: request.right,
+    format: request.format,
+    leftPath: request.leftPath,
+    rightPath: request.rightPath,
+    leftSheet: request.leftSheet,
+    rightSheet: request.rightSheet,
+    keyColumnIndices: request.keyColumnIndices,
+    ignoredColumns: request.ignoredColumns,
+    manualMappings: request.manualMappings,
+    delimiter: request.delimiter,
   })
 }
 
@@ -147,6 +172,80 @@ export function comparePictureFiles(
   return invoke<PictureCompareResponse>('compare_picture_files', {
     leftPath: request.leftPath,
     rightPath: request.rightPath,
+    rgbTolerance: request.rgbTolerance,
+    compareAlpha: request.compareAlpha,
+    ignoreColorFrom: request.ignoreColorFrom,
+    ignoreColorTo: request.ignoreColorTo,
+  })
+}
+
+export function mergeTextFiles(request: TextMergeRequest): Promise<TextMergeResponse> {
+  return invoke<TextMergeResponse>('merge_text_files', {
+    leftPath: request.leftPath,
+    rightPath: request.rightPath,
+    centerPath: request.centerPath,
+    outputPath: request.outputPath,
+    conflictPolicy: request.conflictPolicy,
+  })
+}
+
+export function exportTextCompareReport(
+  request: ExportTextCompareReportRequest,
+): Promise<ExportReportResponse> {
+  return invoke<ExportReportResponse>('export_text_compare_report', {
+    left: request.left,
+    right: request.right,
+    leftSource: request.leftSource,
+    rightSource: request.rightSource,
+    format: request.format,
+    outputPath: request.outputPath,
+    algorithm: request.algorithm,
+    ignoreWhitespace: request.ignoreWhitespace,
+    ignoreCase: request.ignoreCase,
+    ignoreLineEndings: request.ignoreLineEndings,
+    ignoreRegexes: request.ignoreRegexes,
+  })
+}
+
+export function exportFolderCompareReport(
+  request: ExportFolderCompareReportRequest,
+): Promise<ExportReportResponse> {
+  return invoke<ExportReportResponse>('export_folder_compare_report', {
+    leftRoot: request.leftRoot,
+    rightRoot: request.rightRoot,
+    format: request.format,
+    outputPath: request.outputPath,
+  })
+}
+
+export function findHexInFile(request: HexFindRequest): Promise<HexFindMatch[]> {
+  return invoke<HexFindMatch[]>('find_hex_in_file', {
+    path: request.path,
+    queryKind: request.queryKind,
+    query: request.query,
+  })
+}
+
+export function saveHexEdits(request: HexSaveRequest): Promise<HexSaveResult> {
+  return invoke<HexSaveResult>('save_hex_edits', {
+    path: request.path,
+    edits: request.edits,
+  })
+}
+
+export function moveFolderEntry(
+  request: MoveFolderEntryRequest,
+): Promise<FolderFileOperationResponse> {
+  return invoke<FolderFileOperationResponse>('move_folder_entry', {
+    sourcePath: request.sourcePath,
+    targetPath: request.targetPath,
+  })
+}
+
+export function applyTextPatch(request: ApplyTextPatchRequest): Promise<ApplyTextPatchResponse> {
+  return invoke<ApplyTextPatchResponse>('apply_text_patch', {
+    source: request.source,
+    patch: request.patch,
   })
 }
 

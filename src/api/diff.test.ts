@@ -1,16 +1,24 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  applyTextPatch,
   changeFolderEntryAttributes,
   compareFolderPaths,
   compareHexFiles,
   compareMediaFiles,
   comparePictureFiles,
   compareRegistryExports,
+  compareTable,
   compareTableCsv,
   compareVersionFiles,
   copyFolderCompareEntry,
   deleteFolderEntry,
+  exportFolderCompareReport,
+  exportTextCompareReport,
+  findHexInFile,
+  mergeTextFiles,
+  moveFolderEntry,
   renameFolderEntry,
+  saveHexEdits,
   saveTextFile,
   touchFolderEntry,
 } from './diff'
@@ -75,9 +83,18 @@ describe('diff api', () => {
       right: 'sku\nA-1',
     })
 
-    expect(invoke).toHaveBeenCalledWith('compare_table_csv', {
+    expect(invoke).toHaveBeenCalledWith('compare_table', {
       left: 'SKU\nA-1',
       right: 'sku\nA-1',
+      format: undefined,
+      leftPath: undefined,
+      rightPath: undefined,
+      leftSheet: undefined,
+      rightSheet: undefined,
+      keyColumnIndices: undefined,
+      ignoredColumns: undefined,
+      manualMappings: undefined,
+      delimiter: undefined,
     })
     expect(result.columnMappings[0]?.leftColumn).toBe('SKU')
   })
@@ -331,6 +348,10 @@ describe('diff api', () => {
     expect(invoke).toHaveBeenCalledWith('compare_picture_files', {
       leftPath: 'C:/images/left.png',
       rightPath: 'C:/images/right.png',
+      rgbTolerance: undefined,
+      compareAlpha: undefined,
+      ignoreColorFrom: undefined,
+      ignoreColorTo: undefined,
     })
     expect(result.statistics.differentPixels).toBe(1)
   })
@@ -423,5 +444,80 @@ describe('diff api', () => {
       rightName: 'right.reg',
     })
     expect(result.tree[0]?.values[0]?.name).toBe('Theme')
+  })
+
+  it('compares tables with format, sheets, keys, and mappings', async () => {
+    vi.mocked(invoke).mockResolvedValueOnce({
+      leftColumns: [],
+      rightColumns: [],
+      columnMappings: [],
+      rows: [],
+      changedCells: [],
+      summary: { rowCount: 0, changedRowCount: 0, changedCellCount: 0 },
+    })
+
+    await compareTable({
+      left: '',
+      right: '',
+      format: 'xlsx',
+      leftPath: 'C:/a.xlsx',
+      rightPath: 'C:/b.xlsx',
+      leftSheet: 'Sheet1',
+      rightSheet: 'Sheet1',
+      keyColumnIndices: [0, 1],
+      ignoredColumns: ['Notes'],
+      manualMappings: [{ leftColumn: 'SKU', rightColumn: 'sku' }],
+    })
+
+    expect(invoke).toHaveBeenCalledWith(
+      'compare_table',
+      expect.objectContaining({
+        format: 'xlsx',
+        leftPath: 'C:/a.xlsx',
+        keyColumnIndices: [0, 1],
+        ignoredColumns: ['Notes'],
+      }),
+    )
+  })
+
+  it('exports reports, merges text, pages hex, and applies patches', async () => {
+    vi.mocked(invoke)
+      .mockResolvedValueOnce({ format: 'html', content: '<html></html>', outputPath: 'out.html' })
+      .mockResolvedValueOnce({ format: 'text', content: 'diff', outputPath: 'out.txt' })
+      .mockResolvedValueOnce({
+        left: { path: 'l', text: 'a' },
+        right: { path: 'r', text: 'b' },
+        conflicts: [],
+      })
+      .mockResolvedValueOnce([{ offset: 4, length: 2 }])
+      .mockResolvedValueOnce({ bytesWritten: 1 })
+      .mockResolvedValueOnce({ operation: 'move', status: 'moved' })
+      .mockResolvedValueOnce({ text: 'patched', appliedHunks: 1, files: 1 })
+
+    await exportTextCompareReport({
+      left: 'a',
+      right: 'b',
+      format: 'html',
+      outputPath: 'out.html',
+    })
+    await exportFolderCompareReport({
+      leftRoot: 'L',
+      rightRoot: 'R',
+      format: 'text',
+      outputPath: 'out.txt',
+    })
+    await mergeTextFiles({ leftPath: 'l', rightPath: 'r' })
+    await findHexInFile({ path: 'bin', queryKind: 'hex', query: '41' })
+    await saveHexEdits({ path: 'bin', edits: [{ offset: 0, value: 1 }] })
+    await moveFolderEntry({ sourcePath: 'a', targetPath: 'b' })
+    await applyTextPatch({ source: 'old', patch: 'diff' })
+
+    expect(invoke).toHaveBeenCalledWith('export_text_compare_report', expect.any(Object))
+    expect(invoke).toHaveBeenCalledWith('export_folder_compare_report', expect.any(Object))
+    expect(invoke).toHaveBeenCalledWith('merge_text_files', expect.any(Object))
+    expect(invoke).toHaveBeenCalledWith('find_hex_in_file', expect.any(Object))
+    expect(invoke).toHaveBeenCalledWith('save_hex_edits', expect.any(Object))
+    expect(invoke).toHaveBeenCalledWith('move_folder_entry', expect.any(Object))
+    expect(invoke).toHaveBeenCalledWith('apply_text_patch', { source: 'old', patch: 'diff' })
   })
 })

@@ -5,14 +5,7 @@ import WorkbenchInspector from '@/components/workbench/WorkbenchInspector.vue'
 import { useI18n } from '@/i18n'
 
 type RemoteProtocol =
-  | 'ftp'
-  | 'ftps'
-  | 'sftp'
-  | 'web-dav'
-  | 's3'
-  | 'dropbox'
-  | 'one-drive'
-  | 'subversion'
+  'ftp' | 'ftps' | 'sftp' | 'web-dav' | 's3' | 'dropbox' | 'one-drive' | 'subversion'
 type CredentialReferenceKind = 'system-keychain' | 'environment' | 'profile-store'
 
 interface RemoteEndpoint {
@@ -80,7 +73,7 @@ const profiles = ref<RemoteProfile[]>(builtInProfiles.map((profile) => cloneProf
 const { t } = useI18n()
 const selectedProfileId = ref(profiles.value[0]?.id ?? '')
 const draft = ref<RemoteProfileDraft>(toDraft(profiles.value[0] ?? emptyProfile()))
-const testStatusKey = ref('status.noConnectionTestRun')
+const testStatusKey = ref('status.remoteUnavailable')
 const testStatusParams = ref<Record<string, string | number>>({})
 
 const sortedProfiles = computed(() =>
@@ -109,13 +102,13 @@ function selectProfile(profileId: string): void {
 
   selectedProfileId.value = profile.id
   draft.value = toDraft(profile)
-  setTestStatus('status.noConnectionTestRun')
+  setTestStatus('status.remoteUnavailable')
 }
 
 function createNewProfile(): void {
   selectedProfileId.value = ''
   draft.value = toDraft(emptyProfile())
-  setTestStatus('status.noConnectionTestRun')
+  setTestStatus('status.remoteUnavailable')
 }
 
 function saveProfile(): void {
@@ -152,15 +145,7 @@ function deleteProfile(): void {
 }
 
 function testProfileConnection(): void {
-  const host = draft.value.host.trim()
-
-  if (host) {
-    setTestStatus('status.connectionCheckQueuedFor', { host })
-
-    return
-  }
-
-  setTestStatus('status.connectionCheckRequiresHost')
+  setTestStatus('status.remoteUnavailable')
 }
 
 function setTestStatus(key: string, params: Record<string, string | number> = {}): void {
@@ -273,6 +258,12 @@ function credentialKindLabel(kind: CredentialReferenceKind): string {
     :inspector-label="$t('ui.remoteProfileInspector')"
   >
     <section class="remote-profile-view">
+      <p
+        class="remote-unavailable"
+        data-testid="remote-unavailable-notice"
+      >
+        {{ $t('ui.remoteNotImplemented') }}
+      </p>
       <header class="profile-header">
         <div>
           <p class="eyebrow">{{ $t('ui.settings') }}</p>
@@ -325,6 +316,7 @@ function credentialKindLabel(kind: CredentialReferenceKind): string {
               <button
                 type="button"
                 data-testid="test-remote-profile"
+                disabled
                 @click="testProfileConnection"
               >
                 {{ $t('ui.test') }}
@@ -465,6 +457,16 @@ function credentialKindLabel(kind: CredentialReferenceKind): string {
   </WorkbenchShell>
 </template>
 <style scoped>
+.remote-unavailable {
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--app-border);
+  border-radius: 6px;
+  background: var(--app-surface-muted);
+  color: var(--app-text-muted);
+  font-size: 12px;
+}
+
 .remote-profile-view {
   display: grid;
   gap: 14px;

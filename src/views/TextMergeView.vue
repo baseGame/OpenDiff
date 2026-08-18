@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { saveTextFile } from '@/api/diff'
+import { computed, onMounted, ref } from 'vue'
+import { mergeTextFiles, saveTextFile } from '@/api/diff'
 import WorkbenchShell from '@/components/workbench/WorkbenchShell.vue'
 import WorkbenchInspector from '@/components/workbench/WorkbenchInspector.vue'
 import { useI18n } from '@/i18n'
+import { useSessionLaunchStore } from '@/stores/sessionLaunch'
 
 type MergePaneId = 'left' | 'base' | 'right' | 'output'
 type MergeSource = 'left' | 'base' | 'right'
@@ -24,49 +25,39 @@ interface MergeConflict {
   resolved: boolean
 }
 
-const initialOutputLines = [
-  'export const mode = "fast"',
-  '<<<<<<< LEFT',
-  'timeout = 45',
-  '=======',
-  'timeout = 60',
-  '>>>>>>> RIGHT',
-  'retry = true',
-]
 const { t } = useI18n()
-const outputLines = ref([...initialOutputLines])
-const outputPath = ref('D:/workspace/output.txt')
+const sessionLaunch = useSessionLaunchStore()
+const leftPath = ref('')
+const rightPath = ref('')
+const centerPath = ref('')
+const outputPath = ref('')
+const leftText = ref('')
+const rightText = ref('')
+const centerText = ref('')
+const outputLines = ref<string[]>([])
 const saveStatusKey = ref('ui.outputNotSaved')
 const saveStatusParams = ref<Record<string, string | number>>({})
 const saving = ref(false)
-const conflicts = ref<MergeConflict[]>([
-  {
-    line: 2,
-    title: 'Timeout changed on both sides',
-    base: 'timeout = 30',
-    left: 'timeout = 45',
-    right: 'timeout = 60',
-    resolved: false,
-  },
-])
+const loading = ref(false)
+const conflicts = ref<MergeConflict[]>([])
 const panes = computed<MergePane[]>(() => [
   {
     id: 'left',
     title: t('ui.left'),
-    subtitle: t('ui.featureBranch'),
-    lines: ['export const mode = "fast"', 'timeout = 45', 'retry = true'],
+    subtitle: leftPath.value || t('ui.featureBranch'),
+    lines: splitLines(leftText.value),
   },
   {
     id: 'base',
     title: t('ui.base'),
-    subtitle: t('ui.commonAncestor'),
-    lines: ['export const mode = "fast"', 'timeout = 30', 'retry = true'],
+    subtitle: centerPath.value || t('ui.commonAncestor'),
+    lines: splitLines(centerText.value),
   },
   {
     id: 'right',
     title: t('ui.right'),
-    subtitle: t('ui.mainBranch'),
-    lines: ['export const mode = "fast"', 'timeout = 60', 'retry = true'],
+    subtitle: rightPath.value || t('ui.mainBranch'),
+    lines: splitLines(rightText.value),
   },
   {
     id: 'output',
@@ -92,9 +83,61 @@ const conflictStatus = computed(() => {
   return t(count === 1 ? 'status.conflictCount' : 'status.conflictCountPlural', { count })
 })
 
+onMounted(() => {
+  const launch = sessionLaunch.consumeLaunch('/merge/text')
+
+  if (!launch) {
+    return
+  }
+
+  leftPath.value = launch.locations.left?.uri ?? ''
+  rightPath.value = launch.locations.right?.uri ?? ''
+  centerPath.value = launch.locations.center?.uri ?? ''
+  outputPath.value = launch.locations.output?.uri ?? outputPath.value
+
+  if (launch.autoRun && leftPath.value && rightPath.value) {
+    void loadMerge()
+  }
+})
+
+function splitLines(value: string): string[] {
+  return value === '' ? [] : value.split(/\r?\n/u)
+}
+
 function setSaveStatus(key: string, params: Record<string, string | number> = {}): void {
   saveStatusKey.value = key
   saveStatusParams.value = params
+}
+
+async function loadMerge(): Promise<void> {
+  if (!leftPath.value || !rightPath.value) {
+    return
+  }
+
+  loading.value = true
+  try {
+    const result = await mergeTextFiles({
+      leftPath: leftPath.value,
+      rightPath: rightPath.value,
+      centerPath: centerPath.value || undefined,
+      outputPath: outputPath.value || undefined,
+    })
+    leftText.value = result.leftText
+    rightText.value = result.rightText
+    centerText.value = result.centerText
+    outputLines.value = splitLines(result.outputText)
+    outputPath.value = result.outputPath ?? outputPath.value
+    conflicts.value = result.conflicts.map((conflict) => ({
+      line: conflict.lineIndex + 1,
+      title: conflict.title,
+      base: conflict.base,
+      left: conflict.left,
+      right: conflict.right,
+      resolved: false,
+    }))
+  } finally {
+    loading.value = false
+  }
 }
 
 function acceptConflict(source: MergeSource): void {
@@ -104,10 +147,15 @@ function acceptConflict(source: MergeSource): void {
     return
   }
 
-  outputLines.value = ['export const mode = "fast"', conflict[source], 'retry = true']
+  const replacement = conflict[source]
+  const lineIndex = Math.max(0, conflict.line - 1)
+  const nextLines = [...outputLines.value]
+  nextLines[lineIndex] = replacement
+  outputLines.value = nextLines
   conflicts.value = conflicts.value.map((item) =>
     item.line === conflict.line ? { ...item, resolved: true } : item,
   )
+  setSaveStatus('status.outputHasUnsavedEdits')
 }
 
 async function saveOutput(): Promise<void> {
@@ -140,7 +188,11 @@ function lineClass(line: string, paneId: MergePaneId): string {
     return 'marker'
   }
 
-  if (line.includes('timeout')) {
+  if (currentConflict.value && line === currentConflict.value.left) {
+    return 'conflict'
+  }
+
+  if (currentConflict.value && line === currentConflict.value.right) {
     return 'conflict'
   }
 
@@ -169,12 +221,42 @@ function lineClass(line: string, paneId: MergePaneId): string {
         </span>
         <span class="status-chip">{{ $t('ui.outputHasConflictMarkers') }}</span>
         <input
+          v-model="leftPath"
+          class="output-path-input"
+          data-testid="merge-left-path"
+          type="text"
+          :aria-label="$t('ui.leftPath')"
+        />
+        <input
+          v-model="centerPath"
+          class="output-path-input"
+          data-testid="merge-center-path"
+          type="text"
+          :aria-label="$t('ui.base')"
+        />
+        <input
+          v-model="rightPath"
+          class="output-path-input"
+          data-testid="merge-right-path"
+          type="text"
+          :aria-label="$t('ui.rightPath')"
+        />
+        <input
           v-model="outputPath"
           class="output-path-input"
           data-testid="merge-output-path"
           type="text"
           :aria-label="$t('ui.mergeOutputPath')"
         />
+        <button
+          type="button"
+          class="toolbar-button"
+          data-testid="load-text-merge"
+          :disabled="loading"
+          @click="loadMerge"
+        >
+          {{ $t('ui.reload') }}
+        </button>
         <button
           type="button"
           class="toolbar-button"

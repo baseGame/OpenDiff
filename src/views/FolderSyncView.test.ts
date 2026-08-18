@@ -82,10 +82,10 @@ describe('FolderSyncView', () => {
     expect(wrapper.text()).toContain('Folder Sync')
     expect(
       (wrapper.find('[data-testid="folder-sync-left-path"]').element as HTMLInputElement).value,
-    ).toBe('D:/workspace/left')
+    ).toBe('')
     expect(
       (wrapper.find('[data-testid="folder-sync-right-path"]').element as HTMLInputElement).value,
-    ).toBe('D:/workspace/right')
+    ).toBe('')
 
     await wrapper.find('[data-testid="folder-sync-left-path"]').setValue('D:/deploy/package')
     await wrapper.find('[data-testid="folder-sync-right-path"]').setValue('D:/deploy/prod')

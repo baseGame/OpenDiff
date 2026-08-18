@@ -96,6 +96,108 @@ pub fn parse_text_patch(input: &str) -> TextPatchResponse {
     TextPatchResponse { files }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ApplyTextPatchResult {
+    pub text: String,
+    pub applied_hunks: usize,
+    pub files: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ApplyTextPatchError {
+    EmptyPatch,
+    ContextMismatch(String),
+}
+
+impl std::fmt::Display for ApplyTextPatchError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::EmptyPatch => write!(formatter, "patch does not contain any hunks"),
+            Self::ContextMismatch(message) => write!(formatter, "{message}"),
+        }
+    }
+}
+
+pub fn apply_text_patch(
+    source: &str,
+    patch: &str,
+) -> Result<ApplyTextPatchResult, ApplyTextPatchError> {
+    let parsed = parse_text_patch(patch);
+    if parsed.files.iter().all(|file| file.hunks.is_empty()) {
+        return Err(ApplyTextPatchError::EmptyPatch);
+    }
+
+    let mut lines = split_patch_source(source);
+    let mut applied_hunks = 0;
+    let line_ending = if source.contains("\r\n") { "\r\n" } else { "\n" };
+
+    for file in &parsed.files {
+        for hunk in &file.hunks {
+            apply_patch_hunk(&mut lines, hunk)?;
+            applied_hunks += 1;
+        }
+    }
+
+    Ok(ApplyTextPatchResult {
+        text: lines.join(line_ending),
+        applied_hunks,
+        files: parsed.files.len(),
+    })
+}
+
+fn split_patch_source(source: &str) -> Vec<String> {
+    if source.is_empty() {
+        return Vec::new();
+    }
+
+    source
+        .replace("\r\n", "\n")
+        .replace('\r', "\n")
+        .trim_end_matches('\n')
+        .split('\n')
+        .map(ToOwned::to_owned)
+        .collect()
+}
+
+fn apply_patch_hunk(
+    lines: &mut Vec<String>,
+    hunk: &shared_types::PatchHunk,
+) -> Result<(), ApplyTextPatchError> {
+    let start = hunk.old_start.saturating_sub(1);
+    let mut cursor = start;
+    let mut replacement = Vec::new();
+
+    for line in &hunk.lines {
+        match line.kind {
+            shared_types::PatchLineKind::Context | shared_types::PatchLineKind::Removed => {
+                let existing = lines.get(cursor).ok_or_else(|| {
+                    ApplyTextPatchError::ContextMismatch(format!(
+                        "hunk context missing at line {}",
+                        cursor + 1
+                    ))
+                })?;
+                if existing != &line.text {
+                    return Err(ApplyTextPatchError::ContextMismatch(format!(
+                        "hunk context mismatch at line {}",
+                        cursor + 1
+                    )));
+                }
+                if line.kind == shared_types::PatchLineKind::Context {
+                    replacement.push(line.text.clone());
+                }
+                cursor += 1;
+            }
+            shared_types::PatchLineKind::Added => {
+                replacement.push(line.text.clone());
+            }
+        }
+    }
+
+    let end = cursor.min(lines.len());
+    lines.splice(start..end, replacement);
+    Ok(())
+}
+
 fn algorithm_from_request(value: Option<&str>) -> TextDiffAlgorithm {
     match value {
         Some("patience") => TextDiffAlgorithm::Patience,
@@ -1317,5 +1419,24 @@ diff --git a/src/main.rs b/src/main.rs
             result.files[0].hunks[0].lines[2].kind,
             shared_types::PatchLineKind::Added
         );
+    }
+
+    #[test]
+    fn applies_unified_text_patch_hunks_to_source() {
+        let source = "fn main() {\n    println!(\"old\");\n}\n";
+        let patch = "\
+--- a/src/main.rs
++++ b/src/main.rs
+@@ -1,3 +1,3 @@
+ fn main() {
+-    println!(\"old\");
++    println!(\"new\");
+ }
+";
+
+        let result = apply_text_patch(source, patch).expect("valid patch should apply");
+
+        assert_eq!(result.applied_hunks, 1);
+        assert_eq!(result.text, "fn main() {\n    println!(\"new\");\n}");
     }
 }

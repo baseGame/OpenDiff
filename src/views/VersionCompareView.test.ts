@@ -93,48 +93,37 @@ describe('VersionCompareView', () => {
     })
   })
 
-  it('renders executable identity and version difference counts', () => {
+  it('starts empty without demo version resources', () => {
     const wrapper = mount(VersionCompareView)
 
     expect(wrapper.text()).toContain('Version Compare')
-    expect(wrapper.text()).toContain('left-app.exe')
-    expect(wrapper.text()).toContain('right-app.exe')
-    expect(wrapper.find('[data-testid="version-summary-added"]').text()).toContain('1')
-    expect(wrapper.find('[data-testid="version-summary-removed"]').text()).toContain('1')
-    expect(wrapper.find('[data-testid="version-summary-modified"]').text()).toContain('2')
-    expect(wrapper.find('[data-testid="version-summary-unchanged"]').text()).toContain('2')
+    expect(wrapper.text()).not.toContain('left-app.exe')
+    expect(wrapper.find('[data-testid="version-summary-modified"]').text()).toContain('0')
+    expect(
+      wrapper.find('[data-testid="version-toolbar-home"]').attributes('disabled'),
+    ).toBeDefined()
   })
 
-  it('renders fixed version resource fields with status highlighting', () => {
+  it('filters diffs and swaps paths from the toolbar', async () => {
     const wrapper = mount(VersionCompareView)
 
-    const fileVersion = wrapper.find('[data-testid="version-field-FileVersion"]')
-    const productVersion = wrapper.find('[data-testid="version-field-ProductVersion"]')
+    await wrapper.find('[data-testid="version-left-path"]').setValue('C:/apps/fixture-left.exe')
+    await wrapper.find('[data-testid="version-right-path"]').setValue('C:/apps/fixture-right.exe')
+    await wrapper.find('[data-testid="run-version-compare"]').trigger('click')
+    await wrapper.vm.$nextTick()
 
-    expect(fileVersion.exists()).toBe(true)
-    expect(fileVersion.classes()).toContain('status-modified')
-    expect(fileVersion.text()).toContain('1.4.2.0')
-    expect(fileVersion.text()).toContain('1.5.0.0')
+    expect(wrapper.find('[data-testid="version-field-FileVersion"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="version-field-CompanyName"]').exists()).toBe(true)
 
-    expect(productVersion.exists()).toBe(true)
-    expect(productVersion.classes()).toContain('status-unchanged')
-    expect(productVersion.text()).toContain('1.5.0.0')
-  })
+    await wrapper.find('[data-testid="version-toolbar-diffs"]').trigger('click')
 
-  it('renders string table fields from both sides for report review', () => {
-    const wrapper = mount(VersionCompareView)
+    expect(wrapper.find('[data-testid="version-field-FileVersion"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="version-field-CompanyName"]').exists()).toBe(false)
 
-    const companyName = wrapper.find('[data-testid="version-field-CompanyName"]')
-    const legalCopyright = wrapper.find('[data-testid="version-field-LegalCopyright"]')
+    await wrapper.find('[data-testid="version-toolbar-swap"]').trigger('click')
 
-    expect(wrapper.find('[data-testid="version-report-table"]').exists()).toBe(true)
-    expect(companyName.exists()).toBe(true)
-    expect(companyName.classes()).toContain('status-added')
-    expect(companyName.text()).toContain('--')
-    expect(companyName.text()).toContain('Open Diff Labs')
-
-    expect(legalCopyright.exists()).toBe(true)
-    expect(legalCopyright.classes()).toContain('status-removed')
-    expect(legalCopyright.text()).toContain('Copyright 2025')
+    expect(
+      (wrapper.find('[data-testid="version-left-path"]').element as HTMLInputElement).value,
+    ).toBe('C:/apps/fixture-right.exe')
   })
 })

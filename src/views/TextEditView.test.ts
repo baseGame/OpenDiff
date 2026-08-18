@@ -122,4 +122,25 @@ describe('TextEditView', () => {
     expect(editorValue).not.toContain('release')
     expect(wrapper.find('[data-testid="text-edit-dirty"]').text()).toContain('Unsaved changes')
   })
+
+  it('starts with an empty path and wires undo after an edit', async () => {
+    const wrapper = mountTextEditView()
+
+    expect((wrapper.find('[data-testid="text-edit-path"]').element as HTMLInputElement).value).toBe(
+      '',
+    )
+    expect(
+      wrapper.find('[data-testid="text-edit-toolbar-syntax"]').attributes('disabled'),
+    ).toBeDefined()
+
+    await wrapper.find('[data-testid="text-edit-path"]').setValue('D:/workspace/notes.txt')
+    await wrapper.find('[data-testid="text-edit-open"]').trigger('click')
+    await wrapper.vm.$nextTick()
+    await wrapper.find('[data-testid="text-edit-editor"]').setValue('changed')
+    await wrapper.find('[data-testid="text-edit-toolbar-undo"]').trigger('click')
+
+    expect(
+      (wrapper.find('[data-testid="text-edit-editor"]').element as HTMLTextAreaElement).value,
+    ).toContain('release line')
+  })
 })
