@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import type {
   ApplyTextPatchRequest,
+  ApplyTextPatchToFileRequest,
   ApplyTextPatchResponse,
   ChangeFolderEntryAttributesRequest,
   DeleteFolderEntryRequest,
@@ -246,6 +247,16 @@ export function applyTextPatch(request: ApplyTextPatchRequest): Promise<ApplyTex
   return invoke<ApplyTextPatchResponse>('apply_text_patch', {
     source: request.source,
     patch: request.patch,
+  })
+}
+
+export function applyTextPatchToFile(
+  request: ApplyTextPatchToFileRequest,
+): Promise<ApplyTextPatchResponse> {
+  return invoke<ApplyTextPatchResponse>('apply_text_patch_to_file', {
+    sourcePath: request.sourcePath,
+    patch: request.patch,
+    outputPath: request.outputPath,
   })
 }
 

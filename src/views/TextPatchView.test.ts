@@ -3,12 +3,23 @@ import { createPinia, setActivePinia } from 'pinia'
 import { defineComponent } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import TextPatchView from './TextPatchView.vue'
-import { applyTextPatch, parseTextPatch, readTextFile } from '@/api/diff'
+import { applyTextPatch, applyTextPatchToFile, parseTextPatch, readTextFile } from '@/api/diff'
 import { createAppI18n, installI18n } from '@/i18n'
 import { useSessionLaunchStore } from '@/stores/sessionLaunch'
 
+const push = vi.fn()
+
+vi.mock('vue-router', () => ({
+  useRouter: () => ({ push }),
+}))
+
 vi.mock('@/api/diff', () => ({
   applyTextPatch: vi.fn().mockResolvedValue({
+    text: 'const a = 1\nnew\n',
+    appliedHunks: 1,
+    files: 1,
+  }),
+  applyTextPatchToFile: vi.fn().mockResolvedValue({
     text: 'const a = 1\nnew\n',
     appliedHunks: 1,
     files: 1,
@@ -85,6 +96,8 @@ describe('TextPatchView', () => {
     vi.mocked(parseTextPatch).mockClear()
     vi.mocked(readTextFile).mockClear()
     vi.mocked(applyTextPatch).mockClear()
+    vi.mocked(applyTextPatchToFile).mockClear()
+    push.mockClear()
   })
 
   it('parses pasted unified patch text and renders files, hunks, and lines', async () => {
@@ -152,5 +165,40 @@ describe('TextPatchView', () => {
       patch: 'diff --git a/src/main.ts b/src/main.ts',
     })
     expect(wrapper.find('[data-testid="patch-apply-status"]').text()).toContain('Patch applied')
+  })
+
+  it('applies a unified patch to a target file', async () => {
+    const wrapper = mountTextPatchView()
+    const inputs = wrapper.findAllComponents(NInputStub)
+
+    inputs[0]?.vm.$emit('update:value', 'diff --git a/src/main.ts b/src/main.ts')
+    await wrapper.find('[data-testid="patch-source-file"]').setValue('C:/work/main.ts')
+    await wrapper.find('[data-testid="patch-target-file"]').setValue('C:/work/main.patched.ts')
+    await wrapper.find('[data-testid="apply-text-patch-to-file"]').trigger('click')
+    await flushPromises()
+
+    expect(applyTextPatchToFile).toHaveBeenCalledWith({
+      sourcePath: 'C:/work/main.ts',
+      patch: 'diff --git a/src/main.ts b/src/main.ts',
+      outputPath: 'C:/work/main.patched.ts',
+    })
+    expect(wrapper.find('[data-testid="patch-apply-status"]').text()).toContain(
+      'C:/work/main.patched.ts',
+    )
+  })
+
+  it('opens reconstructed sides in Text Compare', async () => {
+    const wrapper = mountTextPatchView()
+    const inputs = wrapper.findAllComponents(NInputStub)
+
+    inputs[0]?.vm.$emit('update:value', 'diff --git a/src/main.ts b/src/main.ts')
+    inputs[1]?.vm.$emit('update:value', 'const a = 1\nold\n')
+    await wrapper.vm.$nextTick()
+    await wrapper.find('[data-testid="apply-text-patch"]').trigger('click')
+    await flushPromises()
+    await wrapper.find('[data-testid="open-patched-text-compare"]').trigger('click')
+    await flushPromises()
+
+    expect(push).toHaveBeenCalledWith('/compare/text')
   })
 })

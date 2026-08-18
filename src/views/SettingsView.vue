@@ -9,17 +9,27 @@ import {
   type CommandShortcut,
 } from '@/app/commandRegistry'
 import { parseSessionPackage } from '@/app/sessionFile'
+import { writeGitIntegration, writeSvnIntegration } from '@/api/integration'
 import { useSavedSessionsStore } from '@/stores/savedSessions'
 import { useSettingsStore } from '@/stores/settings'
 import WorkbenchShell from '@/components/workbench/WorkbenchShell.vue'
 import WorkbenchInspector from '@/components/workbench/WorkbenchInspector.vue'
+import { useI18n } from '@/i18n'
 
 const settings = useSettingsStore()
 const savedSessions = useSavedSessionsStore()
 const router = useRouter()
+const { t } = useI18n()
 const sharedSessionPathDraft = ref('')
 const sharedSessionJsonDraft = ref('')
 const sharedSessionImportError = ref('')
+const gitKind = ref<'difftool' | 'mergetool'>('mergetool')
+const gitScope = ref<'global' | 'local'>('global')
+const executablePath = ref('open-diff')
+const svnWrapperPath = ref('')
+const integrationStatus = ref('')
+const integrationError = ref('')
+const integrationWriting = ref(false)
 const shortcutSearch = ref('')
 const shortcutDrafts = ref<Record<string, string>>(
   Object.fromEntries(
@@ -49,6 +59,44 @@ function openFileFormats(): void {
 
 function openRemoteProfiles(): void {
   void router.push('/settings/remote-profiles')
+}
+
+async function writeGitConfig(): Promise<void> {
+  if (!window.confirm(t('ui.confirmWriteGitConfig', { kind: gitKind.value }))) {
+    return
+  }
+
+  integrationWriting.value = true
+  integrationError.value = ''
+
+  try {
+    await writeGitIntegration(gitKind.value, executablePath.value.trim() || 'open-diff', gitScope.value)
+    integrationStatus.value = t('status.gitConfigWritten', { kind: gitKind.value })
+  } catch (error) {
+    integrationError.value = error instanceof Error ? error.message : String(error)
+  } finally {
+    integrationWriting.value = false
+  }
+}
+
+async function writeSvnConfig(): Promise<void> {
+  if (!window.confirm(t('ui.confirmWriteSvnConfig'))) {
+    return
+  }
+
+  integrationWriting.value = true
+  integrationError.value = ''
+
+  try {
+    const wrapper =
+      svnWrapperPath.value.trim() || `${executablePath.value.trim() || 'open-diff'}-svn.sh`
+    await writeSvnIntegration(executablePath.value.trim() || 'open-diff', wrapper)
+    integrationStatus.value = t('status.svnConfigWritten')
+  } catch (error) {
+    integrationError.value = error instanceof Error ? error.message : String(error)
+  } finally {
+    integrationWriting.value = false
+  }
 }
 
 function addSharedSessionPath(): void {
@@ -229,6 +277,83 @@ function parseShortcutText(value: string): string[] {
       </NCard>
 
       <NCard
+        :title="$t('ui.gitIntegration')"
+        size="small"
+      >
+        <div class="integration-config">
+          <p>{{ $t('ui.gitIntegration') }}</p>
+          <div class="settings-row">
+            <label>
+              <span>{{ $t('ui.executablePath') }}</span>
+              <input
+                v-model="executablePath"
+                type="text"
+                data-testid="integration-executable-path"
+              />
+            </label>
+            <label>
+              <span>{{ $t('ui.gitScope') }}</span>
+              <select
+                v-model="gitScope"
+                data-testid="git-scope"
+              >
+                <option value="global">{{ $t('ui.globalScope') }}</option>
+                <option value="local">{{ $t('ui.localScope') }}</option>
+              </select>
+            </label>
+            <label>
+              <span>{{ $t('ui.gitIntegration') }}</span>
+              <select
+                v-model="gitKind"
+                data-testid="git-kind"
+              >
+                <option value="difftool">{{ $t('ui.difftool') }}</option>
+                <option value="mergetool">{{ $t('ui.mergetool') }}</option>
+              </select>
+            </label>
+          </div>
+          <div class="settings-row">
+            <NButton
+              size="small"
+              data-testid="write-git-config"
+              :disabled="integrationWriting"
+              @click="writeGitConfig"
+              >{{ $t('ui.writeGitConfig') }}</NButton
+            >
+          </div>
+          <div class="settings-row">
+            <label>
+              <span>{{ $t('ui.wrapperPath') }}</span>
+              <input
+                v-model="svnWrapperPath"
+                type="text"
+                data-testid="svn-wrapper-path"
+              />
+            </label>
+            <NButton
+              size="small"
+              data-testid="write-svn-config"
+              :disabled="integrationWriting"
+              @click="writeSvnConfig"
+              >{{ $t('ui.writeSvnConfig') }}</NButton
+            >
+          </div>
+          <p
+            v-if="integrationStatus"
+            data-testid="integration-status"
+          >
+            {{ integrationStatus }}
+          </p>
+          <p
+            v-if="integrationError"
+            data-testid="integration-error"
+          >
+            {{ integrationError }}
+          </p>
+        </div>
+      </NCard>
+
+      <NCard
         :title="$t('ui.sharedSessions')"
         size="small"
       >
@@ -330,6 +455,33 @@ function parseShortcutText(value: string): string[] {
 
 h1 {
   margin-top: 0;
+}
+
+.integration-config {
+  display: grid;
+  gap: 12px;
+}
+
+.integration-config label {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.integration-config span {
+  color: var(--app-text-muted);
+  font-size: 12px;
+}
+
+.integration-config input,
+.integration-config select {
+  min-width: 180px;
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid var(--app-border);
+  border-radius: 6px;
+  background: var(--app-bg);
+  color: var(--app-text);
 }
 
 .settings-row {

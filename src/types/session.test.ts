@@ -24,6 +24,8 @@ describe('session types', () => {
       'clipboard-compare',
       'media-compare',
       'version-compare',
+      'archive-compare',
+      'script',
     ])
   })
 

@@ -102,9 +102,10 @@ describe('FolderSyncView', () => {
     expect(wrapper.text()).toContain('Mirror to Right')
     expect(wrapper.text()).toContain('D:/deploy/package')
     expect(wrapper.text()).toContain('D:/deploy/prod')
-    expect(wrapper.text()).toContain('Copy')
+    expect(wrapper.text()).toContain('Copy L→R')
     expect(wrapper.text()).toContain('Delete')
 
+    await wrapper.find('[data-testid="sync-override-copy-app"]').setValue('leave')
     await wrapper.find('[data-testid="folder-sync-run"]').trigger('click')
     await flushPromises()
 
@@ -112,6 +113,10 @@ describe('FolderSyncView', () => {
       leftRoot: 'D:/deploy/package',
       rightRoot: 'D:/deploy/prod',
       strategy: 'mirrorRight',
+      overrides: [
+        { relativePath: 'package/app.exe', action: 'leave' },
+        { relativePath: 'prod/old.dll', action: 'delete' },
+      ],
     })
     expect(wrapper.text()).toContain('Completed 2 / 2')
     expect(wrapper.text()).toContain('Copied package/app.exe')

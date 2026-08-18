@@ -941,6 +941,12 @@ function handleTreeScroll(event: Event): void {
               data-testid="folder-right-root"
             />
           </label>
+          <p
+            class="archive-path-hint"
+            data-testid="folder-path-hint"
+          >
+            {{ $t('ui.archivePathHint') }}
+          </p>
         </div>
         <div class="folder-actions">
           <NButton
@@ -1674,6 +1680,13 @@ function handleTreeScroll(event: Event): void {
 }
 
 .path-pair span {
+  color: var(--app-text-muted);
+  font-size: 12px;
+}
+
+.archive-path-hint {
+  grid-column: 1 / -1;
+  margin: 0;
   color: var(--app-text-muted);
   font-size: 12px;
 }

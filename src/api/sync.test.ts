@@ -95,6 +95,7 @@ describe('sync api', () => {
       leftRoot: 'D:/left',
       rightRoot: 'D:/right',
       strategy: 'mirrorRight',
+      overrides: [],
     })
     expect(result.succeeded).toBe(2)
   })

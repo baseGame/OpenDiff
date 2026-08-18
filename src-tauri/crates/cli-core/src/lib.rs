@@ -19,10 +19,12 @@ pub enum CliCommand {
     GitDifftoolConfig {
         executable_path: String,
         scope: GitConfigScope,
+        write: bool,
     },
     GitMergetoolConfig {
         executable_path: String,
         scope: GitConfigScope,
+        write: bool,
     },
     SvnDiff {
         left: String,
@@ -31,6 +33,7 @@ pub enum CliCommand {
     SvnDiffConfig {
         executable_path: String,
         wrapper_path: String,
+        write: bool,
     },
     CompareFiles {
         left: String,
@@ -45,6 +48,9 @@ pub enum CliCommand {
         name: String,
     },
     MergeText(CliTextMergeArgs),
+    Script {
+        path: String,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -183,6 +189,7 @@ where
         "git-mergetool-config" => parse_git_mergetool_config(args.collect()),
         "svn-diff" => parse_svn_diff(args.collect()),
         "svn-diff-config" => parse_svn_diff_config(args.collect()),
+        "script" => parse_script_file(args.collect()),
         "compare" => parse_compare_files(args.collect()),
         "compare-folders" => parse_compare_folders(args.collect()),
         "open-session" => parse_open_session(args.collect()),
@@ -453,6 +460,130 @@ pub fn build_svn_diff_config(
     })
 }
 
+pub fn write_git_tool_config(config: &GitToolConfigDocument) -> Result<String, CliRuntimeError> {
+    write_git_tool_config_to_file(config, None)
+}
+
+pub fn write_git_tool_config_to_file(
+    config: &GitToolConfigDocument,
+    file: Option<&Path>,
+) -> Result<String, CliRuntimeError> {
+    for command in &config.commands {
+        let command = match file {
+            Some(path) => rewrite_git_config_command_to_file(command, path),
+            None => command.to_owned(),
+        };
+        run_git_config_command(&command)?;
+    }
+
+    Ok(format!(
+        "Wrote {} git config entries for {}",
+        config.commands.len(),
+        config.tool_name
+    ))
+}
+
+fn rewrite_git_config_command_to_file(command: &str, file: &Path) -> String {
+    command
+        .replacen("--global", &format!("--file {}", file.display()), 1)
+        .replacen("--local", &format!("--file {}", file.display()), 1)
+}
+
+pub fn write_svn_diff_config(config: &SvnDiffConfigDocument, wrapper_path: &str) -> Result<String, CliRuntimeError> {
+    let wrapper = Path::new(wrapper_path);
+    if let Some(parent) = wrapper.parent() {
+        std::fs::create_dir_all(parent).map_err(|error| CliRuntimeError {
+            message: error.to_string(),
+            exit_code: CliExitCode::IoError,
+        })?;
+    }
+
+    std::fs::write(wrapper, &config.wrapper_script).map_err(|error| CliRuntimeError {
+        message: error.to_string(),
+        exit_code: CliExitCode::IoError,
+    })?;
+
+    let snippet_path = wrapper.with_extension("svnconfig");
+    std::fs::write(&snippet_path, &config.config_snippet).map_err(|error| CliRuntimeError {
+        message: error.to_string(),
+        exit_code: CliExitCode::IoError,
+    })?;
+
+    Ok(format!(
+        "Wrote SVN wrapper to {} and config snippet to {}",
+        wrapper.display(),
+        snippet_path.display()
+    ))
+}
+
+fn run_git_config_command(command: &str) -> Result<(), CliRuntimeError> {
+    let tokens = tokenize_git_config_command(command).ok_or_else(|| CliRuntimeError {
+        message: format!("invalid git config command: {command}"),
+        exit_code: CliExitCode::UsageError,
+    })?;
+
+    let output = std::process::Command::new(&tokens[0])
+        .args(&tokens[1..])
+        .output()
+        .map_err(|error| CliRuntimeError {
+            message: format!("failed to run git config: {error}"),
+            exit_code: CliExitCode::IoError,
+        })?;
+
+    if output.status.success() {
+        return Ok(());
+    }
+
+    Err(CliRuntimeError {
+        message: format!(
+            "git config failed: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        ),
+        exit_code: CliExitCode::IoError,
+    })
+}
+
+fn tokenize_git_config_command(command: &str) -> Option<Vec<String>> {
+    let mut tokens = Vec::new();
+    let mut current = String::new();
+    let mut chars = command.chars().peekable();
+    let mut in_single = false;
+
+    while let Some(ch) = chars.next() {
+        match ch {
+            '\'' if !in_single => in_single = true,
+            '\'' if in_single => {
+                if chars.peek() == Some(&'\'') {
+                    current.push('\'');
+                    chars.next();
+                } else {
+                    in_single = false;
+                }
+            }
+            value if value.is_whitespace() && !in_single => {
+                if !current.is_empty() {
+                    tokens.push(std::mem::take(&mut current));
+                }
+            }
+            value => current.push(value),
+        }
+    }
+
+    if in_single {
+        return None;
+    }
+
+    if !current.is_empty() {
+        tokens.push(current);
+    }
+
+    if tokens.len() < 3 || tokens[0] != "git" {
+        return None;
+    }
+
+    Some(tokens)
+}
+
 fn help_invocation() -> CliInvocation {
     CliInvocation {
         command: CliCommand::Help,
@@ -488,7 +619,22 @@ fn parse_svn_diff(args: Vec<String>) -> Result<CliInvocation, CliParseError> {
 }
 
 fn parse_svn_diff_config(args: Vec<String>) -> Result<CliInvocation, CliParseError> {
-    if args.len() != 2 {
+    let mut write = false;
+    let mut paths = Vec::new();
+
+    for arg in args {
+        match normalized_switch(&arg).as_deref() {
+            Some("write") => write = true,
+            Some(unknown) => {
+                return Err(usage_error(format!(
+                    "unknown svn-diff-config switch: {unknown}"
+                )))
+            }
+            None => paths.push(arg),
+        }
+    }
+
+    if paths.len() != 2 {
         return Err(usage_error(
             "svn-diff-config requires EXECUTABLE_PATH and WRAPPER_PATH",
         ));
@@ -496,15 +642,29 @@ fn parse_svn_diff_config(args: Vec<String>) -> Result<CliInvocation, CliParseErr
 
     Ok(CliInvocation {
         command: CliCommand::SvnDiffConfig {
-            executable_path: args[0].clone(),
-            wrapper_path: args[1].clone(),
+            executable_path: paths[0].clone(),
+            wrapper_path: paths[1].clone(),
+            write,
+        },
+        exit_code: CliExitCode::Success,
+    })
+}
+
+fn parse_script_file(args: Vec<String>) -> Result<CliInvocation, CliParseError> {
+    if args.len() != 1 {
+        return Err(usage_error("script requires SCRIPT_PATH"));
+    }
+
+    Ok(CliInvocation {
+        command: CliCommand::Script {
+            path: args[0].clone(),
         },
         exit_code: CliExitCode::Success,
     })
 }
 
 fn parse_git_mergetool_config(args: Vec<String>) -> Result<CliInvocation, CliParseError> {
-    let (executable_path, scope) = parse_git_tool_config_args(
+    let (executable_path, scope, write) = parse_git_tool_config_args(
         args,
         "git-mergetool-config",
         "git-mergetool-config requires EXECUTABLE_PATH",
@@ -514,13 +674,14 @@ fn parse_git_mergetool_config(args: Vec<String>) -> Result<CliInvocation, CliPar
         command: CliCommand::GitMergetoolConfig {
             executable_path,
             scope,
+            write,
         },
         exit_code: CliExitCode::Success,
     })
 }
 
 fn parse_git_difftool_config(args: Vec<String>) -> Result<CliInvocation, CliParseError> {
-    let (executable_path, scope) = parse_git_tool_config_args(
+    let (executable_path, scope, write) = parse_git_tool_config_args(
         args,
         "git-difftool-config",
         "git-difftool-config requires EXECUTABLE_PATH",
@@ -530,6 +691,7 @@ fn parse_git_difftool_config(args: Vec<String>) -> Result<CliInvocation, CliPars
         command: CliCommand::GitDifftoolConfig {
             executable_path,
             scope,
+            write,
         },
         exit_code: CliExitCode::Success,
     })
@@ -539,14 +701,16 @@ fn parse_git_tool_config_args(
     args: Vec<String>,
     command_name: &str,
     missing_path_message: &str,
-) -> Result<(String, GitConfigScope), CliParseError> {
+) -> Result<(String, GitConfigScope, bool), CliParseError> {
     let mut scope = GitConfigScope::Global;
+    let mut write = false;
     let mut paths = Vec::new();
 
     for arg in args {
         match normalized_switch(&arg).as_deref() {
             Some("global") => scope = GitConfigScope::Global,
             Some("local") => scope = GitConfigScope::Local,
+            Some("write") => write = true,
             Some(unknown) => {
                 return Err(usage_error(format!(
                     "unknown {command_name} switch: {unknown}"
@@ -560,7 +724,7 @@ fn parse_git_tool_config_args(
         return Err(usage_error(missing_path_message));
     }
 
-    Ok((paths[0].clone(), scope))
+    Ok((paths[0].clone(), scope, write))
 }
 
 fn parse_compare_files(args: Vec<String>) -> Result<CliInvocation, CliParseError> {
@@ -837,6 +1001,7 @@ mod tests {
             CliCommand::GitDifftoolConfig {
                 executable_path: "C:/Program Files/OpenDiff/open-diff-cli.exe".to_owned(),
                 scope: GitConfigScope::Global,
+                write: false,
             }
         );
 
@@ -870,6 +1035,7 @@ mod tests {
             CliCommand::GitDifftoolConfig {
                 executable_path: "D:/tools/open-diff-cli.exe".to_owned(),
                 scope: GitConfigScope::Local,
+                write: false,
             }
         );
     }
@@ -888,6 +1054,7 @@ mod tests {
             CliCommand::GitMergetoolConfig {
                 executable_path: "C:/Program Files/OpenDiff/open-diff-cli.exe".to_owned(),
                 scope: GitConfigScope::Global,
+                write: false,
             }
         );
 
@@ -922,6 +1089,7 @@ mod tests {
             CliCommand::GitMergetoolConfig {
                 executable_path: "D:/tools/open-diff-cli.exe".to_owned(),
                 scope: GitConfigScope::Local,
+                write: false,
             }
         );
     }
@@ -981,6 +1149,7 @@ mod tests {
             CliCommand::SvnDiffConfig {
                 executable_path: "C:/Program Files/OpenDiff/open-diff-cli.exe".to_owned(),
                 wrapper_path: "C:/Tools/open-diff-svn-diff.cmd".to_owned(),
+                write: false,
             }
         );
     }

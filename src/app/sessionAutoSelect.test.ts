@@ -93,6 +93,19 @@ describe('selectSessionForDrop', () => {
     })
   })
 
+  it('selects archive compare for zip and tar pairs', () => {
+    expect(selectSessionForDrop(pair('left.zip', 'right.zip'))).toMatchObject({
+      sessionType: 'archive-compare',
+      route: '/compare/folder',
+      enabled: true,
+    })
+    expect(selectSessionForDrop(pair('old.tar', 'new.tgz'))).toMatchObject({
+      sessionType: 'archive-compare',
+      route: '/compare/folder',
+      enabled: true,
+    })
+  })
+
   it('selects hex compare for binary or unknown file extensions', () => {
     expect(selectSessionForDrop(pair('left.bin', 'right.dat'))).toMatchObject({
       sessionType: 'hex-compare',

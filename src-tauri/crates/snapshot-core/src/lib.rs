@@ -1,5 +1,8 @@
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::time::UNIX_EPOCH;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -250,6 +253,77 @@ impl SnapshotGenerator {
 
         Ok(normalize_snapshot_path(relative))
     }
+}
+
+pub fn scan_directory_snapshot(
+    name: impl Into<String>,
+    source_root: impl AsRef<Path>,
+) -> SnapshotResult<SnapshotDocument> {
+    let source_root = source_root.as_ref();
+    let created_at_ms = std::time::SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .ok()
+        .map(|duration| duration.as_millis());
+    let mut generator = SnapshotGenerator::new(name, source_root.display().to_string());
+
+    if let Some(created_at_ms) = created_at_ms {
+        generator = generator.with_created_at_ms(created_at_ms);
+    }
+
+    generator.generate(scan_directory_entries(source_root)?)
+}
+
+fn scan_directory_entries(root: &Path) -> SnapshotResult<Vec<SnapshotScanEntry>> {
+    let mut entries = Vec::new();
+    scan_directory_entries_into(root, root, &mut entries)?;
+    Ok(entries)
+}
+
+fn scan_directory_entries_into(
+    root: &Path,
+    current: &Path,
+    entries: &mut Vec<SnapshotScanEntry>,
+) -> SnapshotResult<()> {
+    let read_dir = fs::read_dir(current).map_err(|error| SnapshotError::Serialization(error.to_string()))?;
+
+    for entry in read_dir {
+        let entry = entry.map_err(|error| SnapshotError::Serialization(error.to_string()))?;
+        let path = entry.path();
+        let metadata = entry
+            .metadata()
+            .map_err(|error| SnapshotError::Serialization(error.to_string()))?;
+        let modified_at_ms = metadata
+            .modified()
+            .ok()
+            .and_then(|modified| modified.duration_since(UNIX_EPOCH).ok())
+            .map(|duration| duration.as_millis());
+
+        if metadata.is_dir() {
+            let mut scan_entry = SnapshotScanEntry::directory(path.display().to_string());
+            scan_entry.modified_at_ms = modified_at_ms;
+            entries.push(scan_entry);
+            scan_directory_entries_into(root, &path, entries)?;
+        } else {
+            let mut scan_entry = SnapshotScanEntry::file(path.display().to_string(), metadata.len());
+            scan_entry.modified_at_ms = modified_at_ms;
+            entries.push(scan_entry);
+        }
+    }
+
+    Ok(())
+}
+
+pub fn save_snapshot_file(path: impl AsRef<Path>, snapshot: &SnapshotDocument) -> SnapshotResult<()> {
+    let bytes = SnapshotStore::save_to_bytes(snapshot)?;
+    if let Some(parent) = path.as_ref().parent() {
+        fs::create_dir_all(parent).map_err(|error| SnapshotError::Serialization(error.to_string()))?;
+    }
+    fs::write(path, bytes).map_err(|error| SnapshotError::Serialization(error.to_string()))
+}
+
+pub fn load_snapshot_file(path: impl AsRef<Path>) -> SnapshotResult<SnapshotDocument> {
+    let bytes = fs::read(path).map_err(|error| SnapshotError::Serialization(error.to_string()))?;
+    SnapshotStore::load_from_bytes(&bytes)
 }
 
 pub struct SnapshotStore;
@@ -569,5 +643,38 @@ mod tests {
             SnapshotDiffStatus::Modified
         );
         assert_eq!(diff.modified_count(), 1);
+    }
+
+    #[test]
+    fn scan_directory_snapshot_captures_current_disk_tree() {
+        let root = unique_temp_dir("snapshot-scan");
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(root.join("src").join("main.rs"), b"fn main() {}").unwrap();
+        fs::write(root.join("README.md"), b"hello").unwrap();
+
+        let snapshot = scan_directory_snapshot("workspace", &root).unwrap();
+        let bytes = SnapshotStore::save_to_bytes(&snapshot).unwrap();
+        let file = root.join("workspace.snapshot.json");
+        fs::write(&file, bytes).unwrap();
+        let restored = load_snapshot_file(&file).unwrap();
+
+        assert_eq!(restored.entry("/README.md").unwrap().size, 5);
+        assert_eq!(restored.entry("/src/main.rs").unwrap().size, 12);
+        assert_eq!(
+            restored.entry("/src").unwrap().kind,
+            SnapshotEntryKind::Directory
+        );
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    fn unique_temp_dir(label: &str) -> PathBuf {
+        let stamp = std::time::SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!("open-diff-{label}-{stamp}"));
+        fs::create_dir_all(&path).expect("temp dir");
+        path
     }
 }

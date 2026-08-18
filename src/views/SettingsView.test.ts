@@ -1,4 +1,4 @@
-import { mount, type VueWrapper } from '@vue/test-utils'
+import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import SettingsView from './SettingsView.vue'
@@ -6,6 +6,7 @@ import { useSettingsStore } from '@/stores/settings'
 import { useSavedSessionsStore } from '@/stores/savedSessions'
 import { serializeSessionPackage } from '@/app/sessionFile'
 import { sampleSavedSessions } from '@/app/savedSessions'
+import { writeGitIntegration, writeSvnIntegration } from '@/api/integration'
 
 const push = vi.fn()
 
@@ -13,11 +14,19 @@ vi.mock('vue-router', () => ({
   useRouter: () => ({ push }),
 }))
 
+vi.mock('@/api/integration', () => ({
+  writeGitIntegration: vi.fn().mockResolvedValue('wrote git'),
+  writeSvnIntegration: vi.fn().mockResolvedValue('wrote svn'),
+}))
+
 describe('SettingsView', () => {
   beforeEach(() => {
     localStorage.clear()
     setActivePinia(createPinia())
     push.mockClear()
+    vi.mocked(writeGitIntegration).mockClear()
+    vi.mocked(writeSvnIntegration).mockClear()
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
   })
 
   it('opens the file format management route', async () => {
@@ -61,6 +70,25 @@ describe('SettingsView', () => {
 
     expect(imported?.metadata.locked).toBe(true)
     expect(imported?.locations.left?.readOnly).toBe(true)
+  })
+
+  it('writes git and svn integration config after confirm', async () => {
+    const wrapper = mountSettingsView()
+
+    await wrapper.find('[data-testid="integration-executable-path"]').setValue('/usr/bin/open-diff')
+    await wrapper.find('[data-testid="git-kind"]').setValue('difftool')
+    await wrapper.find('[data-testid="write-git-config"]').trigger('click')
+    await flushPromises()
+
+    expect(writeGitIntegration).toHaveBeenCalledWith('difftool', '/usr/bin/open-diff', 'global')
+    expect(wrapper.find('[data-testid="integration-status"]').text()).toContain('difftool')
+
+    await wrapper.find('[data-testid="svn-wrapper-path"]').setValue('/tmp/open-diff-svn.sh')
+    await wrapper.find('[data-testid="write-svn-config"]').trigger('click')
+    await flushPromises()
+
+    expect(writeSvnIntegration).toHaveBeenCalledWith('/usr/bin/open-diff', '/tmp/open-diff-svn.sh')
+    expect(wrapper.find('[data-testid="integration-status"]').text()).toContain('SVN')
   })
 
   it('changes the locale from settings', async () => {

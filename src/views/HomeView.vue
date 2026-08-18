@@ -13,6 +13,8 @@ import {
   FolderSync,
   GitMerge,
   Image,
+  Package,
+  Play,
   Table2,
   type LucideIcon,
 } from '@lucide/vue'
@@ -51,6 +53,8 @@ type QuickStartType =
   | 'registry-compare'
   | 'table-compare'
   | 'version-compare'
+  | 'archive-compare'
+  | 'script'
 
 interface QuickStartEntry extends SessionCatalogEntry {
   icon: LucideIcon
@@ -69,6 +73,8 @@ const quickStartTypes: QuickStartType[] = [
   'registry-compare',
   'table-compare',
   'version-compare',
+  'archive-compare',
+  'script',
 ]
 
 const quickStartIcons: Record<QuickStartType, LucideIcon> = {
@@ -84,6 +90,8 @@ const quickStartIcons: Record<QuickStartType, LucideIcon> = {
   'text-edit': FileText,
   'text-merge': GitMerge,
   'version-compare': FileCog,
+  'archive-compare': Package,
+  script: Play,
 }
 
 const router = useRouter()
@@ -124,7 +132,7 @@ const quickStartEntries = computed<QuickStartEntry[]>(() =>
 
       return entry ? { ...entry, icon: quickStartIcons[type] } : undefined
     })
-    .filter((entry): entry is QuickStartEntry => Boolean(entry)),
+    .filter((entry): entry is QuickStartEntry => Boolean(entry?.implemented)),
 )
 const historyItems = computed(() => [
   {

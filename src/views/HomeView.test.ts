@@ -59,7 +59,7 @@ describe('HomeView', () => {
 
     const cards = wrapper.findAll('[data-testid="home-new-session-card"]')
 
-    expect(cards).toHaveLength(12)
+    expect(cards).toHaveLength(14)
     expect(cards.map((card) => card.attributes('data-session-type'))).toEqual([
       'folder-compare',
       'folder-merge',
@@ -73,6 +73,8 @@ describe('HomeView', () => {
       'registry-compare',
       'table-compare',
       'version-compare',
+      'archive-compare',
+      'script',
     ])
   })
 
@@ -80,7 +82,7 @@ describe('HomeView', () => {
     const wrapper = mountHomeView()
 
     expect(wrapper.find('[data-testid="home-new-session"]').exists()).toBe(true)
-    expect(wrapper.findAll('[data-testid="home-new-session-card"]')).toHaveLength(12)
+    expect(wrapper.findAll('[data-testid="home-new-session-card"]')).toHaveLength(14)
     expect(wrapper.find('[data-testid="home-recent-sessions"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="home-workspace-inspector"]').exists()).toBe(true)
     expect(wrapper.find('.drop-zone').exists()).toBe(false)

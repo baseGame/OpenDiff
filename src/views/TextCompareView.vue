@@ -196,6 +196,14 @@ onMounted(() => {
 
   if (launch.autoRun && launch.locations.left?.uri && launch.locations.right?.uri) {
     void loadLaunchTextFiles(launch.locations.left.uri, launch.locations.right.uri)
+    return
+  }
+
+  if (lastCompare.text) {
+    left.value = lastCompare.text.left
+    right.value = lastCompare.text.right
+    leftPathLabel.value = lastCompare.text.leftSource ?? leftPathLabel.value
+    rightPathLabel.value = lastCompare.text.rightSource ?? rightPathLabel.value
   }
 })
 
@@ -786,9 +794,10 @@ function toggleSourceEditors(): void {
       </WorkbenchToolbar>
       <section class="bc-path-row">
         <input
+          v-model="leftPathLabel"
           type="text"
-          :value="leftPathLabel"
-          readonly
+          data-testid="text-left-path"
+          :placeholder="$t('ui.remoteUriHint')"
         />
         <button
           type="button"
@@ -798,10 +807,19 @@ function toggleSourceEditors(): void {
           &lt;&gt;
         </button>
         <input
+          v-model="rightPathLabel"
           type="text"
-          :value="rightPathLabel"
-          readonly
+          data-testid="text-right-path"
+          :placeholder="$t('ui.remoteUriHint')"
         />
+        <button
+          type="button"
+          data-testid="load-text-files"
+          :disabled="loading || !leftPathLabel || !rightPathLabel"
+          @click="loadLaunchTextFiles(leftPathLabel, rightPathLabel)"
+        >
+          {{ $t('ui.loadFiles') }}
+        </button>
       </section>
       <WorkbenchToolbar class="find-toolbar">
         <input

@@ -1,11 +1,18 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import WorkbenchShell from '@/components/workbench/WorkbenchShell.vue'
 import WorkbenchInspector from '@/components/workbench/WorkbenchInspector.vue'
 import { useI18n } from '@/i18n'
+import {
+  deleteRemoteProfile,
+  isImplementedRemoteProtocol,
+  listRemoteProfiles,
+  saveRemoteProfile,
+  testRemoteProfile,
+  type RemoteProtocol,
+  type RemoteProfileView,
+} from '@/api/remote'
 
-type RemoteProtocol =
-  'ftp' | 'ftps' | 'sftp' | 'web-dav' | 's3' | 'dropbox' | 'one-drive' | 'subversion'
 type CredentialReferenceKind = 'system-keychain' | 'environment' | 'profile-store'
 
 interface RemoteEndpoint {
@@ -36,6 +43,10 @@ interface RemoteProfileDraft {
   rootPath: string
   credentialKind: CredentialReferenceKind
   credentialKey: string
+  username: string
+  password: string
+  uri: string
+  implemented: boolean
 }
 
 const builtInProfiles: RemoteProfile[] = [
@@ -75,6 +86,7 @@ const selectedProfileId = ref(profiles.value[0]?.id ?? '')
 const draft = ref<RemoteProfileDraft>(toDraft(profiles.value[0] ?? emptyProfile()))
 const testStatusKey = ref('status.remoteUnavailable')
 const testStatusParams = ref<Record<string, string | number>>({})
+const testing = ref(false)
 
 const sortedProfiles = computed(() =>
   [...profiles.value].sort((left, right) => left.name.localeCompare(right.name)),
@@ -92,6 +104,26 @@ const credentialSummary = computed(
   () => `${credentialKindLabel(draft.value.credentialKind)}: ${draft.value.credentialKey || '--'}`,
 )
 const testStatus = computed(() => t(testStatusKey.value, testStatusParams.value))
+const canTestProfile = computed(
+  () => isImplementedRemoteProtocol(draft.value.protocol) && Boolean(draft.value.host.trim()),
+)
+
+onMounted(() => {
+  void loadPersistedProfiles()
+})
+
+async function loadPersistedProfiles(): Promise<void> {
+  try {
+    const loaded = await listRemoteProfiles()
+
+    if (loaded.length === 0) {
+      return
+    }
+
+    applyViews(loaded)
+  } catch {
+  }
+}
 
 function selectProfile(profileId: string): void {
   const profile = profiles.value.find((item) => item.id === profileId)
@@ -111,26 +143,45 @@ function createNewProfile(): void {
   setTestStatus('status.remoteUnavailable')
 }
 
-function saveProfile(): void {
+async function saveProfile(): Promise<void> {
   const nextProfile = fromDraft(draft.value)
-  const existingIndex = profiles.value.findIndex((profile) => profile.id === nextProfile.id)
-
-  if (existingIndex >= 0) {
-    profiles.value.splice(existingIndex, 1, nextProfile)
-  } else {
-    profiles.value.push(nextProfile)
+  try {
+    const saved = await saveRemoteProfile({
+      id: nextProfile.id,
+      name: nextProfile.name,
+      protocol: nextProfile.protocol,
+      host: nextProfile.endpoint.host,
+      port: nextProfile.endpoint.port,
+      rootPath: nextProfile.endpoint.rootPath,
+      username: draft.value.username.trim() || undefined,
+      password: draft.value.password || undefined,
+    })
+    applyViews(saved, nextProfile.id)
+    draft.value.password = ''
+  } catch {
+    upsertLocalProfile(nextProfile)
+    selectedProfileId.value = nextProfile.id
+    draft.value = {
+      ...toDraft(nextProfile),
+      username: draft.value.username,
+      password: '',
+    }
   }
-
-  selectedProfileId.value = nextProfile.id
-  draft.value = toDraft(nextProfile)
 }
 
-function deleteProfile(): void {
+async function deleteProfile(): Promise<void> {
   if (!selectedProfileId.value) {
     return
   }
 
-  profiles.value = profiles.value.filter((profile) => profile.id !== selectedProfileId.value)
+  const removedId = selectedProfileId.value
+
+  try {
+    const remaining = await deleteRemoteProfile(removedId)
+    applyViews(remaining)
+  } catch {
+    profiles.value = profiles.value.filter((profile) => profile.id !== removedId)
+  }
 
   if (profiles.value.length === 0) {
     createNewProfile()
@@ -144,13 +195,71 @@ function deleteProfile(): void {
   draft.value = toDraft(nextProfile)
 }
 
-function testProfileConnection(): void {
-  setTestStatus('status.remoteUnavailable')
+async function testProfileConnection(): Promise<void> {
+  if (!canTestProfile.value) {
+    setTestStatus('status.remoteUnavailable')
+    return
+  }
+
+  testing.value = true
+
+  try {
+    if (!profiles.value.some((profile) => profile.id === draft.value.id) || draft.value.password) {
+      await saveProfile()
+    }
+
+    const detail = await testRemoteProfile(draft.value.id || selectedProfileId.value)
+    setTestStatus('status.remoteConnected', { detail })
+  } catch (event) {
+    setTestStatus('status.remoteFailed', {
+      detail: event instanceof Error ? event.message : String(event),
+    })
+  } finally {
+    testing.value = false
+  }
 }
 
 function setTestStatus(key: string, params: Record<string, string | number> = {}): void {
   testStatusKey.value = key
   testStatusParams.value = params
+}
+
+function applyViews(views: RemoteProfileView[], selectedId = selectedProfileId.value): void {
+  profiles.value = views.map((view) => ({
+    id: view.id,
+    name: view.name,
+    protocol: view.protocol,
+    endpoint: {
+      host: view.host,
+      port: view.port,
+      rootPath: view.rootPath,
+    },
+    credentialRef: {
+      kind: 'profile-store',
+      key: view.id,
+    },
+  }))
+
+  const selected =
+    profiles.value.find((profile) => profile.id === selectedId) ?? profiles.value[0] ?? emptyProfile()
+
+  selectedProfileId.value = selected.id
+  draft.value = {
+    ...toDraft(selected),
+    username: views.find((view) => view.id === selected.id)?.username ?? '',
+    uri: views.find((view) => view.id === selected.id)?.uri ?? '',
+    implemented: isImplementedRemoteProtocol(selected.protocol),
+  }
+}
+
+function upsertLocalProfile(nextProfile: RemoteProfile): void {
+  const existingIndex = profiles.value.findIndex((profile) => profile.id === nextProfile.id)
+
+  if (existingIndex >= 0) {
+    profiles.value.splice(existingIndex, 1, nextProfile)
+  } else {
+    profiles.value.push(nextProfile)
+  }
 }
 
 function toDraft(profile: RemoteProfile): RemoteProfileDraft {
@@ -163,6 +272,10 @@ function toDraft(profile: RemoteProfile): RemoteProfileDraft {
     rootPath: profile.endpoint.rootPath,
     credentialKind: profile.credentialRef.kind,
     credentialKey: profile.credentialRef.key,
+    username: '',
+    password: '',
+    uri: '',
+    implemented: isImplementedRemoteProtocol(profile.protocol),
   }
 }
 
@@ -316,7 +429,7 @@ function credentialKindLabel(kind: CredentialReferenceKind): string {
               <button
                 type="button"
                 data-testid="test-remote-profile"
-                disabled
+                :disabled="!canTestProfile || testing"
                 @click="testProfileConnection"
               >
                 {{ $t('ui.test') }}
@@ -362,13 +475,13 @@ function credentialKindLabel(kind: CredentialReferenceKind): string {
                 data-testid="remote-profile-protocol-select"
               >
                 <option value="ftp">{{ $t('ui.ftp') }}</option>
-                <option value="ftps">{{ $t('ui.ftps') }}</option>
+                <option value="ftps">{{ $t('ui.ftps') }} ({{ $t('ui.unimplemented') }})</option>
                 <option value="sftp">{{ $t('ui.sftp') }}</option>
-                <option value="web-dav">{{ $t('ui.webDav') }}</option>
-                <option value="s3">{{ $t('ui.s3') }}</option>
-                <option value="dropbox">{{ $t('ui.dropbox') }}</option>
-                <option value="one-drive">{{ $t('ui.onedrive') }}</option>
-                <option value="subversion">{{ $t('ui.subversion') }}</option>
+                <option value="web-dav">{{ $t('ui.webDav') }} ({{ $t('ui.unimplemented') }})</option>
+                <option value="s3">{{ $t('ui.s3') }} ({{ $t('ui.unimplemented') }})</option>
+                <option value="dropbox">{{ $t('ui.dropbox') }} ({{ $t('ui.unimplemented') }})</option>
+                <option value="one-drive">{{ $t('ui.onedrive') }} ({{ $t('ui.unimplemented') }})</option>
+                <option value="subversion">{{ $t('ui.subversion') }} ({{ $t('ui.unimplemented') }})</option>
               </select>
             </label>
             <label>
@@ -408,6 +521,24 @@ function credentialKindLabel(kind: CredentialReferenceKind): string {
                 <option value="profile-store">{{ $t('ui.profileStore') }}</option>
               </select>
             </label>
+            <label>
+              <span>{{ $t('ui.username') }}</span>
+              <input
+                v-model="draft.username"
+                data-testid="remote-profile-username-input"
+                type="text"
+                autocomplete="username"
+              />
+            </label>
+            <label>
+              <span>{{ $t('ui.password') }}</span>
+              <input
+                v-model="draft.password"
+                data-testid="remote-profile-password-input"
+                type="password"
+                autocomplete="current-password"
+              />
+            </label>
             <label class="credential-key">
               <span>{{ $t('ui.credentialKey') }}</span>
               <input
@@ -417,6 +548,13 @@ function credentialKindLabel(kind: CredentialReferenceKind): string {
               />
             </label>
           </div>
+          <p class="secrets-hint">{{ $t('ui.secretsHint') }}</p>
+          <p
+            v-if="draft.uri"
+            data-testid="remote-profile-uri"
+          >
+            {{ draft.uri }}
+          </p>
 
           <p class="credential-summary">{{ credentialSummary }}</p>
           <p
@@ -603,7 +741,8 @@ button:hover:not(:disabled) {
 
 .profile-row small,
 .test-status,
-.credential-summary {
+.credential-summary,
+.secrets-hint {
   color: var(--app-text-muted);
   font-size: 12px;
 }

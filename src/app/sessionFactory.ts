@@ -22,6 +22,8 @@ const sessionTitleByType: Record<SessionType, string> = {
   'text-merge': 'Text Merge',
   'text-patch': 'Text Patch',
   'version-compare': 'Version Compare',
+  'archive-compare': 'Archive Compare',
+  script: 'Script',
 }
 
 export function createSessionFromLaunch(payload: SessionLaunchPayload): SessionDocument {

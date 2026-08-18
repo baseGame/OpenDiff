@@ -54,6 +54,87 @@ pub enum SyncDirection {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub enum SyncOverrideAction {
+    Leave,
+    CopyLeftToRight,
+    CopyRightToLeft,
+    Delete,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SyncActionOverride {
+    pub relative_path: String,
+    pub action: SyncOverrideAction,
+}
+
+pub fn apply_sync_overrides(
+    mut plan: SyncPlan,
+    left_root: impl AsRef<str>,
+    right_root: impl AsRef<str>,
+    overrides: &[SyncActionOverride],
+) -> SyncPlan {
+    let left_root = left_root.as_ref();
+    let right_root = right_root.as_ref();
+
+    for override_item in overrides {
+        if let Some(item) = plan
+            .items
+            .iter_mut()
+            .find(|item| item.relative_path == override_item.relative_path)
+        {
+            item.action = override_action(
+                left_root,
+                right_root,
+                &override_item.relative_path,
+                &override_item.action,
+            );
+            item.reason = format!("User override: {:?}", override_item.action);
+        }
+    }
+
+    plan
+}
+
+fn override_action(
+    left_root: &str,
+    right_root: &str,
+    relative_path: &str,
+    action: &SyncOverrideAction,
+) -> SyncAction {
+    match action {
+        SyncOverrideAction::Leave => SyncAction::Leave,
+        SyncOverrideAction::CopyLeftToRight => SyncAction::Copy {
+            direction: SyncDirection::LeftToRight,
+            source_path: join_sync_path(left_root, relative_path),
+            target_path: join_sync_path(right_root, relative_path),
+        },
+        SyncOverrideAction::CopyRightToLeft => SyncAction::Copy {
+            direction: SyncDirection::RightToLeft,
+            source_path: join_sync_path(right_root, relative_path),
+            target_path: join_sync_path(left_root, relative_path),
+        },
+        SyncOverrideAction::Delete => SyncAction::Delete {
+            target_path: join_sync_path(right_root, relative_path),
+        },
+    }
+}
+
+fn join_sync_path(root: &str, relative_path: &str) -> String {
+    if relative_path.is_empty() {
+        return root.to_owned();
+    }
+
+    format!(
+        "{}/{}",
+        root.trim_end_matches(['/', '\\']),
+        relative_path.trim_start_matches(['/', '\\'])
+    )
+    .replace('\\', "/")
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SyncExecutionResult {
     pub total: usize,
     pub succeeded: usize,
@@ -1188,6 +1269,48 @@ mod tests {
             result.structured_logs[0].details["targetPath"],
             "/right/good.txt"
         );
+    }
+
+    #[test]
+    fn apply_sync_overrides_changes_a_single_row_action() {
+        let mut plan = SyncPlan::new("Update Right");
+        plan.add_item(SyncPlanItem {
+            relative_path: "app.exe".to_owned(),
+            action: SyncAction::Copy {
+                direction: SyncDirection::LeftToRight,
+                source_path: "/left/app.exe".to_owned(),
+                target_path: "/right/app.exe".to_owned(),
+            },
+            reason: "copy".to_owned(),
+        });
+        plan.add_item(SyncPlanItem {
+            relative_path: "keep.txt".to_owned(),
+            action: SyncAction::Copy {
+                direction: SyncDirection::LeftToRight,
+                source_path: "/left/keep.txt".to_owned(),
+                target_path: "/right/keep.txt".to_owned(),
+            },
+            reason: "copy".to_owned(),
+        });
+
+        let plan = apply_sync_overrides(
+            plan,
+            "/left",
+            "/right",
+            &[SyncActionOverride {
+                relative_path: "app.exe".to_owned(),
+                action: SyncOverrideAction::Leave,
+            }],
+        );
+
+        assert_eq!(plan.items[0].action, SyncAction::Leave);
+        assert!(matches!(
+            plan.items[1].action,
+            SyncAction::Copy {
+                direction: SyncDirection::LeftToRight,
+                ..
+            }
+        ));
     }
 
     fn file_row(
