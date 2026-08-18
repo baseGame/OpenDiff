@@ -154,11 +154,18 @@ describe('FolderCompareView', () => {
 
   it('runs a real folder comparison request and renders returned rows', async () => {
     const wrapper = mountFolderCompareView()
+
     await runCompare(wrapper)
 
     expect(compareFolderPaths).toHaveBeenCalledWith({
       leftRoot: 'D:/left',
       rightRoot: 'D:/right',
+      criteria: {
+        compareSize: true,
+        compareModifiedTime: false,
+        compareContents: true,
+        compareCrc: false,
+      },
     })
     expect(wrapper.text()).toContain('main.ts')
     expect(wrapper.text()).toContain('Different')
@@ -166,6 +173,7 @@ describe('FolderCompareView', () => {
 
   it('opens a child text compare session for a selected file pair', async () => {
     const wrapper = mountFolderCompareView()
+
     await runCompare(wrapper)
     await wrapper.find('[data-row-id="src-main-ts"]').trigger('click')
     await wrapper.find('[data-testid="compare-to-selected-file"]').trigger('click')
@@ -183,6 +191,7 @@ describe('FolderCompareView', () => {
 
   it('moves the selected file through the Tauri command', async () => {
     const wrapper = mountFolderCompareView()
+
     await runCompare(wrapper)
     await wrapper.find('[data-row-id="notes-md"]').trigger('click')
     await wrapper.find('[data-testid="move-selected-file"]').trigger('click')
@@ -197,6 +206,7 @@ describe('FolderCompareView', () => {
 
   it('copies, renames, deletes, and touches selected files', async () => {
     const wrapper = mountFolderCompareView()
+
     await runCompare(wrapper)
 
     await wrapper.find('[data-row-id="src-main-ts"]').trigger('click')
@@ -227,6 +237,7 @@ describe('FolderCompareView', () => {
 
   it('exports a folder compare HTML report', async () => {
     const wrapper = mountFolderCompareView()
+
     await runCompare(wrapper)
     await wrapper.find('[data-testid="export-folder-html-report"]').trigger('click')
     await flushPromises()
@@ -242,6 +253,7 @@ describe('FolderCompareView', () => {
 
   it('loads a real sync preview instead of demo rows', async () => {
     const wrapper = mountFolderCompareView()
+
     await runCompare(wrapper)
     await wrapper.find('[data-testid="preview-sync-plan"]').trigger('click')
     await flushPromises()

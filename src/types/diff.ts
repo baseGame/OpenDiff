@@ -157,9 +157,17 @@ export interface TableCompareResponse {
   rightSheet?: string
 }
 
+export interface FolderCompareCriteria {
+  compareSize: boolean
+  compareModifiedTime: boolean
+  compareContents: boolean
+  compareCrc: boolean
+}
+
 export interface FolderCompareRequest {
   leftRoot: string
   rightRoot: string
+  criteria?: FolderCompareCriteria
 }
 
 export type FolderCompareStatus = 'Same' | 'Different' | 'Left only' | 'Right only'

@@ -620,7 +620,7 @@ export const jaJP: LanguagePack = {
     'session.summary.script': 'LOAD/COMPARE/REPORT スクリプトを実行',
     'ui.archiveCompare': 'アーカイブ比較',
     'ui.archivePathHint':
-      'フォルダー、ZIP/TAR アーカイブ、スナップショット JSON、または sftp://profile/id/path',
+      'フォルダー、ZIP/TAR アーカイブ、スナップショット JSON、または sftp://profile/id/path と webdav://profile/id/path',
     'ui.applyToFile': 'ファイルに適用',
     'ui.difftool': 'difftool',
     'ui.mergetool': 'mergetool',
@@ -637,9 +637,9 @@ export const jaJP: LanguagePack = {
     'ui.openInTextCompare': 'テキスト比較で開く',
     'ui.password': 'パスワード',
     'ui.remoteNotImplemented':
-      'SFTP と FTP は接続・一覧・転送できます。WebDAV、S3、Dropbox、OneDrive、SVN は未実装のままです。',
+      'SFTP、FTP、WebDAV は接続・一覧・転送できます。S3、Dropbox、OneDrive、SVN は未実装のままです。',
     'ui.remoteUriHint':
-      'ローカルパス、またはプロファイル保存後の sftp://profile/id/path を使います',
+      'ローカルパス、またはプロファイル保存後の sftp://profile/id/path や webdav://profile/id/path を使います',
     'ui.reportKind': 'Report kind',
     'ui.rightSheet': 'Right sheet',
     'ui.runScript': 'スクリプトを実行',
@@ -649,7 +649,7 @@ export const jaJP: LanguagePack = {
     'ui.scriptingNotImplemented':
       '完全な BC スクリプト言語は未実装です。対応コマンドは実行され、それ以外は unsupported を返します。',
     'ui.scriptingSupported':
-      '対応: LOAD、FILTER、COMPARE、REPORT、LOG、BEEP、OPTION、SELECT。その他の BC コマンドは unsupported を返します。',
+      '対応: LOAD、FILTER、COMPARE、REPORT、LOG、BEEP、OPTION、SELECT、COPY、COPYTO、DELETE、RENAME、TOUCH、SNAPSHOT、SYNC、TEXT-REPORT、FOLDER-REPORT。その他の BC コマンドは unsupported を返します。',
     'ui.secretsHint':
       'パスワードはローカル秘密ファイル（モード 0600）にのみ保存され、プロファイル一覧やログには書きません。',
     'ui.sourceFile': 'Source file',
@@ -664,12 +664,28 @@ export const jaJP: LanguagePack = {
     'ui.writeSvnConfig': 'SVN 設定を書き込む',
     'ui.xls': 'XLS',
     'ui.xlsx': 'XLSX',
+    'ui.followSystem': 'システムに合わせる',
+    'ui.compareBySize': 'サイズを比較',
+    'ui.compareByTimestamp': 'タイムスタンプを比較',
+    'ui.compareBinaryContents': 'バイナリ内容を比較',
+    'ui.compareCrc': 'CRC を比較',
+    'ui.folderCriteria': '比較条件',
+    'ui.windowsShell': 'Windows シェル',
+    'ui.registerShellExtension': 'シェル拡張を登録',
+    'ui.windowsOnly': 'Windows のみ',
+    'ui.shellExtensionHint':
+      '選択したファイルとフォルダーに対してエクスプローラーへ Open Diff を追加します。',
+    'ui.policyRemoteDisabled': '管理者ポリシーによりリモートプロファイルは無効です。',
+    'ui.policyPasswordsDisabled': '管理者ポリシーによりパスワードの保存は無効です。',
+    'status.shellRegistered': 'Windows シェル拡張を登録しました',
+    'status.shellScriptGenerated':
+      'Windows のみ。登録スクリプトは生成されましたが適用されていません。',
     'status.gitConfigWritten': 'Git {kind} 設定を書き込みました',
     'status.patchApplied': 'Patch applied',
     'status.patchWritten': 'パッチを {path} に書き込みました',
     'status.remoteConnected': '接続済み: {detail}',
     'status.remoteFailed': '接続に失敗しました: {detail}',
-    'status.remoteUnavailable': 'このプロトコルは未実装です。現在は SFTP と FTP のみ有効です',
+    'status.remoteUnavailable': 'このプロトコルは未実装です。現在は SFTP、FTP、WebDAV のみ有効です',
     'status.svnConfigWritten': 'SVN ラッパーとスニペットを書き込みました',
   },
 }

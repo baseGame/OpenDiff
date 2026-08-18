@@ -17,6 +17,12 @@ vi.mock('vue-router', () => ({
 vi.mock('@/api/integration', () => ({
   writeGitIntegration: vi.fn().mockResolvedValue('wrote git'),
   writeSvnIntegration: vi.fn().mockResolvedValue('wrote svn'),
+  registerWindowsShellExtension: vi.fn().mockResolvedValue({
+    windows: false,
+    applied: false,
+    script: '',
+    message: 'Windows only',
+  }),
 }))
 
 describe('SettingsView', () => {

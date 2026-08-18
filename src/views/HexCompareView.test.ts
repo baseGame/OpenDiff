@@ -65,6 +65,7 @@ describe('HexCompareView', () => {
 
   it('runs a hex comparison request and renders returned byte windows', async () => {
     const wrapper = mount(HexCompareView)
+
     await runCompare(wrapper)
 
     expect(compareHexFiles).toHaveBeenCalledWith({
@@ -79,6 +80,7 @@ describe('HexCompareView', () => {
 
   it('pages and jumps through chunked offsets', async () => {
     const wrapper = mount(HexCompareView)
+
     await runCompare(wrapper)
     await wrapper.find('[data-testid="hex-next-page"]').trigger('click')
     await wrapper.vm.$nextTick()
@@ -98,6 +100,7 @@ describe('HexCompareView', () => {
 
   it('finds bytes and saves queued edits', async () => {
     const wrapper = mount(HexCompareView)
+
     await runCompare(wrapper)
     await wrapper.find('[data-testid="hex-find-query"]').setValue('4142')
     await wrapper.find('[data-testid="hex-find"]').trigger('click')
@@ -149,6 +152,7 @@ describe('HexCompareView', () => {
 
   it('renders offset, hex and ascii panes after a real compare', async () => {
     const wrapper = mount(HexCompareView)
+
     await runCompare(wrapper)
 
     expect(wrapper.find('[data-testid="hex-offset-pane"]').exists()).toBe(true)
@@ -162,6 +166,7 @@ describe('HexCompareView', () => {
     const wrapper = mount(HexCompareView, {
       attachTo: document.body,
     })
+
     await runCompare(wrapper)
     const leftViewport = wrapper.find<HTMLElement>('[data-testid="left-hex-viewport"]')
     const rightViewport = wrapper.find<HTMLElement>('[data-testid="right-hex-viewport"]')
@@ -176,6 +181,7 @@ describe('HexCompareView', () => {
 
   it('shows only rows containing byte differences when diff-only mode is enabled', async () => {
     const wrapper = mount(HexCompareView)
+
     await runCompare(wrapper)
 
     await wrapper.find('[data-testid="hex-diff-only-toggle"]').setValue(true)

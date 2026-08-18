@@ -142,6 +142,7 @@ describe('diff api', () => {
     expect(invoke).toHaveBeenCalledWith('compare_folder_paths', {
       leftRoot: 'D:/left',
       rightRoot: 'D:/right',
+      criteria: undefined,
     })
     expect(result.rows[0]?.relativePath).toBe('src/main.ts')
   })

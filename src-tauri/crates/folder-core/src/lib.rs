@@ -50,6 +50,8 @@ pub struct FolderCompareOptions {
     pub compare_size: bool,
     pub compare_modified_time: bool,
     pub case_sensitive_names: bool,
+    pub compare_contents: bool,
+    pub compare_crc: bool,
 }
 
 impl Default for FolderCompareOptions {
@@ -58,6 +60,8 @@ impl Default for FolderCompareOptions {
             compare_size: true,
             compare_modified_time: false,
             case_sensitive_names: true,
+            compare_contents: true,
+            compare_crc: false,
         }
     }
 }
@@ -1256,6 +1260,8 @@ mod tests {
                     compare_size: true,
                     compare_modified_time: true,
                     case_sensitive_names: true,
+                    compare_contents: false,
+                    compare_crc: false,
                 },
             ),
             FolderCompareStatus::Different
@@ -1268,6 +1274,8 @@ mod tests {
                     compare_size: true,
                     compare_modified_time: false,
                     case_sensitive_names: true,
+                    compare_contents: false,
+                    compare_crc: false,
                 },
             ),
             FolderCompareStatus::Same
@@ -1304,6 +1312,8 @@ mod tests {
                 compare_size: true,
                 compare_modified_time: false,
                 case_sensitive_names: false,
+                compare_contents: false,
+                compare_crc: false,
             },
         );
         let sensitive = align_folder_trees_with_options(
@@ -1313,6 +1323,8 @@ mod tests {
                 compare_size: true,
                 compare_modified_time: false,
                 case_sensitive_names: true,
+                compare_contents: false,
+                compare_crc: false,
             },
         );
 

@@ -122,6 +122,7 @@ async function loadMerge(): Promise<void> {
       centerPath: centerPath.value || undefined,
       outputPath: outputPath.value || undefined,
     })
+
     leftText.value = result.leftText
     rightText.value = result.rightText
     centerText.value = result.centerText
@@ -150,6 +151,7 @@ function acceptConflict(source: MergeSource): void {
   const replacement = conflict[source]
   const lineIndex = Math.max(0, conflict.line - 1)
   const nextLines = [...outputLines.value]
+
   nextLines[lineIndex] = replacement
   outputLines.value = nextLines
   conflicts.value = conflicts.value.map((item) =>
@@ -188,11 +190,11 @@ function lineClass(line: string, paneId: MergePaneId): string {
     return 'marker'
   }
 
-  if (currentConflict.value && line === currentConflict.value.left) {
+  if (currentConflict.value?.left === line) {
     return 'conflict'
   }
 
-  if (currentConflict.value && line === currentConflict.value.right) {
+  if (currentConflict.value?.right === line) {
     return 'conflict'
   }
 

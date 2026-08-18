@@ -21,9 +21,7 @@ interface ReportJob {
 
 const lastCompare = useLastCompareStore()
 const { t } = useI18n()
-const reportKind = ref<ReportKind>(
-  lastCompare.text ? 'text' : lastCompare.folder ? 'folder' : 'text',
-)
+const reportKind = ref<ReportKind>(initialReportKind())
 const reportFormat = ref<ReportFormat>('html')
 const leftPath = ref(lastCompare.text?.leftSource ?? lastCompare.folder?.leftRoot ?? '')
 const rightPath = ref(lastCompare.text?.rightSource ?? lastCompare.folder?.rightRoot ?? '')
@@ -34,10 +32,24 @@ const jobs = ref<ReportJob[]>([])
 const running = ref(false)
 const error = ref('')
 const lastExport = ref('')
-const scriptSource = ref('load "${left}"\nload "${right}"\ncompare\ntext-report "${output}"\n')
+const scriptSource = ref(
+  'load "$' + '{left}"\nload "$' + '{right}"\ncompare\ntext-report "$' + '{output}"\n',
+)
 const scriptPath = ref('')
 const scriptResult = ref('')
 const scriptRunning = ref(false)
+
+function initialReportKind(): ReportKind {
+  if (lastCompare.text) {
+    return 'text'
+  }
+
+  if (lastCompare.folder) {
+    return 'folder'
+  }
+
+  return 'text'
+}
 
 const completedCount = computed(
   () => jobs.value.filter((job) => job.stateKey === 'ui.completed').length,
@@ -61,8 +73,8 @@ async function runExport(): Promise<void> {
             outputPath: target,
           })
         : await exportTextCompareReport({
-            left: leftText.value || lastCompare.text?.left || '',
-            right: rightText.value || lastCompare.text?.right || '',
+            left: leftText.value ? leftText.value : (lastCompare.text?.left ?? ''),
+            right: rightText.value ? rightText.value : (lastCompare.text?.right ?? ''),
             leftSource: leftPath.value || undefined,
             rightSource: rightPath.value || undefined,
             format: reportFormat.value,
@@ -112,10 +124,10 @@ async function runCurrentScript(): Promise<void> {
     })
 
     scriptResult.value = [
-      `executed=${response.executed}`,
-      `compared=${response.compared}`,
-      `different=${response.different}`,
-      `reports=${response.reportsWritten}`,
+      `executed=${String(response.executed)}`,
+      `compared=${String(response.compared)}`,
+      `different=${String(response.different)}`,
+      `reports=${String(response.reportsWritten)}`,
       ...response.logs,
     ].join('\n')
     jobs.value = [

@@ -48,7 +48,7 @@ type ParseForESLint = (
   source: string,
   options: {
     ecmaVersion: string
-    parser: unknown
+    parser?: unknown
     sourceType: string
   },
 ) => VueTemplateParseResult

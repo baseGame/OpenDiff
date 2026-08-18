@@ -33,7 +33,7 @@ export interface RemoteEntry {
 }
 
 export function isImplementedRemoteProtocol(protocol: RemoteProtocol): boolean {
-  return protocol === 'sftp' || protocol === 'ftp'
+  return protocol === 'sftp' || protocol === 'ftp' || protocol === 'web-dav'
 }
 
 export function formatRemoteUri(
@@ -41,7 +41,13 @@ export function formatRemoteUri(
   profileRef: string,
   remotePath = '/',
 ): string {
-  const scheme = protocol === 'web-dav' ? 'webdav' : protocol === 'subversion' ? 'svn' : protocol
+  let scheme: string = protocol
+
+  if (protocol === 'web-dav') {
+    scheme = 'webdav'
+  } else if (protocol === 'subversion') {
+    scheme = 'svn'
+  }
   const normalized = remotePath.startsWith('/') ? remotePath : `/${remotePath}`
 
   return `${scheme}://profile/${profileRef}${normalized}`

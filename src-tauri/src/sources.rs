@@ -189,7 +189,6 @@ fn parent_archive_path(path: &str) -> String {
     let trimmed = path.trim_end_matches('/');
     match trimmed.rsplit_once('/') {
         Some(("", _)) | None => "/".to_owned(),
-        Some((parent, _)) if parent.is_empty() => "/".to_owned(),
         Some((parent, _)) => parent.to_owned(),
     }
 }

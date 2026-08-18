@@ -1,6 +1,7 @@
 mod network;
 mod persist;
 mod uri;
+mod webdav;
 
 pub use network::{
     open_network_provider, protocol_is_implemented, test_network_connection,
@@ -8,6 +9,7 @@ pub use network::{
 };
 pub use persist::{default_profile, ProfileStoreError, RemoteProfileStore};
 pub use uri::{format_remote_uri, is_remote_uri, parse_remote_uri, RemoteUri};
+pub use webdav::WebDavNetworkProvider;
 
 use logging_core::{LogDomain, LogStatus, StructuredLogEvent};
 use serde::{Deserialize, Serialize};
@@ -297,6 +299,13 @@ pub trait RemoteFileProvider {
     fn delete(&mut self, path: &str) -> RemoteProviderResult<()>;
 
     fn rename(&mut self, from: &str, to: &str) -> RemoteProviderResult<()>;
+
+    fn mkdir(&mut self, path: &str) -> RemoteProviderResult<()> {
+        let _ = path;
+        Err(RemoteProviderError::Backend(
+            "mkdir is not supported for this provider".to_owned(),
+        ))
+    }
 }
 
 #[derive(Debug, Clone)]

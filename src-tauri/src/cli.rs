@@ -2,8 +2,9 @@ use cli_core::{
     automerge_text_files, build_git_difftool_config, build_git_mergetool_config,
     build_svn_diff_config, cli_exit_code_contract, cli_exit_code_value, compare_folders,
     compare_text_files, open_named_session, parse_cli_args, write_git_tool_config,
-    write_svn_diff_config, CliCommand,
+    write_svn_diff_config, CliCommand, CliExitCode,
 };
+use shell_core::{ShellCompareOutcome, ShellCompareSessionType, ShellCompareStateStore};
 
 fn main() {
     let invocation = match parse_cli_args(std::env::args()) {
@@ -49,7 +50,51 @@ fn main() {
             std::process::exit(cli_exit_code_value(result.exit_code));
         }
         CliCommand::ShellCompare { path } => {
-            println!("shell compare path: {path}");
+            let store = ShellCompareStateStore::new(shell_compare_state_path());
+            match store.select_path(&path) {
+                Ok(ShellCompareOutcome::PendingLeft { left }) => {
+                    println!("shell compare pending left: {left}");
+                }
+                Ok(ShellCompareOutcome::Ready(action)) => match action.session_type {
+                    ShellCompareSessionType::Folder => {
+                        let result = match compare_folders(&action.left, &action.right) {
+                            Ok(result) => result,
+                            Err(error) => {
+                                eprintln!("{}", error.message);
+                                std::process::exit(cli_exit_code_value(error.exit_code));
+                            }
+                        };
+                        println!(
+                            "total: {}, same: {}, different: {}, left-only: {}, right-only: {}, error: {}",
+                            result.total,
+                            result.same,
+                            result.different,
+                            result.left_only,
+                            result.right_only,
+                            result.error
+                        );
+                        std::process::exit(cli_exit_code_value(result.exit_code));
+                    }
+                    ShellCompareSessionType::Text | ShellCompareSessionType::Hex => {
+                        let result = match compare_text_files(&action.left, &action.right) {
+                            Ok(result) => result,
+                            Err(error) => {
+                                eprintln!("{}", error.message);
+                                std::process::exit(cli_exit_code_value(error.exit_code));
+                            }
+                        };
+                        println!(
+                            "added: {}, deleted: {}, modified: {}",
+                            result.added, result.deleted, result.modified
+                        );
+                        std::process::exit(cli_exit_code_value(result.exit_code));
+                    }
+                },
+                Err(error) => {
+                    eprintln!("{error:?}");
+                    std::process::exit(cli_exit_code_value(CliExitCode::UsageError));
+                }
+            }
         }
         CliCommand::GitDifftoolConfig {
             executable_path,
@@ -255,4 +300,19 @@ fn main() {
     }
 
     std::process::exit(cli_exit_code_value(invocation.exit_code));
+}
+
+fn shell_compare_state_path() -> std::path::PathBuf {
+    if let Ok(path) = std::env::var("OPEN_DIFF_CONFIG_DIR") {
+        return std::path::PathBuf::from(path).join("shell-compare-pending");
+    }
+
+    let home = std::env::var("HOME")
+        .or_else(|_| std::env::var("USERPROFILE"))
+        .unwrap_or_else(|_| std::env::temp_dir().display().to_string());
+
+    std::path::PathBuf::from(home)
+        .join(".config")
+        .join("open-diff")
+        .join("shell-compare-pending")
 }

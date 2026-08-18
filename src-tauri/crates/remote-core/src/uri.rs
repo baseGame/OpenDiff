@@ -127,4 +127,18 @@ mod tests {
             "sftp://profile/prod-sftp/var/app"
         );
     }
+
+    #[test]
+    fn parses_and_formats_webdav_profile_uris() {
+        let uri = parse_remote_uri("webdav://profile/team-webdav/shared/docs").unwrap();
+
+        assert_eq!(uri.protocol, RemoteProtocol::WebDav);
+        assert_eq!(uri.profile_ref, "team-webdav");
+        assert_eq!(uri.remote_path, "/shared/docs");
+        assert_eq!(
+            format_remote_uri(RemoteProtocol::WebDav, "team-webdav", "/shared/docs"),
+            "webdav://profile/team-webdav/shared/docs"
+        );
+        assert!(is_remote_uri("dav://profile/team-webdav/"));
+    }
 }

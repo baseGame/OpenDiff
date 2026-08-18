@@ -1,6 +1,8 @@
 import { flushPromises, mount } from '@vue/test-utils'
+import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import RemoteProfileView from './RemoteProfileView.vue'
+import type * as remoteApi from '@/api/remote'
 import {
   deleteRemoteProfile,
   listRemoteProfiles,
@@ -8,8 +10,8 @@ import {
   testRemoteProfile,
 } from '@/api/remote'
 
-vi.mock('@/api/remote', async () => {
-  const actual = await vi.importActual<typeof import('@/api/remote')>('@/api/remote')
+vi.mock('@/api/remote', async (importOriginal) => {
+  const actual = await importOriginal<typeof remoteApi>()
 
   return {
     ...actual,
@@ -24,6 +26,7 @@ vi.mock('@/api/remote', async () => {
 
 describe('RemoteProfileView', () => {
   beforeEach(() => {
+    setActivePinia(createPinia())
     vi.mocked(listRemoteProfiles).mockClear()
     vi.mocked(saveRemoteProfile).mockClear()
     vi.mocked(deleteRemoteProfile).mockClear()
@@ -31,7 +34,9 @@ describe('RemoteProfileView', () => {
   })
 
   it('renders built-in remote profiles without plaintext credentials', () => {
-    const wrapper = mount(RemoteProfileView)
+    const wrapper = mount(RemoteProfileView, {
+      global: { plugins: [createPinia()] },
+    })
 
     expect(wrapper.find('[data-testid="remote-unavailable-notice"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('Remote Profiles')
@@ -47,7 +52,9 @@ describe('RemoteProfileView', () => {
   })
 
   it('selects and edits a remote profile', async () => {
-    const wrapper = mount(RemoteProfileView)
+    const wrapper = mount(RemoteProfileView, {
+      global: { plugins: [createPinia()] },
+    })
 
     await wrapper.find('[data-testid="select-remote-profile-team-webdav"]').trigger('click')
     await wrapper.find('[data-testid="remote-profile-name-input"]').setValue('Team WebDAV Primary')
@@ -63,7 +70,9 @@ describe('RemoteProfileView', () => {
       'dav2.example.com',
     )
     expect(wrapper.find('[data-testid="remote-profile-summary"]').text()).toContain('/shared/v2')
-    expect(wrapper.find('[data-testid="test-remote-profile"]').attributes('disabled')).toBeDefined()
+    expect(
+      wrapper.find('[data-testid="test-remote-profile"]').attributes('disabled'),
+    ).toBeUndefined()
   })
 
   it('creates, tests, and deletes a real FTP profile', async () => {
@@ -84,7 +93,9 @@ describe('RemoteProfileView', () => {
     )
     vi.mocked(deleteRemoteProfile).mockResolvedValue([])
 
-    const wrapper = mount(RemoteProfileView)
+    const wrapper = mount(RemoteProfileView, {
+      global: { plugins: [createPinia()] },
+    })
 
     await wrapper.find('[data-testid="new-remote-profile"]').trigger('click')
     await wrapper.find('[data-testid="remote-profile-name-input"]').setValue('Release FTP')

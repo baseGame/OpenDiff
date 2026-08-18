@@ -122,6 +122,7 @@ async function applyPatchToTargetFile(): Promise<void> {
 
   if (!source) {
     error.value = t('ui.sourceFile')
+
     return
   }
 
@@ -136,6 +137,7 @@ async function applyPatchToTargetFile(): Promise<void> {
       patch: patchInput.value,
       outputPath,
     })
+
     patchedText.value = response.text
     applyStatus.value = t('status.patchWritten', { path: outputPath })
   } catch (event) {
@@ -191,6 +193,7 @@ async function applyCurrentPatch(): Promise<void> {
       source: sourceText.value,
       patch: patchInput.value,
     })
+
     patchedText.value = response.text
     applyStatus.value = t('status.patchApplied')
   } catch (event) {

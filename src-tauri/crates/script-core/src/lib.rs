@@ -27,6 +27,13 @@ pub enum ScriptCommandKind {
     Beep,
     Option { key: String, value: String },
     Select { query: String },
+    Copy { source: String, destination: String },
+    CopyTo { destination: String },
+    Delete { path: String },
+    Rename { from: String, to: String },
+    Touch { path: String },
+    Snapshot { output: String },
+    Sync { strategy: Option<String> },
     Unsupported { name: String },
 }
 
@@ -88,6 +95,7 @@ pub struct ScriptRuntimeState {
     pub beeps: usize,
     pub options: Vec<ScriptOption>,
     pub selection: Option<String>,
+    pub file_operations: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -390,11 +398,133 @@ where
                     })?,
                 );
             }
+            ScriptCommandKind::Copy {
+                source,
+                destination,
+            } => {
+                let source =
+                    expand_script_variables(source, &execution.variables).map_err(|error| {
+                        execution_error(
+                            command,
+                            format!("{} at line {}", error.message, error.line),
+                        )
+                    })?;
+                let destination = expand_script_variables(destination, &execution.variables)
+                    .map_err(|error| {
+                        execution_error(
+                            command,
+                            format!("{} at line {}", error.message, error.line),
+                        )
+                    })?;
+                copy_path_recursive(
+                    std::path::Path::new(&source),
+                    std::path::Path::new(&destination),
+                )
+                .map_err(|reason| execution_error(command, reason))?;
+                state
+                    .file_operations
+                    .push(format!("COPY {source} {destination}"));
+            }
+            ScriptCommandKind::CopyTo { destination } => {
+                let destination = expand_script_variables(destination, &execution.variables)
+                    .map_err(|error| {
+                        execution_error(
+                            command,
+                            format!("{} at line {}", error.message, error.line),
+                        )
+                    })?;
+                let source = state
+                    .selection
+                    .clone()
+                    .or_else(|| state.load_paths.first().cloned())
+                    .ok_or_else(|| {
+                        execution_error(command, "COPYTO requires SELECT or LOAD first")
+                    })?;
+                copy_path_recursive(
+                    std::path::Path::new(&source),
+                    std::path::Path::new(&destination),
+                )
+                .map_err(|reason| execution_error(command, reason))?;
+                state
+                    .file_operations
+                    .push(format!("COPYTO {source} {destination}"));
+            }
+            ScriptCommandKind::Delete { path } => {
+                let path =
+                    expand_script_variables(path, &execution.variables).map_err(|error| {
+                        execution_error(
+                            command,
+                            format!("{} at line {}", error.message, error.line),
+                        )
+                    })?;
+                delete_path(&path).map_err(|reason| execution_error(command, reason))?;
+                state.file_operations.push(format!("DELETE {path}"));
+            }
+            ScriptCommandKind::Rename { from, to } => {
+                let from =
+                    expand_script_variables(from, &execution.variables).map_err(|error| {
+                        execution_error(
+                            command,
+                            format!("{} at line {}", error.message, error.line),
+                        )
+                    })?;
+                let to = expand_script_variables(to, &execution.variables).map_err(|error| {
+                    execution_error(command, format!("{} at line {}", error.message, error.line))
+                })?;
+                std::fs::rename(&from, &to)
+                    .map_err(|error| execution_error(command, error.to_string()))?;
+                state.file_operations.push(format!("RENAME {from} {to}"));
+            }
+            ScriptCommandKind::Touch { path } => {
+                let path =
+                    expand_script_variables(path, &execution.variables).map_err(|error| {
+                        execution_error(
+                            command,
+                            format!("{} at line {}", error.message, error.line),
+                        )
+                    })?;
+                touch_path(&path).map_err(|reason| execution_error(command, reason))?;
+                state.file_operations.push(format!("TOUCH {path}"));
+            }
+            ScriptCommandKind::Snapshot { output } => {
+                let output =
+                    expand_script_variables(output, &execution.variables).map_err(|error| {
+                        execution_error(
+                            command,
+                            format!("{} at line {}", error.message, error.line),
+                        )
+                    })?;
+                let source = state
+                    .load_paths
+                    .first()
+                    .cloned()
+                    .ok_or_else(|| execution_error(command, "SNAPSHOT requires LOAD first"))?;
+                let snapshot = snapshot_core::scan_directory_snapshot("script-snapshot", &source)
+                    .map_err(|error| execution_error(command, format!("{error:?}")))?;
+                snapshot_core::save_snapshot_file(&output, &snapshot)
+                    .map_err(|error| execution_error(command, format!("{error:?}")))?;
+                state.file_operations.push(format!("SNAPSHOT {output}"));
+            }
+            ScriptCommandKind::Sync { strategy } => {
+                if state.load_paths.len() < 2 {
+                    return Err(execution_error(command, "SYNC requires two LOAD paths"));
+                }
+                let strategy = strategy
+                    .as_deref()
+                    .or_else(|| {
+                        state
+                            .options
+                            .iter()
+                            .find(|option| option.key.eq_ignore_ascii_case("sync-strategy"))
+                            .map(|option| option.value.as_str())
+                    })
+                    .unwrap_or("updateRight");
+                run_script_sync(&state.load_paths[0], &state.load_paths[1], strategy)
+                    .map_err(|reason| execution_error(command, reason))?;
+                state.file_operations.push(format!("SYNC {strategy}"));
+            }
             ScriptCommandKind::Unsupported { name } => {
-                return Err(execution_error(
-                    command,
-                    format!("{name} is unsupported"),
-                ));
+                return Err(execution_error(command, format!("{name} is unsupported")));
             }
         }
 
@@ -555,6 +685,13 @@ impl ScriptCommandKind {
             ScriptCommandKind::Beep => "BEEP",
             ScriptCommandKind::Option { .. } => "OPTION",
             ScriptCommandKind::Select { .. } => "SELECT",
+            ScriptCommandKind::Copy { .. } => "COPY",
+            ScriptCommandKind::CopyTo { .. } => "COPYTO",
+            ScriptCommandKind::Delete { .. } => "DELETE",
+            ScriptCommandKind::Rename { .. } => "RENAME",
+            ScriptCommandKind::Touch { .. } => "TOUCH",
+            ScriptCommandKind::Snapshot { .. } => "SNAPSHOT",
+            ScriptCommandKind::Sync { .. } => "SYNC",
             ScriptCommandKind::Unsupported { .. } => "UNSUPPORTED",
         }
     }
@@ -779,33 +916,139 @@ fn parse_command(
         "SELECT" => {
             parse_single_output_command(line, args, |query| ScriptCommandKind::Select { query })
         }
+        "COPY" => {
+            if args.len() != 2 {
+                return Err(parse_error(line, "COPY requires source and destination"));
+            }
+
+            Ok(ScriptCommandKind::Copy {
+                source: args[0].clone(),
+                destination: args[1].clone(),
+            })
+        }
+        "COPYTO" => parse_single_output_command(line, args, |destination| {
+            ScriptCommandKind::CopyTo { destination }
+        }),
+        "DELETE" => {
+            parse_single_output_command(line, args, |path| ScriptCommandKind::Delete { path })
+        }
+        "RENAME" => {
+            if args.len() != 2 {
+                return Err(parse_error(line, "RENAME requires source and destination"));
+            }
+
+            Ok(ScriptCommandKind::Rename {
+                from: args[0].clone(),
+                to: args[1].clone(),
+            })
+        }
+        "TOUCH" => {
+            parse_single_output_command(line, args, |path| ScriptCommandKind::Touch { path })
+        }
+        "SNAPSHOT" => {
+            parse_single_output_command(line, args, |output| ScriptCommandKind::Snapshot { output })
+        }
+        "SYNC" => {
+            if args.len() > 1 {
+                return Err(parse_error(line, "SYNC accepts at most one strategy"));
+            }
+
+            Ok(ScriptCommandKind::Sync {
+                strategy: args.first().cloned(),
+            })
+        }
         unsupported if is_unsupported_script_command(unsupported) => {
             Ok(ScriptCommandKind::Unsupported {
                 name: unsupported.to_owned(),
             })
         }
-        unknown => Err(parse_error(
-            line,
-            format!("unsupported command: {unknown}"),
-        )),
+        unknown => Err(parse_error(line, format!("unsupported command: {unknown}"))),
     }
 }
 
 fn is_unsupported_script_command(command: &str) -> bool {
     matches!(
         command,
-        "ATTRIB"
-            | "COPY"
-            | "COPYTO"
-            | "DELETE"
-            | "EXPAND"
-            | "FILE-REPORT"
-            | "HEX-REPORT"
-            | "MOVE"
-            | "SNAPSHOT"
-            | "SYNC"
-            | "TOUCH"
+        "ATTRIB" | "EXPAND" | "FILE-REPORT" | "HEX-REPORT" | "MEDIA-REPORT" | "MOVE" | "MOVETO"
     )
+}
+
+fn copy_path_recursive(source: &std::path::Path, target: &std::path::Path) -> Result<(), String> {
+    if source.is_dir() {
+        std::fs::create_dir_all(target).map_err(|error| error.to_string())?;
+        for entry in std::fs::read_dir(source).map_err(|error| error.to_string())? {
+            let entry = entry.map_err(|error| error.to_string())?;
+            copy_path_recursive(&entry.path(), &target.join(entry.file_name()))?;
+        }
+        return Ok(());
+    }
+
+    if let Some(parent) = target.parent() {
+        std::fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+    }
+
+    std::fs::copy(source, target)
+        .map(|_| ())
+        .map_err(|error| error.to_string())
+}
+
+fn delete_path(path: &str) -> Result<(), String> {
+    let path = std::path::Path::new(path);
+    if path.is_dir() {
+        std::fs::remove_dir_all(path).map_err(|error| error.to_string())
+    } else {
+        std::fs::remove_file(path).map_err(|error| error.to_string())
+    }
+}
+
+fn touch_path(path: &str) -> Result<(), String> {
+    let path = std::path::Path::new(path);
+    if !path.exists() {
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+        }
+        std::fs::write(path, []).map_err(|error| error.to_string())?;
+    }
+
+    let now = std::time::SystemTime::now();
+    let file = std::fs::OpenOptions::new()
+        .write(true)
+        .open(path)
+        .map_err(|error| error.to_string())?;
+    file.set_modified(now).map_err(|error| error.to_string())
+}
+
+fn run_script_sync(left: &str, right: &str, strategy: &str) -> Result<(), String> {
+    let cancellation = job_core::CancellationToken::default();
+    let left_tree = folder_core::scan_local_folder(left, &cancellation)
+        .map_err(|error| format!("{error:?}"))?;
+    let right_tree = folder_core::scan_local_folder(right, &cancellation)
+        .map_err(|error| format!("{error:?}"))?;
+    let rows = folder_core::align_folder_trees(&left_tree, &right_tree);
+    let plan = match strategy {
+        "updateLeft" => sync_core::build_update_left_plan(left, right, &rows),
+        "updateBoth" => sync_core::build_update_both_plan(left, right, &rows),
+        "mirrorRight" => sync_core::build_mirror_to_right_plan(left, right, &rows),
+        "mirrorLeft" => sync_core::build_mirror_to_left_plan(left, right, &rows),
+        _ => sync_core::build_update_right_plan(left, right, &rows),
+    };
+
+    for item in plan.items {
+        match item.action {
+            sync_core::SyncAction::Copy {
+                source_path,
+                target_path,
+                ..
+            } => copy_path_recursive(
+                std::path::Path::new(&source_path),
+                std::path::Path::new(&target_path),
+            )?,
+            sync_core::SyncAction::Delete { target_path } => delete_path(&target_path)?,
+            sync_core::SyncAction::Leave | sync_core::SyncAction::Conflict { .. } => {}
+        }
+    }
+
+    Ok(())
 }
 
 fn parse_single_output_command(
@@ -946,7 +1189,8 @@ mod tests {
             }
         }
 
-        let script = parse_script("LOAD left right\nCOPYTO dest").expect("known missing command parses");
+        let script =
+            parse_script("LOAD left right\nMOVETO dest").expect("known missing command parses");
         let error = execute_automation_script(
             &script,
             ScriptExecutionContext::default(),
@@ -956,7 +1200,7 @@ mod tests {
         .expect_err("unsupported command should fail at runtime");
 
         assert_eq!(error.command, "UNSUPPORTED");
-        assert!(error.reason.contains("COPYTO"));
+        assert!(error.reason.contains("MOVETO"));
         assert!(error.reason.contains("unsupported"));
     }
 
@@ -1082,6 +1326,7 @@ mod tests {
                 beeps: 0,
                 options: Vec::new(),
                 selection: None,
+                file_operations: Vec::new(),
             }
         );
         assert_eq!(
@@ -1486,6 +1731,49 @@ mod tests {
         let content = std::fs::read_to_string(&report).expect("report should exist");
         assert!(content.contains("compared: 2"));
         assert!(content.contains("different: 1"));
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn copies_a_file_and_writes_a_folder_report() {
+        let root = unique_temp_dir("script-copy-report");
+        let left = root.join("left");
+        let right = root.join("right");
+        let dest = root.join("copied.txt");
+        let report = root.join("folder-report.txt");
+        std::fs::create_dir_all(&left).expect("left dir");
+        std::fs::create_dir_all(&right).expect("right dir");
+        std::fs::write(left.join("notes.txt"), "alpha").expect("left file");
+        std::fs::write(right.join("notes.txt"), "beta").expect("right file");
+
+        let result = run_script_source(
+            &format!(
+                "LOAD \"{}\" \"{}\"\nCOPY \"{}\" \"{}\"\nCOMPARE\nFOLDER-REPORT \"{}\"\n",
+                left.display(),
+                right.display(),
+                left.join("notes.txt").display(),
+                dest.display(),
+                report.display()
+            ),
+            ScriptExecutionContext::default(),
+        )
+        .expect("script should run");
+
+        assert_eq!(
+            result.state.file_operations,
+            vec![format!(
+                "COPY {} {}",
+                left.join("notes.txt").display(),
+                dest.display()
+            )]
+        );
+        assert_eq!(
+            std::fs::read_to_string(&dest).expect("copied file"),
+            "alpha"
+        );
+        assert_eq!(result.state.reports_written, 1);
+        let content = std::fs::read_to_string(&report).expect("report should exist");
+        assert!(content.contains("FOLDER-REPORT"));
         let _ = std::fs::remove_dir_all(root);
     }
 

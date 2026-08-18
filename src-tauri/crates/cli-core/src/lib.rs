@@ -307,11 +307,28 @@ pub fn open_named_session(
         id: session.id,
         name: session.name,
         session_type: session_type_label(&session.session_type).to_owned(),
-        left: session.locations.left.as_ref().map(|location| location.uri.clone()),
-        right: session.locations.right.as_ref().map(|location| location.uri.clone()),
-        center: session.locations.center.as_ref().map(|location| location.uri.clone()),
-        output: session.locations.output.as_ref().map(|location| location.uri.clone()),
-        note: "Desktop handoff is not available from this CLI; open the session file in the app.".to_owned(),
+        left: session
+            .locations
+            .left
+            .as_ref()
+            .map(|location| location.uri.clone()),
+        right: session
+            .locations
+            .right
+            .as_ref()
+            .map(|location| location.uri.clone()),
+        center: session
+            .locations
+            .center
+            .as_ref()
+            .map(|location| location.uri.clone()),
+        output: session
+            .locations
+            .output
+            .as_ref()
+            .map(|location| location.uri.clone()),
+        note: "Desktop handoff is not available from this CLI; open the session file in the app."
+            .to_owned(),
     })
 }
 
@@ -489,7 +506,10 @@ fn rewrite_git_config_command_to_file(command: &str, file: &Path) -> String {
         .replacen("--local", &format!("--file {}", file.display()), 1)
 }
 
-pub fn write_svn_diff_config(config: &SvnDiffConfigDocument, wrapper_path: &str) -> Result<String, CliRuntimeError> {
+pub fn write_svn_diff_config(
+    config: &SvnDiffConfigDocument,
+    wrapper_path: &str,
+) -> Result<String, CliRuntimeError> {
     let wrapper = Path::new(wrapper_path);
     if let Some(parent) = wrapper.parent() {
         std::fs::create_dir_all(parent).map_err(|error| CliRuntimeError {

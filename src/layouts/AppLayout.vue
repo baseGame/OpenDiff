@@ -36,6 +36,7 @@ import { commandRegistry, filterCommands } from '@/app/commandRegistry'
 import { createCommandExecutor, getCommandsForPlacement } from '@/app/commandSystem'
 import { sessionCatalog } from '@/app/sessionCatalog'
 import { useI18n } from '@/i18n'
+import { usePolicyStore } from '@/stores/policy'
 import { useSettingsStore } from '@/stores/settings'
 import { useStatusBarStore } from '@/stores/statusBar'
 import { useSavedSessionsStore } from '@/stores/savedSessions'
@@ -68,6 +69,7 @@ const router = useRouter()
 const i18n = useI18n()
 const { t } = i18n
 const settings = useSettingsStore()
+const policy = usePolicyStore()
 const statusBar = useStatusBarStore()
 const tabs = useTabsStore()
 const savedSessions = useSavedSessionsStore()
@@ -413,7 +415,7 @@ const sourceSessionTypes = new Set<SessionType>([
           @click="executeCommand('theme.toggle')"
         >
           <Sun
-            v-if="settings.theme === 'dark'"
+            v-if="settings.resolvedTheme === 'dark'"
             :size="15"
           />
           <Moon
@@ -528,6 +530,7 @@ const sourceSessionTypes = new Set<SessionType>([
             <b>{{ item.count }}</b>
           </button>
           <button
+            v-if="policy.remoteProfiles"
             class="nav-item"
             type="button"
             :class="{ active: route.path === '/settings/remote-profiles' }"

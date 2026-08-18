@@ -11,6 +11,7 @@ import type {
 import { useSessionLaunchStore } from '@/stores/sessionLaunch'
 
 const versionStatuses: VersionFieldStatus[] = ['added', 'removed', 'modified', 'unchanged']
+
 type VersionFieldFilter = 'all' | 'diffs' | 'same'
 
 const emptyVersionSide: VersionSideSummary = {
@@ -103,9 +104,11 @@ function runVersionToolbarCommand(commandId: string): void {
 
   if (commandId === 'swap') {
     const nextLeftPath = rightPath.value
+
     rightPath.value = leftPath.value
     leftPath.value = nextLeftPath
     const nextLeft = rightVersion.value
+
     rightVersion.value = leftVersion.value
     leftVersion.value = nextLeft
 

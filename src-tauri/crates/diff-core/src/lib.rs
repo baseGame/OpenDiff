@@ -129,7 +129,11 @@ pub fn apply_text_patch(
 
     let mut lines = split_patch_source(source);
     let mut applied_hunks = 0;
-    let line_ending = if source.contains("\r\n") { "\r\n" } else { "\n" };
+    let line_ending = if source.contains("\r\n") {
+        "\r\n"
+    } else {
+        "\n"
+    };
 
     for file in &parsed.files {
         for hunk in &file.hunks {

@@ -334,6 +334,38 @@ pub struct FolderCompareResponse {
     pub summary: FolderCompareSummary,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct FolderCompareCriteria {
+    pub compare_size: bool,
+    pub compare_modified_time: bool,
+    pub compare_contents: bool,
+    pub compare_crc: bool,
+}
+
+impl Default for FolderCompareCriteria {
+    fn default() -> Self {
+        Self {
+            compare_size: true,
+            compare_modified_time: false,
+            compare_contents: true,
+            compare_crc: false,
+        }
+    }
+}
+
+impl FolderCompareCriteria {
+    fn to_options(&self) -> folder_core::FolderCompareOptions {
+        folder_core::FolderCompareOptions {
+            compare_size: self.compare_size,
+            compare_modified_time: self.compare_modified_time,
+            case_sensitive_names: true,
+            compare_contents: self.compare_contents,
+            compare_crc: self.compare_crc,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct FolderCompareRow {
@@ -538,6 +570,7 @@ pub fn compare_table_csv(
 }
 
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub fn compare_table(
     left: String,
     right: String,
@@ -692,7 +725,10 @@ pub fn compare_table(
 pub fn compare_folder_paths(
     left_root: String,
     right_root: String,
+    criteria: Option<FolderCompareCriteria>,
 ) -> Result<FolderCompareResponse, AppErrorPayload> {
+    let criteria = criteria.unwrap_or_default();
+    let options = criteria.to_options();
     let left_source = crate::sources::load_compare_source(&left_root)
         .map_err(|error| compare_source_error(&left_root, error))?;
     let right_source = crate::sources::load_compare_source(&right_root)
@@ -701,10 +737,20 @@ pub fn compare_folder_paths(
         .map_err(|error| compare_source_error(&left_root, error))?;
     let right_tree = crate::sources::scan_compare_source(&right_source)
         .map_err(|error| compare_source_error(&right_root, error))?;
-    let alignment_rows = folder_core::align_folder_trees(&left_tree, &right_tree);
+    let alignment_rows =
+        folder_core::align_folder_trees_with_options(&left_tree, &right_tree, &options);
     let rows = alignment_rows
         .iter()
-        .map(|row| folder_compare_row(row, &left_source, &right_source, &left_root, &right_root))
+        .map(|row| {
+            folder_compare_row(
+                row,
+                &left_source,
+                &right_source,
+                &left_root,
+                &right_root,
+                &criteria,
+            )
+        })
         .collect::<Result<Vec<_>, _>>()?;
     let mut summary = FolderCompareSummary {
         total: rows.len(),
@@ -1100,6 +1146,7 @@ pub fn move_folder_entry(
 }
 
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub fn export_text_compare_report(
     left: String,
     right: String,
@@ -1381,9 +1428,7 @@ pub struct RemoteProfileView {
 #[tauri::command]
 pub fn list_remote_profiles() -> Result<Vec<RemoteProfileView>, AppErrorPayload> {
     let store = remote_core::RemoteProfileStore::new(crate::sources::default_config_dir());
-    let profiles = store
-        .load_profiles()
-        .map_err(|error| profile_store_error(error))?;
+    let profiles = store.load_profiles().map_err(profile_store_error)?;
     Ok(profiles
         .into_iter()
         .map(|profile| remote_profile_view(&store, profile))
@@ -1429,19 +1474,27 @@ pub fn save_remote_profile(
     if let Some(port) = draft.port {
         profile.endpoint.port = Some(port);
     }
-    store
-        .upsert_profile(profile)
-        .map_err(|error| profile_store_error(error))?;
+    let policy = policy_core::load_effective_policy(crate::sources::default_config_dir());
+    if !policy.allows(policy_core::PolicyCapability::RemoteProfiles) {
+        return Err(AppErrorPayload::new(
+            AppErrorCode::Unknown,
+            "error.app.unknown.title",
+            "remote profiles are disabled by administrator policy".to_owned(),
+        ));
+    }
+    store.upsert_profile(profile).map_err(profile_store_error)?;
     if let Some(password) = draft.password.filter(|value| !value.is_empty()) {
-        store
-            .save_secret(&profile_id, draft.username.as_deref(), &password)
-            .map_err(|error| profile_store_error(error))?;
+        if policy.allows(policy_core::PolicyCapability::SavePasswords) {
+            store
+                .save_secret(&profile_id, draft.username.as_deref(), &password)
+                .map_err(profile_store_error)?;
+        }
     } else if let Some(username) = draft.username.filter(|value| !value.is_empty()) {
         if let Ok(Some(existing)) = store.load_secret(&profile_id) {
             if let remote_core::RemoteCredentialMaterial::Password(secret) = existing.material {
                 store
                     .save_secret(&profile_id, Some(&username), secret.expose_secret())
-                    .map_err(|error| profile_store_error(error))?;
+                    .map_err(profile_store_error)?;
             }
         }
     }
@@ -1451,9 +1504,7 @@ pub fn save_remote_profile(
 #[tauri::command]
 pub fn delete_remote_profile(id: String) -> Result<Vec<RemoteProfileView>, AppErrorPayload> {
     let store = remote_core::RemoteProfileStore::new(crate::sources::default_config_dir());
-    store
-        .delete_profile(&id)
-        .map_err(|error| profile_store_error(error))?;
+    store.delete_profile(&id).map_err(profile_store_error)?;
     list_remote_profiles()
 }
 
@@ -1462,7 +1513,7 @@ pub fn test_remote_profile(id: String) -> Result<String, AppErrorPayload> {
     let store = remote_core::RemoteProfileStore::new(crate::sources::default_config_dir());
     let profile = store
         .find_profile(&id)
-        .map_err(|error| profile_store_error(error))?
+        .map_err(profile_store_error)?
         .ok_or_else(|| {
             AppErrorPayload::new(
                 AppErrorCode::Unknown,
@@ -1479,7 +1530,7 @@ pub fn test_remote_profile(id: String) -> Result<String, AppErrorPayload> {
     }
     let credential = store
         .load_secret(&profile.id)
-        .map_err(|error| profile_store_error(error))?
+        .map_err(profile_store_error)?
         .ok_or_else(|| {
             AppErrorPayload::new(
                 AppErrorCode::Unknown,
@@ -1504,7 +1555,7 @@ pub fn list_remote_path(
     let store = remote_core::RemoteProfileStore::new(crate::sources::default_config_dir());
     let profile = store
         .find_profile(&profile_id)
-        .map_err(|error| profile_store_error(error))?
+        .map_err(profile_store_error)?
         .ok_or_else(|| {
             AppErrorPayload::new(
                 AppErrorCode::Unknown,
@@ -1514,7 +1565,7 @@ pub fn list_remote_path(
         })?;
     let credential = store
         .load_secret(&profile.id)
-        .map_err(|error| profile_store_error(error))?
+        .map_err(profile_store_error)?
         .ok_or_else(|| {
             AppErrorPayload::new(
                 AppErrorCode::Unknown,
@@ -1593,6 +1644,136 @@ pub fn write_svn_integration(
 }
 
 #[tauri::command]
+pub fn load_admin_policy() -> policy_core::PolicyFlags {
+    policy_core::load_effective_policy(crate::sources::default_config_dir()).flags()
+}
+
+#[tauri::command]
+pub fn app_runtime_info() -> AppRuntimeInfo {
+    AppRuntimeInfo {
+        os: std::env::consts::OS.to_owned(),
+        family: std::env::consts::FAMILY.to_owned(),
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct AppRuntimeInfo {
+    pub os: String,
+    pub family: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ShellRegistrationResult {
+    pub windows: bool,
+    pub applied: bool,
+    pub script: String,
+    pub message: String,
+}
+
+#[tauri::command]
+pub fn register_windows_shell_extension(
+    executable_path: Option<String>,
+) -> Result<ShellRegistrationResult, AppErrorPayload> {
+    let executable = executable_path.unwrap_or_else(|| {
+        std::env::current_exe()
+            .map(|path| path.display().to_string())
+            .unwrap_or_else(|_| "open-diff".to_owned())
+    });
+    let config = shell_core::WindowsShellExtensionConfig::new("Open Diff", executable);
+    let script = shell_core::WindowsShellExtensionScriptBuilder::new(config).registration_script();
+
+    #[cfg(windows)]
+    {
+        let temp = std::env::temp_dir().join("open-diff-register-shell.ps1");
+        fs::write(&temp, &script).map_err(|error| {
+            AppErrorPayload::new(
+                AppErrorCode::Unknown,
+                "error.app.unknown.title",
+                error.to_string(),
+            )
+        })?;
+        let output = std::process::Command::new("powershell")
+            .args([
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                &temp.display().to_string(),
+            ])
+            .output()
+            .map_err(|error| {
+                AppErrorPayload::new(
+                    AppErrorCode::Unknown,
+                    "error.app.unknown.title",
+                    error.to_string(),
+                )
+            })?;
+        if !output.status.success() {
+            return Err(AppErrorPayload::new(
+                AppErrorCode::Unknown,
+                "error.app.unknown.title",
+                String::from_utf8_lossy(&output.stderr).into_owned(),
+            ));
+        }
+
+        return Ok(ShellRegistrationResult {
+            windows: true,
+            applied: true,
+            script,
+            message: "Windows shell extension registered".to_owned(),
+        });
+    }
+
+    #[cfg(not(windows))]
+    {
+        Ok(ShellRegistrationResult {
+            windows: false,
+            applied: false,
+            script,
+            message: "Windows only. Registration script generated but not applied.".to_owned(),
+        })
+    }
+}
+
+#[tauri::command]
+pub fn query_live_windows_registry(key: String) -> Result<String, AppErrorPayload> {
+    #[cfg(windows)]
+    {
+        let output = std::process::Command::new("reg")
+            .args(["query", &key])
+            .output()
+            .map_err(|error| {
+                AppErrorPayload::new(
+                    AppErrorCode::Unknown,
+                    "error.app.unknown.title",
+                    error.to_string(),
+                )
+            })?;
+        if !output.status.success() {
+            return Err(AppErrorPayload::new(
+                AppErrorCode::Unknown,
+                "error.app.unknown.title",
+                String::from_utf8_lossy(&output.stderr).into_owned(),
+            ));
+        }
+
+        return Ok(String::from_utf8_lossy(&output.stdout).into_owned());
+    }
+
+    #[cfg(not(windows))]
+    {
+        let _ = key;
+        Err(AppErrorPayload::new(
+            AppErrorCode::Unknown,
+            "error.app.unknown.title",
+            "Live registry query is available on Windows only".to_owned(),
+        ))
+    }
+}
+
+#[tauri::command]
 pub fn create_folder_snapshot(
     source_root: String,
     output_path: String,
@@ -1630,11 +1811,11 @@ fn remote_profile_view(
         .and_then(|credential| credential.username);
     RemoteProfileView {
         uri: remote_core::format_remote_uri(
-            profile.protocol.clone(),
+            profile.protocol,
             &profile.id,
             profile.endpoint.root_path.as_deref().unwrap_or("/"),
         ),
-        implemented: remote_core::protocol_is_implemented(profile.protocol.clone()),
+        implemented: remote_core::protocol_is_implemented(profile.protocol),
         id: profile.id,
         name: profile.name,
         protocol: profile.protocol,
@@ -1945,8 +2126,16 @@ fn folder_compare_row(
     right_source: &crate::sources::CompareSource,
     left_root: &str,
     right_root: &str,
+    criteria: &FolderCompareCriteria,
 ) -> Result<FolderCompareRow, AppErrorPayload> {
-    let status = folder_row_status(row, left_source, right_source, left_root, right_root)?;
+    let status = folder_row_status(
+        row,
+        left_source,
+        right_source,
+        left_root,
+        right_root,
+        criteria,
+    )?;
 
     Ok(FolderCompareRow {
         relative_path: row.relative_path.clone(),
@@ -1969,11 +2158,20 @@ fn folder_row_status(
     right_source: &crate::sources::CompareSource,
     left_root: &str,
     right_root: &str,
+    criteria: &FolderCompareCriteria,
 ) -> Result<FolderCompareStatus, AppErrorPayload> {
-    let metadata_status =
-        folder_core::classify_folder_alignment(row.left.as_ref(), row.right.as_ref());
+    let options = criteria.to_options();
+    let metadata_status = folder_core::classify_folder_alignment_with_options(
+        row.left.as_ref(),
+        row.right.as_ref(),
+        &options,
+    );
 
     if metadata_status != FolderCompareStatus::Same || !row_is_file_pair(row) {
+        return Ok(metadata_status);
+    }
+
+    if !criteria.compare_contents && !criteria.compare_crc {
         return Ok(metadata_status);
     }
 
@@ -1982,11 +2180,28 @@ fn folder_row_status(
     let right_bytes = crate::sources::read_compare_file(right_source, &row.relative_path)
         .map_err(|error| compare_source_error(right_root, error))?;
 
-    Ok(
-        folder_core::compare_binary_streams(&left_bytes[..], &right_bytes[..], 8192)
-            .map_err(|error| file_io_error(left_root, error))?
-            .status,
-    )
+    if criteria.compare_crc {
+        let status = folder_core::classify_folder_alignment_with_crc32(
+            row.left.as_ref(),
+            row.right.as_ref(),
+            &options,
+            Some(folder_core::calculate_crc32(&left_bytes)),
+            Some(folder_core::calculate_crc32(&right_bytes)),
+        );
+        if status != FolderCompareStatus::Same || !criteria.compare_contents {
+            return Ok(status);
+        }
+    }
+
+    if criteria.compare_contents {
+        return Ok(
+            folder_core::compare_binary_streams(&left_bytes[..], &right_bytes[..], 8192)
+                .map_err(|error| file_io_error(left_root, error))?
+                .status,
+        );
+    }
+
+    Ok(metadata_status)
 }
 
 fn row_is_file_pair(row: &FolderAlignmentRow) -> bool {
@@ -3795,9 +4010,12 @@ mod tests {
         fs::write(left.join("README.md"), "same").expect("left readme should be writable");
         fs::write(right.join("README.md"), "same").expect("right readme should be writable");
 
-        let response =
-            compare_folder_paths(left.display().to_string(), right.display().to_string())
-                .expect("valid folders should compare");
+        let response = compare_folder_paths(
+            left.display().to_string(),
+            right.display().to_string(),
+            None,
+        )
+        .expect("valid folders should compare");
 
         assert_eq!(response.left_root, left.display().to_string());
         assert_eq!(response.right_root, right.display().to_string());
@@ -3807,6 +4025,65 @@ mod tests {
             .rows
             .iter()
             .any(|row| row.relative_path == "src/main.ts" && row.status == "Different"));
+    }
+
+    #[test]
+    fn compare_folder_paths_uses_visible_criteria_instead_of_hidden_defaults() {
+        let root = unique_temp_dir("folder-criteria");
+        let left = root.join("left");
+        let right = root.join("right");
+        fs::create_dir_all(&left).expect("left");
+        fs::create_dir_all(&right).expect("right");
+        fs::write(left.join("same-size.bin"), b"aaaa").expect("left file");
+        fs::write(right.join("same-size.bin"), b"bbbb").expect("right file");
+
+        let size_only = compare_folder_paths(
+            left.display().to_string(),
+            right.display().to_string(),
+            Some(FolderCompareCriteria {
+                compare_size: true,
+                compare_modified_time: false,
+                compare_contents: false,
+                compare_crc: false,
+            }),
+        )
+        .expect("size-only compare");
+        let contents = compare_folder_paths(
+            left.display().to_string(),
+            right.display().to_string(),
+            Some(FolderCompareCriteria {
+                compare_size: true,
+                compare_modified_time: false,
+                compare_contents: true,
+                compare_crc: false,
+            }),
+        )
+        .expect("contents compare");
+        let crc = compare_folder_paths(
+            left.display().to_string(),
+            right.display().to_string(),
+            Some(FolderCompareCriteria {
+                compare_size: false,
+                compare_modified_time: false,
+                compare_contents: false,
+                compare_crc: true,
+            }),
+        )
+        .expect("crc compare");
+
+        assert!(size_only
+            .rows
+            .iter()
+            .any(|row| row.relative_path == "same-size.bin" && row.status == "Same"));
+        assert!(contents
+            .rows
+            .iter()
+            .any(|row| row.relative_path == "same-size.bin" && row.status == "Different"));
+        assert!(crc
+            .rows
+            .iter()
+            .any(|row| row.relative_path == "same-size.bin" && row.status == "Different"));
+        let _ = fs::remove_dir_all(root);
     }
 
     #[test]
@@ -4435,9 +4712,12 @@ mod tests {
         fs::write(&left, archive_core::write_zip_bytes(&left_doc).unwrap()).unwrap();
         fs::write(&right, archive_core::write_zip_bytes(&right_doc).unwrap()).unwrap();
 
-        let response =
-            compare_folder_paths(left.display().to_string(), right.display().to_string())
-                .expect("zip archives should compare as folders");
+        let response = compare_folder_paths(
+            left.display().to_string(),
+            right.display().to_string(),
+            None,
+        )
+        .expect("zip archives should compare as folders");
 
         assert!(response
             .rows

@@ -1,12 +1,18 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { darkTheme, lightTheme, type GlobalThemeOverrides } from 'naive-ui'
 import AppLayout from '@/layouts/AppLayout.vue'
+import { usePolicyStore } from '@/stores/policy'
 import { useSettingsStore } from '@/stores/settings'
 
 const settings = useSettingsStore()
+const policy = usePolicyStore()
 
-const naiveTheme = computed(() => (settings.theme === 'dark' ? darkTheme : lightTheme))
+const naiveTheme = computed(() => (settings.resolvedTheme === 'dark' ? darkTheme : lightTheme))
+
+onMounted(() => {
+  void policy.load()
+})
 
 const themeOverrides: GlobalThemeOverrides = {
   common: {

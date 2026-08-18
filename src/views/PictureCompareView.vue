@@ -45,9 +45,11 @@ const leftImageSrc = computed(() => (compared.value ? localFileSrc(leftPath.valu
 const rightImageSrc = computed(() => (compared.value ? localFileSrc(rightPath.value) : ''))
 const overlayStyle = computed(() => {
   const rect = pictureStatistics.value.boundingRect
+
   if (!rect) {
     return {}
   }
+
   return {
     left: `${String(rect.x)}px`,
     top: `${String(rect.y)}px`,

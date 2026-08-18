@@ -4,32 +4,16 @@ import { diffText, exportTextCompareReport, readTextFile } from '@/api/diff'
 import { useStatusBarStore } from '@/stores/statusBar'
 import { useLastCompareStore } from '@/stores/lastCompare'
 import { useSessionLaunchStore } from '@/stores/sessionLaunch'
-import type { TextDiffAlgorithm, TextDiffResponse } from '@/types/diff'
+import type { TextDiffAlgorithm, TextDiffRequest, TextDiffResponse } from '@/types/diff'
 import TextDiffPanel from '@/components/diff/TextDiffPanel.vue'
 import WorkbenchShell from '@/components/workbench/WorkbenchShell.vue'
 import WorkbenchToolbar from '@/components/workbench/WorkbenchToolbar.vue'
 import WorkbenchInspector from '@/components/workbench/WorkbenchInspector.vue'
 import StatusSummaryGrid from '@/components/workbench/StatusSummaryGrid.vue'
 import { useI18n } from '@/i18n'
+import { grammarForPath } from '@/app/syntaxGrammars'
 
 type DiffLine = TextDiffResponse['lines'][number]
-
-const builtInSyntaxGrammar = {
-  items: [
-    {
-      id: 'line-comment',
-      kind: 'comment',
-      matcher: { type: 'linePrefix' as const, value: '//' },
-      styleScope: 'comment.line',
-    },
-    {
-      id: 'keyword',
-      kind: 'keyword',
-      matcher: { type: 'keywords' as const, values: ['fn', 'let', 'const', 'function'] },
-      styleScope: 'keyword.control',
-    },
-  ],
-}
 
 const left = ref('')
 const right = ref('')
@@ -196,6 +180,7 @@ onMounted(() => {
 
   if (launch.autoRun && launch.locations.left?.uri && launch.locations.right?.uri) {
     void loadLaunchTextFiles(launch.locations.left.uri, launch.locations.right.uri)
+
     return
   }
 
@@ -223,7 +208,7 @@ function detectLineEnding(value: string): string {
   return 'None'
 }
 
-function buildDiffRequest() {
+function buildDiffRequest(): TextDiffRequest {
   return {
     left: left.value,
     right: right.value,
@@ -294,6 +279,7 @@ function swapPaths(): void {
   const nextLeft = right.value
   const nextRight = left.value
   const nextLeftPath = rightPathLabel.value
+
   left.value = nextLeft
   right.value = nextRight
   rightPathLabel.value = leftPathLabel.value
@@ -311,6 +297,7 @@ async function exportCurrentReport(format: 'html' | 'text' | 'json'): Promise<vo
     rightSource: rightPathLabel.value || undefined,
     outputPath,
   })
+
   reportStatus.value = response.outputPath ?? outputPath
 }
 
@@ -935,7 +922,7 @@ function toggleSourceEditors(): void {
       <TextDiffPanel
         v-if="result"
         :lines="result.lines"
-        :grammar="builtInSyntaxGrammar"
+        :grammar="grammarForPath(leftPathLabel || rightPathLabel)"
       />
       <div
         v-else

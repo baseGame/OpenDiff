@@ -23,6 +23,7 @@ import {
   touchFolderEntry,
 } from '@/api/diff'
 import type {
+  FolderCompareCriteria,
   FolderCompareResponse,
   FolderCompareRow as FolderCompareResponseRow,
   FolderCompareSideEntry,
@@ -100,6 +101,12 @@ const rows = ref<FolderTreeRow[]>([])
 const expandedDirectoryIds = ref<Set<string>>(new Set())
 const leftRoot = ref('')
 const rightRoot = ref('')
+const folderCriteria = ref<FolderCompareCriteria>({
+  compareSize: true,
+  compareModifiedTime: false,
+  compareContents: true,
+  compareCrc: false,
+})
 const sessionLaunch = useSessionLaunchStore()
 const lastCompare = useLastCompareStore()
 const router = useRouter()
@@ -364,6 +371,7 @@ async function runFolderCompare(): Promise<void> {
     const response = await compareFolderPaths({
       leftRoot: leftRoot.value,
       rightRoot: rightRoot.value,
+      criteria: { ...folderCriteria.value },
     })
 
     applyFolderCompareResponse(response)
@@ -689,6 +697,7 @@ async function moveSelectedFile(): Promise<void> {
   }
 
   const targetPath = archivePath(path)
+
   await moveFolderEntry({ sourcePath: path, targetPath })
   lastFileOperationAction.value = `${t('ui.move')} -> ${targetPath}`
   await runFolderCompare()
@@ -762,6 +771,7 @@ function excludeSelectedRow(): void {
 async function refreshSelectedRow(): Promise<void> {
   await runFolderCompare()
   const row = selectedRow.value
+
   lastSelectionAction.value = row
     ? t('status.refreshedPath', { path: displayName(row) })
     : t('ui.refresh')
@@ -770,6 +780,7 @@ async function refreshSelectedRow(): Promise<void> {
 async function previewSyncPlan(): Promise<void> {
   if (!leftRoot.value || !rightRoot.value) {
     syncPreviewItems.value = []
+
     return
   }
 
@@ -778,6 +789,7 @@ async function previewSyncPlan(): Promise<void> {
     rightRoot: rightRoot.value,
     strategy: 'updateRight',
   })
+
   syncPreviewItems.value = preview.rows.map((row) => ({
     id: row.id,
     action: mapSyncPreviewAction(row.action),
@@ -799,6 +811,7 @@ function mapSyncPreviewAction(action: string): SyncPreviewAction {
   if (action === 'Error' || action === 'Conflict') {
     return 'Error'
   }
+
   return action === 'Overwrite' ? 'Overwrite' : 'Copy'
 }
 
@@ -813,6 +826,7 @@ async function exportFolderReport(format: 'html' | 'text'): Promise<void> {
     format,
     outputPath: `${leftRoot.value}/folder-compare.${format === 'text' ? 'txt' : 'html'}`,
   })
+
   reportStatus.value = response.outputPath ?? format
 }
 
@@ -947,6 +961,44 @@ function handleTreeScroll(event: Event): void {
           >
             {{ $t('ui.archivePathHint') }}
           </p>
+          <fieldset
+            class="folder-criteria"
+            data-testid="folder-criteria"
+          >
+            <legend>{{ $t('ui.folderCriteria') }}</legend>
+            <label>
+              <input
+                v-model="folderCriteria.compareSize"
+                data-testid="folder-criteria-size"
+                type="checkbox"
+              />
+              <span>{{ $t('ui.compareBySize') }}</span>
+            </label>
+            <label>
+              <input
+                v-model="folderCriteria.compareModifiedTime"
+                data-testid="folder-criteria-timestamp"
+                type="checkbox"
+              />
+              <span>{{ $t('ui.compareByTimestamp') }}</span>
+            </label>
+            <label>
+              <input
+                v-model="folderCriteria.compareContents"
+                data-testid="folder-criteria-contents"
+                type="checkbox"
+              />
+              <span>{{ $t('ui.compareBinaryContents') }}</span>
+            </label>
+            <label>
+              <input
+                v-model="folderCriteria.compareCrc"
+                data-testid="folder-criteria-crc"
+                type="checkbox"
+              />
+              <span>{{ $t('ui.compareCrc') }}</span>
+            </label>
+          </fieldset>
         </div>
         <div class="folder-actions">
           <NButton
@@ -1689,6 +1741,31 @@ function handleTreeScroll(event: Event): void {
   margin: 0;
   color: var(--app-text-muted);
   font-size: 12px;
+}
+
+.folder-criteria {
+  display: flex;
+  grid-column: 1 / -1;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  color: var(--app-text-muted);
+  font-size: 12px;
+}
+
+.folder-criteria legend {
+  padding: 0;
+  color: var(--app-text);
+  font-weight: 600;
+}
+
+.folder-criteria label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .path-pair input {
