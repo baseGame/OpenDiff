@@ -20,10 +20,7 @@ test('home catalog lists implemented sessions and opens text compare', async ({ 
   await page.goto('/')
   await expect(page.getByTestId('home-new-session')).toBeVisible()
   await assertNoDemoContent(page)
-  await page
-    .locator('[data-session-type="text-compare"]')
-    .getByRole('button', { name: 'Open' })
-    .click()
+  await page.locator('[data-session-type="text-compare"]').click()
   await expect(page.getByTestId('run-diff')).toBeVisible()
 })
 

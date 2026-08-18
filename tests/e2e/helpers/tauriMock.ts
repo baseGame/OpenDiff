@@ -142,10 +142,53 @@ export async function installTauriInvokeMock(page: Page): Promise<void> {
           })
         }
 
-        if (command === 'compare_media_files' || command === 'compare_version_files') {
+        if (command === 'compare_media_files') {
           return Promise.resolve({
+            left: {
+              name: 'left.mp3',
+              container: 'MP3',
+              duration: '00:00.000',
+              stream: {
+                codec: 'MP3',
+                sampleRate: 'Unknown',
+                channels: 'Unknown',
+                bitrate: 'Unknown',
+              },
+            },
+            right: {
+              name: 'right.mp3',
+              container: 'MP3',
+              duration: '00:00.000',
+              stream: {
+                codec: 'MP3',
+                sampleRate: 'Unknown',
+                channels: 'Unknown',
+                bitrate: 'Unknown',
+              },
+            },
             fields: [],
-            summary: { added: 0, deleted: 0, modified: 0, same: 0, unchanged: 0 },
+            summary: { added: 0, removed: 0, modified: 0, unchanged: 0 },
+          })
+        }
+
+        if (command === 'compare_version_files') {
+          return Promise.resolve({
+            left: {
+              name: 'left.exe',
+              fileType: 'Application',
+              targetOs: 'Windows 32-bit',
+              fileVersion: '1.0.0.0',
+              productVersion: '1.0.0.0',
+            },
+            right: {
+              name: 'right.exe',
+              fileType: 'Application',
+              targetOs: 'Windows 32-bit',
+              fileVersion: '1.0.0.1',
+              productVersion: '1.0.0.0',
+            },
+            fields: [],
+            summary: { added: 0, removed: 0, modified: 0, unchanged: 0 },
           })
         }
 
