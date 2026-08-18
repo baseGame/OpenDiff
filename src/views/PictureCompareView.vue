@@ -118,14 +118,6 @@ function metadataLabel(row: PictureMetadataRow): string {
   return row.label.startsWith('ui.') ? t(row.label) : row.label
 }
 
-function buildPreviewColor(side: 'Left' | 'Right', x: number, y: number): string {
-  const red = side === 'Left' ? 28 : 225
-  const green = Math.min(255, Math.max(0, 128 + Math.round(x / 4)))
-  const blue = Math.min(255, Math.max(0, 90 + Math.round(y / 4)))
-
-  return `rgb(${String(red)}, ${String(green)}, ${String(blue)})`
-}
-
 function updatePixelPreview(side: 'Left' | 'Right', event: MouseEvent): void {
   const x = Math.max(0, Math.round(event.offsetX || event.clientX))
   const y = Math.max(0, Math.round(event.offsetY || event.clientY))
@@ -134,7 +126,7 @@ function updatePixelPreview(side: 'Left' | 'Right', event: MouseEvent): void {
     side,
     x,
     y,
-    color: buildPreviewColor(side, x, y),
+    color: 'rgb(--, --, --)',
   }
 }
 
@@ -378,7 +370,7 @@ async function runPictureCompare(): Promise<void> {
                 data-testid="left-picture-img"
               />
               <span
-                v-if="showOverlay"
+                v-if="showOverlay && pictureStatistics.boundingRect"
                 class="picture-diff-overlay"
                 data-testid="picture-diff-overlay"
               >
@@ -415,12 +407,12 @@ async function runPictureCompare(): Promise<void> {
                 data-testid="right-picture-img"
               />
               <span
-                v-if="showOverlay"
+                v-if="showOverlay && pictureStatistics.boundingRect"
                 class="picture-diff-overlay"
                 data-testid="picture-diff-overlay"
               >
                 <span
-                  class="picture-diff-region shifted-region"
+                  class="picture-diff-region"
                   :style="overlayStyle"
                   data-testid="picture-diff-region"
                 ></span>
@@ -905,21 +897,12 @@ h2 {
 
 .picture-diff-region {
   position: absolute;
-  right: 15%;
-  bottom: 18%;
-  width: 24%;
-  height: 24%;
   border: 2px solid rgb(255 255 255 / 0.9);
   border-radius: 6px;
   background: rgb(217 70 70 / 0.34);
   box-shadow:
     0 0 0 1px rgb(127 29 29 / 0.5),
     0 0 22px rgb(217 70 70 / 0.42);
-}
-
-.shifted-region {
-  right: 9%;
-  bottom: 22%;
 }
 
 @media (width <= 860px) {

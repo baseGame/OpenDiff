@@ -4524,6 +4524,256 @@ mod tests {
         assert!(response.succeeded >= 1);
     }
 
+    #[test]
+    fn diff_text_command_forwards_ignore_whitespace_case_line_endings_and_regex() {
+        let ignored = diff_text(
+            "Alpha  one\r\nstamp=123\n".to_owned(),
+            "alpha one\nstamp=999\n".to_owned(),
+            None,
+            Some(true),
+            Some(true),
+            Some(true),
+            Some(vec!["stamp=\\d+".to_owned()]),
+        );
+
+        assert_eq!(ignored.stats.added, 0);
+        assert_eq!(ignored.stats.deleted, 0);
+        assert_eq!(ignored.stats.modified, 0);
+
+        let compared = diff_text(
+            "Alpha  one\r\nstamp=123\n".to_owned(),
+            "alpha one\nstamp=999\n".to_owned(),
+            None,
+            Some(false),
+            Some(false),
+            Some(false),
+            None,
+        );
+
+        assert!(compared.stats.modified >= 1 || compared.stats.added >= 1);
+    }
+
+    #[test]
+    fn compare_picture_files_forwards_rgb_tolerance() {
+        let root = unique_temp_dir("picture-tolerance-command");
+        fs::create_dir_all(&root).expect("fixture directory should be created");
+        let left = root.join("left.png");
+        let right = root.join("right.png");
+
+        fs::write(&left, fixture_png(&[[255, 0, 0, 255], [0, 128, 255, 255]]))
+            .expect("left fixture should be writable");
+        fs::write(&right, fixture_png(&[[250, 0, 0, 255], [0, 128, 255, 255]]))
+            .expect("right fixture should be writable");
+
+        let strict = compare_picture_files(
+            left.display().to_string(),
+            right.display().to_string(),
+            Some(0),
+            Some(true),
+            None,
+            None,
+        )
+        .expect("strict compare should run");
+        let tolerant = compare_picture_files(
+            left.display().to_string(),
+            right.display().to_string(),
+            Some(10),
+            Some(true),
+            None,
+            None,
+        )
+        .expect("tolerant compare should run");
+
+        assert_eq!(strict.statistics.different_pixels, 1);
+        assert_eq!(tolerant.statistics.different_pixels, 0);
+    }
+
+    #[test]
+    fn compare_table_supports_html_tables() {
+        let left =
+            "<table><tr><th>id</th><th>name</th></tr><tr><td>1</td><td>alpha</td></tr></table>";
+        let right =
+            "<table><tr><th>id</th><th>name</th></tr><tr><td>1</td><td>beta</td></tr></table>";
+
+        let response = compare_table(
+            left.to_owned(),
+            right.to_owned(),
+            Some("html".to_owned()),
+            None,
+            None,
+            None,
+            None,
+            Some(vec![0]),
+            None,
+            None,
+            None,
+        )
+        .expect("html tables should compare");
+
+        assert_eq!(response.summary.changed_cell_count, 1);
+        assert_eq!(
+            response.changed_cells[0].left_value.as_deref(),
+            Some("alpha")
+        );
+        assert_eq!(
+            response.changed_cells[0].right_value.as_deref(),
+            Some("beta")
+        );
+    }
+
+    #[test]
+    fn compare_table_reads_excel_workbooks_from_path() {
+        let root = unique_temp_dir("excel-command");
+        fs::create_dir_all(&root).expect("fixture directory should be created");
+        let left = root.join("left.xlsx");
+        let right = root.join("right.xlsx");
+        write_excel_fixture(&left, "1", "alpha");
+        write_excel_fixture(&right, "1", "beta");
+
+        let response = compare_table(
+            String::new(),
+            String::new(),
+            Some("xlsx".to_owned()),
+            Some(left.display().to_string()),
+            Some(right.display().to_string()),
+            None,
+            None,
+            Some(vec![0]),
+            None,
+            None,
+            None,
+        )
+        .expect("excel workbooks should compare");
+
+        assert_eq!(response.left_sheet, "Sheet1");
+        assert_eq!(response.summary.changed_cell_count, 1);
+        assert_eq!(
+            response.changed_cells[0].left_value.as_deref(),
+            Some("alpha")
+        );
+        assert_eq!(
+            response.changed_cells[0].right_value.as_deref(),
+            Some("beta")
+        );
+    }
+
+    #[test]
+    fn compare_hex_files_honors_offset_and_length() {
+        let root = unique_temp_dir("hex-offset-command");
+        fs::create_dir_all(&root).expect("fixture directory should be created");
+        let left = root.join("left.bin");
+        let right = root.join("right.bin");
+        fs::write(&left, b"XXABCD").expect("left fixture should be writable");
+        fs::write(&right, b"XXAXCD").expect("right fixture should be writable");
+
+        let response = compare_hex_files(
+            left.display().to_string(),
+            right.display().to_string(),
+            Some(2),
+            Some(4),
+        )
+        .expect("offset window should compare");
+
+        assert_eq!(response.left.cells[0].offset, 2);
+        assert_eq!(response.left.cells[0].hex, "41");
+        assert_eq!(response.left.cells.len(), 4);
+        assert_eq!(response.summary.different_ranges, 1);
+        assert!(response.left.cells.iter().all(|cell| cell.hex != "58"));
+    }
+
+    #[test]
+    fn merge_text_files_automerge_favor_left_resolves_conflicts() {
+        let root = unique_temp_dir("merge-automerge-command");
+        fs::create_dir_all(&root).expect("fixture directory should be created");
+        let base = root.join("base.txt");
+        let left = root.join("left.txt");
+        let right = root.join("right.txt");
+        fs::write(&base, "one\ntwo\nthree").expect("base should be writable");
+        fs::write(&left, "one\nleft change\nthree").expect("left should be writable");
+        fs::write(&right, "one\nright change\nthree").expect("right should be writable");
+
+        let response = merge_text_files(
+            left.display().to_string(),
+            right.display().to_string(),
+            Some(base.display().to_string()),
+            None,
+            Some("favorLeft".to_owned()),
+        )
+        .expect("favor-left merge should run");
+
+        assert!(response.conflicts.is_empty());
+        assert_eq!(response.output_text, "one\nleft change\nthree");
+    }
+
+    #[test]
+    fn create_folder_snapshot_scans_a_real_temp_dir() {
+        let root = unique_temp_dir("snapshot-command");
+        fs::create_dir_all(root.join("src")).expect("fixture directory should be created");
+        fs::write(root.join("src").join("main.rs"), "fn main() {}")
+            .expect("file should be writable");
+        let output = root.join("tree.snapshot.json");
+
+        let written = create_folder_snapshot(
+            root.display().to_string(),
+            output.display().to_string(),
+            Some("workspace".to_owned()),
+        )
+        .expect("snapshot should write");
+
+        let bytes = fs::read_to_string(&output).expect("snapshot file should exist");
+        assert_eq!(written, output.display().to_string());
+        assert!(bytes.contains("workspace"));
+        assert!(bytes.contains("main.rs"));
+        assert!(!bytes.contains("generated-"));
+    }
+
+    #[test]
+    fn compare_registry_exports_rejects_live_hive_text_that_is_not_a_reg_file() {
+        let error = compare_registry_exports(
+            "HKLM\\Software\\OpenDiff".to_owned(),
+            "HKCU\\Software\\OpenDiff".to_owned(),
+            Some("left-hive".to_owned()),
+            Some("right-hive".to_owned()),
+        )
+        .expect_err("live hive paths should not parse as .reg exports");
+
+        assert!(
+            error.debug_message.to_ascii_lowercase().contains("reg")
+                || error.message_key.contains("registry")
+                || error.message_key.contains("unknown")
+        );
+    }
+
+    #[test]
+    fn list_archive_rejects_7z_and_hex_tab_zip_payloads() {
+        let root = unique_temp_dir("archive-reject-command");
+        fs::create_dir_all(&root).expect("fixture directory should be created");
+        let seven = root.join("pkg.7z");
+        let hex_zip = root.join("fake.zip");
+        fs::write(&seven, b"7z payload").expect("7z fixture should be writable");
+        fs::write(&hex_zip, b"/docs/readme.md\t6e6577\n").expect("hex zip should be writable");
+
+        let seven_error =
+            list_archive(seven.display().to_string()).expect_err("7z should stay unimplemented");
+        let hex_error = list_archive(hex_zip.display().to_string())
+            .expect_err("hex-tab zip should not compare as a real archive");
+
+        let seven_text = seven_error.debug_message;
+        let hex_text = hex_error.debug_message;
+        assert!(seven_text.to_ascii_lowercase().contains("7z"));
+        assert!(hex_text.contains("PK") || hex_text.to_ascii_lowercase().contains("zip"));
+    }
+
+    fn write_excel_fixture(path: &Path, id: &str, name: &str) {
+        let mut workbook = rust_xlsxwriter::Workbook::new();
+        let sheet = workbook.add_worksheet();
+        sheet.write_string(0, 0, "id").expect("header");
+        sheet.write_string(0, 1, "name").expect("header");
+        sheet.write_string(1, 0, id).expect("id");
+        sheet.write_string(1, 1, name).expect("name");
+        workbook.save(path).expect("xlsx should write");
+    }
+
     fn unique_temp_dir(label: &str) -> PathBuf {
         let stamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)

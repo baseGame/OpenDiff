@@ -20,14 +20,14 @@ fn main() {
             println!("Commands:");
             println!("  compare <left> <right>");
             println!("  compare-folders <left> <right>");
-            println!("  shell-compare <path>");
+            println!("  shell-compare <path> (unimplemented)");
             println!("  git-difftool-config [--global|--local] [--write] <executable-path>");
             println!("  git-mergetool-config [--global|--local] [--write] <executable-path>");
             println!("  svn-diff <svn external diff args>");
             println!("  svn-diff-config [--write] <executable-path> <wrapper-path>");
             println!("  script <script-path>");
             println!("  open-session <store-root> <name>");
-            println!("  merge-text <base> <left> <right> [output]");
+            println!("  merge-text --automerge <base> <left> <right> <output>");
             println!("Exit codes:");
             for spec in cli_exit_code_contract() {
                 println!("  {} {}", spec.value, spec.meaning);
@@ -49,7 +49,10 @@ fn main() {
             std::process::exit(cli_exit_code_value(result.exit_code));
         }
         CliCommand::ShellCompare { path } => {
-            println!("shell compare path: {path}");
+            eprintln!(
+                "shell-compare is unimplemented for {path}; use compare LEFT RIGHT or compare-folders LEFT RIGHT"
+            );
+            std::process::exit(cli_exit_code_value(cli_core::CliExitCode::UsageError));
         }
         CliCommand::GitDifftoolConfig {
             executable_path,
@@ -226,31 +229,21 @@ fn main() {
             std::process::exit(cli_exit_code_value(result.exit_code));
         }
         CliCommand::MergeText(args) => {
-            if args.automerge {
-                let result = match automerge_text_files(args) {
-                    Ok(result) => result,
-                    Err(error) => {
-                        eprintln!("{}", error.message);
-                        std::process::exit(cli_exit_code_value(error.exit_code));
-                    }
-                };
-
-                println!(
-                    "merge conflicts: {}, output: {}, backup: {}",
-                    result.conflicts,
-                    result.output_path.as_deref().unwrap_or("<none>"),
-                    result.backup_path.as_deref().unwrap_or("<none>")
-                );
-                std::process::exit(cli_exit_code_value(result.exit_code));
-            }
+            let result = match automerge_text_files(args) {
+                Ok(result) => result,
+                Err(error) => {
+                    eprintln!("{}", error.message);
+                    std::process::exit(cli_exit_code_value(error.exit_code));
+                }
+            };
 
             println!(
-                "merge base: {}, left: {}, right: {}, output: {}",
-                args.base,
-                args.left,
-                args.right,
-                args.output.as_deref().unwrap_or("<none>")
+                "merge conflicts: {}, output: {}, backup: {}",
+                result.conflicts,
+                result.output_path.as_deref().unwrap_or("<none>"),
+                result.backup_path.as_deref().unwrap_or("<none>")
             );
+            std::process::exit(cli_exit_code_value(result.exit_code));
         }
     }
 

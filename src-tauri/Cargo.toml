@@ -100,3 +100,6 @@ sync-core = { path = "crates/sync-core" }
 table-core = { path = "crates/table-core" }
 version-core = { path = "crates/version-core" }
 vfs-core = { path = "crates/vfs-core" }
+
+[dev-dependencies]
+rust_xlsxwriter = "0.96.0"

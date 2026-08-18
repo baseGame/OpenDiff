@@ -1,8 +1,6 @@
 <script setup lang="ts">
 import {
-  createAssociatedApplicationOpenAction,
   createDefaultOpenAction,
-  createOpenWithAction,
   listEnabledExternalApplications,
   type ExternalApplicationConfig,
   type FileOpenAction,
@@ -94,8 +92,6 @@ const displayStatusOptions: { statuses: FolderStatus[]; labelKey: string; testId
   { statuses: ['Left only', 'Right only'], labelKey: 'ui.orphans', testId: 'orphans' },
 ]
 const alignWithTargetId = ref('')
-const manualAlignments = ref<Record<string, string>>({})
-const lastAlignmentAction = ref<string>()
 const rows = ref<FolderTreeRow[]>([])
 const expandedDirectoryIds = ref<Set<string>>(new Set())
 const leftRoot = ref('')
@@ -494,32 +490,6 @@ function openSelectedFile(): void {
   openChildCompareForSelected('open')
 }
 
-function openSelectedFileWithTextEdit(): void {
-  if (!selectedFilePath.value) {
-    return
-  }
-
-  recordOpenAction(createOpenWithAction(selectedFilePath.value, 'Text Edit', 'open-diff-text-edit'))
-}
-
-function openSelectedFileWithExternalApplication(application: ExternalApplicationConfig): void {
-  if (!selectedFilePath.value) {
-    return
-  }
-
-  recordOpenAction(
-    createOpenWithAction(selectedFilePath.value, application.name, application.executable),
-  )
-}
-
-function openSelectedFileWithAssociatedApplication(): void {
-  if (!selectedFilePath.value) {
-    return
-  }
-
-  recordOpenAction(createAssociatedApplicationOpenAction(selectedFilePath.value))
-}
-
 function quickCompareSelectedFile(): void {
   openChildCompareForSelected('quick')
 }
@@ -611,37 +581,6 @@ function fileOpenActionLabel(action: FileOpenAction): string {
 
 function fileOperationTitle(confirmation: FileOperationConfirmation): string {
   return t(confirmation.titleKey, confirmation.titleParams)
-}
-
-function alignSelectedFileWithTarget(): void {
-  const row = selectedRow.value
-  const target = rows.value.find((candidate) => candidate.id === alignWithTargetId.value)
-
-  if (!row || !target) {
-    return
-  }
-
-  manualAlignments.value = {
-    ...manualAlignments.value,
-    [row.id]: target.id,
-  }
-  lastAlignmentAction.value = t('status.alignedWith', {
-    source: displayName(row),
-    target: displayName(target),
-  })
-}
-
-function breakSelectedAlignment(): void {
-  const row = selectedRow.value
-
-  if (!row) {
-    return
-  }
-
-  manualAlignments.value = Object.fromEntries(
-    Object.entries(manualAlignments.value).filter(([rowId]) => rowId !== row.id),
-  )
-  lastAlignmentAction.value = t('status.alignmentCleared', { name: displayName(row) })
 }
 
 async function confirmFolderCopy(): Promise<void> {
@@ -992,9 +931,8 @@ function handleTreeScroll(event: Event): void {
             size="small"
             secondary
             data-testid="open-with-selected-file"
-            :disabled="!selectedFilePath"
-            @click="openSelectedFileWithTextEdit"
-            >{{ $t('ui.openWith') }}</NButton
+            :disabled="true"
+            >{{ $t('ui.openWith') }} ({{ $t('ui.unimplemented') }})</NButton
           >
           <NButton
             v-for="application in enabledExternalApplications"
@@ -1002,18 +940,16 @@ function handleTreeScroll(event: Event): void {
             size="small"
             secondary
             :data-testid="`open-with-custom-${application.id}`"
-            :disabled="!selectedFilePath"
-            @click="openSelectedFileWithExternalApplication(application)"
+            :disabled="true"
           >
-            {{ application.name }}
+            {{ application.name }} ({{ $t('ui.unimplemented') }})
           </NButton>
           <NButton
             size="small"
             secondary
             data-testid="open-associated-file"
-            :disabled="!selectedFilePath"
-            @click="openSelectedFileWithAssociatedApplication"
-            >{{ $t('ui.associatedApp') }}</NButton
+            :disabled="true"
+            >{{ $t('ui.associatedApp') }} ({{ $t('ui.unimplemented') }})</NButton
           >
           <NButton
             size="small"
@@ -1378,17 +1314,15 @@ function handleTreeScroll(event: Event): void {
           size="small"
           secondary
           data-testid="align-with-selected-file"
-          :disabled="!selectedRowId || !alignWithTargetId"
-          @click="alignSelectedFileWithTarget"
-          >{{ $t('ui.alignWith') }}</NButton
+          :disabled="true"
+          >{{ $t('ui.alignWith') }} ({{ $t('ui.unimplemented') }})</NButton
         >
         <NButton
           size="small"
           secondary
           data-testid="break-selected-alignment"
-          :disabled="!selectedRowId"
-          @click="breakSelectedAlignment"
-          >{{ $t('ui.breakAlignment') }}</NButton
+          :disabled="true"
+          >{{ $t('ui.breakAlignment') }} ({{ $t('ui.unimplemented') }})</NButton
         >
       </section>
 
@@ -1410,13 +1344,6 @@ function handleTreeScroll(event: Event): void {
         data-testid="folder-compare-action-status"
       >
         {{ lastCompareAction }}
-      </section>
-      <section
-        v-if="lastAlignmentAction"
-        class="folder-action-status"
-        data-testid="folder-alignment-action-status"
-      >
-        {{ lastAlignmentAction }}
       </section>
       <section
         v-if="lastCopyAction"

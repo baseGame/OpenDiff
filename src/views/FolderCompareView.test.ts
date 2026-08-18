@@ -181,6 +181,30 @@ describe('FolderCompareView', () => {
     })
   })
 
+  it('labels open-with and align-with as unimplemented instead of status-only no-ops', async () => {
+    const wrapper = mountFolderCompareView()
+    await runCompare(wrapper)
+    await wrapper.find('[data-row-id="src-main-ts"]').trigger('click')
+
+    const openWith = wrapper.find('[data-testid="open-with-selected-file"]')
+    const associated = wrapper.find('[data-testid="open-associated-file"]')
+    const vscode = wrapper.find('[data-testid="open-with-custom-vscode"]')
+    const alignWith = wrapper.find('[data-testid="align-with-selected-file"]')
+    const breakAlignment = wrapper.find('[data-testid="break-selected-alignment"]')
+
+    expect(openWith.attributes('disabled')).toBeDefined()
+    expect(associated.attributes('disabled')).toBeDefined()
+    expect(vscode.attributes('disabled')).toBeDefined()
+    expect(alignWith.attributes('disabled')).toBeDefined()
+    expect(breakAlignment.attributes('disabled')).toBeDefined()
+    expect(openWith.text()).toContain('unimplemented')
+    expect(associated.text()).toContain('unimplemented')
+    expect(vscode.text()).toContain('unimplemented')
+    expect(alignWith.text()).toContain('unimplemented')
+    expect(wrapper.find('[data-testid="folder-open-action-status"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="folder-alignment-action-status"]').exists()).toBe(false)
+  })
+
   it('moves the selected file through the Tauri command', async () => {
     const wrapper = mountFolderCompareView()
     await runCompare(wrapper)
