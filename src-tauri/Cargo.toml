@@ -99,3 +99,4 @@ snapshot-core = { path = "crates/snapshot-core" }
 sync-core = { path = "crates/sync-core" }
 table-core = { path = "crates/table-core" }
 version-core = { path = "crates/version-core" }
+vfs-core = { path = "crates/vfs-core" }

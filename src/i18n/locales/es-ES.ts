@@ -635,7 +635,8 @@ export const esES: LanguagePack = {
     'ui.applyToFile': 'Aplicar al archivo',
     'ui.difftool': 'difftool',
     'ui.mergetool': 'mergetool',
-    'ui.confirmWriteGitConfig': '¿Escribir Open Diff como {kind} de Git en su configuración de Git?',
+    'ui.confirmWriteGitConfig':
+      '¿Escribir Open Diff como {kind} de Git en su configuración de Git?',
     'ui.confirmWriteSvnConfig':
       '¿Escribir el wrapper y el fragmento de diff externo de SVN en el disco?',
     'ui.copyLeftToRight': 'Copiar I→D',
@@ -650,8 +651,7 @@ export const esES: LanguagePack = {
     'ui.password': 'Contraseña',
     'ui.remoteNotImplemented':
       'SFTP y FTP pueden conectar, listar y transferir. WebDAV, S3, Dropbox, OneDrive y SVN siguen sin implementarse.',
-    'ui.remoteUriHint':
-      'Use una ruta local o sftp://profile/id/path después de guardar un perfil',
+    'ui.remoteUriHint': 'Use una ruta local o sftp://profile/id/path después de guardar un perfil',
     'ui.reportKind': 'Report kind',
     'ui.rightSheet': 'Right sheet',
     'ui.runScript': 'Ejecutar script',

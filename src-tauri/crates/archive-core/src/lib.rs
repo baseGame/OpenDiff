@@ -63,9 +63,13 @@ impl std::fmt::Display for ArchiveError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::NotFound(path) => write!(formatter, "archive path not found: {path}"),
-            Self::NotDirectory(path) => write!(formatter, "archive path is not a directory: {path}"),
+            Self::NotDirectory(path) => {
+                write!(formatter, "archive path is not a directory: {path}")
+            }
             Self::InvalidArchive(message) => write!(formatter, "invalid archive: {message}"),
-            Self::UnsupportedFormat(format) => write!(formatter, "unsupported archive format: {format}"),
+            Self::UnsupportedFormat(format) => {
+                write!(formatter, "unsupported archive format: {format}")
+            }
             Self::Io(message) => write!(formatter, "archive io error: {message}"),
         }
     }
@@ -159,7 +163,9 @@ impl ArchiveReader {
         let format = ArchiveFormat::detect(&name)?;
 
         match format {
-            ArchiveFormat::Zip => ZipArchiveDocument::from_bytes(name, bytes).map(|archive| archive.document),
+            ArchiveFormat::Zip => {
+                ZipArchiveDocument::from_bytes(name, bytes).map(|archive| archive.document)
+            }
             ArchiveFormat::Tar => read_tar_document(name, bytes, false),
             ArchiveFormat::TarGz => read_tar_document(name, bytes, true),
             ArchiveFormat::Gz => read_gzip_document(name, bytes),
@@ -515,10 +521,7 @@ fn read_tar_document(
     Ok(document)
 }
 
-fn read_tar_entries<R: Read>(
-    document: &mut ArchiveDocument,
-    reader: R,
-) -> ArchiveResult<()> {
+fn read_tar_entries<R: Read>(document: &mut ArchiveDocument, reader: R) -> ArchiveResult<()> {
     let mut archive = tar::Archive::new(reader);
     let entries = archive
         .entries()
@@ -723,7 +726,8 @@ mod tests {
 
     #[test]
     fn archive_reader_opens_real_tar_and_rejects_seven_zip() {
-        let document = ArchiveDocument::new("release.tar").with_file("/docs/readme.md", b"readme");
+        let document =
+            ArchiveDocument::new("release.tar").with_file("/docs/readme.md", b"readme".to_vec());
         let tar_bytes = write_tar_fixture(&document);
         let opened = ArchiveReader::open_bytes("release.tar", &tar_bytes).unwrap();
         let vfs = ArchiveVfs::from_document(opened);
@@ -748,32 +752,28 @@ mod tests {
         let rows = compare_archives(&left, &right);
 
         assert_eq!(
-            rows
-                .iter()
+            rows.iter()
                 .find(|row| row.path == "/changed.txt")
                 .unwrap()
                 .status,
             ArchiveCompareStatus::Different
         );
         assert_eq!(
-            rows
-                .iter()
+            rows.iter()
                 .find(|row| row.path == "/same.txt")
                 .unwrap()
                 .status,
             ArchiveCompareStatus::Same
         );
         assert_eq!(
-            rows
-                .iter()
+            rows.iter()
                 .find(|row| row.path == "/only-left.txt")
                 .unwrap()
                 .status,
             ArchiveCompareStatus::LeftOnly
         );
         assert_eq!(
-            rows
-                .iter()
+            rows.iter()
                 .find(|row| row.path == "/only-right.txt")
                 .unwrap()
                 .status,
@@ -803,6 +803,9 @@ mod tests {
                 .expect("tar entry should append");
         }
 
-        builder.into_inner().expect("tar should finish").into_inner()
+        builder
+            .into_inner()
+            .expect("tar should finish")
+            .into_inner()
     }
 }

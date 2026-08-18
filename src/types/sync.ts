@@ -1,9 +1,5 @@
 export type FolderSyncStrategy =
-  | 'updateRight'
-  | 'updateLeft'
-  | 'updateBoth'
-  | 'mirrorRight'
-  | 'mirrorLeft'
+  'updateRight' | 'updateLeft' | 'updateBoth' | 'mirrorRight' | 'mirrorLeft'
 
 export type FolderSyncOverrideAction = 'leave' | 'copyLeftToRight' | 'copyRightToLeft' | 'delete'
 

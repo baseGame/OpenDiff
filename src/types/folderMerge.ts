@@ -8,11 +8,7 @@ export interface FolderMergePlanRequest {
 export type FolderMergeRole = 'Base' | 'Left' | 'Right'
 export type FolderMergeEntryKind = 'File' | 'Directory' | 'Missing'
 export type FolderMergeActionKind =
-  | 'Keep output'
-  | 'Copy left to output'
-  | 'Copy right to output'
-  | 'Delete output'
-  | 'Mark conflict'
+  'Keep output' | 'Copy left to output' | 'Copy right to output' | 'Delete output' | 'Mark conflict'
 
 export interface FolderMergeSide {
   role: FolderMergeRole

@@ -632,8 +632,7 @@ export const frFR: LanguagePack = {
     'session.summary.archiveCompare': 'Comparaison d’arborescence ZIP/TAR',
     'session.summary.script': 'Exécuter des scripts LOAD/COMPARE/REPORT',
     'ui.archiveCompare': 'Comparaison d’archives',
-    'ui.archivePathHint':
-      'Dossiers, archives ZIP/TAR, JSON d’instantané ou sftp://profile/id/path',
+    'ui.archivePathHint': 'Dossiers, archives ZIP/TAR, JSON d’instantané ou sftp://profile/id/path',
     'ui.applyToFile': 'Appliquer au fichier',
     'ui.difftool': 'difftool',
     'ui.mergetool': 'mergetool',
@@ -683,8 +682,7 @@ export const frFR: LanguagePack = {
     'status.patchWritten': 'Correctif écrit dans {path}',
     'status.remoteConnected': 'Connecté : {detail}',
     'status.remoteFailed': 'Échec de la connexion : {detail}',
-    'status.remoteUnavailable':
-      'Ce protocole n’est pas implémenté ; seuls SFTP et FTP sont actifs',
+    'status.remoteUnavailable': 'Ce protocole n’est pas implémenté ; seuls SFTP et FTP sont actifs',
     'status.svnConfigWritten': 'Wrapper et extrait SVN écrits',
   },
 }

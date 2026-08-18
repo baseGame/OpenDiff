@@ -70,7 +70,11 @@ async function writeGitConfig(): Promise<void> {
   integrationError.value = ''
 
   try {
-    await writeGitIntegration(gitKind.value, executablePath.value.trim() || 'open-diff', gitScope.value)
+    await writeGitIntegration(
+      gitKind.value,
+      executablePath.value.trim() || 'open-diff',
+      gitScope.value,
+    )
     integrationStatus.value = t('status.gitConfigWritten', { kind: gitKind.value })
   } catch (error) {
     integrationError.value = error instanceof Error ? error.message : String(error)

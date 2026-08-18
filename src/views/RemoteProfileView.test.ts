@@ -16,7 +16,9 @@ vi.mock('@/api/remote', async () => {
     listRemoteProfiles: vi.fn().mockRejectedValue(new Error('no backend')),
     saveRemoteProfile: vi.fn().mockRejectedValue(new Error('no backend')),
     deleteRemoteProfile: vi.fn().mockRejectedValue(new Error('no backend')),
-    testRemoteProfile: vi.fn().mockResolvedValue('SFTP connected to files.example.com:22 and listed 1 entries'),
+    testRemoteProfile: vi
+      .fn()
+      .mockResolvedValue('SFTP connected to files.example.com:22 and listed 1 entries'),
   }
 })
 
@@ -107,7 +109,9 @@ describe('RemoteProfileView', () => {
       }),
     )
     expect(wrapper.find('[data-testid="remote-profile-list"]').text()).toContain('Release FTP')
-    expect(wrapper.find('[data-testid="test-remote-profile"]').attributes('disabled')).toBeUndefined()
+    expect(
+      wrapper.find('[data-testid="test-remote-profile"]').attributes('disabled'),
+    ).toBeUndefined()
 
     await wrapper.find('[data-testid="test-remote-profile"]').trigger('click')
     await flushPromises()

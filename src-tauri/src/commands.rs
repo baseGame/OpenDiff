@@ -533,17 +533,7 @@ pub fn compare_table_csv(
     right: String,
 ) -> Result<TableCompareResponse, AppErrorPayload> {
     compare_table(
-        left,
-        right,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
+        left, right, None, None, None, None, None, None, None, None, None,
     )
 }
 
@@ -585,7 +575,12 @@ pub fn compare_table(
             ignore_whitespace: true,
         },
     );
-    apply_manual_table_mappings(&mut column_mappings, left_sheet, right_sheet, &manual_mappings);
+    apply_manual_table_mappings(
+        &mut column_mappings,
+        left_sheet,
+        right_sheet,
+        &manual_mappings,
+    );
     if let Some(ignored) = ignored_columns.as_ref() {
         column_mappings.retain(|mapping| {
             !column_name_ignored(mapping.left_column.as_deref(), ignored)
@@ -1028,18 +1023,18 @@ pub fn merge_text_files(
     output_path: Option<String>,
     conflict_policy: Option<String>,
 ) -> Result<TextMergeCommandResponse, AppErrorPayload> {
-    let left =
-        file_core::read_text_file(&left_path).map_err(|error| file_error("read", &left_path, error))?;
+    let left = file_core::read_text_file(&left_path)
+        .map_err(|error| file_error("read", &left_path, error))?;
     let right = file_core::read_text_file(&right_path)
         .map_err(|error| file_error("read", &right_path, error))?;
-    let (center_path, center_text) = if let Some(path) = center_path.filter(|value| !value.is_empty())
-    {
-        let document =
-            file_core::read_text_file(&path).map_err(|error| file_error("read", &path, error))?;
-        (Some(path), document.text)
-    } else {
-        (None, left.text.clone())
-    };
+    let (center_path, center_text) =
+        if let Some(path) = center_path.filter(|value| !value.is_empty()) {
+            let document = file_core::read_text_file(&path)
+                .map_err(|error| file_error("read", &path, error))?;
+            (Some(path), document.text)
+        } else {
+            (None, left.text.clone())
+        };
     let document = merge_core::TextMergeDocument::from_inputs(merge_core::TextMergeInput {
         base: merge_core::TextMergeSide::new(
             center_path.clone().unwrap_or_else(|| left_path.clone()),
@@ -1064,13 +1059,16 @@ pub fn merge_text_files(
         .sections
         .iter()
         .filter_map(|section| {
-            section.conflict.as_ref().map(|conflict| TextMergeConflictRow {
-                line_index: section.line_index,
-                title: format!("Line {}", section.line_index + 1),
-                base: conflict.base.first().cloned().unwrap_or_default(),
-                left: conflict.left.first().cloned().unwrap_or_default(),
-                right: conflict.right.first().cloned().unwrap_or_default(),
-            })
+            section
+                .conflict
+                .as_ref()
+                .map(|conflict| TextMergeConflictRow {
+                    line_index: section.line_index,
+                    title: format!("Line {}", section.line_index + 1),
+                    base: conflict.base.first().cloned().unwrap_or_default(),
+                    left: conflict.left.first().cloned().unwrap_or_default(),
+                    right: conflict.right.first().cloned().unwrap_or_default(),
+                })
         })
         .collect();
 
@@ -1137,7 +1135,12 @@ pub fn export_text_compare_report(
         kind: report_core::ReportSectionKind::Summary,
         title: "Summary".to_owned(),
         rows: vec![
-            report_row("Added", Some(diff.stats.added.to_string()), None, report_core::ReportRowStatus::Added),
+            report_row(
+                "Added",
+                Some(diff.stats.added.to_string()),
+                None,
+                report_core::ReportRowStatus::Added,
+            ),
             report_row(
                 "Deleted",
                 Some(diff.stats.deleted.to_string()),
@@ -1321,7 +1324,10 @@ pub struct ScriptRunResponse {
 }
 
 #[tauri::command]
-pub fn run_script(source: String, path: Option<String>) -> Result<ScriptRunResponse, AppErrorPayload> {
+pub fn run_script(
+    source: String,
+    path: Option<String>,
+) -> Result<ScriptRunResponse, AppErrorPayload> {
     let result = if let Some(path) = path.filter(|value| !value.trim().is_empty()) {
         script_core::run_script_file(&path, script_core::ScriptExecutionContext::default())
     } else {
@@ -1385,7 +1391,9 @@ pub fn list_remote_profiles() -> Result<Vec<RemoteProfileView>, AppErrorPayload>
 }
 
 #[tauri::command]
-pub fn save_remote_profile(draft: RemoteProfileDraft) -> Result<Vec<RemoteProfileView>, AppErrorPayload> {
+pub fn save_remote_profile(
+    draft: RemoteProfileDraft,
+) -> Result<Vec<RemoteProfileView>, AppErrorPayload> {
     let store = remote_core::RemoteProfileStore::new(crate::sources::default_config_dir());
     let profile_id = if draft.id.trim().is_empty() {
         draft
@@ -1401,7 +1409,13 @@ pub fn save_remote_profile(draft: RemoteProfileDraft) -> Result<Vec<RemoteProfil
         draft.id.clone()
     };
     let profile_id = if profile_id.is_empty() {
-        format!("remote-profile-{}", store.load_profiles().map(|items| items.len() + 1).unwrap_or(1))
+        format!(
+            "remote-profile-{}",
+            store
+                .load_profiles()
+                .map(|items| items.len() + 1)
+                .unwrap_or(1)
+        )
     } else {
         profile_id
     };
@@ -1409,8 +1423,7 @@ pub fn save_remote_profile(draft: RemoteProfileDraft) -> Result<Vec<RemoteProfil
         profile_id.clone(),
         draft.name,
         draft.protocol,
-        remote_core::RemoteEndpoint::new(draft.host)
-            .with_root_path(draft.root_path),
+        remote_core::RemoteEndpoint::new(draft.host).with_root_path(draft.root_path),
         remote_core::CredentialReference::profile_store(&profile_id),
     );
     if let Some(port) = draft.port {
@@ -1484,7 +1497,10 @@ pub fn test_remote_profile(id: String) -> Result<String, AppErrorPayload> {
 }
 
 #[tauri::command]
-pub fn list_remote_path(profile_id: String, path: String) -> Result<Vec<remote_core::RemoteEntry>, AppErrorPayload> {
+pub fn list_remote_path(
+    profile_id: String,
+    path: String,
+) -> Result<Vec<remote_core::RemoteEntry>, AppErrorPayload> {
     let store = remote_core::RemoteProfileStore::new(crate::sources::default_config_dir());
     let profile = store
         .find_profile(&profile_id)
@@ -1539,10 +1555,18 @@ pub fn write_git_integration(
         cli_core::build_git_difftool_config(&executable_path, scope)
     }
     .map_err(|error| {
-        AppErrorPayload::new(AppErrorCode::Unknown, "error.app.unknown.title", error.message)
+        AppErrorPayload::new(
+            AppErrorCode::Unknown,
+            "error.app.unknown.title",
+            error.message,
+        )
     })?;
     cli_core::write_git_tool_config(&config).map_err(|error| {
-        AppErrorPayload::new(AppErrorCode::Unknown, "error.app.unknown.title", error.message)
+        AppErrorPayload::new(
+            AppErrorCode::Unknown,
+            "error.app.unknown.title",
+            error.message,
+        )
     })
 }
 
@@ -1551,11 +1575,20 @@ pub fn write_svn_integration(
     executable_path: String,
     wrapper_path: String,
 ) -> Result<String, AppErrorPayload> {
-    let config = cli_core::build_svn_diff_config(&executable_path, &wrapper_path).map_err(|error| {
-        AppErrorPayload::new(AppErrorCode::Unknown, "error.app.unknown.title", error.message)
-    })?;
+    let config =
+        cli_core::build_svn_diff_config(&executable_path, &wrapper_path).map_err(|error| {
+            AppErrorPayload::new(
+                AppErrorCode::Unknown,
+                "error.app.unknown.title",
+                error.message,
+            )
+        })?;
     cli_core::write_svn_diff_config(&config, &wrapper_path).map_err(|error| {
-        AppErrorPayload::new(AppErrorCode::Unknown, "error.app.unknown.title", error.message)
+        AppErrorPayload::new(
+            AppErrorCode::Unknown,
+            "error.app.unknown.title",
+            error.message,
+        )
     })
 }
 
@@ -1951,7 +1984,7 @@ fn folder_row_status(
 
     Ok(
         folder_core::compare_binary_streams(&left_bytes[..], &right_bytes[..], 8192)
-            .map_err(|error| file_io_error(&left_path, error))?
+            .map_err(|error| file_io_error(left_root, error))?
             .status,
     )
 }
@@ -3322,7 +3355,8 @@ fn find_hex_matches_in_file(
                 "empty hex find query",
             ))
         }
-        _ => hex_core::find_hex_matches(&[], query.clone()).map(|_| Vec::new()),
+        _ => hex_core::find_hex_matches(&[], query.clone())
+            .map(|_| Vec::<hex_core::HexFindMatch>::new()),
     };
     let _ = pattern;
     let total_len = file_len(path)?;
@@ -4281,8 +4315,14 @@ mod tests {
 
         assert_eq!(response.left_sheet, "Sheet1");
         assert_eq!(response.summary.changed_cell_count, 1);
-        assert_eq!(response.changed_cells[0].left_value.as_deref(), Some("alpha"));
-        assert_eq!(response.changed_cells[0].right_value.as_deref(), Some("beta"));
+        assert_eq!(
+            response.changed_cells[0].left_value.as_deref(),
+            Some("alpha")
+        );
+        assert_eq!(
+            response.changed_cells[0].right_value.as_deref(),
+            Some("beta")
+        );
         assert!(response
             .column_mappings
             .iter()
@@ -4356,7 +4396,10 @@ mod tests {
 
         assert_eq!(result.status, folder_core::FileOperationStatus::Moved);
         assert!(!source.exists());
-        assert_eq!(fs::read_to_string(&target).expect("target should exist"), "moved");
+        assert_eq!(
+            fs::read_to_string(&target).expect("target should exist"),
+            "moved"
+        );
     }
 
     #[test]
@@ -4366,8 +4409,12 @@ mod tests {
         let path = root.join("data.bin");
         fs::write(&path, b"AAAABCDEAAAA").expect("fixture should be writable");
 
-        let matches = find_hex_in_file(path.display().to_string(), "text".to_owned(), "BCDE".to_owned())
-            .expect("find should succeed");
+        let matches = find_hex_in_file(
+            path.display().to_string(),
+            "text".to_owned(),
+            "BCDE".to_owned(),
+        )
+        .expect("find should succeed");
 
         assert_eq!(matches.len(), 1);
         assert_eq!(matches[0].offset, 4);
@@ -4388,8 +4435,9 @@ mod tests {
         fs::write(&left, archive_core::write_zip_bytes(&left_doc).unwrap()).unwrap();
         fs::write(&right, archive_core::write_zip_bytes(&right_doc).unwrap()).unwrap();
 
-        let response = compare_folder_paths(left.display().to_string(), right.display().to_string())
-            .expect("zip archives should compare as folders");
+        let response =
+            compare_folder_paths(left.display().to_string(), right.display().to_string())
+                .expect("zip archives should compare as folders");
 
         assert!(response
             .rows
@@ -4447,7 +4495,7 @@ mod tests {
         )
         .expect("patch should apply");
 
-        assert_eq!(fs::read_to_string(&output).unwrap(), "const a = 1\nnew\n");
+        assert_eq!(fs::read_to_string(&output).unwrap(), "const a = 1\nnew");
     }
 
     #[test]

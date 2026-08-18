@@ -256,17 +256,17 @@ fn connect_tcp(endpoint: &RemoteEndpoint, default_port: u16) -> RemoteProviderRe
     let address = socket_address(endpoint, default_port);
     let stream = TcpStream::connect_timeout(&resolve_address(&address)?, Duration::from_secs(8))
         .map_err(|error| RemoteProviderError::Backend(format!("connect failed: {error}")))?;
-    stream
-        .set_read_timeout(Some(Duration::from_secs(15)))
-        .ok();
-    stream
-        .set_write_timeout(Some(Duration::from_secs(15)))
-        .ok();
+    stream.set_read_timeout(Some(Duration::from_secs(15))).ok();
+    stream.set_write_timeout(Some(Duration::from_secs(15))).ok();
     Ok(stream)
 }
 
 fn socket_address(endpoint: &RemoteEndpoint, default_port: u16) -> String {
-    format!("{}:{}", endpoint.host, endpoint.port.unwrap_or(default_port))
+    format!(
+        "{}:{}",
+        endpoint.host,
+        endpoint.port.unwrap_or(default_port)
+    )
 }
 
 fn resolve_address(address: &str) -> RemoteProviderResult<std::net::SocketAddr> {
@@ -305,9 +305,10 @@ fn authenticate_sftp(
 }
 
 fn credential_username(credential: &RemoteCredential) -> RemoteProviderResult<&str> {
-    credential.username.as_deref().ok_or_else(|| {
-        RemoteProviderError::Backend("username is required for SFTP/FTP".to_owned())
-    })
+    credential
+        .username
+        .as_deref()
+        .ok_or_else(|| RemoteProviderError::Backend("username is required for SFTP/FTP".to_owned()))
 }
 
 fn credential_password(credential: &RemoteCredential) -> RemoteProviderResult<&str> {

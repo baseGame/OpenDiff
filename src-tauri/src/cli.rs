@@ -154,8 +154,10 @@ fn main() {
             }
         }
         CliCommand::Script { path } => {
-            match script_core::run_script_file(&path, script_core::ScriptExecutionContext::default())
-            {
+            match script_core::run_script_file(
+                &path,
+                script_core::ScriptExecutionContext::default(),
+            ) {
                 Ok(result) => {
                     let summary = result.state.last_compare.unwrap_or_default();
                     println!(

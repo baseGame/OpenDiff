@@ -1,14 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
 
 export type RemoteProtocol =
-  | 'ftp'
-  | 'ftps'
-  | 'sftp'
-  | 'web-dav'
-  | 's3'
-  | 'dropbox'
-  | 'one-drive'
-  | 'subversion'
+  'ftp' | 'ftps' | 'sftp' | 'web-dav' | 's3' | 'dropbox' | 'one-drive' | 'subversion'
 
 export interface RemoteProfileDraft {
   id: string

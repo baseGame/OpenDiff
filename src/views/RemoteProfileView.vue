@@ -121,8 +121,7 @@ async function loadPersistedProfiles(): Promise<void> {
     }
 
     applyViews(loaded)
-  } catch {
-  }
+  } catch {}
 }
 
 function selectProfile(profileId: string): void {
@@ -241,7 +240,9 @@ function applyViews(views: RemoteProfileView[], selectedId = selectedProfileId.v
   }))
 
   const selected =
-    profiles.value.find((profile) => profile.id === selectedId) ?? profiles.value[0] ?? emptyProfile()
+    profiles.value.find((profile) => profile.id === selectedId) ??
+    profiles.value[0] ??
+    emptyProfile()
 
   selectedProfileId.value = selected.id
   draft.value = {
@@ -477,11 +478,19 @@ function credentialKindLabel(kind: CredentialReferenceKind): string {
                 <option value="ftp">{{ $t('ui.ftp') }}</option>
                 <option value="ftps">{{ $t('ui.ftps') }} ({{ $t('ui.unimplemented') }})</option>
                 <option value="sftp">{{ $t('ui.sftp') }}</option>
-                <option value="web-dav">{{ $t('ui.webDav') }} ({{ $t('ui.unimplemented') }})</option>
+                <option value="web-dav">
+                  {{ $t('ui.webDav') }} ({{ $t('ui.unimplemented') }})
+                </option>
                 <option value="s3">{{ $t('ui.s3') }} ({{ $t('ui.unimplemented') }})</option>
-                <option value="dropbox">{{ $t('ui.dropbox') }} ({{ $t('ui.unimplemented') }})</option>
-                <option value="one-drive">{{ $t('ui.onedrive') }} ({{ $t('ui.unimplemented') }})</option>
-                <option value="subversion">{{ $t('ui.subversion') }} ({{ $t('ui.unimplemented') }})</option>
+                <option value="dropbox">
+                  {{ $t('ui.dropbox') }} ({{ $t('ui.unimplemented') }})
+                </option>
+                <option value="one-drive">
+                  {{ $t('ui.onedrive') }} ({{ $t('ui.unimplemented') }})
+                </option>
+                <option value="subversion">
+                  {{ $t('ui.subversion') }} ({{ $t('ui.unimplemented') }})
+                </option>
               </select>
             </label>
             <label>

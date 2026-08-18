@@ -275,9 +275,17 @@ function persistFormats(): void {
 function isViewMode(value: unknown): value is FileFormatViewMode {
   return (
     typeof value === 'string' &&
-    ['text', 'table', 'hex', 'picture', 'registry', 'media', 'version', 'patch', 'archive'].includes(
-      value,
-    )
+    [
+      'text',
+      'table',
+      'hex',
+      'picture',
+      'registry',
+      'media',
+      'version',
+      'patch',
+      'archive',
+    ].includes(value)
   )
 }
 

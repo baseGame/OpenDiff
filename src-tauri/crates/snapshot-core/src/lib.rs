@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::time::UNIX_EPOCH;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -284,7 +284,8 @@ fn scan_directory_entries_into(
     current: &Path,
     entries: &mut Vec<SnapshotScanEntry>,
 ) -> SnapshotResult<()> {
-    let read_dir = fs::read_dir(current).map_err(|error| SnapshotError::Serialization(error.to_string()))?;
+    let read_dir =
+        fs::read_dir(current).map_err(|error| SnapshotError::Serialization(error.to_string()))?;
 
     for entry in read_dir {
         let entry = entry.map_err(|error| SnapshotError::Serialization(error.to_string()))?;
@@ -304,7 +305,8 @@ fn scan_directory_entries_into(
             entries.push(scan_entry);
             scan_directory_entries_into(root, &path, entries)?;
         } else {
-            let mut scan_entry = SnapshotScanEntry::file(path.display().to_string(), metadata.len());
+            let mut scan_entry =
+                SnapshotScanEntry::file(path.display().to_string(), metadata.len());
             scan_entry.modified_at_ms = modified_at_ms;
             entries.push(scan_entry);
         }
@@ -313,10 +315,14 @@ fn scan_directory_entries_into(
     Ok(())
 }
 
-pub fn save_snapshot_file(path: impl AsRef<Path>, snapshot: &SnapshotDocument) -> SnapshotResult<()> {
+pub fn save_snapshot_file(
+    path: impl AsRef<Path>,
+    snapshot: &SnapshotDocument,
+) -> SnapshotResult<()> {
     let bytes = SnapshotStore::save_to_bytes(snapshot)?;
     if let Some(parent) = path.as_ref().parent() {
-        fs::create_dir_all(parent).map_err(|error| SnapshotError::Serialization(error.to_string()))?;
+        fs::create_dir_all(parent)
+            .map_err(|error| SnapshotError::Serialization(error.to_string()))?;
     }
     fs::write(path, bytes).map_err(|error| SnapshotError::Serialization(error.to_string()))
 }

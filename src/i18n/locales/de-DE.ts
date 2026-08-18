@@ -638,13 +638,13 @@ export const deDE: LanguagePack = {
     'session.summary.archiveCompare': 'ZIP/TAR-Ordnerbaumvergleich',
     'session.summary.script': 'LOAD/COMPARE/REPORT-Skripte ausführen',
     'ui.archiveCompare': 'Archivvergleich',
-    'ui.archivePathHint':
-      'Ordner, ZIP/TAR-Archive, Snapshot-JSON oder sftp://profile/id/path',
+    'ui.archivePathHint': 'Ordner, ZIP/TAR-Archive, Snapshot-JSON oder sftp://profile/id/path',
     'ui.applyToFile': 'Auf Datei anwenden',
     'ui.difftool': 'difftool',
     'ui.mergetool': 'mergetool',
     'ui.confirmWriteGitConfig': 'Open Diff als Git-{kind} in die Git-Konfiguration schreiben?',
-    'ui.confirmWriteSvnConfig': 'SVN-External-Diff-Wrapper und Snippet auf die Festplatte schreiben?',
+    'ui.confirmWriteSvnConfig':
+      'SVN-External-Diff-Wrapper und Snippet auf die Festplatte schreiben?',
     'ui.copyLeftToRight': 'Kopieren L→R',
     'ui.copyRightToLeft': 'Kopieren R→L',
     'ui.executablePath': 'Programmdateipfad',

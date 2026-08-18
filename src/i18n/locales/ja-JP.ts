@@ -638,7 +638,8 @@ export const jaJP: LanguagePack = {
     'ui.password': 'パスワード',
     'ui.remoteNotImplemented':
       'SFTP と FTP は接続・一覧・転送できます。WebDAV、S3、Dropbox、OneDrive、SVN は未実装のままです。',
-    'ui.remoteUriHint': 'ローカルパス、またはプロファイル保存後の sftp://profile/id/path を使います',
+    'ui.remoteUriHint':
+      'ローカルパス、またはプロファイル保存後の sftp://profile/id/path を使います',
     'ui.reportKind': 'Report kind',
     'ui.rightSheet': 'Right sheet',
     'ui.runScript': 'スクリプトを実行',

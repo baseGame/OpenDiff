@@ -34,9 +34,7 @@ const jobs = ref<ReportJob[]>([])
 const running = ref(false)
 const error = ref('')
 const lastExport = ref('')
-const scriptSource = ref(
-  'load "${left}"\nload "${right}"\ncompare\ntext-report "${output}"\n',
-)
+const scriptSource = ref('load "${left}"\nload "${right}"\ncompare\ntext-report "${output}"\n')
 const scriptPath = ref('')
 const scriptResult = ref('')
 const scriptRunning = ref(false)

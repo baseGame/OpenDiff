@@ -128,14 +128,15 @@ impl RemoteProfileStore {
 
     pub fn load_secret(&self, profile_id: &str) -> ProfileStoreResult<Option<RemoteCredential>> {
         let document = self.load_secrets_document()?;
-        Ok(document.secrets.get(profile_id).map(|secret| {
-            RemoteCredential {
+        Ok(document
+            .secrets
+            .get(profile_id)
+            .map(|secret| RemoteCredential {
                 username: secret.username.clone(),
                 material: crate::RemoteCredentialMaterial::Password(SecretString::new(
                     secret.password.clone(),
                 )),
-            }
-        }))
+            }))
     }
 
     pub fn delete_secret(&self, profile_id: &str) -> ProfileStoreResult<()> {
@@ -238,11 +239,7 @@ mod tests {
             "prod-sftp"
         );
         assert_eq!(
-            store
-                .find_profile("Production SFTP")
-                .unwrap()
-                .unwrap()
-                .id,
+            store.find_profile("Production SFTP").unwrap().unwrap().id,
             "prod-sftp"
         );
 

@@ -1,15 +1,7 @@
 import type { SessionType } from '@/types/session'
 
 export type FileFormatViewMode =
-  | 'text'
-  | 'table'
-  | 'hex'
-  | 'picture'
-  | 'registry'
-  | 'media'
-  | 'version'
-  | 'patch'
-  | 'archive'
+  'text' | 'table' | 'hex' | 'picture' | 'registry' | 'media' | 'version' | 'patch' | 'archive'
 
 export interface FileFormatMatcher {
   extensions: string[]

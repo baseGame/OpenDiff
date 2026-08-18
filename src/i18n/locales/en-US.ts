@@ -619,8 +619,7 @@ export const enUS: LanguagePack = {
     'session.summary.archiveCompare': 'ZIP/TAR folder tree compare',
     'session.summary.script': 'Run LOAD/COMPARE/REPORT scripts',
     'ui.archiveCompare': 'Archive Compare',
-    'ui.archivePathHint':
-      'Folders, ZIP/TAR archives, snapshot JSON, or sftp://profile/id/path',
+    'ui.archivePathHint': 'Folders, ZIP/TAR archives, snapshot JSON, or sftp://profile/id/path',
     'ui.applyToFile': 'Apply to File',
     'ui.difftool': 'difftool',
     'ui.mergetool': 'mergetool',

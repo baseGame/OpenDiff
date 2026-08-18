@@ -34,13 +34,15 @@ pub fn load_compare_source(path: &str) -> Result<CompareSource, String> {
 
     let path_buf = PathBuf::from(path);
     if is_archive_path(path) {
-        return Ok(CompareSource::Archive(ArchiveReader::open_path(&path_buf).map_err(
-            |error| error.to_string(),
-        )?));
+        return Ok(CompareSource::Archive(
+            ArchiveReader::open_path(&path_buf).map_err(|error| error.to_string())?,
+        ));
     }
 
     if path.to_ascii_lowercase().ends_with(".snapshot.json")
-        || path.to_ascii_lowercase().ends_with(".opendiff-snapshot.json")
+        || path
+            .to_ascii_lowercase()
+            .ends_with(".opendiff-snapshot.json")
     {
         return Ok(CompareSource::Snapshot(
             load_snapshot_file(&path_buf).map_err(|error| format!("{error:?}"))?,
@@ -52,11 +54,10 @@ pub fn load_compare_source(path: &str) -> Result<CompareSource, String> {
 
 pub fn scan_compare_source(source: &CompareSource) -> Result<FolderScanNode, String> {
     match source {
-        CompareSource::Local(path) => folder_core::scan_local_folder(
-            path,
-            &job_core::CancellationToken::default(),
-        )
-        .map_err(|error| format!("{error:?}")),
+        CompareSource::Local(path) => {
+            folder_core::scan_local_folder(path, &job_core::CancellationToken::default())
+                .map_err(|error| format!("{error:?}"))
+        }
         CompareSource::Archive(document) => Ok(folder_tree_from_archive(document)),
         CompareSource::Snapshot(snapshot) => Ok(folder_tree_from_snapshot(snapshot)),
     }
@@ -150,10 +151,7 @@ fn folder_tree_from_snapshot(snapshot: &SnapshotDocument) -> FolderScanNode {
         children_by_parent.entry(parent).or_default().push(node);
     }
 
-    assemble_folder_tree(
-        snapshot.metadata.name.clone(),
-        &mut children_by_parent,
-    )
+    assemble_folder_tree(snapshot.metadata.name.clone(), &mut children_by_parent)
 }
 
 fn assemble_folder_tree(
