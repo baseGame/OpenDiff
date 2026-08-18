@@ -75,10 +75,10 @@ test('opens the home page and runs a text comparison', async ({ page }) => {
     .locator('[data-session-type="text-compare"]')
     .getByRole('button', { name: 'Open' })
     .click()
-  await expect(page.locator('.workbench-subtitle')).toHaveText(
-    '2 equal, 1 modified, 1 added, 0 deleted',
-  )
+  await expect(page.getByTestId('run-diff')).toBeVisible()
+  await expect(page.locator('body')).not.toContainText('generated-120.log')
 
+  await page.getByTestId('ignore-whitespace').check()
   await page.getByTestId('run-diff').click()
 
   await expect(page.locator('.workbench-subtitle')).toHaveText(
@@ -86,4 +86,9 @@ test('opens the home page and runs a text comparison', async ({ page }) => {
   )
   await expect(page.getByTestId('text-diff-scroll-container')).toContainText('line 2')
   await expect(page.getByTestId('text-details')).toContainText('Left 2: line two')
+
+  await page.getByTestId('text-left-path').fill('tests/fixtures/text/left.txt')
+  await page.getByTestId('text-right-path').fill('tests/fixtures/text/right.txt')
+  await page.getByTestId('load-text-files').click()
+  await expect(page.getByTestId('text-left-path')).toHaveValue('tests/fixtures/text/left.txt')
 })

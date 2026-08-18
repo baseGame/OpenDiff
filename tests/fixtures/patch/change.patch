@@ -1,0 +1,5 @@
+--- a/note.txt
++++ b/note.txt
+@@ -1 +1 @@
+-hello
++hello patched

@@ -309,12 +309,12 @@ pub trait RemoteFileProvider {
 }
 
 #[derive(Debug, Clone)]
-pub struct MemoryFtpProvider {
+pub struct FakeFtpProvider {
     profile: RemoteProfile,
     files: BTreeMap<String, Vec<u8>>,
 }
 
-impl MemoryFtpProvider {
+impl FakeFtpProvider {
     pub fn connect(profile: RemoteProfile) -> RemoteProviderResult<Self> {
         if profile.protocol != RemoteProtocol::Ftp {
             return Err(RemoteProviderError::UnsupportedProtocol(profile.protocol));
@@ -338,13 +338,13 @@ pub enum FtpsTlsMode {
 }
 
 #[derive(Debug, Clone)]
-pub struct MemoryFtpsProvider {
+pub struct FakeFtpsProvider {
     profile: RemoteProfile,
     tls_mode: FtpsTlsMode,
     files: BTreeMap<String, Vec<u8>>,
 }
 
-impl MemoryFtpsProvider {
+impl FakeFtpsProvider {
     pub fn connect(profile: RemoteProfile) -> RemoteProviderResult<Self> {
         if profile.protocol != RemoteProtocol::Ftps {
             return Err(RemoteProviderError::UnsupportedProtocol(profile.protocol));
@@ -641,13 +641,13 @@ impl OAuthAuthentication {
 }
 
 #[derive(Debug, Clone)]
-pub struct MemorySftpProvider {
+pub struct FakeSftpProvider {
     profile: RemoteProfile,
     authentication: SftpAuthentication,
     files: BTreeMap<String, Vec<u8>>,
 }
 
-impl MemorySftpProvider {
+impl FakeSftpProvider {
     pub fn connect(
         profile: RemoteProfile,
         credential: RemoteCredential,
@@ -674,7 +674,7 @@ impl MemorySftpProvider {
     }
 }
 
-impl RemoteFileProvider for MemorySftpProvider {
+impl RemoteFileProvider for FakeSftpProvider {
     fn list(&self, path: &str) -> RemoteProviderResult<Vec<RemoteEntry>> {
         list_memory_remote_entries(&self.files, path)
     }
@@ -830,7 +830,7 @@ fn rename_memory_remote_file(
     Ok(())
 }
 
-impl RemoteFileProvider for MemoryFtpProvider {
+impl RemoteFileProvider for FakeFtpProvider {
     fn list(&self, path: &str) -> RemoteProviderResult<Vec<RemoteEntry>> {
         list_memory_remote_entries(&self.files, path)
     }
@@ -852,7 +852,7 @@ impl RemoteFileProvider for MemoryFtpProvider {
     }
 }
 
-impl RemoteFileProvider for MemoryFtpsProvider {
+impl RemoteFileProvider for FakeFtpsProvider {
     fn list(&self, path: &str) -> RemoteProviderResult<Vec<RemoteEntry>> {
         list_memory_remote_entries(&self.files, path)
     }
@@ -1286,7 +1286,7 @@ mod tests {
                 .with_root_path("/releases"),
             CredentialReference::profile_store("release-ftp"),
         );
-        let mut provider = MemoryFtpProvider::connect(profile).unwrap();
+        let mut provider = FakeFtpProvider::connect(profile).unwrap();
 
         provider
             .upload("/releases/app.zip", b"package".to_vec())
@@ -1328,7 +1328,7 @@ mod tests {
             CredentialReference::environment("OPEN_DIFF_WEBDAV_CREDENTIAL"),
         );
 
-        let error = MemoryFtpProvider::connect(profile).unwrap_err();
+        let error = FakeFtpProvider::connect(profile).unwrap_err();
 
         assert!(matches!(
             error,
@@ -1348,7 +1348,7 @@ mod tests {
             CredentialReference::profile_store("release-sftp"),
         );
         let credential = RemoteCredential::username_password("deploy", "correct-horse");
-        let mut provider = MemorySftpProvider::connect(profile, credential).unwrap();
+        let mut provider = FakeSftpProvider::connect(profile, credential).unwrap();
 
         provider
             .upload("/incoming/app.tar.gz", b"archive".to_vec())
@@ -1381,7 +1381,7 @@ mod tests {
         );
         let credential =
             RemoteCredential::private_key("builder", "OPENSSH-PRIVATE-KEY", Some("pin"));
-        let provider = MemorySftpProvider::connect(profile, credential).unwrap();
+        let provider = FakeSftpProvider::connect(profile, credential).unwrap();
 
         assert_eq!(
             provider.authentication(),
@@ -1403,7 +1403,7 @@ mod tests {
         );
         let credential = RemoteCredential::username_password("deploy", "correct-horse");
 
-        let error = MemorySftpProvider::connect(profile, credential).unwrap_err();
+        let error = FakeSftpProvider::connect(profile, credential).unwrap_err();
 
         assert!(matches!(
             error,
@@ -1423,7 +1423,7 @@ mod tests {
             CredentialReference::profile_store("release-ftps"),
         )
         .with_option("tlsMode", "explicit");
-        let mut provider = MemoryFtpsProvider::connect(profile).unwrap();
+        let mut provider = FakeFtpsProvider::connect(profile).unwrap();
 
         provider
             .upload("/secure/app.zip", b"secure".to_vec())
@@ -1445,7 +1445,7 @@ mod tests {
         )
         .with_option("tlsMode", "implicit");
 
-        let provider = MemoryFtpsProvider::connect(profile).unwrap();
+        let provider = FakeFtpsProvider::connect(profile).unwrap();
 
         assert_eq!(provider.tls_mode(), FtpsTlsMode::Implicit);
     }
@@ -1460,7 +1460,7 @@ mod tests {
             CredentialReference::profile_store("release-ftp"),
         );
 
-        let error = MemoryFtpsProvider::connect(profile).unwrap_err();
+        let error = FakeFtpsProvider::connect(profile).unwrap_err();
 
         assert!(matches!(
             error,

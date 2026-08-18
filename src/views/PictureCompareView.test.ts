@@ -137,11 +137,22 @@ describe('PictureCompareView', () => {
     )
   })
 
-  it('toggles the picture difference overlay layer', async () => {
+  it('toggles the picture difference overlay layer after a real compare', async () => {
     const wrapper = mount(PictureCompareView)
+
+    expect(wrapper.find('[data-testid="picture-diff-overlay"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="picture-diff-region"]').exists()).toBe(false)
+
+    await wrapper.find('[data-testid="picture-left-path"]').setValue('C:/images/left-fixture.png')
+    await wrapper.find('[data-testid="picture-right-path"]').setValue('C:/images/right-fixture.png')
+    await wrapper.find('[data-testid="run-picture-compare"]').trigger('click')
+    await wrapper.vm.$nextTick()
 
     expect(wrapper.findAll('[data-testid="picture-diff-overlay"]')).toHaveLength(2)
     expect(wrapper.find('[data-testid="picture-diff-region"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="picture-diff-region"]').attributes('style')).toContain(
+      'left: 1px',
+    )
 
     await wrapper.find('[data-testid="picture-overlay-toggle"]').setValue(false)
 
@@ -176,7 +187,7 @@ describe('PictureCompareView', () => {
     )
   })
 
-  it('shows pointer pixel preview with coordinates and color', async () => {
+  it('shows pointer pixel coordinates without inventing a sampled color', async () => {
     const wrapper = mount(PictureCompareView)
 
     await wrapper.find('[data-testid="right-picture-image"]').trigger('mousemove', {
@@ -186,9 +197,7 @@ describe('PictureCompareView', () => {
 
     expect(wrapper.find('[data-testid="picture-pixel-preview"]').text()).toContain('Right')
     expect(wrapper.find('[data-testid="picture-pixel-coordinates"]').text()).toBe('42, 24')
-    expect(wrapper.find('[data-testid="picture-pixel-color"]').text()).toMatch(
-      /^rgb\(\d+, \d+, \d+\)$/,
-    )
+    expect(wrapper.find('[data-testid="picture-pixel-color"]').text()).toBe('rgb(--, --, --)')
   })
 
   it('renders image metadata comparison rows with difference states', async () => {

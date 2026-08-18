@@ -2367,6 +2367,7 @@ dependencies = [
  "registry-core",
  "remote-core",
  "report-core",
+ "rust_xlsxwriter",
  "script-core",
  "serde",
  "shared-types",
