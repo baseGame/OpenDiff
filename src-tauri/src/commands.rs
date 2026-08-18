@@ -1594,6 +1594,7 @@ pub fn write_git_integration(
     kind: String,
     executable_path: String,
     scope: Option<String>,
+    config_path: Option<String>,
 ) -> Result<String, AppErrorPayload> {
     let scope = if scope.as_deref() == Some("local") {
         cli_core::GitConfigScope::Local
@@ -1612,13 +1613,15 @@ pub fn write_git_integration(
             error.message,
         )
     })?;
-    cli_core::write_git_tool_config(&config).map_err(|error| {
-        AppErrorPayload::new(
-            AppErrorCode::Unknown,
-            "error.app.unknown.title",
-            error.message,
-        )
-    })
+    cli_core::write_git_tool_config_to_file(&config, config_path.as_deref().map(Path::new)).map_err(
+        |error| {
+            AppErrorPayload::new(
+                AppErrorCode::Unknown,
+                "error.app.unknown.title",
+                error.message,
+            )
+        },
+    )
 }
 
 #[tauri::command]
@@ -5067,6 +5070,52 @@ mod tests {
             .debug_message
             .to_ascii_lowercase()
             .contains("unsupported"));
+    }
+
+    #[test]
+    fn write_git_integration_writes_to_temp_gitconfig() {
+        let root = unique_temp_dir("git-integration-command");
+        fs::create_dir_all(&root).expect("fixture directory should be created");
+        let gitconfig = root.join("gitconfig");
+
+        let message = write_git_integration(
+            "mergetool".to_owned(),
+            "/tmp/open-diff-cli".to_owned(),
+            Some("global".to_owned()),
+            Some(gitconfig.display().to_string()),
+        )
+        .expect("git integration should write to a temp file");
+
+        assert!(message.contains("Wrote"));
+        let written = fs::read_to_string(&gitconfig).expect("temp gitconfig should exist");
+        assert!(written.contains("open-diff"));
+        assert!(written.contains("mergetool") || written.contains("merge.tool"));
+        assert!(written.contains("--automerge"));
+    }
+
+    #[test]
+    fn test_remote_profile_missing_id_is_a_real_error() {
+        let error = test_remote_profile("missing-linkage-profile".to_owned())
+            .expect_err("missing remote profile should fail");
+
+        assert!(error.debug_message.contains("not found"));
+    }
+
+    #[test]
+    fn save_text_file_writes_a_real_temp_file() {
+        let root = unique_temp_dir("save-text-command");
+        fs::create_dir_all(&root).expect("fixture directory should be created");
+        let path = root.join("note.txt");
+
+        let response = save_text_file(path.display().to_string(), "saved from command".to_owned())
+            .expect("temp file should save");
+
+        assert_eq!(response.bytes_written, "saved from command".len() as u64);
+        assert_eq!(
+            fs::read_to_string(&path).expect("saved file should exist"),
+            "saved from command"
+        );
+        assert!(!response.path.contains("generated-"));
     }
 
     #[test]

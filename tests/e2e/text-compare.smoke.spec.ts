@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 interface TauriInternalsMock {
-  invoke: (command: string) => Promise<unknown>
+  invoke: (command: string, args?: unknown) => Promise<unknown>
 }
 
 type WindowWithTauriMock = Window & {
@@ -13,7 +13,36 @@ test('opens the home page and runs a text comparison', async ({ page }) => {
     const tauriWindow = window as WindowWithTauriMock
 
     tauriWindow.__TAURI_INTERNALS__ = {
-      invoke: (command: string) => {
+      invoke: (command: string, args?: unknown) => {
+        if (command === 'load_admin_policy') {
+          return Promise.resolve({
+            savePasswords: true,
+            remoteProfiles: true,
+            updateChecks: true,
+          })
+        }
+
+        if (command === 'app_runtime_info') {
+          return Promise.resolve({ os: 'linux', family: 'unix' })
+        }
+
+        if (command === 'read_text_file') {
+          const path =
+            args && typeof args === 'object' && 'path' in args
+              ? (args as { path: string }).path
+              : 'file.txt'
+
+          return Promise.resolve({
+            path,
+            text: path.includes('right')
+              ? 'line one\nline 2\nline three\nline four'
+              : 'line one\nline two\nline four',
+            encoding: 'UTF-8',
+            lineEnding: 'LF',
+            fileStamp: { size: 8, modifiedAtMs: 1 },
+          })
+        }
+
         if (command !== 'diff_text') {
           throw new Error(`Unexpected Tauri command: ${command}`)
         }

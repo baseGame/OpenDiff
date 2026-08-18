@@ -1,4 +1,9 @@
 import { expect, test } from '@playwright/test'
+import { installTauriInvokeMock } from './helpers/tauriMock'
+
+test.beforeEach(async ({ page }) => {
+  await installTauriInvokeMock(page)
+})
 
 const routes = [
   ['home', '/'],
