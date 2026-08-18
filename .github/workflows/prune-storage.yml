@@ -23,6 +23,9 @@ on:
         required: false
         type: boolean
         default: true
+  pull_request:
+    paths:
+      - '.github/workflows/prune-storage.yml'
   push:
     branches:
       - master
@@ -92,6 +95,9 @@ jobs:
 
             if (ref.startsWith('refs/pull/')) {
               reasons.push('pull-request')
+            }
+            if (/refs\/tags\//.test(ref)) {
+              reasons.push('leftover-packaging-tag-ref')
             }
             if (isRustCache(key) && isOlderThan(cacheAgeMs(cache), snapshotDays)) {
               reasons.push(`rust-older-than-${snapshotDays}d`)
