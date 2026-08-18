@@ -631,7 +631,7 @@ export const esES: LanguagePack = {
     'session.summary.script': 'Ejecutar scripts LOAD/COMPARE/REPORT',
     'ui.archiveCompare': 'Comparar archivos',
     'ui.archivePathHint':
-      'Carpetas, archivos ZIP/TAR, JSON de instantánea o sftp://profile/id/path',
+      'Carpetas, archivos ZIP/TAR, JSON de instantánea o sftp://profile/id/path y webdav://profile/id/path',
     'ui.applyToFile': 'Aplicar al archivo',
     'ui.difftool': 'difftool',
     'ui.mergetool': 'mergetool',
@@ -650,8 +650,9 @@ export const esES: LanguagePack = {
     'ui.openInTextCompare': 'Abrir en comparación de texto',
     'ui.password': 'Contraseña',
     'ui.remoteNotImplemented':
-      'SFTP y FTP pueden conectar, listar y transferir. WebDAV, S3, Dropbox, OneDrive y SVN siguen sin implementarse.',
-    'ui.remoteUriHint': 'Use una ruta local o sftp://profile/id/path después de guardar un perfil',
+      'SFTP, FTP y WebDAV pueden conectar, listar y transferir. S3, Dropbox, OneDrive y SVN siguen sin implementarse.',
+    'ui.remoteUriHint':
+      'Use una ruta local, o sftp://profile/id/path o webdav://profile/id/path después de guardar un perfil',
     'ui.reportKind': 'Report kind',
     'ui.rightSheet': 'Right sheet',
     'ui.runScript': 'Ejecutar script',
@@ -661,7 +662,7 @@ export const esES: LanguagePack = {
     'ui.scriptingNotImplemented':
       'El lenguaje de scripts BC completo no está implementado. Los comandos admitidos se ejecutan; el resto devuelve unsupported.',
     'ui.scriptingSupported':
-      'Admitidos: LOAD, FILTER, COMPARE, REPORT, LOG, BEEP, OPTION, SELECT. Otros comandos BC devuelven unsupported.',
+      'Admitidos: LOAD, FILTER, COMPARE, REPORT, LOG, BEEP, OPTION, SELECT, COPY, COPYTO, DELETE, RENAME, TOUCH, SNAPSHOT, SYNC, TEXT-REPORT, FOLDER-REPORT. Otros comandos BC devuelven unsupported.',
     'ui.secretsHint':
       'Las contraseñas se guardan solo en un archivo local (modo 0600), nunca en la lista de perfiles ni en los registros.',
     'ui.sourceFile': 'Source file',
@@ -676,13 +677,31 @@ export const esES: LanguagePack = {
     'ui.writeSvnConfig': 'Escribir configuración de SVN',
     'ui.xls': 'XLS',
     'ui.xlsx': 'XLSX',
+    'ui.followSystem': 'Seguir el sistema',
+    'ui.compareBySize': 'Comparar tamaño',
+    'ui.compareByTimestamp': 'Comparar marca de tiempo',
+    'ui.compareBinaryContents': 'Comparar contenido binario',
+    'ui.compareCrc': 'Comparar CRC',
+    'ui.folderCriteria': 'Criterios de comparación',
+    'ui.windowsShell': 'Shell de Windows',
+    'ui.registerShellExtension': 'Registrar extensión de shell',
+    'ui.windowsOnly': 'Solo Windows',
+    'ui.shellExtensionHint':
+      'Añade Open Diff al Explorador para archivos y carpetas seleccionados.',
+    'ui.policyRemoteDisabled':
+      'Los perfiles remotos están deshabilitados por la directiva de administrador.',
+    'ui.policyPasswordsDisabled':
+      'Guardar contraseñas está deshabilitado por la directiva de administrador.',
+    'status.shellRegistered': 'Extensión de shell de Windows registrada',
+    'status.shellScriptGenerated':
+      'Solo Windows. Se generó el script de registro pero no se aplicó.',
     'status.gitConfigWritten': 'Se escribió la configuración Git {kind}',
     'status.patchApplied': 'Patch applied',
     'status.patchWritten': 'Parche escrito en {path}',
     'status.remoteConnected': 'Conectado: {detail}',
     'status.remoteFailed': 'Error de conexión: {detail}',
     'status.remoteUnavailable':
-      'Este protocolo no está implementado; solo SFTP y FTP están activos',
+      'Este protocolo no está implementado; solo SFTP, FTP y WebDAV están activos',
     'status.svnConfigWritten': 'Se escribieron el wrapper y el fragmento de SVN',
   },
 }

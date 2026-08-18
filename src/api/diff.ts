@@ -102,6 +102,7 @@ export function compareFolderPaths(request: FolderCompareRequest): Promise<Folde
   return invoke<FolderCompareResponse>('compare_folder_paths', {
     leftRoot: request.leftRoot,
     rightRoot: request.rightRoot,
+    criteria: request.criteria,
   })
 }
 

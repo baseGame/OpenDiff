@@ -638,7 +638,8 @@ export const deDE: LanguagePack = {
     'session.summary.archiveCompare': 'ZIP/TAR-Ordnerbaumvergleich',
     'session.summary.script': 'LOAD/COMPARE/REPORT-Skripte ausführen',
     'ui.archiveCompare': 'Archivvergleich',
-    'ui.archivePathHint': 'Ordner, ZIP/TAR-Archive, Snapshot-JSON oder sftp://profile/id/path',
+    'ui.archivePathHint':
+      'Ordner, ZIP/TAR-Archive, Snapshot-JSON oder sftp://profile/id/path und webdav://profile/id/path',
     'ui.applyToFile': 'Auf Datei anwenden',
     'ui.difftool': 'difftool',
     'ui.mergetool': 'mergetool',
@@ -656,8 +657,9 @@ export const deDE: LanguagePack = {
     'ui.openInTextCompare': 'In Textvergleich öffnen',
     'ui.password': 'Passwort',
     'ui.remoteNotImplemented':
-      'SFTP und FTP können verbinden, listen und übertragen. WebDAV, S3, Dropbox, OneDrive und SVN bleiben unimplementiert.',
-    'ui.remoteUriHint': 'Lokaler Pfad oder sftp://profile/id/path nach dem Speichern eines Profils',
+      'SFTP, FTP und WebDAV können verbinden, listen und übertragen. S3, Dropbox, OneDrive und SVN bleiben unimplementiert.',
+    'ui.remoteUriHint':
+      'Lokaler Pfad oder sftp://profile/id/path bzw. webdav://profile/id/path nach dem Speichern eines Profils',
     'ui.reportKind': 'Report kind',
     'ui.rightSheet': 'Right sheet',
     'ui.runScript': 'Skript ausführen',
@@ -667,7 +669,7 @@ export const deDE: LanguagePack = {
     'ui.scriptingNotImplemented':
       'Die vollständige BC-Skriptsprache ist nicht implementiert. Unterstützte Befehle laufen; andere liefern unsupported.',
     'ui.scriptingSupported':
-      'Unterstützt: LOAD, FILTER, COMPARE, REPORT, LOG, BEEP, OPTION, SELECT. Andere BC-Befehle liefern unsupported.',
+      'Unterstützt: LOAD, FILTER, COMPARE, REPORT, LOG, BEEP, OPTION, SELECT, COPY, COPYTO, DELETE, RENAME, TOUCH, SNAPSHOT, SYNC, TEXT-REPORT, FOLDER-REPORT. Andere BC-Befehle liefern unsupported.',
     'ui.secretsHint':
       'Passwörter liegen nur in einer lokalen Geheimdatei (Modus 0600), nie in der Profilliste oder in Logs.',
     'ui.sourceFile': 'Source file',
@@ -682,13 +684,30 @@ export const deDE: LanguagePack = {
     'ui.writeSvnConfig': 'SVN-Konfiguration schreiben',
     'ui.xls': 'XLS',
     'ui.xlsx': 'XLSX',
+    'ui.followSystem': 'System folgen',
+    'ui.compareBySize': 'Größe vergleichen',
+    'ui.compareByTimestamp': 'Zeitstempel vergleichen',
+    'ui.compareBinaryContents': 'Binärinhalt vergleichen',
+    'ui.compareCrc': 'CRC vergleichen',
+    'ui.folderCriteria': 'Vergleichskriterien',
+    'ui.windowsShell': 'Windows-Shell',
+    'ui.registerShellExtension': 'Shell-Erweiterung registrieren',
+    'ui.windowsOnly': 'Nur Windows',
+    'ui.shellExtensionHint': 'Fügt Open Diff im Explorer für ausgewählte Dateien und Ordner hinzu.',
+    'ui.policyRemoteDisabled':
+      'Remoteprofile sind durch die Administrat<fim-middle>orrichtlinie deaktiviert.',
+    'ui.policyPasswordsDisabled':
+      'Das Speichern von Passwörtern ist durch die Administratorrichtlinie deaktiviert.',
+    'status.shellRegistered': 'Windows-Shell-Erweiterung registriert',
+    'status.shellScriptGenerated':
+      'Nur Windows. Registrierungsskript erzeugt, aber nicht angewendet.',
     'status.gitConfigWritten': 'Git-{kind}-Konfiguration geschrieben',
     'status.patchApplied': 'Patch applied',
     'status.patchWritten': 'Patch nach {path} geschrieben',
     'status.remoteConnected': 'Verbunden: {detail}',
     'status.remoteFailed': 'Verbindung fehlgeschlagen: {detail}',
     'status.remoteUnavailable':
-      'Dieses Protokoll ist nicht implementiert; nur SFTP und FTP sind aktiv',
+      'Dieses Protokoll ist nicht implementiert; nur SFTP, FTP und WebDAV sind aktiv',
     'status.svnConfigWritten': 'SVN-Wrapper und Snippet geschrieben',
   },
 }

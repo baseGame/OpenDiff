@@ -172,8 +172,19 @@ function redoEdit(): void {
   clampFindIndex()
 }
 
+function currentSelectionOrEditor(): string {
+  const selected = window.getSelection()?.toString()
+
+  if (!selected) {
+    return editorText.value
+  }
+
+  return selected
+}
+
 async function copyEdit(): Promise<void> {
-  const selected = window.getSelection()?.toString() || editorText.value
+  const selected = currentSelectionOrEditor()
+
   localClipboard.value = selected
 
   try {
@@ -184,7 +195,8 @@ async function copyEdit(): Promise<void> {
 }
 
 async function cutEdit(): Promise<void> {
-  const selected = window.getSelection()?.toString() || editorText.value
+  const selected = currentSelectionOrEditor()
+
   await copyEdit()
 
   if (selected && editorText.value.includes(selected)) {

@@ -18,13 +18,16 @@ describe('remote api', () => {
     vi.mocked(invoke).mockClear()
   })
 
-  it('treats only SFTP and FTP as implemented protocols', () => {
+  it('treats SFTP, FTP, and WebDAV as implemented protocols', () => {
     expect(isImplementedRemoteProtocol('sftp')).toBe(true)
     expect(isImplementedRemoteProtocol('ftp')).toBe(true)
-    expect(isImplementedRemoteProtocol('web-dav')).toBe(false)
+    expect(isImplementedRemoteProtocol('web-dav')).toBe(true)
     expect(isImplementedRemoteProtocol('s3')).toBe(false)
     expect(formatRemoteUri('sftp', 'prod-sftp', '/var/app')).toBe(
       'sftp://profile/prod-sftp/var/app',
+    )
+    expect(formatRemoteUri('web-dav', 'team-webdav', '/shared/docs')).toBe(
+      'webdav://profile/team-webdav/shared/docs',
     )
   })
 
@@ -61,12 +64,13 @@ describe('remote api', () => {
     await deleteRemoteProfile('prod-sftp')
 
     expect(invoke).toHaveBeenNthCalledWith(1, 'list_remote_profiles')
-    expect(invoke).toHaveBeenNthCalledWith(2, 'save_remote_profile', {
-      draft: expect.objectContaining({
+    expect(vi.mocked(invoke).mock.calls[1]?.[0]).toBe('save_remote_profile')
+    expect(vi.mocked(invoke).mock.calls[1]?.[1]).toMatchObject({
+      draft: {
         id: 'prod-sftp',
         username: 'deploy',
         password: 'secret',
-      }),
+      },
     })
     expect(invoke).toHaveBeenNthCalledWith(3, 'test_remote_profile', { id: 'prod-sftp' })
     expect(invoke).toHaveBeenNthCalledWith(4, 'delete_remote_profile', { id: 'prod-sftp' })

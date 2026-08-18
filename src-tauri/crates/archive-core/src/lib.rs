@@ -684,8 +684,8 @@ mod tests {
     #[test]
     fn zip_archive_rejects_empty_and_hex_payloads() {
         let empty = ZipArchiveDocument::from_bytes("release.zip", b"").unwrap_err();
-        let hex = ZipArchiveDocument::from_bytes("release.zip", b"/docs/readme.md\t6e6577\n")
-            .unwrap_err();
+        let hex_tab_payload = b"/docs/readme.md\t6e6577\n";
+        let hex = ZipArchiveDocument::from_bytes("release.zip", hex_tab_payload).unwrap_err();
 
         assert!(matches!(
             empty,

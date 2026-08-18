@@ -134,6 +134,7 @@ function plannedOverride(
   }
 
   const source = row.sourcePath ?? ''
+
   if (source.startsWith(rightRoot)) {
     return 'copyRightToLeft'
   }
@@ -518,7 +519,7 @@ h1 {
   width: 1px;
   height: 1px;
   overflow: hidden;
-  clip: rect(0, 0, 0, 0);
+  clip-path: inset(50%);
 }
 
 .sync-preview-row:last-child {

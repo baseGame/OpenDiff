@@ -1,8 +1,6 @@
 <script setup lang="ts">
 import {
-  createAssociatedApplicationOpenAction,
   createDefaultOpenAction,
-  createOpenWithAction,
   listEnabledExternalApplications,
   type ExternalApplicationConfig,
   type FileOpenAction,
@@ -23,6 +21,7 @@ import {
   touchFolderEntry,
 } from '@/api/diff'
 import type {
+  FolderCompareCriteria,
   FolderCompareResponse,
   FolderCompareRow as FolderCompareResponseRow,
   FolderCompareSideEntry,
@@ -94,12 +93,16 @@ const displayStatusOptions: { statuses: FolderStatus[]; labelKey: string; testId
   { statuses: ['Left only', 'Right only'], labelKey: 'ui.orphans', testId: 'orphans' },
 ]
 const alignWithTargetId = ref('')
-const manualAlignments = ref<Record<string, string>>({})
-const lastAlignmentAction = ref<string>()
 const rows = ref<FolderTreeRow[]>([])
 const expandedDirectoryIds = ref<Set<string>>(new Set())
 const leftRoot = ref('')
 const rightRoot = ref('')
+const folderCriteria = ref<FolderCompareCriteria>({
+  compareSize: true,
+  compareModifiedTime: false,
+  compareContents: true,
+  compareCrc: false,
+})
 const sessionLaunch = useSessionLaunchStore()
 const lastCompare = useLastCompareStore()
 const router = useRouter()
@@ -364,6 +367,7 @@ async function runFolderCompare(): Promise<void> {
     const response = await compareFolderPaths({
       leftRoot: leftRoot.value,
       rightRoot: rightRoot.value,
+      criteria: { ...folderCriteria.value },
     })
 
     applyFolderCompareResponse(response)
@@ -494,32 +498,6 @@ function openSelectedFile(): void {
   openChildCompareForSelected('open')
 }
 
-function openSelectedFileWithTextEdit(): void {
-  if (!selectedFilePath.value) {
-    return
-  }
-
-  recordOpenAction(createOpenWithAction(selectedFilePath.value, 'Text Edit', 'open-diff-text-edit'))
-}
-
-function openSelectedFileWithExternalApplication(application: ExternalApplicationConfig): void {
-  if (!selectedFilePath.value) {
-    return
-  }
-
-  recordOpenAction(
-    createOpenWithAction(selectedFilePath.value, application.name, application.executable),
-  )
-}
-
-function openSelectedFileWithAssociatedApplication(): void {
-  if (!selectedFilePath.value) {
-    return
-  }
-
-  recordOpenAction(createAssociatedApplicationOpenAction(selectedFilePath.value))
-}
-
 function quickCompareSelectedFile(): void {
   openChildCompareForSelected('quick')
 }
@@ -613,37 +591,6 @@ function fileOperationTitle(confirmation: FileOperationConfirmation): string {
   return t(confirmation.titleKey, confirmation.titleParams)
 }
 
-function alignSelectedFileWithTarget(): void {
-  const row = selectedRow.value
-  const target = rows.value.find((candidate) => candidate.id === alignWithTargetId.value)
-
-  if (!row || !target) {
-    return
-  }
-
-  manualAlignments.value = {
-    ...manualAlignments.value,
-    [row.id]: target.id,
-  }
-  lastAlignmentAction.value = t('status.alignedWith', {
-    source: displayName(row),
-    target: displayName(target),
-  })
-}
-
-function breakSelectedAlignment(): void {
-  const row = selectedRow.value
-
-  if (!row) {
-    return
-  }
-
-  manualAlignments.value = Object.fromEntries(
-    Object.entries(manualAlignments.value).filter(([rowId]) => rowId !== row.id),
-  )
-  lastAlignmentAction.value = t('status.alignmentCleared', { name: displayName(row) })
-}
-
 async function confirmFolderCopy(): Promise<void> {
   const confirmation = pendingCopyConfirmation.value
   const direction = pendingCopyDirection.value
@@ -689,6 +636,7 @@ async function moveSelectedFile(): Promise<void> {
   }
 
   const targetPath = archivePath(path)
+
   await moveFolderEntry({ sourcePath: path, targetPath })
   lastFileOperationAction.value = `${t('ui.move')} -> ${targetPath}`
   await runFolderCompare()
@@ -762,6 +710,7 @@ function excludeSelectedRow(): void {
 async function refreshSelectedRow(): Promise<void> {
   await runFolderCompare()
   const row = selectedRow.value
+
   lastSelectionAction.value = row
     ? t('status.refreshedPath', { path: displayName(row) })
     : t('ui.refresh')
@@ -770,6 +719,7 @@ async function refreshSelectedRow(): Promise<void> {
 async function previewSyncPlan(): Promise<void> {
   if (!leftRoot.value || !rightRoot.value) {
     syncPreviewItems.value = []
+
     return
   }
 
@@ -778,6 +728,7 @@ async function previewSyncPlan(): Promise<void> {
     rightRoot: rightRoot.value,
     strategy: 'updateRight',
   })
+
   syncPreviewItems.value = preview.rows.map((row) => ({
     id: row.id,
     action: mapSyncPreviewAction(row.action),
@@ -799,6 +750,7 @@ function mapSyncPreviewAction(action: string): SyncPreviewAction {
   if (action === 'Error' || action === 'Conflict') {
     return 'Error'
   }
+
   return action === 'Overwrite' ? 'Overwrite' : 'Copy'
 }
 
@@ -813,6 +765,7 @@ async function exportFolderReport(format: 'html' | 'text'): Promise<void> {
     format,
     outputPath: `${leftRoot.value}/folder-compare.${format === 'text' ? 'txt' : 'html'}`,
   })
+
   reportStatus.value = response.outputPath ?? format
 }
 
@@ -947,6 +900,44 @@ function handleTreeScroll(event: Event): void {
           >
             {{ $t('ui.archivePathHint') }}
           </p>
+          <fieldset
+            class="folder-criteria"
+            data-testid="folder-criteria"
+          >
+            <legend>{{ $t('ui.folderCriteria') }}</legend>
+            <label>
+              <input
+                v-model="folderCriteria.compareSize"
+                data-testid="folder-criteria-size"
+                type="checkbox"
+              />
+              <span>{{ $t('ui.compareBySize') }}</span>
+            </label>
+            <label>
+              <input
+                v-model="folderCriteria.compareModifiedTime"
+                data-testid="folder-criteria-timestamp"
+                type="checkbox"
+              />
+              <span>{{ $t('ui.compareByTimestamp') }}</span>
+            </label>
+            <label>
+              <input
+                v-model="folderCriteria.compareContents"
+                data-testid="folder-criteria-contents"
+                type="checkbox"
+              />
+              <span>{{ $t('ui.compareBinaryContents') }}</span>
+            </label>
+            <label>
+              <input
+                v-model="folderCriteria.compareCrc"
+                data-testid="folder-criteria-crc"
+                type="checkbox"
+              />
+              <span>{{ $t('ui.compareCrc') }}</span>
+            </label>
+          </fieldset>
         </div>
         <div class="folder-actions">
           <NButton
@@ -992,9 +983,8 @@ function handleTreeScroll(event: Event): void {
             size="small"
             secondary
             data-testid="open-with-selected-file"
-            :disabled="!selectedFilePath"
-            @click="openSelectedFileWithTextEdit"
-            >{{ $t('ui.openWith') }}</NButton
+            disabled
+            >{{ $t('ui.openWith') }} ({{ $t('ui.unimplemented') }})</NButton
           >
           <NButton
             v-for="application in enabledExternalApplications"
@@ -1002,18 +992,16 @@ function handleTreeScroll(event: Event): void {
             size="small"
             secondary
             :data-testid="`open-with-custom-${application.id}`"
-            :disabled="!selectedFilePath"
-            @click="openSelectedFileWithExternalApplication(application)"
+            disabled
           >
-            {{ application.name }}
+            {{ application.name }} ({{ $t('ui.unimplemented') }})
           </NButton>
           <NButton
             size="small"
             secondary
             data-testid="open-associated-file"
-            :disabled="!selectedFilePath"
-            @click="openSelectedFileWithAssociatedApplication"
-            >{{ $t('ui.associatedApp') }}</NButton
+            disabled
+            >{{ $t('ui.associatedApp') }} ({{ $t('ui.unimplemented') }})</NButton
           >
           <NButton
             size="small"
@@ -1378,17 +1366,15 @@ function handleTreeScroll(event: Event): void {
           size="small"
           secondary
           data-testid="align-with-selected-file"
-          :disabled="!selectedRowId || !alignWithTargetId"
-          @click="alignSelectedFileWithTarget"
-          >{{ $t('ui.alignWith') }}</NButton
+          disabled
+          >{{ $t('ui.alignWith') }} ({{ $t('ui.unimplemented') }})</NButton
         >
         <NButton
           size="small"
           secondary
           data-testid="break-selected-alignment"
-          :disabled="!selectedRowId"
-          @click="breakSelectedAlignment"
-          >{{ $t('ui.breakAlignment') }}</NButton
+          disabled
+          >{{ $t('ui.breakAlignment') }} ({{ $t('ui.unimplemented') }})</NButton
         >
       </section>
 
@@ -1410,13 +1396,6 @@ function handleTreeScroll(event: Event): void {
         data-testid="folder-compare-action-status"
       >
         {{ lastCompareAction }}
-      </section>
-      <section
-        v-if="lastAlignmentAction"
-        class="folder-action-status"
-        data-testid="folder-alignment-action-status"
-      >
-        {{ lastAlignmentAction }}
       </section>
       <section
         v-if="lastCopyAction"
@@ -1689,6 +1668,31 @@ function handleTreeScroll(event: Event): void {
   margin: 0;
   color: var(--app-text-muted);
   font-size: 12px;
+}
+
+.folder-criteria {
+  display: flex;
+  grid-column: 1 / -1;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  color: var(--app-text-muted);
+  font-size: 12px;
+}
+
+.folder-criteria legend {
+  padding: 0;
+  color: var(--app-text);
+  font-weight: 600;
+}
+
+.folder-criteria label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .path-pair input {

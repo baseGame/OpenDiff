@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import WorkbenchShell from '@/components/workbench/WorkbenchShell.vue'
 import WorkbenchInspector from '@/components/workbench/WorkbenchInspector.vue'
 import { useI18n } from '@/i18n'
+import { usePolicyStore } from '@/stores/policy'
 import {
   deleteRemoteProfile,
   isImplementedRemoteProtocol,
@@ -82,6 +83,7 @@ const builtInProfiles: RemoteProfile[] = [
 
 const profiles = ref<RemoteProfile[]>(builtInProfiles.map((profile) => cloneProfile(profile)))
 const { t } = useI18n()
+const policy = usePolicyStore()
 const selectedProfileId = ref(profiles.value[0]?.id ?? '')
 const draft = ref<RemoteProfileDraft>(toDraft(profiles.value[0] ?? emptyProfile()))
 const testStatusKey = ref('status.remoteUnavailable')
@@ -121,7 +123,9 @@ async function loadPersistedProfiles(): Promise<void> {
     }
 
     applyViews(loaded)
-  } catch {}
+  } catch (error) {
+    void error
+  }
 }
 
 function selectProfile(profileId: string): void {
@@ -143,7 +147,12 @@ function createNewProfile(): void {
 }
 
 async function saveProfile(): Promise<void> {
+  if (!policy.remoteProfiles) {
+    return
+  }
+
   const nextProfile = fromDraft(draft.value)
+
   try {
     const saved = await saveRemoteProfile({
       id: nextProfile.id,
@@ -153,8 +162,9 @@ async function saveProfile(): Promise<void> {
       port: nextProfile.endpoint.port,
       rootPath: nextProfile.endpoint.rootPath,
       username: draft.value.username.trim() || undefined,
-      password: draft.value.password || undefined,
+      password: policy.savePasswords ? draft.value.password || undefined : undefined,
     })
+
     applyViews(saved, nextProfile.id)
     draft.value.password = ''
   } catch {
@@ -177,6 +187,7 @@ async function deleteProfile(): Promise<void> {
 
   try {
     const remaining = await deleteRemoteProfile(removedId)
+
     applyViews(remaining)
   } catch {
     profiles.value = profiles.value.filter((profile) => profile.id !== removedId)
@@ -197,6 +208,7 @@ async function deleteProfile(): Promise<void> {
 async function testProfileConnection(): Promise<void> {
   if (!canTestProfile.value) {
     setTestStatus('status.remoteUnavailable')
+
     return
   }
 
@@ -208,6 +220,7 @@ async function testProfileConnection(): Promise<void> {
     }
 
     const detail = await testRemoteProfile(draft.value.id || selectedProfileId.value)
+
     setTestStatus('status.remoteConnected', { detail })
   } catch (event) {
     setTestStatus('status.remoteFailed', {
@@ -241,7 +254,7 @@ function applyViews(views: RemoteProfileView[], selectedId = selectedProfileId.v
 
   const selected =
     profiles.value.find((profile) => profile.id === selectedId) ??
-    profiles.value[0] ??
+    profiles.value.at(0) ??
     emptyProfile()
 
   selectedProfileId.value = selected.id
@@ -373,6 +386,14 @@ function credentialKindLabel(kind: CredentialReferenceKind): string {
   >
     <section class="remote-profile-view">
       <p
+        v-if="!policy.remoteProfiles"
+        class="remote-unavailable"
+        data-testid="policy-remote-disabled"
+      >
+        {{ $t('ui.policyRemoteDisabled') }}
+      </p>
+      <p
+        v-else
         class="remote-unavailable"
         data-testid="remote-unavailable-notice"
       >
@@ -389,7 +410,10 @@ function credentialKindLabel(kind: CredentialReferenceKind): string {
         </div>
       </header>
 
-      <section class="profile-workspace">
+      <section
+        v-if="policy.remoteProfiles"
+        class="profile-workspace"
+      >
         <aside class="profile-list-panel">
           <div class="panel-title">
             <h2>{{ $t('ui.profiles') }}</h2>
@@ -478,9 +502,7 @@ function credentialKindLabel(kind: CredentialReferenceKind): string {
                 <option value="ftp">{{ $t('ui.ftp') }}</option>
                 <option value="ftps">{{ $t('ui.ftps') }} ({{ $t('ui.unimplemented') }})</option>
                 <option value="sftp">{{ $t('ui.sftp') }}</option>
-                <option value="web-dav">
-                  {{ $t('ui.webDav') }} ({{ $t('ui.unimplemented') }})
-                </option>
+                <option value="web-dav">{{ $t('ui.webDav') }}</option>
                 <option value="s3">{{ $t('ui.s3') }} ({{ $t('ui.unimplemented') }})</option>
                 <option value="dropbox">
                   {{ $t('ui.dropbox') }} ({{ $t('ui.unimplemented') }})
@@ -539,7 +561,7 @@ function credentialKindLabel(kind: CredentialReferenceKind): string {
                 autocomplete="username"
               />
             </label>
-            <label>
+            <label v-if="policy.savePasswords">
               <span>{{ $t('ui.password') }}</span>
               <input
                 v-model="draft.password"
@@ -548,6 +570,12 @@ function credentialKindLabel(kind: CredentialReferenceKind): string {
                 autocomplete="current-password"
               />
             </label>
+            <p
+              v-else
+              data-testid="policy-passwords-disabled"
+            >
+              {{ $t('ui.policyPasswordsDisabled') }}
+            </p>
             <label class="credential-key">
               <span>{{ $t('ui.credentialKey') }}</span>
               <input

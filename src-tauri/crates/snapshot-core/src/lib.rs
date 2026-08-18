@@ -275,12 +275,11 @@ pub fn scan_directory_snapshot(
 
 fn scan_directory_entries(root: &Path) -> SnapshotResult<Vec<SnapshotScanEntry>> {
     let mut entries = Vec::new();
-    scan_directory_entries_into(root, root, &mut entries)?;
+    scan_directory_entries_into(root, &mut entries)?;
     Ok(entries)
 }
 
 fn scan_directory_entries_into(
-    root: &Path,
     current: &Path,
     entries: &mut Vec<SnapshotScanEntry>,
 ) -> SnapshotResult<()> {
@@ -303,7 +302,7 @@ fn scan_directory_entries_into(
             let mut scan_entry = SnapshotScanEntry::directory(path.display().to_string());
             scan_entry.modified_at_ms = modified_at_ms;
             entries.push(scan_entry);
-            scan_directory_entries_into(root, &path, entries)?;
+            scan_directory_entries_into(&path, entries)?;
         } else {
             let mut scan_entry =
                 SnapshotScanEntry::file(path.display().to_string(), metadata.len());
@@ -487,6 +486,7 @@ fn normalize_snapshot_path(path: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::PathBuf;
 
     #[test]
     fn snapshot_document_stores_tree_entries_and_metadata() {

@@ -1,4 +1,4 @@
-import { flushPromises, mount } from '@vue/test-utils'
+import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import TextMergeView from './TextMergeView.vue'
@@ -64,6 +64,7 @@ describe('TextMergeView', () => {
     })
 
     const wrapper = mount(TextMergeView)
+
     await flushPromises()
 
     expect(mergeTextFiles).toHaveBeenCalledWith({
@@ -117,14 +118,16 @@ describe('TextMergeView', () => {
   })
 })
 
-async function mountLoadedMerge() {
+async function mountLoadedMerge(): Promise<VueWrapper> {
   const wrapper = mount(TextMergeView)
+
   await wrapper.find('[data-testid="merge-left-path"]').setValue('left.txt')
   await wrapper.find('[data-testid="merge-right-path"]').setValue('right.txt')
   await wrapper.find('[data-testid="merge-center-path"]').setValue('base.txt')
   await wrapper.find('[data-testid="merge-output-path"]').setValue('out.txt')
   await wrapper.find('[data-testid="load-text-merge"]').trigger('click')
   await flushPromises()
+
   return wrapper
 }
 

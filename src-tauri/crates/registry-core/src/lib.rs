@@ -214,7 +214,7 @@ fn is_direct_child(parent: &str, path: &str) -> bool {
     let prefix = if parent.is_empty() {
         String::new()
     } else {
-        format!("{}/", parent)
+        format!("{parent}/")
     };
 
     path.strip_prefix(&prefix)

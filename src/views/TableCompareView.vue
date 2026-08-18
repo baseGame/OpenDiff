@@ -4,7 +4,6 @@ import { compareTable, readTextFile } from '@/api/diff'
 import { extensionOf } from '@/app/fileFormats'
 import type {
   TableCompareChangedCell,
-  TableCompareColumnMapping,
   TableCompareRequest,
   TableCompareResponse,
 } from '@/types/diff'
@@ -286,14 +285,6 @@ function changedCellsFromResult(
       text: `${leftValue} -> ${rightValue}`,
     }
   })
-}
-
-function normalizeMapping(mapping: TableCompareColumnMapping): ColumnMappingModel {
-  return {
-    leftColumn: mapping.leftColumn,
-    rightColumn: mapping.rightColumn,
-    source: mapping.source,
-  }
 }
 
 function tableMappingSourceKey(source: ColumnMappingModel['source']): string {

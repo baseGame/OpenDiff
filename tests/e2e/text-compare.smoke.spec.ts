@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 interface TauriInternalsMock {
-  invoke: (command: string) => Promise<unknown>
+  invoke: (command: string, args?: unknown) => Promise<unknown>
 }
 
 type WindowWithTauriMock = Window & {
@@ -13,7 +13,36 @@ test('opens the home page and runs a text comparison', async ({ page }) => {
     const tauriWindow = window as WindowWithTauriMock
 
     tauriWindow.__TAURI_INTERNALS__ = {
-      invoke: (command: string) => {
+      invoke: (command: string, args?: unknown) => {
+        if (command === 'load_admin_policy') {
+          return Promise.resolve({
+            savePasswords: true,
+            remoteProfiles: true,
+            updateChecks: true,
+          })
+        }
+
+        if (command === 'app_runtime_info') {
+          return Promise.resolve({ os: 'linux', family: 'unix' })
+        }
+
+        if (command === 'read_text_file') {
+          const path =
+            args && typeof args === 'object' && 'path' in args
+              ? (args as { path: string }).path
+              : 'file.txt'
+
+          return Promise.resolve({
+            path,
+            text: path.includes('right')
+              ? 'line one\nline 2\nline three\nline four'
+              : 'line one\nline two\nline four',
+            encoding: 'UTF-8',
+            lineEnding: 'LF',
+            fileStamp: { size: 8, modifiedAtMs: 1 },
+          })
+        }
+
         if (command !== 'diff_text') {
           throw new Error(`Unexpected Tauri command: ${command}`)
         }
@@ -67,18 +96,13 @@ test('opens the home page and runs a text comparison', async ({ page }) => {
 
   await page.goto('/')
 
-  await expect(
-    page.locator('.workbench-titlebar').getByRole('heading', { name: 'New Session' }),
-  ).toBeVisible()
+  await expect(page.getByTestId('home-new-session')).toBeVisible()
 
-  await page
-    .locator('[data-session-type="text-compare"]')
-    .getByRole('button', { name: 'Open' })
-    .click()
-  await expect(page.locator('.workbench-subtitle')).toHaveText(
-    '2 equal, 1 modified, 1 added, 0 deleted',
-  )
+  await page.locator('[data-session-type="text-compare"]').click()
+  await expect(page.getByTestId('run-diff')).toBeVisible()
+  await expect(page.locator('body')).not.toContainText('generated-120.log')
 
+  await page.getByTestId('ignore-whitespace').check()
   await page.getByTestId('run-diff').click()
 
   await expect(page.locator('.workbench-subtitle')).toHaveText(
@@ -86,4 +110,9 @@ test('opens the home page and runs a text comparison', async ({ page }) => {
   )
   await expect(page.getByTestId('text-diff-scroll-container')).toContainText('line 2')
   await expect(page.getByTestId('text-details')).toContainText('Left 2: line two')
+
+  await page.getByTestId('text-left-path').fill('tests/fixtures/text/left.txt')
+  await page.getByTestId('text-right-path').fill('tests/fixtures/text/right.txt')
+  await page.getByTestId('load-text-files').click()
+  await expect(page.getByTestId('text-left-path')).toHaveValue('tests/fixtures/text/left.txt')
 })

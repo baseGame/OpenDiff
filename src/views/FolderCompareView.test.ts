@@ -154,11 +154,18 @@ describe('FolderCompareView', () => {
 
   it('runs a real folder comparison request and renders returned rows', async () => {
     const wrapper = mountFolderCompareView()
+
     await runCompare(wrapper)
 
     expect(compareFolderPaths).toHaveBeenCalledWith({
       leftRoot: 'D:/left',
       rightRoot: 'D:/right',
+      criteria: {
+        compareSize: true,
+        compareModifiedTime: false,
+        compareContents: true,
+        compareCrc: false,
+      },
     })
     expect(wrapper.text()).toContain('main.ts')
     expect(wrapper.text()).toContain('Different')
@@ -166,6 +173,7 @@ describe('FolderCompareView', () => {
 
   it('opens a child text compare session for a selected file pair', async () => {
     const wrapper = mountFolderCompareView()
+
     await runCompare(wrapper)
     await wrapper.find('[data-row-id="src-main-ts"]').trigger('click')
     await wrapper.find('[data-testid="compare-to-selected-file"]').trigger('click')
@@ -181,8 +189,34 @@ describe('FolderCompareView', () => {
     })
   })
 
+  it('labels open-with and align-with as unimplemented instead of status-only no-ops', async () => {
+    const wrapper = mountFolderCompareView()
+
+    await runCompare(wrapper)
+    await wrapper.find('[data-row-id="src-main-ts"]').trigger('click')
+
+    const openWith = wrapper.find('[data-testid="open-with-selected-file"]')
+    const associated = wrapper.find('[data-testid="open-associated-file"]')
+    const vscode = wrapper.find('[data-testid="open-with-custom-vscode"]')
+    const alignWith = wrapper.find('[data-testid="align-with-selected-file"]')
+    const breakAlignment = wrapper.find('[data-testid="break-selected-alignment"]')
+
+    expect(openWith.attributes('disabled')).toBeDefined()
+    expect(associated.attributes('disabled')).toBeDefined()
+    expect(vscode.attributes('disabled')).toBeDefined()
+    expect(alignWith.attributes('disabled')).toBeDefined()
+    expect(breakAlignment.attributes('disabled')).toBeDefined()
+    expect(openWith.text()).toContain('unimplemented')
+    expect(associated.text()).toContain('unimplemented')
+    expect(vscode.text()).toContain('unimplemented')
+    expect(alignWith.text()).toContain('unimplemented')
+    expect(wrapper.find('[data-testid="folder-open-action-status"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="folder-alignment-action-status"]').exists()).toBe(false)
+  })
+
   it('moves the selected file through the Tauri command', async () => {
     const wrapper = mountFolderCompareView()
+
     await runCompare(wrapper)
     await wrapper.find('[data-row-id="notes-md"]').trigger('click')
     await wrapper.find('[data-testid="move-selected-file"]').trigger('click')
@@ -197,6 +231,7 @@ describe('FolderCompareView', () => {
 
   it('copies, renames, deletes, and touches selected files', async () => {
     const wrapper = mountFolderCompareView()
+
     await runCompare(wrapper)
 
     await wrapper.find('[data-row-id="src-main-ts"]').trigger('click')
@@ -227,6 +262,7 @@ describe('FolderCompareView', () => {
 
   it('exports a folder compare HTML report', async () => {
     const wrapper = mountFolderCompareView()
+
     await runCompare(wrapper)
     await wrapper.find('[data-testid="export-folder-html-report"]').trigger('click')
     await flushPromises()
@@ -242,6 +278,7 @@ describe('FolderCompareView', () => {
 
   it('loads a real sync preview instead of demo rows', async () => {
     const wrapper = mountFolderCompareView()
+
     await runCompare(wrapper)
     await wrapper.find('[data-testid="preview-sync-plan"]').trigger('click')
     await flushPromises()

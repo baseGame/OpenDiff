@@ -56,6 +56,7 @@ describe('ReportsScriptView', () => {
     })
 
     const wrapper = mount(ReportsScriptView)
+
     await wrapper.find('[data-testid="fill-last-compare"]').trigger('click')
     await wrapper.find('[data-testid="report-output-path"]').setValue('out.html')
     await wrapper.find('[data-testid="run-report-export"]').trigger('click')
@@ -77,6 +78,7 @@ describe('ReportsScriptView', () => {
 
   it('exports a folder compare report', async () => {
     const wrapper = mount(ReportsScriptView)
+
     await wrapper.find('[data-testid="report-kind"]').setValue('folder')
     await wrapper.find('[data-testid="report-format"]').setValue('text')
     await wrapper.find('[data-testid="report-left-path"]').setValue('D:/left')

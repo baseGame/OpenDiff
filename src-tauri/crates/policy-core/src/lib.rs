@@ -57,6 +57,14 @@ impl AdminPolicy {
         self.decision_for(capability) == PolicyDecision::Allow
     }
 
+    pub fn flags(&self) -> PolicyFlags {
+        PolicyFlags {
+            save_passwords: self.allows(PolicyCapability::SavePasswords),
+            remote_profiles: self.allows(PolicyCapability::RemoteProfiles),
+            update_checks: self.allows(PolicyCapability::UpdateChecks),
+        }
+    }
+
     pub fn merge(policies: impl IntoIterator<Item = AdminPolicy>) -> Self {
         let mut merged = Self::default();
 
@@ -70,6 +78,14 @@ impl AdminPolicy {
 
         merged
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PolicyFlags {
+    pub save_passwords: bool,
+    pub remote_profiles: bool,
+    pub update_checks: bool,
 }
 
 impl PolicyCapability {
@@ -180,6 +196,31 @@ impl SystemConfigPolicyLoader {
 
         Ok(policy)
     }
+}
+
+pub fn load_effective_policy(config_dir: impl AsRef<Path>) -> AdminPolicy {
+    let mut policies = Vec::new();
+
+    #[cfg(windows)]
+    {
+        if let Ok(policy) =
+            WindowsRegistryPolicyLoader::load(&HklmWindowsRegistryPolicyReader::new())
+        {
+            policies.push(policy);
+        }
+    }
+
+    let file_path = std::env::var("OPEN_DIFF_POLICY_FILE")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|_| config_dir.as_ref().join("policy.json"));
+
+    if file_path.exists() {
+        if let Ok(policy) = SystemConfigPolicyLoader::load_from_file(&file_path) {
+            policies.push(policy);
+        }
+    }
+
+    AdminPolicy::merge(policies)
 }
 
 #[cfg(windows)]
@@ -335,5 +376,39 @@ mod tests {
         let error = SystemConfigPolicyLoader::load_from_str("{").unwrap_err();
 
         assert!(matches!(error, PolicyError::InvalidConfig(_)));
+    }
+
+    #[test]
+    fn load_effective_policy_reads_config_file_flags() {
+        let root = unique_temp_dir("policy-file");
+        std::fs::write(
+            root.join("policy.json"),
+            r#"{
+              "capabilities": {
+                "save-passwords": "deny",
+                "remote-profiles": "deny",
+                "update-checks": "allow"
+              }
+            }"#,
+        )
+        .unwrap();
+
+        let policy = load_effective_policy(&root);
+
+        assert!(!policy.flags().save_passwords);
+        assert!(!policy.flags().remote_profiles);
+        assert!(policy.flags().update_checks);
+
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    fn unique_temp_dir(label: &str) -> std::path::PathBuf {
+        let stamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!("open-diff-{label}-{stamp}"));
+        std::fs::create_dir_all(&path).expect("temp dir");
+        path
     }
 }

@@ -227,6 +227,38 @@ mod tests {
     }
 
     #[test]
+    fn persists_webdav_profiles_with_the_same_secret_store() {
+        let root = unique_temp_dir("remote-webdav-store");
+        let store = RemoteProfileStore::new(&root);
+        let profile = RemoteProfile::new(
+            "team-webdav",
+            "Team WebDAV",
+            RemoteProtocol::WebDav,
+            RemoteEndpoint::new("dav.example.com")
+                .with_port(443)
+                .with_root_path("/shared"),
+            CredentialReference::profile_store("team-webdav"),
+        );
+
+        store.upsert_profile(profile.clone()).unwrap();
+        store
+            .save_secret("team-webdav", Some("user"), "dav-secret")
+            .unwrap();
+
+        let loaded = store.find_profile("team-webdav").unwrap().unwrap();
+        let secret = store.load_secret("team-webdav").unwrap().unwrap();
+        let json = std::fs::read_to_string(store.profiles_path()).unwrap();
+
+        assert_eq!(loaded.protocol, RemoteProtocol::WebDav);
+        assert_eq!(loaded.endpoint.host, "dav.example.com");
+        assert_eq!(secret.username.as_deref(), Some("user"));
+        assert_eq!(secret.secret().expose_secret(), "dav-secret");
+        assert!(!json.contains("dav-secret"));
+
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
     fn finds_profiles_by_id_or_name() {
         let root = unique_temp_dir("remote-find");
         let store = RemoteProfileStore::new(&root);

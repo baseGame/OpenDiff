@@ -617,7 +617,8 @@ export const koKR: LanguagePack = {
     'session.summary.archiveCompare': 'ZIP/TAR 폴더 트리 비교',
     'session.summary.script': 'LOAD/COMPARE/REPORT 스크립트 실행',
     'ui.archiveCompare': '아카이브 비교',
-    'ui.archivePathHint': '폴더, ZIP/TAR 아카이브, 스냅샷 JSON 또는 sftp://profile/id/path',
+    'ui.archivePathHint':
+      '폴더, ZIP/TAR 아카이브, 스냅샷 JSON 또는 sftp://profile/id/path 및 webdav://profile/id/path',
     'ui.applyToFile': '파일에 적용',
     'ui.difftool': 'difftool',
     'ui.mergetool': 'mergetool',
@@ -634,8 +635,9 @@ export const koKR: LanguagePack = {
     'ui.openInTextCompare': '텍스트 비교에서 열기',
     'ui.password': '비밀번호',
     'ui.remoteNotImplemented':
-      'SFTP와 FTP는 연결, 목록, 전송이 가능합니다. WebDAV, S3, Dropbox, OneDrive, SVN은 아직 구현되지 않았습니다.',
-    'ui.remoteUriHint': '로컬 경로 또는 프로필 저장 후 sftp://profile/id/path를 사용하세요',
+      'SFTP, FTP, WebDAV는 연결, 목록, 전송이 가능합니다. S3, Dropbox, OneDrive, SVN은 아직 구현되지 않았습니다.',
+    'ui.remoteUriHint':
+      '로컬 경로, 또는 프로필 저장 후 sftp://profile/id/path나 webdav://profile/id/path를 사용하세요',
     'ui.reportKind': 'Report kind',
     'ui.rightSheet': 'Right sheet',
     'ui.runScript': '스크립트 실행',
@@ -645,7 +647,7 @@ export const koKR: LanguagePack = {
     'ui.scriptingNotImplemented':
       '전체 BC 스크립트 언어는 구현되지 않았습니다. 지원 명령은 실행되고 나머지는 unsupported를 반환합니다.',
     'ui.scriptingSupported':
-      '지원: LOAD, FILTER, COMPARE, REPORT, LOG, BEEP, OPTION, SELECT. 다른 BC 명령은 unsupported를 반환합니다.',
+      '지원: LOAD, FILTER, COMPARE, REPORT, LOG, BEEP, OPTION, SELECT, COPY, COPYTO, DELETE, RENAME, TOUCH, SNAPSHOT, SYNC, TEXT-REPORT, FOLDER-REPORT. 다른 BC 명령은 unsupported를 반환합니다.',
     'ui.secretsHint':
       '비밀번호는 로컬 비밀 파일(모드 0600)에만 저장되며 프로필 목록이나 로그에는 기록되지 않습니다.',
     'ui.sourceFile': 'Source file',
@@ -660,12 +662,27 @@ export const koKR: LanguagePack = {
     'ui.writeSvnConfig': 'SVN 설정 쓰기',
     'ui.xls': 'XLS',
     'ui.xlsx': 'XLSX',
+    'ui.followSystem': '시스템 따르기',
+    'ui.compareBySize': '크기 비교',
+    'ui.compareByTimestamp': '타임스탬프 비교',
+    'ui.compareBinaryContents': '바이너리 내용 비교',
+    'ui.compareCrc': 'CRC 비교',
+    'ui.folderCriteria': '비교 조건',
+    'ui.windowsShell': 'Windows 셸',
+    'ui.registerShellExtension': '셸 확장 등록',
+    'ui.windowsOnly': 'Windows 전용',
+    'ui.shellExtensionHint': '선택한 파일과 폴더에 대해 탐색기에 Open Diff를 추가합니다.',
+    'ui.policyRemoteDisabled': '관리자 정책으로 원격 프로필이 비활성화되었습니다.',
+    'ui.policyPasswordsDisabled': '관리자 정책으로 비밀번호 저장이 비활성화되었습니다.',
+    'status.shellRegistered': 'Windows 셸 확장이 등록되었습니다',
+    'status.shellScriptGenerated':
+      'Windows 전용. 등록 스크립트는 생성되었지만 적용되지 않았습니다.',
     'status.gitConfigWritten': 'Git {kind} 설정을 썼습니다',
     'status.patchApplied': 'Patch applied',
     'status.patchWritten': '패치를 {path}에 썼습니다',
     'status.remoteConnected': '연결됨: {detail}',
     'status.remoteFailed': '연결 실패: {detail}',
-    'status.remoteUnavailable': '이 프로토콜은 미구현입니다. 현재 SFTP와 FTP만 동작합니다',
+    'status.remoteUnavailable': '이 프로토콜은 미구현입니다. 현재 SFTP, FTP, WebDAV만 동작합니다',
     'status.svnConfigWritten': 'SVN 래퍼와 스니펫을 썼습니다',
   },
 }

@@ -619,7 +619,8 @@ export const enUS: LanguagePack = {
     'session.summary.archiveCompare': 'ZIP/TAR folder tree compare',
     'session.summary.script': 'Run LOAD/COMPARE/REPORT scripts',
     'ui.archiveCompare': 'Archive Compare',
-    'ui.archivePathHint': 'Folders, ZIP/TAR archives, snapshot JSON, or sftp://profile/id/path',
+    'ui.archivePathHint':
+      'Folders, ZIP/TAR archives, snapshot JSON, or sftp://profile/id/path and webdav://profile/id/path',
     'ui.applyToFile': 'Apply to File',
     'ui.difftool': 'difftool',
     'ui.mergetool': 'mergetool',
@@ -636,8 +637,9 @@ export const enUS: LanguagePack = {
     'ui.openInTextCompare': 'Open in Text Compare',
     'ui.password': 'Password',
     'ui.remoteNotImplemented':
-      'SFTP and FTP can connect, list, and transfer. WebDAV, S3, Dropbox, OneDrive, and SVN stay unimplemented.',
-    'ui.remoteUriHint': 'Use a local path or sftp://profile/id/path after saving a profile',
+      'SFTP, FTP, and WebDAV can connect, list, and transfer. S3, Dropbox, OneDrive, and SVN stay unimplemented.',
+    'ui.remoteUriHint':
+      'Use a local path, or sftp://profile/id/path or webdav://profile/id/path after saving a profile',
     'ui.reportKind': 'Report kind',
     'ui.rightSheet': 'Right sheet',
     'ui.runScript': 'Run Script',
@@ -647,7 +649,7 @@ export const enUS: LanguagePack = {
     'ui.scriptingNotImplemented':
       'Full BC scripting is not implemented. Supported commands run; others return unsupported.',
     'ui.scriptingSupported':
-      'Supported commands: LOAD, FILTER, COMPARE, REPORT, LOG, BEEP, OPTION, SELECT. Other BC commands return unsupported.',
+      'Supported commands: LOAD, FILTER, COMPARE, REPORT, LOG, BEEP, OPTION, SELECT, COPY, COPYTO, DELETE, RENAME, TOUCH, SNAPSHOT, SYNC, TEXT-REPORT, FOLDER-REPORT. Other BC commands return unsupported.',
     'ui.secretsHint':
       'Passwords are stored only in a local secrets file (mode 0600), never in the profile list or logs.',
     'ui.sourceFile': 'Source file',
@@ -662,13 +664,27 @@ export const enUS: LanguagePack = {
     'ui.writeSvnConfig': 'Write SVN config',
     'ui.xls': 'XLS',
     'ui.xlsx': 'XLSX',
+    'ui.followSystem': 'Follow system',
+    'ui.compareBySize': 'Compare size',
+    'ui.compareByTimestamp': 'Compare timestamp',
+    'ui.compareBinaryContents': 'Compare binary contents',
+    'ui.compareCrc': 'Compare CRC',
+    'ui.folderCriteria': 'Compare criteria',
+    'ui.windowsShell': 'Windows shell',
+    'ui.registerShellExtension': 'Register shell extension',
+    'ui.windowsOnly': 'Windows only',
+    'ui.shellExtensionHint': 'Adds Open Diff to Explorer for selected files and folders.',
+    'ui.policyRemoteDisabled': 'Remote profiles are disabled by administrator policy.',
+    'ui.policyPasswordsDisabled': 'Saving passwords is disabled by administrator policy.',
+    'status.shellRegistered': 'Windows shell extension registered',
+    'status.shellScriptGenerated': 'Windows only. Registration script generated but not applied.',
     'status.gitConfigWritten': 'Wrote Git {kind} configuration',
     'status.patchApplied': 'Patch applied',
     'status.patchWritten': 'Patch written to {path}',
     'status.remoteConnected': 'Connected: {detail}',
     'status.remoteFailed': 'Connection failed: {detail}',
     'status.remoteUnavailable':
-      'This protocol is unimplemented; only SFTP and FTP connections are live',
+      'This protocol is unimplemented; only SFTP, FTP, and WebDAV connections are live',
     'status.svnConfigWritten': 'Wrote SVN wrapper and snippet',
   },
 }

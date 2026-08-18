@@ -10,11 +10,14 @@ use std::path::Path;
 use std::time::Duration;
 
 pub fn protocol_is_implemented(protocol: RemoteProtocol) -> bool {
-    matches!(protocol, RemoteProtocol::Sftp | RemoteProtocol::Ftp)
+    matches!(
+        protocol,
+        RemoteProtocol::Sftp | RemoteProtocol::Ftp | RemoteProtocol::WebDav
+    )
 }
 
 pub fn unimplemented_protocol_message(protocol: RemoteProtocol) -> String {
-    format!("{protocol:?} is unimplemented; only SFTP and FTP connections are live")
+    format!("{protocol:?} is unimplemented; only SFTP, FTP, and WebDAV connections are live")
 }
 
 pub fn test_network_connection(
@@ -44,6 +47,16 @@ pub fn test_network_connection(
                 entries.len()
             ))
         }
+        RemoteProtocol::WebDav => {
+            let provider = crate::WebDavNetworkProvider::connect(profile, credential)?;
+            let root = profile.endpoint.root_path.as_deref().unwrap_or("/");
+            let entries = provider.list(root)?;
+            Ok(format!(
+                "WebDAV connected to {} and listed {} entries",
+                crate::webdav::webdav_base_url(&profile.endpoint),
+                entries.len()
+            ))
+        }
         other => Err(RemoteProviderError::UnsupportedProtocol(other)),
     }
 }
@@ -55,6 +68,9 @@ pub fn open_network_provider(
     match profile.protocol {
         RemoteProtocol::Sftp => Ok(Box::new(SftpNetworkProvider::connect(profile, credential)?)),
         RemoteProtocol::Ftp => Ok(Box::new(FtpNetworkProvider::connect(profile, credential)?)),
+        RemoteProtocol::WebDav => Ok(Box::new(crate::WebDavNetworkProvider::connect(
+            profile, credential,
+        )?)),
         other => Err(RemoteProviderError::UnsupportedProtocol(other)),
     }
 }
@@ -354,20 +370,21 @@ mod tests {
     #[test]
     fn unsupported_protocols_are_rejected_instead_of_using_memory_providers() {
         let profile = RemoteProfile::new(
-            "team-webdav",
-            "Team WebDAV",
-            RemoteProtocol::WebDav,
-            RemoteEndpoint::new("dav.example.com"),
-            CredentialReference::profile_store("team-webdav"),
+            "release-s3",
+            "Release S3",
+            RemoteProtocol::S3,
+            RemoteEndpoint::new("s3.amazonaws.com").with_root_path("bucket"),
+            CredentialReference::profile_store("release-s3"),
         );
         let credential = RemoteCredential::username_password("user", "secret");
         let error = test_network_connection(&profile, &credential).unwrap_err();
 
         assert!(matches!(
             error,
-            RemoteProviderError::UnsupportedProtocol(RemoteProtocol::WebDav)
+            RemoteProviderError::UnsupportedProtocol(RemoteProtocol::S3)
         ));
-        assert!(!protocol_is_implemented(RemoteProtocol::WebDav));
+        assert!(!protocol_is_implemented(RemoteProtocol::S3));
         assert!(protocol_is_implemented(RemoteProtocol::Sftp));
+        assert!(protocol_is_implemented(RemoteProtocol::WebDav));
     }
 }

@@ -17,6 +17,12 @@ vi.mock('vue-router', () => ({
 vi.mock('@/api/integration', () => ({
   writeGitIntegration: vi.fn().mockResolvedValue('wrote git'),
   writeSvnIntegration: vi.fn().mockResolvedValue('wrote svn'),
+  registerWindowsShellExtension: vi.fn().mockResolvedValue({
+    windows: false,
+    applied: false,
+    script: '',
+    message: 'Windows only',
+  }),
 }))
 
 describe('SettingsView', () => {
@@ -89,6 +95,16 @@ describe('SettingsView', () => {
 
     expect(writeSvnIntegration).toHaveBeenCalledWith('/usr/bin/open-diff', '/tmp/open-diff-svn.sh')
     expect(wrapper.find('[data-testid="integration-status"]').text()).toContain('SVN')
+  })
+
+  it('applies follow-system theme without inventing a command success', async () => {
+    const wrapper = mountSettingsView()
+    const settings = useSettingsStore()
+
+    await wrapper.find('[data-testid="theme-follow-system"]').trigger('click')
+
+    expect(settings.theme).toBe('system')
+    expect(document.documentElement.dataset.theme).toMatch(/^(light|dark)$/)
   })
 
   it('changes the locale from settings', async () => {
@@ -165,10 +181,14 @@ function mountSettingsView(): VueWrapper {
           template: '<div><slot /></div>',
         },
         NRadioGroup: {
-          template: '<div><slot /></div>',
+          props: ['value'],
+          emits: ['update:value'],
+          template: '<div class="n-radio-group"><slot /></div>',
         },
         NRadioButton: {
-          template: '<button><slot /></button>',
+          props: ['value'],
+          template:
+            '<button type="button" @click="$parent.$emit(\'update:value\', value)"><slot /></button>',
         },
       },
     },

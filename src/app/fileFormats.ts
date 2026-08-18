@@ -304,7 +304,13 @@ function isFileFormatDefinition(value: unknown): value is FileFormatDefinition {
     return false
   }
 
-  const format = value as FileFormatDefinition
+  const format = value as {
+    id?: unknown
+    name?: unknown
+    priority?: unknown
+    defaultView?: unknown
+    matcher?: { extensions?: unknown }
+  }
 
   return (
     typeof format.id === 'string' &&

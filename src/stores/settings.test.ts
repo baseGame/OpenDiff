@@ -131,4 +131,19 @@ describe('useSettingsStore', () => {
 
     expect(store.autoSaveLimit).toBe(0)
   })
+
+  it('resolves follow-system theme without requiring matchMedia', () => {
+    localStorage.setItem('open-diff-theme', 'system')
+
+    const store = useSettingsStore()
+
+    expect(store.theme).toBe('system')
+    expect(store.resolvedTheme).toBe('light')
+    expect(document.documentElement.dataset.theme).toBe('light')
+
+    store.setTheme('dark')
+
+    expect(store.resolvedTheme).toBe('dark')
+    expect(document.documentElement.dataset.theme).toBe('dark')
+  })
 })

@@ -302,6 +302,7 @@ describe('TextCompareView', () => {
 
   it('finds text matches and navigates between them', async () => {
     const wrapper = mountTextCompareView()
+
     wrapper.findAllComponents(NInputStub)[0]?.vm.$emit('update:value', 'line one\nline two')
     wrapper.findAllComponents(NInputStub)[1]?.vm.$emit('update:value', 'line one\nline two')
     await wrapper.vm.$nextTick()
@@ -321,6 +322,7 @@ describe('TextCompareView', () => {
 
   it('replaces matches with regex search enabled', async () => {
     const wrapper = mountTextCompareView()
+
     wrapper.findAllComponents(NInputStub)[0]?.vm.$emit('update:value', 'line one\nline two')
     wrapper.findAllComponents(NInputStub)[1]?.vm.$emit('update:value', 'line one\nline two')
     await wrapper.vm.$nextTick()

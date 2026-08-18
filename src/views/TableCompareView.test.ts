@@ -96,8 +96,10 @@ describe('TableCompareView', () => {
     await wrapper.vm.$nextTick()
 
     const lastCall = vi.mocked(compareTable).mock.lastCall
+
     expect(lastCall).toBeDefined()
     const [request] = lastCall as [TableCompareRequest]
+
     expect(request.format).toBe('tsv')
     expect(request.leftPath).toBe('C:/data/left.tsv')
     expect(request.rightPath).toBe('C:/data/right.tsv')
@@ -149,7 +151,12 @@ describe('TableCompareView', () => {
     await wrapper.find('[data-testid="run-table-compare"]').trigger('click')
     await wrapper.vm.$nextTick()
 
-    const request = vi.mocked(compareTable).mock.calls.at(-1)?.[0] as TableCompareRequest
+    const request = vi.mocked(compareTable).mock.calls.at(-1)?.[0]
+
+    if (!request) {
+      throw new Error('compareTable was not called')
+    }
+
     expect(request.ignoredColumns).toContain('Quantity')
     expect(request.manualMappings).toEqual([{ leftColumn: 'SKU', rightColumn: 'sku' }])
     expect(wrapper.find('[data-testid="column-mapping-list"]').text()).toContain('SKU -> sku')
@@ -187,6 +194,7 @@ describe('TableCompareView', () => {
 
   it('searches compared table cells and navigates to the next difference', async () => {
     const wrapper = mountTableCompareView()
+
     await wrapper.find('[data-testid="run-table-compare"]').trigger('click')
     await wrapper.vm.$nextTick()
 

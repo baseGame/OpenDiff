@@ -15,7 +15,11 @@ pub enum FileReadError {
 pub fn read_text_file(path: impl AsRef<Path>) -> Result<ReadTextFileResponse, FileReadError> {
     let path_ref = path.as_ref();
     let bytes = fs::read(path_ref).map_err(file_io_error)?;
-    read_text_from_bytes(path_ref.display().to_string(), &bytes, file_stamp(path_ref)?)
+    read_text_from_bytes(
+        path_ref.display().to_string(),
+        &bytes,
+        file_stamp(path_ref)?,
+    )
 }
 
 pub fn read_text_from_bytes(

@@ -307,11 +307,28 @@ pub fn open_named_session(
         id: session.id,
         name: session.name,
         session_type: session_type_label(&session.session_type).to_owned(),
-        left: session.locations.left.as_ref().map(|location| location.uri.clone()),
-        right: session.locations.right.as_ref().map(|location| location.uri.clone()),
-        center: session.locations.center.as_ref().map(|location| location.uri.clone()),
-        output: session.locations.output.as_ref().map(|location| location.uri.clone()),
-        note: "Desktop handoff is not available from this CLI; open the session file in the app.".to_owned(),
+        left: session
+            .locations
+            .left
+            .as_ref()
+            .map(|location| location.uri.clone()),
+        right: session
+            .locations
+            .right
+            .as_ref()
+            .map(|location| location.uri.clone()),
+        center: session
+            .locations
+            .center
+            .as_ref()
+            .map(|location| location.uri.clone()),
+        output: session
+            .locations
+            .output
+            .as_ref()
+            .map(|location| location.uri.clone()),
+        note: "Desktop handoff is not available from this CLI; open the session file in the app."
+            .to_owned(),
     })
 }
 
@@ -408,7 +425,7 @@ pub fn build_git_mergetool_config(
 
     let scope_flag = git_config_scope_flag(scope);
     let merge_command = format!(
-        "{} merge-text \"$BASE\" \"$LOCAL\" \"$REMOTE\" \"$MERGED\"",
+        "{} merge-text --automerge \"$BASE\" \"$LOCAL\" \"$REMOTE\" \"$MERGED\"",
         quote_executable_for_git_command(executable_path)
     );
 
@@ -489,7 +506,10 @@ fn rewrite_git_config_command_to_file(command: &str, file: &Path) -> String {
         .replacen("--local", &format!("--file {}", file.display()), 1)
 }
 
-pub fn write_svn_diff_config(config: &SvnDiffConfigDocument, wrapper_path: &str) -> Result<String, CliRuntimeError> {
+pub fn write_svn_diff_config(
+    config: &SvnDiffConfigDocument,
+    wrapper_path: &str,
+) -> Result<String, CliRuntimeError> {
     let wrapper = Path::new(wrapper_path);
     if let Some(parent) = wrapper.parent() {
         std::fs::create_dir_all(parent).map_err(|error| CliRuntimeError {
@@ -1070,7 +1090,7 @@ mod tests {
             config.commands,
             vec![
                 "git config --global merge.tool open-diff".to_owned(),
-                "git config --global mergetool.open-diff.cmd '\"C:/Program Files/OpenDiff/open-diff-cli.exe\" merge-text \"$BASE\" \"$LOCAL\" \"$REMOTE\" \"$MERGED\"'".to_owned(),
+                "git config --global mergetool.open-diff.cmd '\"C:/Program Files/OpenDiff/open-diff-cli.exe\" merge-text --automerge \"$BASE\" \"$LOCAL\" \"$REMOTE\" \"$MERGED\"'".to_owned(),
                 "git config --global mergetool.open-diff.prompt false".to_owned(),
                 "git config --global mergetool.open-diff.trustExitCode true".to_owned(),
                 "git config --global mergetool.open-diff.keepBackup false".to_owned(),
@@ -1384,6 +1404,70 @@ mod tests {
         fs::remove_file(left).expect("left fixture should be removable");
         fs::remove_file(right).expect("right fixture should be removable");
         fs::remove_file(output).expect("output fixture should be removable");
+    }
+
+    #[test]
+    fn merge_text_without_automerge_returns_usage_error() {
+        let error = automerge_text_files(CliTextMergeArgs {
+            base: "base.txt".to_owned(),
+            left: "left.txt".to_owned(),
+            right: "right.txt".to_owned(),
+            output: Some("out.txt".to_owned()),
+            automerge: false,
+            favor: None,
+        })
+        .expect_err("merge-text without --automerge should not pretend to succeed");
+
+        assert_eq!(error.exit_code, CliExitCode::UsageError);
+        assert!(error.message.contains("--automerge"));
+    }
+
+    #[test]
+    fn write_git_tool_config_to_file_writes_a_temp_gitconfig() {
+        let gitconfig = temp_file_path("gitconfig");
+        let config = build_git_difftool_config("/tmp/open-diff-cli", GitConfigScope::Global)
+            .expect("difftool config should build");
+
+        let message = write_git_tool_config_to_file(&config, Some(&gitconfig))
+            .expect("git config should write to the temp file");
+        let written = fs::read_to_string(&gitconfig).expect("temp gitconfig should exist");
+
+        assert!(message.contains("Wrote"));
+        assert!(written.contains("open-diff"));
+        assert!(written.contains("difftool") || written.contains("diff.tool"));
+
+        let mergetool = build_git_mergetool_config("/tmp/open-diff-cli", GitConfigScope::Global)
+            .expect("mergetool config should build");
+        write_git_tool_config_to_file(&mergetool, Some(&gitconfig))
+            .expect("mergetool git config should write to the temp file");
+        let merged = fs::read_to_string(&gitconfig).expect("temp gitconfig should exist");
+        assert!(merged.contains("mergetool"));
+        assert!(merged.contains("--automerge"));
+
+        let _ = fs::remove_file(gitconfig);
+    }
+
+    #[test]
+    fn write_svn_diff_config_writes_wrapper_and_snippet_files() {
+        let root = temp_dir_path("svn-write");
+        fs::create_dir_all(&root).expect("temp dir should be created");
+        let wrapper = root.join("svn-diff.cmd");
+        let config = build_svn_diff_config("/tmp/open-diff-cli", wrapper.to_string_lossy())
+            .expect("svn config should build");
+
+        let message = write_svn_diff_config(&config, &wrapper.to_string_lossy())
+            .expect("svn wrapper should be written");
+        let snippet = wrapper.with_extension("svnconfig");
+
+        assert!(message.contains("Wrote"));
+        assert!(fs::read_to_string(&wrapper)
+            .expect("wrapper should exist")
+            .contains("svn-diff"));
+        assert!(fs::read_to_string(&snippet)
+            .expect("svnconfig snippet should exist")
+            .contains("diff-cmd"));
+
+        let _ = fs::remove_dir_all(root);
     }
 
     fn temp_file_path(name: &str) -> std::path::PathBuf {

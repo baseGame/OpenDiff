@@ -632,7 +632,8 @@ export const frFR: LanguagePack = {
     'session.summary.archiveCompare': 'Comparaison d’arborescence ZIP/TAR',
     'session.summary.script': 'Exécuter des scripts LOAD/COMPARE/REPORT',
     'ui.archiveCompare': 'Comparaison d’archives',
-    'ui.archivePathHint': 'Dossiers, archives ZIP/TAR, JSON d’instantané ou sftp://profile/id/path',
+    'ui.archivePathHint':
+      'Dossiers, archives ZIP/TAR, JSON d’instantané ou sftp://profile/id/path et webdav://profile/id/path',
     'ui.applyToFile': 'Appliquer au fichier',
     'ui.difftool': 'difftool',
     'ui.mergetool': 'mergetool',
@@ -650,9 +651,9 @@ export const frFR: LanguagePack = {
     'ui.openInTextCompare': 'Ouvrir dans la comparaison de texte',
     'ui.password': 'Mot de passe',
     'ui.remoteNotImplemented':
-      'SFTP et FTP peuvent se connecter, lister et transférer. WebDAV, S3, Dropbox, OneDrive et SVN restent non implémentés.',
+      'SFTP, FTP et WebDAV peuvent se connecter, lister et transférer. S3, Dropbox, OneDrive et SVN restent non implémentés.',
     'ui.remoteUriHint':
-      'Utilisez un chemin local ou sftp://profile/id/path après avoir enregistré un profil',
+      'Utilisez un chemin local, ou sftp://profile/id/path ou webdav://profile/id/path après avoir enregistré un profil',
     'ui.reportKind': 'Report kind',
     'ui.rightSheet': 'Right sheet',
     'ui.runScript': 'Exécuter le script',
@@ -662,7 +663,7 @@ export const frFR: LanguagePack = {
     'ui.scriptingNotImplemented':
       'Le langage de script BC complet n’est pas implémenté. Les commandes prises en charge s’exécutent ; les autres renvoient unsupported.',
     'ui.scriptingSupported':
-      'Commandes prises en charge : LOAD, FILTER, COMPARE, REPORT, LOG, BEEP, OPTION, SELECT. Les autres commandes BC renvoient unsupported.',
+      'Commandes prises en charge : LOAD, FILTER, COMPARE, REPORT, LOG, BEEP, OPTION, SELECT, COPY, COPYTO, DELETE, RENAME, TOUCH, SNAPSHOT, SYNC, TEXT-REPORT, FOLDER-REPORT. Les autres commandes BC renvoient unsupported.',
     'ui.secretsHint':
       'Les mots de passe sont stockés uniquement dans un fichier local (mode 0600), jamais dans la liste des profils ni dans les journaux.',
     'ui.sourceFile': 'Source file',
@@ -677,12 +678,31 @@ export const frFR: LanguagePack = {
     'ui.writeSvnConfig': 'Écrire la configuration SVN',
     'ui.xls': 'XLS',
     'ui.xlsx': 'XLSX',
+    'ui.followSystem': 'Suivre le système',
+    'ui.compareBySize': 'Comparer la taille',
+    'ui.compareByTimestamp': 'Comparer l’horodatage',
+    'ui.compareBinaryContents': 'Comparer le contenu binaire',
+    'ui.compareCrc': 'Comparer le CRC',
+    'ui.folderCriteria': 'Critères de comparaison',
+    'ui.windowsShell': 'Shell Windows',
+    'ui.registerShellExtension': 'Enregistrer l’extension shell',
+    'ui.windowsOnly': 'Windows uniquement',
+    'ui.shellExtensionHint':
+      'Ajoute Open Diff à l’Explorateur pour les fichiers et dossiers sélectionnés.',
+    'ui.policyRemoteDisabled':
+      'Les profils distants sont désactivés par la stratégie d’administration.',
+    'ui.policyPasswordsDisabled':
+      'L’enregistrement des mots de passe est désactivé par la stratégie d’administration.',
+    'status.shellRegistered': 'Extension shell Windows enregistrée',
+    'status.shellScriptGenerated':
+      'Windows uniquement. Script d’enregistrement généré mais non appliqué.',
     'status.gitConfigWritten': 'Configuration Git {kind} écrite',
     'status.patchApplied': 'Patch applied',
     'status.patchWritten': 'Correctif écrit dans {path}',
     'status.remoteConnected': 'Connecté : {detail}',
     'status.remoteFailed': 'Échec de la connexion : {detail}',
-    'status.remoteUnavailable': 'Ce protocole n’est pas implémenté ; seuls SFTP et FTP sont actifs',
+    'status.remoteUnavailable':
+      'Ce protocole n’est pas implémenté ; seuls SFTP, FTP et WebDAV sont actifs',
     'status.svnConfigWritten': 'Wrapper et extrait SVN écrits',
   },
 }

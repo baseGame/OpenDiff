@@ -183,8 +183,8 @@ async function runHexFind(): Promise<void> {
       queryKind: findKind.value,
       query: findQuery.value.trim(),
     })
-    findStatus.value = `${findMatches.value.length}`
-    const firstMatch = findMatches.value[0]
+    findStatus.value = String(findMatches.value.length)
+    const firstMatch = findMatches.value.at(0)
 
     if (firstMatch) {
       hexOffset.value = firstMatch.offset
@@ -219,6 +219,7 @@ async function runHexSave(): Promise<void> {
       path: leftPath.value,
       edits: pendingEdits.value,
     })
+
     saveStatus.value = String(result.bytesWritten)
     pendingEdits.value = []
     await runHexCompare()

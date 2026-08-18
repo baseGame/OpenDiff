@@ -123,6 +123,7 @@ function openConflictInTextMerge(conflict: FolderMergeConflict): void {
 function joinRoot(root: string, relativePath: string): string {
   const normalizedRoot = root.replaceAll('\\', '/').replace(/\/$/u, '')
   const normalizedRelative = relativePath.replaceAll('\\', '/').replace(/^\//u, '')
+
   return normalizedRelative ? `${normalizedRoot}/${normalizedRelative}` : normalizedRoot
 }
 </script>

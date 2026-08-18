@@ -36,7 +36,7 @@ members = [
 resolver = "2"
 
 [workspace.package]
-version = "1.0.1"
+version = "1.1.0"
 edition = "2021"
 authors = ["Open Diff Contributors"]
 license = "Apache-2.0"
@@ -90,13 +90,18 @@ image-core = { path = "crates/image-core" }
 job-core = { path = "crates/job-core" }
 media-core = { path = "crates/media-core" }
 merge-core = { path = "crates/merge-core" }
+policy-core = { path = "crates/policy-core" }
 registry-core = { path = "crates/registry-core" }
 remote-core = { path = "crates/remote-core" }
 report-core = { path = "crates/report-core" }
 script-core = { path = "crates/script-core" }
 shared-types = { path = "crates/shared-types" }
+shell-core = { path = "crates/shell-core" }
 snapshot-core = { path = "crates/snapshot-core" }
 sync-core = { path = "crates/sync-core" }
 table-core = { path = "crates/table-core" }
 version-core = { path = "crates/version-core" }
 vfs-core = { path = "crates/vfs-core" }
+
+[dev-dependencies]
+rust_xlsxwriter = "0.96.0"

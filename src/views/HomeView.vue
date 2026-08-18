@@ -101,7 +101,7 @@ const savedSessions = useSavedSessionsStore()
 const sessionLaunch = useSessionLaunchStore()
 const workspaces = useWorkspacesStore()
 const selectedSessionPreview = computed(() => {
-  const session = savedSessions.sessions[0]
+  const session = savedSessions.sessions.at(0)
 
   return {
     name: session?.name ?? t('ui.untitled'),

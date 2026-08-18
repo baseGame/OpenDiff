@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import {
   commandRegistry,
   type AppCommand,
@@ -9,7 +9,7 @@ import {
 } from '@/app/commandRegistry'
 import { fallbackLocale, isSupportedLocale, type SupportedLocale } from '@/i18n/core'
 
-export type ThemeMode = 'light' | 'dark'
+export type ThemeMode = 'light' | 'dark' | 'system'
 
 const sharedSessionPathsStorageKey = 'open-diff-shared-session-paths'
 const localeStorageKey = 'open-diff-locale'
@@ -21,21 +21,31 @@ const commandIds = new Set<string>(commandRegistry.map((command) => command.id))
 type ShortcutOverrides = Partial<Record<CommandId, CommandShortcut>>
 
 export const useSettingsStore = defineStore('settings', () => {
-  const theme = ref<ThemeMode>(
-    (localStorage.getItem('open-diff-theme') as ThemeMode | null) ?? 'light',
-  )
+  const theme = ref<ThemeMode>(loadTheme())
+  const systemPrefersDark = ref(prefersDarkTheme())
+  const resolvedTheme = computed(() => {
+    if (theme.value === 'system') {
+      return systemPrefersDark.value ? 'dark' : 'light'
+    }
+
+    return theme.value
+  })
   const locale = ref<SupportedLocale>(loadLocale())
   const sharedSessionPaths = ref<string[]>(loadSharedSessionPaths())
   const shortcutOverrides = ref<ShortcutOverrides>(loadShortcutOverrides())
   const autoSaveLimit = ref(loadAutoSaveLimit())
 
+  bindSystemThemeListener((prefersDark) => {
+    systemPrefersDark.value = prefersDark
+  })
+
   watch(
-    theme,
-    (value) => {
-      localStorage.setItem('open-diff-theme', value)
-      document.documentElement.dataset.theme = value
+    [theme, resolvedTheme],
+    ([nextTheme, nextResolved]) => {
+      localStorage.setItem('open-diff-theme', nextTheme)
+      document.documentElement.dataset.theme = nextResolved
     },
-    { immediate: true },
+    { immediate: true, flush: 'sync' },
   )
 
   watch(
@@ -72,7 +82,11 @@ export const useSettingsStore = defineStore('settings', () => {
   )
 
   function toggleTheme(): void {
-    theme.value = theme.value === 'dark' ? 'light' : 'dark'
+    theme.value = resolvedTheme.value === 'dark' ? 'light' : 'dark'
+  }
+
+  function setTheme(nextTheme: ThemeMode): void {
+    theme.value = nextTheme
   }
 
   function addSharedSessionPath(path: string): boolean {
@@ -154,11 +168,13 @@ export const useSettingsStore = defineStore('settings', () => {
 
   return {
     theme,
+    resolvedTheme,
     locale,
     sharedSessionPaths,
     shortcutOverrides,
     autoSaveLimit,
     toggleTheme,
+    setTheme,
     setLocale,
     addSharedSessionPath,
     removeSharedSessionPath,
@@ -168,6 +184,39 @@ export const useSettingsStore = defineStore('settings', () => {
     setAutoSaveLimit,
   }
 })
+
+function loadTheme(): ThemeMode {
+  const stored = localStorage.getItem('open-diff-theme')
+
+  if (stored === 'light' || stored === 'dark' || stored === 'system') {
+    return stored
+  }
+
+  return 'light'
+}
+
+function prefersDarkTheme(): boolean {
+  if (typeof window.matchMedia !== 'function') {
+    return false
+  }
+
+  return window.matchMedia('(prefers-color-scheme: dark)').matches
+}
+
+function bindSystemThemeListener(onChange: (prefersDark: boolean) => void): void {
+  if (typeof window.matchMedia !== 'function') {
+    return
+  }
+
+  const media = window.matchMedia('(prefers-color-scheme: dark)')
+  const listener = (event: MediaQueryListEvent): void => {
+    onChange(event.matches)
+  }
+
+  if (typeof media.addEventListener === 'function') {
+    media.addEventListener('change', listener)
+  }
+}
 
 function loadLocale(): SupportedLocale {
   const storedLocale = localStorage.getItem(localeStorageKey)

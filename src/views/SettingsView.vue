@@ -9,7 +9,12 @@ import {
   type CommandShortcut,
 } from '@/app/commandRegistry'
 import { parseSessionPackage } from '@/app/sessionFile'
-import { writeGitIntegration, writeSvnIntegration } from '@/api/integration'
+import {
+  registerWindowsShellExtension,
+  writeGitIntegration,
+  writeSvnIntegration,
+} from '@/api/integration'
+import { usePolicyStore } from '@/stores/policy'
 import { useSavedSessionsStore } from '@/stores/savedSessions'
 import { useSettingsStore } from '@/stores/settings'
 import WorkbenchShell from '@/components/workbench/WorkbenchShell.vue'
@@ -17,6 +22,7 @@ import WorkbenchInspector from '@/components/workbench/WorkbenchInspector.vue'
 import { useI18n } from '@/i18n'
 
 const settings = useSettingsStore()
+const policy = usePolicyStore()
 const savedSessions = useSavedSessionsStore()
 const router = useRouter()
 const { t } = useI18n()
@@ -62,6 +68,7 @@ function openRemoteProfiles(): void {
 }
 
 async function writeGitConfig(): Promise<void> {
+  // eslint-disable-next-line no-alert -- existing Git write confirmation
   if (!window.confirm(t('ui.confirmWriteGitConfig', { kind: gitKind.value }))) {
     return
   }
@@ -84,6 +91,7 @@ async function writeGitConfig(): Promise<void> {
 }
 
 async function writeSvnConfig(): Promise<void> {
+  // eslint-disable-next-line no-alert -- existing SVN write confirmation
   if (!window.confirm(t('ui.confirmWriteSvnConfig'))) {
     return
   }
@@ -94,6 +102,7 @@ async function writeSvnConfig(): Promise<void> {
   try {
     const wrapper =
       svnWrapperPath.value.trim() || `${executablePath.value.trim() || 'open-diff'}-svn.sh`
+
     await writeSvnIntegration(executablePath.value.trim() || 'open-diff', wrapper)
     integrationStatus.value = t('status.svnConfigWritten')
   } catch (error) {
@@ -127,6 +136,23 @@ function loadSharedSessionJson(): void {
 
 function updateLocale(value: string): void {
   settings.setLocale(value)
+}
+
+async function registerShellExtension(): Promise<void> {
+  integrationWriting.value = true
+  integrationError.value = ''
+
+  try {
+    const result = await registerWindowsShellExtension(executablePath.value.trim() || undefined)
+
+    integrationStatus.value = result.applied
+      ? t('status.shellRegistered')
+      : t('status.shellScriptGenerated')
+  } catch (error) {
+    integrationError.value = error instanceof Error ? error.message : String(error)
+  } finally {
+    integrationWriting.value = false
+  }
 }
 
 function saveShortcut(command: AppCommand): void {
@@ -176,6 +202,11 @@ function parseShortcutText(value: string): string[] {
           <NRadioGroup v-model:value="settings.theme">
             <NRadioButton value="dark">{{ $t('ui.dark') }}</NRadioButton>
             <NRadioButton value="light">{{ $t('ui.light') }}</NRadioButton>
+            <NRadioButton
+              data-testid="theme-follow-system"
+              value="system"
+              >{{ $t('ui.followSystem') }}</NRadioButton
+            >
           </NRadioGroup>
         </NSpace>
         <NSpace align="center">
@@ -209,6 +240,7 @@ function parseShortcutText(value: string): string[] {
       </NCard>
 
       <NCard
+        v-if="policy.remoteProfiles"
         :title="$t('ui.remoteProfiles')"
         size="small"
       >
@@ -353,6 +385,25 @@ function parseShortcutText(value: string): string[] {
             data-testid="integration-error"
           >
             {{ integrationError }}
+          </p>
+          <div class="settings-row">
+            <div>
+              <strong>{{ $t('ui.windowsShell') }}</strong>
+              <span>{{ $t('ui.shellExtensionHint') }}</span>
+            </div>
+            <NButton
+              size="small"
+              data-testid="register-shell-extension"
+              :disabled="!policy.isWindows || integrationWriting"
+              @click="registerShellExtension"
+              >{{ $t('ui.registerShellExtension') }}</NButton
+            >
+          </div>
+          <p
+            v-if="!policy.isWindows"
+            data-testid="windows-only-hint"
+          >
+            {{ $t('ui.windowsOnly') }}
           </p>
         </div>
       </NCard>

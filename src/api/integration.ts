@@ -21,3 +21,18 @@ export function writeSvnIntegration(executablePath: string, wrapperPath: string)
     wrapperPath,
   })
 }
+
+export interface ShellRegistrationResult {
+  windows: boolean
+  applied: boolean
+  script: string
+  message: string
+}
+
+export function registerWindowsShellExtension(
+  executablePath?: string,
+): Promise<ShellRegistrationResult> {
+  return invoke<ShellRegistrationResult>('register_windows_shell_extension', {
+    executablePath,
+  })
+}

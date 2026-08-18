@@ -72,6 +72,7 @@ describe('FolderMergeView', () => {
 
   it('builds a folder merge plan with automatic actions and conflicts', async () => {
     const wrapper = mountFolderMergeView()
+
     await fillMergePaths(wrapper)
 
     expect(wrapper.find('[data-testid="folder-merge-plan"]').exists()).toBe(false)
@@ -101,6 +102,7 @@ describe('FolderMergeView', () => {
 
   it('executes the folder merge plan into the output folder', async () => {
     const wrapper = mountFolderMergeView()
+
     await fillMergePaths(wrapper)
 
     await wrapper.find('[data-testid="folder-merge-build-plan"]').trigger('click')
@@ -121,6 +123,7 @@ describe('FolderMergeView', () => {
 
   it('shows conflict details with three-way context', async () => {
     const wrapper = mountFolderMergeView()
+
     await fillMergePaths(wrapper)
 
     await wrapper.find('[data-testid="folder-merge-build-plan"]').trigger('click')
@@ -138,6 +141,7 @@ describe('FolderMergeView', () => {
 
   it('opens a folder conflict in the text merge workspace', async () => {
     const wrapper = mountFolderMergeView()
+
     await fillMergePaths(wrapper)
 
     await wrapper.find('[data-testid="folder-merge-build-plan"]').trigger('click')
