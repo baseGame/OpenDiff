@@ -4,7 +4,7 @@ Open Diff is a cross-platform comparison and merge tool for files, folders, tabl
 
 ## Screenshots
 
-Linux desktop smoke test on v1.1.1 (passing cases):
+Linux smoke screenshots (Home / Text / Table / Image / Hex / Folder):
 
 ![Home](docs/images/smoke/smoke-home.png)
 
@@ -15,6 +15,8 @@ Linux desktop smoke test on v1.1.1 (passing cases):
 ![Image compare](docs/images/smoke/smoke-image-compare.png)
 
 ![Hex compare](docs/images/smoke/smoke-hex-compare.png)
+
+![Folder compare](docs/images/smoke/smoke-folder-compare.png)
 
 ## Translations
 
