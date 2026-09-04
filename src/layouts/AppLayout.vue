@@ -799,8 +799,12 @@ const sourceSessionTypes = new Set<SessionType>([
 }
 
 .menus button {
-  padding: 0 2px;
-  font-size: 20px;
+  max-width: 9em;
+  padding: 0 6px;
+  overflow: hidden;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .menus button:hover,
@@ -1054,21 +1058,36 @@ const sourceSessionTypes = new Set<SessionType>([
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+  min-width: 0;
   min-height: 30px;
   padding: 4px 8px;
+  overflow: hidden;
   border-bottom: 1px solid var(--app-border);
   background: var(--app-primary-soft);
   color: var(--app-text);
   font-size: 12px;
 }
 
+.dirty-tab-prompt > span,
+.dirty-tab-prompt > p {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .dirty-tab-prompt button {
+  flex: 0 0 auto;
+  max-width: 8em;
   height: 22px;
   padding: 0 8px;
+  overflow: hidden;
   border: 1px solid var(--app-border);
   border-radius: 4px;
   background: var(--app-canvas);
   color: var(--app-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
   cursor: pointer;
 }
 

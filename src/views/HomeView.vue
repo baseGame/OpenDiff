@@ -1145,8 +1145,13 @@ function openSelectedPreview(): void {
   display: grid;
   justify-items: center;
   gap: 6px;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   min-height: 104px;
-  padding: 4px;
+  padding: 4px 6px;
+  overflow: hidden;
   border: 0;
   border-radius: 2px;
   background: transparent;
@@ -1170,18 +1175,28 @@ function openSelectedPreview(): void {
 
 .new-session-card h3 {
   margin: 0;
-  font-size: 21px;
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 16px;
   font-weight: 400;
-  line-height: 1.15;
+  line-height: 1.2;
   text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .new-session-card p {
   margin: 0;
+  display: -webkit-box;
+  max-width: 100%;
+  overflow: hidden;
   color: #4b5563;
-  font-size: 13px;
+  font-size: 12px;
   line-height: 1.35;
   text-align: center;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
 }
 
 .bc-home-secondary {
