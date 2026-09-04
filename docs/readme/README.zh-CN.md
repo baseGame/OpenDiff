@@ -4,7 +4,7 @@ Open Diff 是一个跨平台差异比较与合并工具，用于比较文件、�
 
 ## 界面预览
 
-Linux 桌面 v1.1.1 冒烟测试（通过用例）：
+Linux 冒烟截图（Home / Text / Table / Image / Hex / Folder）：
 
 ![Home](../images/smoke/smoke-home.png)
 
@@ -15,6 +15,8 @@ Linux 桌面 v1.1.1 冒烟测试（通过用例）：
 ![Image compare](../images/smoke/smoke-image-compare.png)
 
 ![Hex compare](../images/smoke/smoke-hex-compare.png)
+
+![Folder compare](../images/smoke/smoke-folder-compare.png)
 
 ## 功能说明
 
