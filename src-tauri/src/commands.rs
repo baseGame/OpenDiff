@@ -1721,12 +1721,12 @@ pub fn register_windows_shell_extension(
             ));
         }
 
-        return Ok(ShellRegistrationResult {
+        Ok(ShellRegistrationResult {
             windows: true,
             applied: true,
             script,
             message: "Windows shell extension registered".to_owned(),
-        });
+        })
     }
 
     #[cfg(not(windows))]
@@ -1762,7 +1762,7 @@ pub fn query_live_windows_registry(key: String) -> Result<String, AppErrorPayloa
             ));
         }
 
-        return Ok(String::from_utf8_lossy(&output.stdout).into_owned());
+        Ok(String::from_utf8_lossy(&output.stdout).into_owned())
     }
 
     #[cfg(not(windows))]
