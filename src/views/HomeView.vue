@@ -1143,15 +1143,20 @@ function openSelectedPreview(): void {
 
 .new-session-card {
   display: grid;
-  justify-items: center;
   gap: 6px;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
   min-height: 104px;
-  padding: 4px;
+  padding: 4px 6px;
+  overflow: hidden;
   border: 0;
   border-radius: 2px;
   background: transparent;
   color: #111827;
   cursor: pointer;
+  justify-items: center;
+  box-sizing: border-box;
 }
 
 .new-session-card:hover,
@@ -1169,19 +1174,29 @@ function openSelectedPreview(): void {
 }
 
 .new-session-card h3 {
+  max-width: 100%;
   margin: 0;
-  font-size: 21px;
+  overflow: hidden;
+  font-size: 16px;
   font-weight: 400;
-  line-height: 1.15;
+  line-height: 1.2;
   text-align: center;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .new-session-card p {
+  display: -webkit-box;
+  max-width: 100%;
   margin: 0;
+  overflow: hidden;
   color: #4b5563;
-  font-size: 13px;
+  font-size: 12px;
   line-height: 1.35;
   text-align: center;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
 }
 
 .bc-home-secondary {

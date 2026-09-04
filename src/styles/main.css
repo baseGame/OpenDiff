@@ -202,20 +202,33 @@ select {
 
 .bc-toolbar-command {
   display: grid;
-  grid-template-rows: 28px 22px;
-  justify-items: center;
+  grid-template-rows: 28px auto;
   align-content: center;
-  min-width: 82px;
+  justify-items: center;
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  width: auto;
+  min-width: 72px;
+  max-width: none;
   height: 66px;
   padding: 3px 8px 4px;
+  overflow: visible;
   border: 0;
   border-right: 1px solid #c9cdd3;
   background: transparent;
   color: #111111;
-  font-size: 18px;
-  line-height: 20px;
+  font-size: 12px;
+  line-height: 14px;
   white-space: nowrap;
   cursor: default;
+}
+
+.bc-toolbar-command > span,
+.bc-toolbar-command > label {
+  display: block;
+  max-width: none;
+  overflow: visible;
+  white-space: nowrap;
 }
 
 .bc-toolbar-command:first-child,
@@ -275,32 +288,46 @@ select {
   background: #eeeeee;
 }
 
-.workbench-toolbar button,
 .workbench-toolbar select,
 .workbench-toolbar input,
-.path-pair-bar button,
 .path-pair-bar input {
   height: 24px;
   border: 1px solid var(--app-border);
   border-radius: 2px;
   background: var(--app-canvas);
   color: var(--app-text);
-  font-size: 18px;
+  font-size: 12px;
 }
 
 .workbench-toolbar button,
 .path-pair-bar button {
-  display: inline-grid;
+  display: inline-flex;
+  flex: 0 0 auto;
   align-items: center;
   justify-content: center;
-  gap: 2px;
-  min-width: 78px;
-  height: 62px;
-  padding: 3px 10px;
-  border-color: transparent;
+  box-sizing: border-box;
+  width: auto;
+  min-width: 0;
+  max-width: none;
+  height: auto;
+  min-height: 24px;
+  padding: 4px 10px;
+  overflow: visible;
+  border: 1px solid transparent;
+  border-radius: 2px;
   background: transparent;
+  color: var(--app-text);
+  font-size: 12px;
+  line-height: 1.2;
   white-space: nowrap;
   cursor: pointer;
+}
+
+.workbench-toolbar button > span,
+.path-pair-bar button > span {
+  display: inline;
+  overflow: visible;
+  white-space: nowrap;
 }
 
 .workbench-toolbar button:hover,
