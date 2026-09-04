@@ -150,7 +150,9 @@ describe('RemoteProfileView', () => {
     expect(save.text()).toBe('Save')
     expect(save.text()).not.toContain('unimplemented')
     expect(
-      wrapper.find('[data-testid="remote-profile-protocol-select"] option[value="s3"]').attributes('disabled'),
+      wrapper
+        .find('[data-testid="remote-profile-protocol-select"] option[value="s3"]')
+        .attributes('disabled'),
     ).toBeDefined()
 
     await save.trigger('click')
