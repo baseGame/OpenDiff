@@ -202,7 +202,7 @@ describe('FolderCompareView', () => {
     expect(useTabsStore().tabs.some((tab) => tab.route === '/compare/text')).toBe(true)
   })
 
-  it('labels open-with and align-with as unimplemented instead of status-only no-ops', async () => {
+  it('keeps unfinished open-with and align-with actions disabled without unimplemented labels', async () => {
     const wrapper = mountFolderCompareView()
 
     await runCompare(wrapper)
@@ -219,10 +219,12 @@ describe('FolderCompareView', () => {
     expect(vscode.attributes('disabled')).toBeDefined()
     expect(alignWith.attributes('disabled')).toBeDefined()
     expect(breakAlignment.attributes('disabled')).toBeDefined()
-    expect(openWith.text()).toContain('unimplemented')
-    expect(associated.text()).toContain('unimplemented')
-    expect(vscode.text()).toContain('unimplemented')
-    expect(alignWith.text()).toContain('unimplemented')
+    expect(openWith.text()).toBe('Open With')
+    expect(associated.text()).toBe('Associated App')
+    expect(vscode.text()).toBe('Visual Studio Code')
+    expect(alignWith.text()).toBe('Align With')
+    expect(breakAlignment.text()).toBe('Break Alignment')
+    expect(openWith.text()).not.toContain('unimplemented')
     expect(wrapper.find('[data-testid="folder-open-action-status"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="folder-alignment-action-status"]').exists()).toBe(false)
   })

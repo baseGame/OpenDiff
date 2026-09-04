@@ -136,7 +136,7 @@ describe('RemoteProfileView', () => {
     expect(deleteRemoteProfile).toHaveBeenCalledWith('release-ftp')
   })
 
-  it('disables save for unimplemented remote protocols', async () => {
+  it('disables save for unfinished remote protocols without unimplemented labels', async () => {
     const wrapper = mount(RemoteProfileView, {
       global: { plugins: [createPinia()] },
     })
@@ -147,7 +147,11 @@ describe('RemoteProfileView', () => {
     const save = wrapper.find('[data-testid="save-remote-profile"]')
 
     expect(save.attributes('disabled')).toBeDefined()
-    expect(save.text()).toContain('unimplemented')
+    expect(save.text()).toBe('Save')
+    expect(save.text()).not.toContain('unimplemented')
+    expect(
+      wrapper.find('[data-testid="remote-profile-protocol-select"] option[value="s3"]').attributes('disabled'),
+    ).toBeDefined()
 
     await save.trigger('click')
     await flushPromises()
