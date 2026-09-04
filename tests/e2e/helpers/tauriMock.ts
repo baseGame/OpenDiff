@@ -45,22 +45,41 @@ export async function installTauriInvokeMock(page: Page): Promise<void> {
         }
 
         if (command === 'compare_folder_paths') {
+          const request =
+            args && typeof args === 'object'
+              ? (args as { leftRoot?: string; rightRoot?: string })
+              : {}
+
           return Promise.resolve({
-            leftRoot: '',
-            rightRoot: '',
+            leftRoot: request.leftRoot ?? '',
+            rightRoot: request.rightRoot ?? '',
             rows: [],
             summary: { total: 0, same: 0, different: 0, leftOnly: 0, rightOnly: 0 },
           })
         }
 
         if (command === 'preview_folder_sync') {
+          const request =
+            args && typeof args === 'object'
+              ? (args as { leftRoot?: string; rightRoot?: string; strategy?: string })
+              : {}
+
           return Promise.resolve({
             name: 'preview',
-            leftRoot: '',
-            rightRoot: '',
-            strategy: 'updateBoth',
-            rows: [],
-            summary: { total: 0, copy: 0, delete: 0, leave: 0, conflict: 0 },
+            leftRoot: request.leftRoot ?? '',
+            rightRoot: request.rightRoot ?? '',
+            strategy: request.strategy ?? 'updateBoth',
+            rows: [
+              {
+                id: 'copy-readme',
+                relativePath: 'readme.txt',
+                action: 'Copy',
+                sourcePath: 'left/readme.txt',
+                targetPath: 'right/readme.txt',
+                detail: 'Left only',
+              },
+            ],
+            summary: { total: 1, copy: 1, delete: 0, leave: 0, conflict: 0 },
           })
         }
 

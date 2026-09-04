@@ -1,4 +1,3 @@
-import { sampleSavedSessions } from '@/app/savedSessions'
 import type { SessionDocument } from '@/types/session'
 
 export const namedSessionsStorageKey = 'open-diff-named-sessions'
@@ -6,7 +5,7 @@ export const autoSavedSessionsStorageKey = 'open-diff-auto-saved-sessions'
 export const workspacesStorageKey = 'open-diff-workspaces'
 
 export function loadNamedSessions(): SessionDocument[] {
-  return loadSessionArray(namedSessionsStorageKey, sampleSavedSessions)
+  return loadSessionArray(namedSessionsStorageKey, [])
 }
 
 export function saveNamedSessions(sessions: SessionDocument[]): void {

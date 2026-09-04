@@ -12,8 +12,9 @@ import {
   renameFolderEntry,
   touchFolderEntry,
 } from '@/api/diff'
-import { previewFolderSync } from '@/api/sync'
+import { executeFolderSync, previewFolderSync } from '@/api/sync'
 import { useSessionLaunchStore } from '@/stores/sessionLaunch'
+import { useTabsStore } from '@/stores/tabs'
 
 const push = vi.fn()
 
@@ -22,6 +23,17 @@ vi.mock('vue-router', () => ({
 }))
 
 vi.mock('@/api/sync', () => ({
+  executeFolderSync: vi.fn().mockResolvedValue({
+    name: 'Update Right',
+    leftRoot: 'D:/left',
+    rightRoot: 'D:/right',
+    strategy: 'updateRight',
+    total: 1,
+    succeeded: 1,
+    failed: 0,
+    cancelled: 0,
+    logs: [],
+  }),
   previewFolderSync: vi.fn().mockResolvedValue({
     name: 'preview',
     leftRoot: 'D:/left',
@@ -187,6 +199,7 @@ describe('FolderCompareView', () => {
         right: { uri: 'D:/right/src/main.ts' },
       },
     })
+    expect(useTabsStore().tabs.some((tab) => tab.route === '/compare/text')).toBe(true)
   })
 
   it('labels open-with and align-with as unimplemented instead of status-only no-ops', async () => {
@@ -290,5 +303,21 @@ describe('FolderCompareView', () => {
     })
     expect(wrapper.find('[data-testid="sync-preview-panel"]').text()).toContain('D:/left/notes.md')
     expect(wrapper.text()).not.toContain('D:/workspace/right/archive/legacy.tmp')
+
+    await wrapper.find('[data-testid="run-sync-preview"]').trigger('click')
+    await flushPromises()
+
+    expect(executeFolderSync).toHaveBeenCalledWith({
+      leftRoot: 'D:/left',
+      rightRoot: 'D:/right',
+      strategy: 'updateRight',
+      overrides: [
+        {
+          relativePath: 'notes.md',
+          action: 'copyLeftToRight',
+        },
+      ],
+    })
+    expect(wrapper.text()).toMatch(/Sync finished|同步完成/)
   })
 })

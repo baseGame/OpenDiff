@@ -3,10 +3,12 @@ import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   Binary,
+  Clipboard,
   Columns3,
   Code2,
   Database,
   FileCog,
+  FileDiff,
   FileText,
   FolderGit2,
   FolderOpen,
@@ -47,6 +49,8 @@ type QuickStartType =
   | 'text-compare'
   | 'text-merge'
   | 'text-edit'
+  | 'text-patch'
+  | 'clipboard-compare'
   | 'hex-compare'
   | 'media-compare'
   | 'picture-compare'
@@ -67,6 +71,8 @@ const quickStartTypes: QuickStartType[] = [
   'text-compare',
   'text-merge',
   'text-edit',
+  'text-patch',
+  'clipboard-compare',
   'hex-compare',
   'media-compare',
   'picture-compare',
@@ -78,6 +84,7 @@ const quickStartTypes: QuickStartType[] = [
 ]
 
 const quickStartIcons: Record<QuickStartType, LucideIcon> = {
+  'clipboard-compare': Clipboard,
   'folder-compare': FolderOpen,
   'folder-merge': FolderGit2,
   'folder-sync': FolderSync,
@@ -89,6 +96,7 @@ const quickStartIcons: Record<QuickStartType, LucideIcon> = {
   'text-compare': Code2,
   'text-edit': FileText,
   'text-merge': GitMerge,
+  'text-patch': FileDiff,
   'version-compare': FileCog,
   'archive-compare': Package,
   script: Play,
@@ -100,8 +108,14 @@ const tabs = useTabsStore()
 const savedSessions = useSavedSessionsStore()
 const sessionLaunch = useSessionLaunchStore()
 const workspaces = useWorkspacesStore()
+const selectedSessionId = ref<string>()
+const selectedSavedSession = computed(
+  () =>
+    savedSessions.sessions.find((session) => session.id === selectedSessionId.value) ??
+    savedSessions.sessions.at(0),
+)
 const selectedSessionPreview = computed(() => {
-  const session = savedSessions.sessions.at(0)
+  const session = selectedSavedSession.value
 
   return {
     name: session?.name ?? t('ui.untitled'),
@@ -134,18 +148,13 @@ const quickStartEntries = computed<QuickStartEntry[]>(() =>
     })
     .filter((entry): entry is QuickStartEntry => Boolean(entry?.implemented)),
 )
-const historyItems = computed(() => [
-  {
-    title: t('ui.configUpdated'),
-    meta: `${t('ui.twoMinsAgo')} - ${t('ui.textCompare')}`,
-    active: true,
-  },
-  {
-    title: t('ui.releaseV12Diff'),
-    meta: `${t('ui.yesterday')} - ${t('ui.folderCompare')}`,
-    active: false,
-  },
-])
+const historyItems = computed(() =>
+  savedSessions.sessions.slice(0, 6).map((session) => ({
+    title: session.name,
+    meta: lastOpenedLabel(session),
+    active: session.id === selectedSavedSession.value?.id,
+  })),
+)
 
 function openSession(entry: SessionCatalogEntry): void {
   if (!entry.implemented || !entry.route) {
@@ -463,15 +472,22 @@ function sessionPath(session: SessionDocument, side: 'left' | 'right'): string {
   return session.locations[side]?.uri ?? '--'
 }
 
-function lastOpenedLabel(session: SessionDocument, index: number): string {
-  if (session.metadata.lastOpenedAt) {
-    return session.metadata.lastOpenedAt
+function lastOpenedLabel(session: SessionDocument): string {
+  return session.metadata.lastOpenedAt ?? t('ui.neverOpened')
+}
+
+function selectSavedSession(session: SessionDocument): void {
+  selectedSessionId.value = session.id
+}
+
+function openSelectedPreview(): void {
+  if (selectedSavedSession.value) {
+    openSavedSession(selectedSavedSession.value)
+
+    return
   }
 
-  return (
-    [t('ui.twoMinsAgo'), t('ui.yesterday'), 'Oct 12, 14:30', 'Oct 10, 09:15'][index] ??
-    t('ui.recently')
-  )
+  openSession(quickStartEntries.value[0])
 }
 </script>
 
@@ -537,6 +553,7 @@ function lastOpenedLabel(session: SessionDocument, index: number): string {
             :key="`tree-saved-${session.id}`"
             type="button"
             class="bc-tree-row saved"
+            @click="selectSavedSession(session)"
             @dblclick="openSavedSession(session)"
           >
             <span></span>
@@ -545,8 +562,24 @@ function lastOpenedLabel(session: SessionDocument, index: number): string {
           </button>
         </section>
         <footer class="bc-tree-footer">
-          <button type="button">+</button>
-          <button type="button">−</button>
+          <button
+            type="button"
+            disabled
+            data-testid="home-tree-add"
+            :title="$t('ui.unimplemented')"
+            :aria-label="$t('ui.unimplemented')"
+          >
+            +
+          </button>
+          <button
+            type="button"
+            disabled
+            data-testid="home-tree-remove"
+            :title="$t('ui.unimplemented')"
+            :aria-label="$t('ui.unimplemented')"
+          >
+            −
+          </button>
           <input
             v-model="sessionSearch"
             data-testid="session-search"
@@ -569,11 +602,18 @@ function lastOpenedLabel(session: SessionDocument, index: number): string {
           <div class="bc-selected-actions">
             <button
               type="button"
-              @click="openSession(quickStartEntries[0])"
+              data-testid="home-open-selected"
+              @click="openSelectedPreview"
             >
               {{ $t('ui.open') }}
             </button>
-            <button type="button">{{ $t('ui.edit') }}</button>
+            <button
+              type="button"
+              disabled
+              data-testid="home-edit-selected"
+            >
+              {{ $t('ui.edit') }} ({{ $t('ui.unimplemented') }})
+            </button>
           </div>
         </section>
 
@@ -581,8 +621,12 @@ function lastOpenedLabel(session: SessionDocument, index: number): string {
           class="new-session-panel"
           data-testid="home-new-session"
         >
-          <div class="bc-home-instructions">
-            <strong>{{ $t('ui.dragFoldersOrFilesOntoSessionIcon') }}</strong>
+          <div
+            class="bc-home-instructions"
+            data-testid="home-how-to-start"
+          >
+            <strong>{{ $t('ui.howToStart') }}</strong>
+            <span>{{ $t('ui.dragFoldersOrFilesOntoSessionIcon') }}</span>
             <span>{{ $t('ui.orClickSessionIconToBegin') }}</span>
           </div>
           <div class="new-session-grid">
@@ -604,6 +648,7 @@ function lastOpenedLabel(session: SessionDocument, index: number): string {
                 />
               </span>
               <h3>{{ $t(entry.titleKey) }}</h3>
+              <p>{{ $t(entry.summaryKey) }}</p>
             </article>
           </div>
         </section>
@@ -682,9 +727,13 @@ function lastOpenedLabel(session: SessionDocument, index: number): string {
                   </tr>
                 </thead>
                 <tbody>
+                  <tr v-if="filteredSavedSessions.length === 0">
+                    <td colspan="6">{{ $t('ui.noSavedSessionsYet') }}</td>
+                  </tr>
                   <tr
-                    v-for="(session, index) in filteredSavedSessions"
+                    v-for="session in filteredSavedSessions"
                     :key="session.id"
+                    @click="selectSavedSession(session)"
                     @dblclick="openSavedSession(session)"
                   >
                     <td class="icon-col">
@@ -739,7 +788,7 @@ function lastOpenedLabel(session: SessionDocument, index: number): string {
                     <td>{{ sessionTypeLabel(session.sessionType) }}</td>
                     <td class="path-cell">{{ sessionPath(session, 'left') }}</td>
                     <td class="path-cell">{{ sessionPath(session, 'right') }}</td>
-                    <td>{{ lastOpenedLabel(session, index) }}</td>
+                    <td>{{ lastOpenedLabel(session) }}</td>
                   </tr>
                 </tbody>
               </table>
@@ -842,7 +891,11 @@ function lastOpenedLabel(session: SessionDocument, index: number): string {
 
         <section class="workbench-inspector-section">
           <h2>{{ $t('ui.sessionHistory') }}</h2>
-          <ol class="history-list">
+          <ol
+            v-if="historyItems.length > 0"
+            class="history-list"
+            data-testid="home-session-history"
+          >
             <li
               v-for="item in historyItems"
               :key="item.title"
@@ -852,6 +905,12 @@ function lastOpenedLabel(session: SessionDocument, index: number): string {
               <span>{{ item.meta }}</span>
             </li>
           </ol>
+          <p
+            v-else
+            data-testid="home-session-history-empty"
+          >
+            {{ $t('ui.sessionHistoryEmpty') }}
+          </p>
         </section>
 
         <section class="workbench-inspector-section">
@@ -1114,6 +1173,14 @@ function lastOpenedLabel(session: SessionDocument, index: number): string {
   font-size: 21px;
   font-weight: 400;
   line-height: 1.15;
+  text-align: center;
+}
+
+.new-session-card p {
+  margin: 0;
+  color: #4b5563;
+  font-size: 13px;
+  line-height: 1.35;
   text-align: center;
 }
 

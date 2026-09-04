@@ -21,18 +21,38 @@ const emptyVersionSide: VersionSideSummary = {
   fileVersion: '',
   productVersion: '',
 }
-const versionToolbarCommands = [
+const versionToolbarCommands = computed(() => [
   { id: 'home', glyph: 'H', labelKey: 'ui.home', enabled: false },
   { id: 'all', glyph: '*', labelKey: 'ui.all', enabled: true },
   { id: 'diffs', glyph: '!=', labelKey: 'ui.diffs', enabled: true },
   { id: 'same', glyph: '=', labelKey: 'ui.same', enabled: true },
   { id: 'minor', glyph: '~', labelKey: 'ui.minor', enabled: false },
   { id: 'rules', glyph: 'R', labelKey: 'ui.rules', enabled: false },
-  { id: 'next', glyph: 'N', labelKey: 'ui.nextDifference', enabled: true },
-  { id: 'prev', glyph: 'P', labelKey: 'ui.previousDifference', enabled: true },
-  { id: 'swap', glyph: '<>', labelKey: 'ui.swap', enabled: true },
-  { id: 'reload', glyph: 'R', labelKey: 'ui.reload', enabled: true },
-]
+  {
+    id: 'next',
+    glyph: 'N',
+    labelKey: 'ui.nextDifference',
+    enabled: differenceFields.value.length > 0,
+  },
+  {
+    id: 'prev',
+    glyph: 'P',
+    labelKey: 'ui.previousDifference',
+    enabled: differenceFields.value.length > 0,
+  },
+  {
+    id: 'swap',
+    glyph: '<>',
+    labelKey: 'ui.swap',
+    enabled: Boolean(leftPath.value || rightPath.value),
+  },
+  {
+    id: 'reload',
+    glyph: 'R',
+    labelKey: 'ui.reload',
+    enabled: Boolean(leftPath.value && rightPath.value),
+  },
+])
 const { t } = useI18n()
 const leftPath = ref('')
 const rightPath = ref('')

@@ -2,6 +2,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useSessionLaunchStore } from '@/stores/sessionLaunch'
+import { useTabsStore } from '@/stores/tabs'
 import { buildFolderMergePlan, executeFolderMergePlan } from '@/api/folderMerge'
 import FolderMergeView from './FolderMergeView.vue'
 import type {
@@ -158,6 +159,34 @@ describe('FolderMergeView', () => {
         center: { uri: 'D:/workspace/merge/base/config' },
         output: { uri: 'D:/workspace/merge/output/config' },
       },
+    })
+    expect(useTabsStore().tabs.some((tab) => tab.route === '/merge/text')).toBe(true)
+  })
+
+  it('consumes a saved-session launch and builds a plan', async () => {
+    useSessionLaunchStore().setPendingLaunch({
+      id: 'merge-launch',
+      source: 'saved-session',
+      sessionType: 'folder-merge',
+      title: 'Folder merge',
+      route: '/merge/folder',
+      autoRun: true,
+      locations: {
+        left: { uri: 'D:/workspace/merge/left', kind: 'directory', readOnly: false },
+        right: { uri: 'D:/workspace/merge/right', kind: 'directory', readOnly: false },
+        center: { uri: 'D:/workspace/merge/base', kind: 'directory', readOnly: false },
+        output: { uri: 'D:/workspace/merge/output', kind: 'directory', readOnly: false },
+      },
+    })
+
+    mountFolderMergeView()
+    await flushPromises()
+
+    expect(buildFolderMergePlan).toHaveBeenCalledWith({
+      leftRoot: 'D:/workspace/merge/left',
+      baseRoot: 'D:/workspace/merge/base',
+      rightRoot: 'D:/workspace/merge/right',
+      outputRoot: 'D:/workspace/merge/output',
     })
   })
 })

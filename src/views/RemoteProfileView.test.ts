@@ -135,4 +135,23 @@ describe('RemoteProfileView', () => {
 
     expect(deleteRemoteProfile).toHaveBeenCalledWith('release-ftp')
   })
+
+  it('disables save for unimplemented remote protocols', async () => {
+    const wrapper = mount(RemoteProfileView, {
+      global: { plugins: [createPinia()] },
+    })
+
+    await wrapper.find('[data-testid="new-remote-profile"]').trigger('click')
+    await wrapper.find('[data-testid="remote-profile-protocol-select"]').setValue('s3')
+
+    const save = wrapper.find('[data-testid="save-remote-profile"]')
+
+    expect(save.attributes('disabled')).toBeDefined()
+    expect(save.text()).toContain('unimplemented')
+
+    await save.trigger('click')
+    await flushPromises()
+
+    expect(saveRemoteProfile).not.toHaveBeenCalled()
+  })
 })

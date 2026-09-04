@@ -416,6 +416,13 @@ async function runHexSave(): Promise<void> {
       >
         {{ error }}
       </p>
+      <p
+        v-else-if="visiblePairedHexRows.length === 0"
+        class="empty"
+        data-testid="hex-empty-hint"
+      >
+        {{ $t('ui.emptyCompareHint') }}
+      </p>
 
       <section class="hex-pane-grid">
         <section class="hex-side">

@@ -928,7 +928,7 @@ function toggleSourceEditors(): void {
         v-else
         class="empty"
       >
-        {{ $t('ui.runTheSampleComparisonToRenderTheCustomDiffView') }}
+        {{ $t('ui.emptyCompareHint') }}
       </div>
     </section>
 

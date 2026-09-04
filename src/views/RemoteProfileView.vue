@@ -109,6 +109,9 @@ const testStatus = computed(() => t(testStatusKey.value, testStatusParams.value)
 const canTestProfile = computed(
   () => isImplementedRemoteProtocol(draft.value.protocol) && Boolean(draft.value.host.trim()),
 )
+const canSaveProfile = computed(
+  () => policy.remoteProfiles && isImplementedRemoteProtocol(draft.value.protocol),
+)
 
 onMounted(() => {
   void loadPersistedProfiles()
@@ -147,7 +150,7 @@ function createNewProfile(): void {
 }
 
 async function saveProfile(): Promise<void> {
-  if (!policy.remoteProfiles) {
+  if (!canSaveProfile.value) {
     return
   }
 
@@ -470,9 +473,12 @@ function credentialKindLabel(kind: CredentialReferenceKind): string {
               <button
                 type="button"
                 data-testid="save-remote-profile"
+                :disabled="!canSaveProfile"
                 @click="saveProfile"
               >
-                {{ $t('ui.save') }}
+                {{
+                  canSaveProfile ? $t('ui.save') : `${$t('ui.save')} (${$t('ui.unimplemented')})`
+                }}
               </button>
             </div>
           </div>

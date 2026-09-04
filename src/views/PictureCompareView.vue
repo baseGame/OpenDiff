@@ -212,6 +212,13 @@ async function runPictureCompare(): Promise<void> {
       >
         {{ error }}
       </p>
+      <p
+        v-else-if="!compared"
+        class="empty"
+        data-testid="picture-empty-hint"
+      >
+        {{ $t('ui.emptyCompareHint') }}
+      </p>
 
       <section class="picture-stat-grid">
         <article>

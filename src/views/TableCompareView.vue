@@ -622,6 +622,13 @@ function goToNextTableDifference(): void {
         >
           {{ error }}
         </p>
+        <p
+          v-else-if="visibleRowCount === 0"
+          class="empty"
+          data-testid="table-empty-hint"
+        >
+          {{ $t('ui.emptyCompareHint') }}
+        </p>
         <div class="table-column-rules">
           <label
             v-for="rule in columnRules"

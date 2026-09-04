@@ -1,8 +1,10 @@
-import { mount, type VueWrapper } from '@vue/test-utils'
+import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
+import { createPinia, setActivePinia } from 'pinia'
 import { defineComponent } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import TextEditView from './TextEditView.vue'
 import { readTextFile, saveTextFile } from '@/api/diff'
+import { useSessionLaunchStore } from '@/stores/sessionLaunch'
 
 vi.mock('@/api/diff', () => ({
   readTextFile: vi.fn().mockResolvedValue({
@@ -53,6 +55,7 @@ function mountTextEditView(): VueWrapper {
 
 describe('TextEditView', () => {
   beforeEach(() => {
+    setActivePinia(createPinia())
     vi.mocked(readTextFile).mockClear()
     vi.mocked(saveTextFile).mockClear()
   })
@@ -142,5 +145,26 @@ describe('TextEditView', () => {
     expect(
       (wrapper.find('[data-testid="text-edit-editor"]').element as HTMLTextAreaElement).value,
     ).toContain('release line')
+  })
+
+  it('consumes a launch path and opens the document', async () => {
+    useSessionLaunchStore().setPendingLaunch({
+      id: 'edit-launch',
+      source: 'saved-session',
+      sessionType: 'text-edit',
+      title: 'notes',
+      route: '/edit/text',
+      autoRun: true,
+      locations: {
+        left: { uri: 'D:/workspace/notes.txt', kind: 'file', readOnly: false },
+      },
+    })
+
+    const wrapper = mountTextEditView()
+
+    await flushPromises()
+
+    expect(readTextFile).toHaveBeenCalledWith('D:/workspace/notes.txt')
+    expect(wrapper.find('[data-testid="text-edit-title"]').text()).toContain('notes.txt')
   })
 })

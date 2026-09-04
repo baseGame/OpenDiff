@@ -86,8 +86,8 @@ Issues and pull requests are welcome. Please read
 Open Diff uses semantic version tags such as `v1.0.0`.
 
 When a `v*` tag is pushed, GitHub Actions builds Tauri bundles for Windows,
-macOS, and Linux, creates a draft GitHub Release, uploads the generated desktop
-assets, and generates release notes.
+macOS (Apple Silicon and Intel), and Linux, creates a GitHub Release, uploads
+the generated desktop assets, and generates release notes.
 
 Before creating a release tag, make sure the version is synchronized across:
 
@@ -213,28 +213,23 @@ Open Diff is intended to generate shareable comparison summaries.
 
 ### Automation
 
-Open Diff is planned to support repeatable command-line and scripted workflows.
+Open Diff includes command-line and scripted workflows for the commands that are already implemented.
 
-- Run comparisons from the command line.
+- Run comparisons from the command line, including `shell-compare`.
 - Generate machine-readable results.
-- Execute scripted comparison tasks.
-- Support repeatable folder comparison, synchronization, and report generation.
+- Execute supported script commands such as LOAD, COMPARE, REPORT, and SYNC.
 - Generate Git difftool, Git mergetool, and Subversion external diff setup commands.
 
 ## Planned Capabilities
 
-The following areas are part of the product direction:
+These items stay unimplemented and are labeled as such in the UI:
 
-- Advanced text merge conflict editing.
-- Folder merge workflows.
-- Rich file format rules.
-- More spreadsheet formats and sheet mapping.
-- Image tolerance controls and visual diff overlays.
-- Remote file access profiles.
-- Archive comparison.
-- Git difftool, Git mergetool, and Subversion external diff integration.
-- Custom keyboard shortcuts.
-- Additional report formats.
+- S3, Dropbox, OneDrive, FTPS, and SVN remote protocols.
+- 7z archive comparison (ZIP and TAR are live).
+- Open With and Align With from folder compare.
+- A full Beyond Compare script language. Supported commands run; others return `unsupported`.
+- Live Windows registry hives (exported `.reg` files compare).
+- Custom keyboard shortcuts and additional report formats.
 
 ## Typical Use Cases
 
@@ -249,9 +244,9 @@ The following areas are part of the product direction:
 
 ## Project Status
 
-Open Diff is at an early repository stage. The README describes the intended
-feature set and product direction while the implementation continues to evolve.
-Some listed capabilities may still be in progress.
+Open Diff ships working desktop compare, merge, sync, archive, remote, and
+script sessions. Unfinished items are disabled or labeled unimplemented instead
+of showing fake success. Download installers from GitHub Releases.
 
 ## License
 
