@@ -210,7 +210,7 @@ test('remote profiles keep unfinished protocols disabled and can test SFTP', asy
   )
   await expect(
     page.locator('[data-testid="remote-profile-protocol-select"] option[value="s3"]'),
-  ).toBeDisabled()
+  ).toHaveJSProperty('disabled', true)
   await page.getByTestId('select-remote-profile-prod-sftp').click()
   await page.getByTestId('test-remote-profile').click()
   await expect
