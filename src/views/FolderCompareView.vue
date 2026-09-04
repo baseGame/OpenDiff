@@ -31,10 +31,12 @@ import { useRouter } from 'vue-router'
 import WorkbenchShell from '@/components/workbench/WorkbenchShell.vue'
 import WorkbenchInspector from '@/components/workbench/WorkbenchInspector.vue'
 import StatusSummaryGrid from '@/components/workbench/StatusSummaryGrid.vue'
-import { previewFolderSync } from '@/api/sync'
+import { executeFolderSync, previewFolderSync } from '@/api/sync'
 import { useI18n } from '@/i18n'
 import { useLastCompareStore } from '@/stores/lastCompare'
 import { useSessionLaunchStore } from '@/stores/sessionLaunch'
+import { useTabsStore } from '@/stores/tabs'
+import type { FolderSyncOverrideAction } from '@/types/sync'
 
 type FolderSide = 'left' | 'right'
 type FolderStatus = 'Same' | 'Different' | 'Left only' | 'Right only'
@@ -60,6 +62,7 @@ interface FolderTreeRow {
 
 interface SyncPreviewItem {
   id: string
+  relativePath: string
   action: SyncPreviewAction
   sourcePath?: string
   targetPath?: string
@@ -105,7 +108,9 @@ const folderCriteria = ref<FolderCompareCriteria>({
 })
 const sessionLaunch = useSessionLaunchStore()
 const lastCompare = useLastCompareStore()
+const tabs = useTabsStore()
 const router = useRouter()
+const syncRunning = ref(false)
 const reportStatus = ref('')
 const { t } = useI18n()
 const folderCompareLoading = ref(false)
@@ -530,6 +535,7 @@ function openChildCompareForSelected(kind: 'open' | 'quick' | 'compare'): void {
       ? `${t('ui.quickCompare')} -> ${launch.route}`
       : `${t('ui.compareTo')} -> ${launch.route}`
   sessionLaunch.setPendingLaunch(launch)
+  tabs.openTab({ title: launch.title, route: launch.route, dirty: false })
   void router.push(launch.route)
 }
 
@@ -731,6 +737,7 @@ async function previewSyncPlan(): Promise<void> {
 
   syncPreviewItems.value = preview.rows.map((row) => ({
     id: row.id,
+    relativePath: row.relativePath,
     action: mapSyncPreviewAction(row.action),
     sourcePath: row.sourcePath,
     targetPath: row.targetPath,
@@ -813,16 +820,60 @@ function runSyncPreview(): void {
     return
   }
 
-  lastSyncAction.value = t('status.syncReady', {
-    summary: t('status.operationsReady', { count: syncPreviewItems.value.length }),
-  })
+  void executeSyncPreview()
 }
 
 function confirmSyncSafety(): void {
-  lastSyncAction.value = t('status.syncConfirmed', {
-    summary: t('status.operationsReady', { count: syncPreviewItems.value.length }),
-  })
   pendingSyncSafetyItems.value = []
+  void executeSyncPreview()
+}
+
+function syncOverrideAction(item: SyncPreviewItem): FolderSyncOverrideAction {
+  if (item.action === 'Delete') {
+    return 'delete'
+  }
+
+  if (item.action === 'Leave' || item.action === 'Error') {
+    return 'leave'
+  }
+
+  const source = item.sourcePath ?? ''
+
+  if (rightRoot.value && source.startsWith(rightRoot.value)) {
+    return 'copyRightToLeft'
+  }
+
+  return 'copyLeftToRight'
+}
+
+async function executeSyncPreview(): Promise<void> {
+  if (!leftRoot.value || !rightRoot.value || syncRunning.value) {
+    return
+  }
+
+  syncRunning.value = true
+
+  try {
+    const response = await executeFolderSync({
+      leftRoot: leftRoot.value,
+      rightRoot: rightRoot.value,
+      strategy: 'updateRight',
+      overrides: syncPreviewItems.value.map((item) => ({
+        relativePath: item.relativePath,
+        action: syncOverrideAction(item),
+      })),
+    })
+
+    lastSyncAction.value = t('status.syncCompleted', {
+      succeeded: response.succeeded,
+      failed: response.failed,
+    })
+    await runFolderCompare()
+  } catch (error) {
+    lastSyncAction.value = error instanceof Error ? error.message : String(error)
+  } finally {
+    syncRunning.value = false
+  }
 }
 
 function closeSyncPreview(): void {
@@ -1198,6 +1249,8 @@ function handleTreeScroll(event: Event): void {
             size="small"
             type="primary"
             data-testid="run-sync-preview"
+            :disabled="syncRunning"
+            :loading="syncRunning"
             @click="runSyncPreview"
             >{{ $t('ui.runSync') }}</NButton
           >

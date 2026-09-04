@@ -127,6 +127,12 @@ describe('session UI to command linkage', () => {
 
     assertNoDemoData(wrapper)
     expect(wrapper.findAll('[data-testid="home-new-session-card"]').length).toBeGreaterThan(0)
+    expect(wrapper.text()).not.toContain('Compare sample text')
+    expect(wrapper.text()).not.toContain('Config updated')
+    expect(wrapper.text()).not.toContain('Release v1.2')
+    expect(wrapper.find('[data-session-type="text-patch"]').exists()).toBe(true)
+    expect(wrapper.find('[data-session-type="clipboard-compare"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="home-edit-selected"]').attributes('disabled')).toBeDefined()
     expect(invokeCalls).toEqual([])
   })
 
@@ -134,6 +140,8 @@ describe('session UI to command linkage', () => {
     const wrapper = mountView(TextCompareView)
 
     assertNoDemoData(wrapper)
+    expect(wrapper.text()).toContain('Choose left and right paths, then click Compare.')
+    expect(wrapper.text()).not.toContain('sample comparison')
     await wrapper.find('[data-testid="ignore-whitespace"]').setValue(true)
     await wrapper.find('[data-testid="ignore-case"]').setValue(true)
     await wrapper.find('[data-testid="ignore-line-endings"]').setValue(true)
@@ -210,6 +218,17 @@ describe('session UI to command linkage', () => {
     expect(
       wrapper.find('[data-testid="align-with-selected-file"]').attributes('disabled'),
     ).toBeDefined()
+
+    await wrapper.find('[data-testid="preview-sync-plan"]').trigger('click')
+    await flushPromises()
+    await wrapper.find('[data-testid="run-sync-preview"]').trigger('click')
+    await flushPromises()
+
+    expectCommand('execute_folder_sync', {
+      leftRoot: '/tmp/left',
+      rightRoot: '/tmp/right.zip',
+      strategy: 'updateRight',
+    })
   })
 
   it('folder sync previews and executes through invoke', async () => {

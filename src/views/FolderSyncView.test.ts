@@ -1,7 +1,9 @@
 import { flushPromises, mount } from '@vue/test-utils'
+import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import FolderSyncView from './FolderSyncView.vue'
 import { executeFolderSync, previewFolderSync } from '@/api/sync'
+import { useSessionLaunchStore } from '@/stores/sessionLaunch'
 
 vi.mock('@/api/sync', () => ({
   executeFolderSync: vi.fn().mockResolvedValue({
@@ -63,6 +65,7 @@ vi.mock('@/api/sync', () => ({
 
 describe('FolderSyncView', () => {
   beforeEach(() => {
+    setActivePinia(createPinia())
     vi.clearAllMocks()
   })
 
@@ -121,5 +124,39 @@ describe('FolderSyncView', () => {
     expect(wrapper.text()).toContain('Completed 2 / 2')
     expect(wrapper.text()).toContain('Copied package/app.exe')
     expect(wrapper.text()).toContain('Deleted prod/old.dll')
+  })
+
+  it('consumes a saved-session launch and auto-previews', async () => {
+    useSessionLaunchStore().setPendingLaunch({
+      id: 'sync-launch',
+      source: 'saved-session',
+      sessionType: 'folder-sync',
+      title: 'Deploy sync',
+      route: '/sync/folder',
+      autoRun: true,
+      locations: {
+        left: { uri: 'D:/deploy/package', kind: 'directory', readOnly: false },
+        right: { uri: 'D:/deploy/prod', kind: 'directory', readOnly: false },
+      },
+    })
+
+    mount(FolderSyncView, {
+      global: {
+        stubs: {
+          NButton: {
+            props: ['disabled', 'loading'],
+            emits: ['click'],
+            template: '<button :disabled="disabled" @click="$emit(\'click\')"><slot /></button>',
+          },
+        },
+      },
+    })
+    await flushPromises()
+
+    expect(previewFolderSync).toHaveBeenCalledWith({
+      leftRoot: 'D:/deploy/package',
+      rightRoot: 'D:/deploy/prod',
+      strategy: 'updateBoth',
+    })
   })
 })

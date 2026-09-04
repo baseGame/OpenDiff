@@ -170,6 +170,12 @@ function fileNameFromPath(path: string): string {
         </div>
       </header>
 
+      <p
+        class="empty"
+        data-testid="registry-export-hint"
+      >
+        {{ $t('ui.registryExportHint') }}
+      </p>
       <section class="registry-input-panel">
         <label>
           <span>{{ $t('ui.leftCurrentExport') }}</span>

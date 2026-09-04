@@ -1,10 +1,13 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it } from 'vitest'
+import { sampleSavedSessions } from '@/app/savedSessions'
+import { saveNamedSessions } from '@/app/sessionPersistence'
 import { useSavedSessionsStore } from './savedSessions'
 
 describe('useSavedSessionsStore', () => {
   beforeEach(() => {
     localStorage.clear()
+    saveNamedSessions(sampleSavedSessions)
     setActivePinia(createPinia())
   })
 

@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { useTabsStore } from '@/stores/tabs'
 import {
   buildFolderMergePlan as requestFolderMergePlan,
   executeFolderMergePlan,
@@ -27,6 +28,7 @@ const mergeExecuting = ref(false)
 const mergeExecutionError = ref<string>()
 const router = useRouter()
 const sessionLaunch = useSessionLaunchStore()
+const tabs = useTabsStore()
 const { t } = useI18n()
 const lastOpenedConflictPath = ref('')
 
@@ -41,6 +43,28 @@ const summary = computed(() => ({
   conflicts: plan.value?.summary.conflicts ?? 0,
 }))
 const executionSummary = computed(() => execution.value?.summary)
+
+onMounted(() => {
+  const launch = sessionLaunch.consumeLaunch('/merge/folder')
+
+  if (!launch) {
+    return
+  }
+
+  leftPath.value = launch.locations.left?.uri ?? leftPath.value
+  basePath.value = launch.locations.center?.uri ?? basePath.value
+  rightPath.value = launch.locations.right?.uri ?? rightPath.value
+  outputPath.value = launch.locations.output?.uri ?? outputPath.value
+
+  if (
+    launch.autoRun &&
+    launch.locations.left?.uri &&
+    launch.locations.center?.uri &&
+    launch.locations.right?.uri
+  ) {
+    void buildFolderMergePlan()
+  }
+})
 
 async function buildFolderMergePlan(): Promise<void> {
   plan.value = await requestFolderMergePlan({
@@ -117,6 +141,7 @@ function openConflictInTextMerge(conflict: FolderMergeConflict): void {
       output: { uri: joinRoot(outputPath.value, conflict.path), kind: 'file', readOnly: false },
     },
   })
+  tabs.openTab({ title: conflict.path, route: '/merge/text', dirty: false })
   void router.push('/merge/text')
 }
 

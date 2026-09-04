@@ -8,10 +8,11 @@ import type {
   FolderSyncPreviewRow,
   FolderSyncStrategy,
 } from '@/types/sync'
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import WorkbenchShell from '@/components/workbench/WorkbenchShell.vue'
 import WorkbenchInspector from '@/components/workbench/WorkbenchInspector.vue'
 import { useI18n } from '@/i18n'
+import { useSessionLaunchStore } from '@/stores/sessionLaunch'
 
 interface SyncStrategyOption {
   value: FolderSyncStrategy
@@ -43,6 +44,7 @@ const strategyOptions: SyncStrategyOption[] = [
   { value: 'mirrorLeft', labelKey: 'sync.strategy.mirrorLeft' },
 ]
 const { t } = useI18n()
+const sessionLaunch = useSessionLaunchStore()
 const leftPath = ref('')
 const rightPath = ref('')
 const selectedStrategy = ref<FolderSyncStrategy>('updateBoth')
@@ -62,6 +64,21 @@ const selectedStrategyLabel = computed(() =>
   ),
 )
 const canRunSync = computed(() => previewRows.value.length > 0 && !syncRunning.value)
+
+onMounted(() => {
+  const launch = sessionLaunch.consumeLaunch('/sync/folder')
+
+  if (!launch) {
+    return
+  }
+
+  leftPath.value = launch.locations.left?.uri ?? leftPath.value
+  rightPath.value = launch.locations.right?.uri ?? rightPath.value
+
+  if (launch.autoRun && launch.locations.left?.uri && launch.locations.right?.uri) {
+    void previewSync()
+  }
+})
 
 async function previewSync(): Promise<void> {
   previewLoading.value = true

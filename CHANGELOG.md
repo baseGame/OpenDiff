@@ -7,6 +7,16 @@ Versioning for release tags.
 
 ## [Unreleased]
 
+### Changed
+
+- Home no longer invents recent history or sample sessions; empty states tell
+  users how to start.
+- Folder Compare Run Sync now executes a real sync instead of status-only
+  success.
+- Saved-session launches fill Folder Sync, Folder Merge, and Text Edit.
+- Unfinished Home tree/edit actions and unimplemented remote protocols stay
+  disabled with honest labels.
+
 ## [1.1.0] - 2026-08-18
 
 ### Added

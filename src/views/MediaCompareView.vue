@@ -164,6 +164,13 @@ async function runMediaCompare(): Promise<void> {
       >
         {{ error }}
       </p>
+      <p
+        v-else-if="mediaFields.length === 0"
+        class="empty"
+        data-testid="media-empty-hint"
+      >
+        {{ $t('ui.emptyCompareHint') }}
+      </p>
 
       <section class="media-summary-grid">
         <article

@@ -16,11 +16,11 @@ describe('sessionPersistence', () => {
     expect(loadNamedSessions()).toEqual(sampleSavedSessions)
   })
 
-  it('falls back to sample sessions when localStorage is empty or invalid', () => {
-    expect(loadNamedSessions()).toEqual(sampleSavedSessions)
+  it('falls back to an empty list when localStorage is empty or invalid', () => {
+    expect(loadNamedSessions()).toEqual([])
 
     localStorage.setItem(namedSessionsStorageKey, '{')
 
-    expect(loadNamedSessions()).toEqual(sampleSavedSessions)
+    expect(loadNamedSessions()).toEqual([])
   })
 })

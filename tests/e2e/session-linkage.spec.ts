@@ -20,6 +20,10 @@ test('home catalog lists implemented sessions and opens text compare', async ({ 
   await page.goto('/')
   await expect(page.getByTestId('home-new-session')).toBeVisible()
   await assertNoDemoContent(page)
+  await expect(page.locator('body')).not.toContainText('Compare sample text')
+  await expect(page.locator('body')).not.toContainText('Config updated')
+  await expect(page.getByTestId('home-how-to-start')).toBeVisible()
+  await expect(page.getByTestId('home-edit-selected')).toBeDisabled()
   await page.locator('[data-session-type="text-compare"]').click()
   await expect(page.getByTestId('run-diff')).toBeVisible()
 })
@@ -28,6 +32,7 @@ test('text compare CTA issues diff_text', async ({ page }) => {
   await page.goto('/compare/text')
   await expect(page.getByTestId('run-diff')).toBeVisible()
   await assertNoDemoContent(page)
+  await expect(page.locator('body')).not.toContainText('sample comparison')
   await page.getByTestId('run-diff').click()
   await expect.poll(async () => (await lastInvoke(page, 'diff_text'))?.command).toBe('diff_text')
 })
@@ -46,6 +51,12 @@ test('folder compare CTA issues compare_folder_paths and keeps unimplemented dis
     .toBe('compare_folder_paths')
   await expect(page.getByTestId('open-with-selected-file')).toBeDisabled()
   await expect(page.getByTestId('align-with-selected-file')).toBeDisabled()
+  await page.getByTestId('preview-sync-plan').click()
+  await expect(page.getByTestId('sync-preview-panel')).toBeVisible()
+  await page.getByTestId('run-sync-preview').click()
+  await expect
+    .poll(async () => (await lastInvoke(page, 'execute_folder_sync'))?.command)
+    .toBe('execute_folder_sync')
 })
 
 test('folder sync CTA issues preview_folder_sync', async ({ page }) => {

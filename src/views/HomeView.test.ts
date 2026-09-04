@@ -3,6 +3,8 @@ import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import HomeView from './HomeView.vue'
 import { readClipboardTextSource } from '@/app/clipboardSource'
+import { sampleSavedSessions } from '@/app/savedSessions'
+import { saveNamedSessions } from '@/app/sessionPersistence'
 import { createAppI18n, installI18n } from '@/i18n'
 import { useSavedSessionsStore } from '@/stores/savedSessions'
 import { useSessionLaunchStore } from '@/stores/sessionLaunch'
@@ -25,6 +27,10 @@ const nButtonStub = {
   props: ['disabled'],
   emits: ['click'],
   template: '<button :disabled="disabled" @click="$emit(\'click\')"><slot /></button>',
+}
+
+function seedSampleSessions(): void {
+  saveNamedSessions(sampleSavedSessions)
 }
 
 function mountHomeView(): ReturnType<typeof mount<typeof HomeView>> {
@@ -59,7 +65,7 @@ describe('HomeView', () => {
 
     const cards = wrapper.findAll('[data-testid="home-new-session-card"]')
 
-    expect(cards).toHaveLength(14)
+    expect(cards).toHaveLength(16)
     expect(cards.map((card) => card.attributes('data-session-type'))).toEqual([
       'folder-compare',
       'folder-merge',
@@ -67,6 +73,8 @@ describe('HomeView', () => {
       'text-compare',
       'text-merge',
       'text-edit',
+      'text-patch',
+      'clipboard-compare',
       'hex-compare',
       'media-compare',
       'picture-compare',
@@ -76,13 +84,15 @@ describe('HomeView', () => {
       'archive-compare',
       'script',
     ])
+    expect(wrapper.find('[data-testid="home-how-to-start"]').text()).toContain('How to start')
+    expect(wrapper.text()).toContain('Compare two text files and see what changed')
   })
 
   it('renders new session cards, recent sessions table and workspace inspector first', () => {
     const wrapper = mountHomeView()
 
     expect(wrapper.find('[data-testid="home-new-session"]').exists()).toBe(true)
-    expect(wrapper.findAll('[data-testid="home-new-session-card"]')).toHaveLength(14)
+    expect(wrapper.findAll('[data-testid="home-new-session-card"]')).toHaveLength(16)
     expect(wrapper.find('[data-testid="home-recent-sessions"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="home-workspace-inspector"]').exists()).toBe(true)
     expect(wrapper.find('.drop-zone').exists()).toBe(false)
@@ -160,16 +170,33 @@ describe('HomeView', () => {
     })
   })
 
+  it('starts without demo saved sessions or fake history', () => {
+    const wrapper = mountHomeView()
+
+    expect(wrapper.text()).not.toContain('Compare sample text')
+    expect(wrapper.text()).not.toContain('Review release folder')
+    expect(wrapper.text()).not.toContain('Config updated')
+    expect(wrapper.text()).not.toContain('Release v1.2')
+    expect(wrapper.find('[data-testid="home-session-history-empty"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="home-edit-selected"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.find('[data-testid="home-tree-add"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.find('[data-testid="home-tree-remove"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.find('[data-testid="home-edit-selected"]').text()).toContain('unimplemented')
+  })
+
   it('shows saved sessions in a dense recent sessions table', () => {
+    seedSampleSessions()
     const wrapper = mountHomeView()
 
     expect(wrapper.find('[data-testid="home-recent-sessions"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="home-recent-sessions-table"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('Compare sample text')
     expect(wrapper.text()).toContain('Review release folder')
+    expect(wrapper.text()).toContain('Never opened')
   })
 
   it('filters recent sessions by search keyword', async () => {
+    seedSampleSessions()
     const wrapper = mountHomeView()
 
     await wrapper.find('[data-testid="session-search"]').setValue('release')
@@ -180,6 +207,7 @@ describe('HomeView', () => {
   })
 
   it('applies saved session management actions from the tree', async () => {
+    seedSampleSessions()
     const wrapper = mountHomeView()
 
     await wrapper.find('[data-testid="rename-session-sample-text"]').trigger('click')
@@ -200,6 +228,7 @@ describe('HomeView', () => {
   })
 
   it('disables overwrite actions for locked sessions', () => {
+    seedSampleSessions()
     const wrapper = mountHomeView()
 
     expect(
@@ -217,6 +246,7 @@ describe('HomeView', () => {
   })
 
   it('prompts to save when closing a dirty session', async () => {
+    seedSampleSessions()
     const wrapper = mountHomeView()
 
     await wrapper.find('[data-testid="change-rules-session-sample-text"]').trigger('click')
@@ -227,6 +257,8 @@ describe('HomeView', () => {
   })
 
   it('shows a recovery entry for auto-saved sessions', async () => {
+    seedSampleSessions()
+    setActivePinia(createPinia())
     const store = useSavedSessionsStore()
     const baseSession = store.sessions.at(0)
 

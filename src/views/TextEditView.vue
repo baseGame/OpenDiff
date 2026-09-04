@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { readTextFile, saveTextFile } from '@/api/diff'
 import { useI18n } from '@/i18n'
+import { useSessionLaunchStore } from '@/stores/sessionLaunch'
 import type { FileStamp } from '@/types/diff'
 
 interface LoadedTextDocument {
@@ -14,6 +15,7 @@ interface LoadedTextDocument {
 
 const pathInput = ref('')
 const { t } = useI18n()
+const sessionLaunch = useSessionLaunchStore()
 const document = ref<LoadedTextDocument | null>(null)
 const editorText = ref('')
 const savedText = ref('')
@@ -83,6 +85,20 @@ const findStatus = computed(() => {
   }
 
   return `${String(currentFindIndex.value + 1)} / ${String(findMatches.value.length)}`
+})
+
+onMounted(() => {
+  const launch = sessionLaunch.consumeLaunch('/edit/text')
+
+  if (!launch) {
+    return
+  }
+
+  pathInput.value = launch.locations.left?.uri ?? launch.locations.output?.uri ?? pathInput.value
+
+  if (launch.autoRun && pathInput.value) {
+    void openDocument()
+  }
 })
 
 async function openDocument(): Promise<void> {

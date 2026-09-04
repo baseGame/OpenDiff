@@ -257,7 +257,7 @@ function lineClass(line: string, paneId: MergePaneId): string {
           :disabled="loading"
           @click="loadMerge"
         >
-          {{ $t('ui.reload') }}
+          {{ $t('ui.loadFiles') }}
         </button>
         <button
           type="button"
@@ -276,6 +276,13 @@ function lineClass(line: string, paneId: MergePaneId): string {
         </span>
       </div>
 
+      <p
+        v-if="!leftPath && !rightPath && outputLines.length === 0"
+        class="empty"
+        data-testid="text-merge-empty-hint"
+      >
+        {{ $t('ui.emptyCompareHint') }}
+      </p>
       <div class="merge-grid">
         <section
           v-for="pane in panes"
