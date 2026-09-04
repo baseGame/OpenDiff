@@ -1032,13 +1032,19 @@ function toggleSourceEditors(): void {
 }
 
 .toolbar-button {
-  height: 24px;
-  padding: 0 8px;
+  flex: 0 0 auto;
+  width: auto;
+  max-width: none;
+  height: 28px;
+  padding: 0 10px;
+  overflow: visible;
   border: 1px solid var(--app-border);
   border-radius: 4px;
   background: var(--app-canvas);
   color: var(--app-text);
   font-size: 12px;
+  line-height: 1.2;
+  white-space: nowrap;
   cursor: pointer;
 }
 

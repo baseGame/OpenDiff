@@ -202,35 +202,33 @@ select {
 
 .bc-toolbar-command {
   display: grid;
-  grid-template-rows: 28px minmax(0, 22px);
-  width: max-content;
+  grid-template-rows: 28px auto;
+  align-content: center;
+  justify-items: center;
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  width: auto;
   min-width: 72px;
-  max-width: 110px;
+  max-width: none;
   height: 66px;
-  padding: 3px 6px 4px;
-  overflow: hidden;
+  padding: 3px 8px 4px;
+  overflow: visible;
   border: 0;
   border-right: 1px solid #c9cdd3;
   background: transparent;
   color: #111111;
-  font-size: 13px;
-  line-height: 16px;
+  font-size: 12px;
+  line-height: 14px;
   white-space: nowrap;
   cursor: default;
-  justify-items: center;
-  align-content: center;
-  box-sizing: border-box;
-  text-overflow: ellipsis;
 }
 
 .bc-toolbar-command > span,
 .bc-toolbar-command > label {
   display: block;
-  min-width: 0;
-  max-width: 100%;
-  overflow: hidden;
+  max-width: none;
+  overflow: visible;
   white-space: nowrap;
-  text-overflow: ellipsis;
 }
 
 .bc-toolbar-command:first-child,
@@ -290,49 +288,52 @@ select {
   background: #eeeeee;
 }
 
-.workbench-toolbar button,
 .workbench-toolbar select,
 .workbench-toolbar input,
-.path-pair-bar button,
 .path-pair-bar input {
   height: 24px;
   border: 1px solid var(--app-border);
   border-radius: 2px;
   background: var(--app-canvas);
   color: var(--app-text);
-  font-size: 18px;
+  font-size: 12px;
 }
 
 .workbench-toolbar button,
 .path-pair-bar button {
-  display: inline-grid;
+  border: 1px solid var(--app-border);
+  border-radius: 2px;
+  background: var(--app-canvas);
+  color: var(--app-text);
+}
+
+.workbench-toolbar button,
+.path-pair-bar button {
+  display: inline-flex;
+  flex: 0 0 auto;
   align-items: center;
   justify-content: center;
-  gap: 2px;
-  width: max-content;
+  box-sizing: border-box;
+  width: auto;
   min-width: 0;
-  max-width: 120px;
-  height: 62px;
-  padding: 3px 8px;
-  overflow: hidden;
+  max-width: none;
+  height: auto;
+  min-height: 24px;
+  padding: 4px 10px;
+  overflow: visible;
+  border-color: transparent;
   background: transparent;
-  font-size: 13px;
-  line-height: 16px;
+  font-size: 12px;
+  line-height: 1.2;
   white-space: nowrap;
   cursor: pointer;
-  box-sizing: border-box;
-  border-color: transparent;
-  text-overflow: ellipsis;
 }
 
 .workbench-toolbar button > span,
 .path-pair-bar button > span {
-  display: block;
-  min-width: 0;
-  max-width: 100%;
-  overflow: hidden;
+  display: inline;
+  overflow: visible;
   white-space: nowrap;
-  text-overflow: ellipsis;
 }
 
 .workbench-toolbar button:hover,
