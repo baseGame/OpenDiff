@@ -935,14 +935,20 @@ function handleTreeScroll(event: Event): void {
             <span>{{ $t('ui.leftFolder') }}</span>
             <input
               v-model="leftRoot"
+              type="text"
               data-testid="folder-left-root"
+              autocomplete="off"
+              spellcheck="false"
             />
           </label>
           <label>
             <span>{{ $t('ui.rightFolder') }}</span>
             <input
               v-model="rightRoot"
+              type="text"
               data-testid="folder-right-root"
+              autocomplete="off"
+              spellcheck="false"
             />
           </label>
           <p
@@ -1013,7 +1019,6 @@ function handleTreeScroll(event: Event): void {
             data-testid="export-folder-html-report"
             @click="exportFolderReport('html')"
             >{{ $t('ui.export') }} {{ $t('ui.html') }}</NButton
-          >
           >
           <NButton
             size="small"

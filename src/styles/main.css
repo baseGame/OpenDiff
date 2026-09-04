@@ -533,38 +533,58 @@ select {
 .folder-toolbar {
   display: grid !important;
   grid-template-columns: minmax(0, 1fr) !important;
-  grid-template-rows: 34px 34px !important;
-  gap: 4px !important;
-  padding: 6px 10px !important;
+  grid-template-rows: auto auto !important;
+  align-items: stretch !important;
+  gap: 8px !important;
+  min-height: 0 !important;
+  padding: 8px 10px !important;
+  overflow: visible !important;
 }
 
 .folder-toolbar .path-pair {
   display: grid !important;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+  grid-template-columns: minmax(140px, 1fr) minmax(140px, 1fr) !important;
+  grid-auto-rows: auto !important;
   gap: 8px !important;
   min-width: 0 !important;
+  min-height: 0 !important;
+  overflow: visible !important;
 }
 
-.folder-toolbar .path-pair label {
-  display: block !important;
+.folder-toolbar .path-pair > label {
+  display: grid !important;
+  gap: 4px !important;
   min-width: 0 !important;
+  pointer-events: auto !important;
 }
 
-.folder-toolbar .path-pair span {
-  display: none !important;
+.folder-toolbar .path-pair > label > span {
+  display: block !important;
+  color: #555555 !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  line-height: 1.2 !important;
 }
 
-.folder-toolbar .path-pair input {
+.folder-toolbar .path-pair > label > input {
+  display: block !important;
+  box-sizing: border-box !important;
   width: 100% !important;
+  min-width: 0 !important;
   height: 30px !important;
+  min-height: 30px !important;
+  padding: 0 8px !important;
+  pointer-events: auto !important;
+  opacity: 1 !important;
 }
 
 .folder-toolbar .folder-actions {
   display: flex !important;
-  grid-row: 2 !important;
-  gap: 8px !important;
+  grid-row: auto !important;
+  flex-wrap: wrap !important;
+  gap: 6px !important;
   min-width: 0 !important;
-  overflow: hidden !important;
+  overflow: visible !important;
 }
 
 .folder-root-summary,
