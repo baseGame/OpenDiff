@@ -48,6 +48,9 @@ jobs:
       - name: Install dependencies
         run: corepack pnpm install --frozen-lockfile
 
+      - name: Install Playwright Chromium
+        run: corepack pnpm exec playwright install chromium
+
       - name: Run quality checks
         run: corepack pnpm quality
 
