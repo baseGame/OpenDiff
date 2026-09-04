@@ -203,12 +203,9 @@ select {
 .bc-toolbar-command {
   display: grid;
   grid-template-rows: 28px minmax(0, 22px);
-  justify-items: center;
-  align-content: center;
-  box-sizing: border-box;
   width: max-content;
-  max-width: 110px;
   min-width: 72px;
+  max-width: 110px;
   height: 66px;
   padding: 3px 6px 4px;
   overflow: hidden;
@@ -218,19 +215,22 @@ select {
   color: #111111;
   font-size: 13px;
   line-height: 16px;
-  text-overflow: ellipsis;
   white-space: nowrap;
   cursor: default;
+  justify-items: center;
+  align-content: center;
+  box-sizing: border-box;
+  text-overflow: ellipsis;
 }
 
 .bc-toolbar-command > span,
 .bc-toolbar-command > label {
   display: block;
-  max-width: 100%;
   min-width: 0;
+  max-width: 100%;
   overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .bc-toolbar-command:first-child,
@@ -309,30 +309,30 @@ select {
   align-items: center;
   justify-content: center;
   gap: 2px;
-  box-sizing: border-box;
-  max-width: 120px;
-  min-width: 0;
   width: max-content;
+  min-width: 0;
+  max-width: 120px;
   height: 62px;
   padding: 3px 8px;
   overflow: hidden;
-  border-color: transparent;
   background: transparent;
   font-size: 13px;
   line-height: 16px;
-  text-overflow: ellipsis;
   white-space: nowrap;
   cursor: pointer;
+  box-sizing: border-box;
+  border-color: transparent;
+  text-overflow: ellipsis;
 }
 
 .workbench-toolbar button > span,
 .path-pair-bar button > span {
   display: block;
-  max-width: 100%;
   min-width: 0;
+  max-width: 100%;
   overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .workbench-toolbar button:hover,
@@ -773,18 +773,4 @@ select {
   .workbench-inspector {
     display: none;
   }
-}
-
-/* Contained labels: buttons, chips, cards, nav items */
-button,
-.chrome-button,
-.nav-item,
-.tab-chip,
-.new-session-card,
-.bc-toolbar-command {
-  min-width: 0;
-}
-
-button {
-  max-width: 100%;
 }

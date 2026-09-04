@@ -1143,12 +1143,10 @@ function openSelectedPreview(): void {
 
 .new-session-card {
   display: grid;
-  justify-items: center;
   gap: 6px;
-  box-sizing: border-box;
   width: 100%;
-  max-width: 100%;
   min-width: 0;
+  max-width: 100%;
   min-height: 104px;
   padding: 4px 6px;
   overflow: hidden;
@@ -1157,6 +1155,8 @@ function openSelectedPreview(): void {
   background: transparent;
   color: #111827;
   cursor: pointer;
+  justify-items: center;
+  box-sizing: border-box;
 }
 
 .new-session-card:hover,
@@ -1174,21 +1174,21 @@ function openSelectedPreview(): void {
 }
 
 .new-session-card h3 {
-  margin: 0;
   max-width: 100%;
+  margin: 0;
   overflow: hidden;
   font-size: 16px;
   font-weight: 400;
   line-height: 1.2;
   text-align: center;
-  text-overflow: ellipsis;
   white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .new-session-card p {
-  margin: 0;
   display: -webkit-box;
   max-width: 100%;
+  margin: 0;
   overflow: hidden;
   color: #4b5563;
   font-size: 12px;
