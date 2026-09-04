@@ -301,14 +301,6 @@ select {
 
 .workbench-toolbar button,
 .path-pair-bar button {
-  border: 1px solid var(--app-border);
-  border-radius: 2px;
-  background: var(--app-canvas);
-  color: var(--app-text);
-}
-
-.workbench-toolbar button,
-.path-pair-bar button {
   display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
@@ -321,8 +313,10 @@ select {
   min-height: 24px;
   padding: 4px 10px;
   overflow: visible;
-  border-color: transparent;
+  border: 1px solid transparent;
+  border-radius: 2px;
   background: transparent;
+  color: var(--app-text);
   font-size: 12px;
   line-height: 1.2;
   white-space: nowrap;
