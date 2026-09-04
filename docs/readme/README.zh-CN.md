@@ -2,6 +2,20 @@
 
 Open Diff 是一个跨平台差异比较与合并工具，用于比较文件、文件夹、表格、图片和二进制数据。
 
+## 界面预览
+
+Linux 桌面 v1.1.1 冒烟测试（通过用例）：
+
+![Home](../images/smoke/smoke-home.png)
+
+![Text compare](../images/smoke/smoke-text-compare.png)
+
+![Table compare](../images/smoke/smoke-table-compare.png)
+
+![Image compare](../images/smoke/smoke-image-compare.png)
+
+![Hex compare](../images/smoke/smoke-hex-compare.png)
+
 ## 功能说明
 
 ### 文本对比
@@ -85,4 +99,4 @@ Open Diff 是一个跨平台差异比较与合并工具，用于比较文件、�
 
 ## 项目状态
 
-Open Diff 已提供可用的桌面比较、合并、同步、压缩包、远程和脚本功能。未完成的功能会禁用或标明「未实现」，不会假装成功。安装包请从 GitHub Releases 下载。
+Open Diff 已在 v1.1.1 发布安装包，并提供可用的桌面比较、合并、同步、压缩包、远程和脚本功能。未完成的功能会禁用或标明「未实现」，不会假装成功。安装包请从 GitHub Releases 下载。

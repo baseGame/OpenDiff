@@ -2,6 +2,20 @@
 
 Open Diff is a cross-platform comparison and merge tool for files, folders, tables, images, and binary data. It is designed for developers, content editors, data analysts, and anyone who needs to inspect changes clearly before copying, merging, synchronizing, or reporting them.
 
+## Screenshots
+
+Linux desktop smoke test on v1.1.1 (passing cases):
+
+![Home](docs/images/smoke/smoke-home.png)
+
+![Text compare](docs/images/smoke/smoke-text-compare.png)
+
+![Table compare](docs/images/smoke/smoke-table-compare.png)
+
+![Image compare](docs/images/smoke/smoke-image-compare.png)
+
+![Hex compare](docs/images/smoke/smoke-hex-compare.png)
+
 ## Translations
 
 - [简体中文](docs/readme/README.zh-CN.md)
