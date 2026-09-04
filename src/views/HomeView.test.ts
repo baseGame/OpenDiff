@@ -181,7 +181,8 @@ describe('HomeView', () => {
     expect(wrapper.find('[data-testid="home-edit-selected"]').attributes('disabled')).toBeDefined()
     expect(wrapper.find('[data-testid="home-tree-add"]').attributes('disabled')).toBeDefined()
     expect(wrapper.find('[data-testid="home-tree-remove"]').attributes('disabled')).toBeDefined()
-    expect(wrapper.find('[data-testid="home-edit-selected"]').text()).toContain('unimplemented')
+    expect(wrapper.find('[data-testid="home-edit-selected"]').text()).toBe('Edit')
+    expect(wrapper.find('[data-testid="home-edit-selected"]').text()).not.toContain('unimplemented')
   })
 
   it('shows saved sessions in a dense recent sessions table', () => {

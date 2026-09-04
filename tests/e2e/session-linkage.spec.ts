@@ -37,7 +37,7 @@ test('text compare CTA issues diff_text', async ({ page }) => {
   await expect.poll(async () => (await lastInvoke(page, 'diff_text'))?.command).toBe('diff_text')
 })
 
-test('folder compare CTA issues compare_folder_paths and keeps unimplemented disabled', async ({
+test('folder compare CTA issues compare_folder_paths and keeps unfinished actions disabled', async ({
   page,
 }) => {
   await page.goto('/compare/folder')
@@ -202,10 +202,15 @@ test('reports and scripts issue export and run_script', async ({ page }) => {
   await expect.poll(async () => (await lastInvoke(page, 'run_script'))?.command).toBe('run_script')
 })
 
-test('remote profiles keep unimplemented protocols labeled and can test SFTP', async ({ page }) => {
+test('remote profiles keep unfinished protocols disabled and can test SFTP', async ({ page }) => {
   await page.goto('/settings/remote-profiles')
   await expect(page.getByTestId('remote-profile-protocol-select')).toBeVisible()
-  await expect(page.getByTestId('remote-profile-protocol-select')).toContainText('unimplemented')
+  await expect(page.getByTestId('remote-profile-protocol-select')).not.toContainText(
+    'unimplemented',
+  )
+  await expect(
+    page.locator('[data-testid="remote-profile-protocol-select"] option[value="s3"]'),
+  ).toBeDisabled()
   await page.getByTestId('select-remote-profile-prod-sftp').click()
   await page.getByTestId('test-remote-profile').click()
   await expect

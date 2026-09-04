@@ -476,9 +476,7 @@ function credentialKindLabel(kind: CredentialReferenceKind): string {
                 :disabled="!canSaveProfile"
                 @click="saveProfile"
               >
-                {{
-                  canSaveProfile ? $t('ui.save') : `${$t('ui.save')} (${$t('ui.unimplemented')})`
-                }}
+                {{ $t('ui.save') }}
               </button>
             </div>
           </div>
@@ -506,18 +504,37 @@ function credentialKindLabel(kind: CredentialReferenceKind): string {
                 data-testid="remote-profile-protocol-select"
               >
                 <option value="ftp">{{ $t('ui.ftp') }}</option>
-                <option value="ftps">{{ $t('ui.ftps') }} ({{ $t('ui.unimplemented') }})</option>
+                <option
+                  value="ftps"
+                  disabled
+                >
+                  {{ $t('ui.ftps') }}
+                </option>
                 <option value="sftp">{{ $t('ui.sftp') }}</option>
                 <option value="web-dav">{{ $t('ui.webDav') }}</option>
-                <option value="s3">{{ $t('ui.s3') }} ({{ $t('ui.unimplemented') }})</option>
-                <option value="dropbox">
-                  {{ $t('ui.dropbox') }} ({{ $t('ui.unimplemented') }})
+                <option
+                  value="s3"
+                  disabled
+                >
+                  {{ $t('ui.s3') }}
                 </option>
-                <option value="one-drive">
-                  {{ $t('ui.onedrive') }} ({{ $t('ui.unimplemented') }})
+                <option
+                  value="dropbox"
+                  disabled
+                >
+                  {{ $t('ui.dropbox') }}
                 </option>
-                <option value="subversion">
-                  {{ $t('ui.subversion') }} ({{ $t('ui.unimplemented') }})
+                <option
+                  value="one-drive"
+                  disabled
+                >
+                  {{ $t('ui.onedrive') }}
+                </option>
+                <option
+                  value="subversion"
+                  disabled
+                >
+                  {{ $t('ui.subversion') }}
                 </option>
               </select>
             </label>

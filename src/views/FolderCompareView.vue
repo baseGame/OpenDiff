@@ -1040,7 +1040,7 @@ function handleTreeScroll(event: Event): void {
             secondary
             data-testid="open-with-selected-file"
             disabled
-            >{{ $t('ui.openWith') }} ({{ $t('ui.unimplemented') }})</NButton
+            >{{ $t('ui.openWith') }}</NButton
           >
           <NButton
             v-for="application in enabledExternalApplications"
@@ -1050,14 +1050,14 @@ function handleTreeScroll(event: Event): void {
             :data-testid="`open-with-custom-${application.id}`"
             disabled
           >
-            {{ application.name }} ({{ $t('ui.unimplemented') }})
+            {{ application.name }}
           </NButton>
           <NButton
             size="small"
             secondary
             data-testid="open-associated-file"
             disabled
-            >{{ $t('ui.associatedApp') }} ({{ $t('ui.unimplemented') }})</NButton
+            >{{ $t('ui.associatedApp') }}</NButton
           >
           <NButton
             size="small"
@@ -1425,14 +1425,14 @@ function handleTreeScroll(event: Event): void {
           secondary
           data-testid="align-with-selected-file"
           disabled
-          >{{ $t('ui.alignWith') }} ({{ $t('ui.unimplemented') }})</NButton
+          >{{ $t('ui.alignWith') }}</NButton
         >
         <NButton
           size="small"
           secondary
           data-testid="break-selected-alignment"
           disabled
-          >{{ $t('ui.breakAlignment') }} ({{ $t('ui.unimplemented') }})</NButton
+          >{{ $t('ui.breakAlignment') }}</NButton
         >
       </section>
 

@@ -566,8 +566,7 @@ function openSelectedPreview(): void {
             type="button"
             disabled
             data-testid="home-tree-add"
-            :title="$t('ui.unimplemented')"
-            :aria-label="$t('ui.unimplemented')"
+            :aria-label="$t('ui.add')"
           >
             +
           </button>
@@ -575,8 +574,7 @@ function openSelectedPreview(): void {
             type="button"
             disabled
             data-testid="home-tree-remove"
-            :title="$t('ui.unimplemented')"
-            :aria-label="$t('ui.unimplemented')"
+            :aria-label="$t('ui.remove')"
           >
             −
           </button>
@@ -612,7 +610,7 @@ function openSelectedPreview(): void {
               disabled
               data-testid="home-edit-selected"
             >
-              {{ $t('ui.edit') }} ({{ $t('ui.unimplemented') }})
+              {{ $t('ui.edit') }}
             </button>
           </div>
         </section>
