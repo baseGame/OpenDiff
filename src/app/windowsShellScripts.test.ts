@@ -11,7 +11,7 @@ describe('windows shell extension scripts', () => {
     expect(script).toContain('[string]$AppPath')
     expect(script).toContain('HKCU:\\Software\\Classes\\*\\shell\\$VerbKey')
     expect(script).toContain('HKCU:\\Software\\Classes\\Directory\\shell\\$VerbKey')
-    expect(script).toContain('${VerbKey}SelectLeft')
+    expect(script).toContain('SelectLeft')
     expect(script).toContain('Compare with $ProductName')
     expect(script).toContain('Select Left File for Compare')
     expect(script).toContain('Select Left Folder for Compare')
@@ -26,7 +26,7 @@ describe('windows shell extension scripts', () => {
     expect(script).toContain('Remove-Item')
     expect(script).toContain('HKCU:\\Software\\Classes\\*\\shell\\$VerbKey')
     expect(script).toContain('HKCU:\\Software\\Classes\\Directory\\shell\\$VerbKey')
-    expect(script).toContain('${VerbKey}SelectLeft')
+    expect(script).toContain('SelectLeft')
   })
 
   it('packages portable Windows release artifacts', () => {

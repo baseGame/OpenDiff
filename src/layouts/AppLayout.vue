@@ -81,6 +81,7 @@ onMounted(() => {
   void (async () => {
     try {
       const launch = await takeShellCompareLaunch()
+
       if (!launch) {
         return
       }
