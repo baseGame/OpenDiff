@@ -21,6 +21,7 @@ import {
   type LucideIcon,
 } from '@lucide/vue'
 import { readClipboardTextSource } from '@/app/clipboardSource'
+import { pickNativePath } from '@/app/filePicker'
 import { classifyDropInputs } from '@/app/dropInput'
 import { listenDesktopPathDrop, resolveDropInputsFromPaths } from '@/app/desktopDrop'
 import { filterSavedSessions } from '@/app/savedSessions'
@@ -501,6 +502,40 @@ function selectSavedSession(session: SessionDocument): void {
   selectedSessionId.value = session.id
 }
 
+async function browseFoldersToCompare(): Promise<void> {
+  const left = await pickNativePath({ directory: true })
+
+  if (!left) {
+    return
+  }
+
+  const right = await pickNativePath({ directory: true })
+
+  if (!right) {
+    return
+  }
+
+  sessionLaunch.setPendingLaunch({
+    id: crypto.randomUUID(),
+    source: 'home',
+    sessionType: 'folder-compare',
+    title: `${left} vs ${right}`,
+    route: '/compare/folder',
+    locations: {
+      left: { uri: left, displayName: left, kind: 'directory', readOnly: false },
+      right: { uri: right, displayName: right, kind: 'directory', readOnly: false },
+    },
+    autoRun: true,
+  })
+  tabs.openTab({
+    title: t('ui.folderCompare'),
+    titleKey: 'ui.folderCompare',
+    route: '/compare/folder',
+    dirty: false,
+  })
+  void router.push('/compare/folder')
+}
+
 function openSelectedPreview(): void {
   if (selectedSavedSession.value) {
     openSavedSession(selectedSavedSession.value)
@@ -643,10 +678,28 @@ function openSelectedPreview(): void {
           <div
             class="bc-home-instructions"
             data-testid="home-how-to-start"
+            :class="{ dragging: isDragging }"
+            @dragover="handleDragOver"
+            @dragleave="handleDragLeave"
+            @drop="handleDrop"
           >
             <strong>{{ $t('ui.howToStart') }}</strong>
-            <span>{{ $t('ui.dragFoldersOrFilesOntoSessionIcon') }}</span>
-            <span>{{ $t('ui.orClickSessionIconToBegin') }}</span>
+            <span>{{ $t('ui.homeStartHint') }}</span>
+            <div class="home-primary-ctas">
+              <button
+                type="button"
+                class="home-primary-cta"
+                data-testid="home-browse-folders"
+                @click="browseFoldersToCompare"
+              >
+                {{ $t('ui.browseFolders') }}
+              </button>
+              <span
+                class="home-drop-cta"
+                data-testid="home-drop-here"
+                >{{ $t('ui.dropHere') }}</span
+              >
+            </div>
           </div>
           <div class="new-session-grid">
             <article
@@ -1438,6 +1491,52 @@ tr:hover .row-actions,
 .history-list strong {
   color: var(--app-text);
   font-size: 12px;
+}
+
+.bc-home-instructions.dragging {
+  padding: 12px;
+  border: 1px dashed #4aa3ff;
+  border-radius: 6px;
+  background: #eaf4ff;
+}
+
+.home-primary-ctas {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.home-primary-cta {
+  min-width: 140px;
+  height: 40px;
+  padding: 0 16px;
+  border: 1px solid #4aa3ff;
+  border-radius: 4px;
+  background: #c8e4ff;
+  color: #111827;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.home-primary-cta:focus-visible,
+.bc-selected-actions button:focus-visible,
+.new-session-card:focus-visible {
+  outline: 2px solid #4aa3ff;
+  outline-offset: 2px;
+}
+
+.home-drop-cta {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px dashed #9aa3af;
+  border-radius: 4px;
+  color: #4b5563;
+  font-size: 15px;
 }
 
 @media (width <= 900px) {
