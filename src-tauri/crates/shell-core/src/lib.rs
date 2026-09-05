@@ -384,9 +384,8 @@ mod tests {
         assert!(script.contains("--shell-compare"));
         assert!(script.contains("--select-left"));
         assert!(script.contains("%1"));
-        assert!(script.contains(
-            r#""C:/Program Files/OpenDiff/open-diff-app.exe" --shell-compare "%1""#
-        ));
+        assert!(script
+            .contains(r#""C:/Program Files/OpenDiff/open-diff-app.exe" --shell-compare "%1""#));
     }
 
     #[test]
