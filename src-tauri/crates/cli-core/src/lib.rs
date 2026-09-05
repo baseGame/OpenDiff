@@ -15,6 +15,7 @@ pub enum CliCommand {
     Help,
     ShellCompare {
         path: String,
+        select_left: bool,
     },
     GitDifftoolConfig {
         executable_path: String,
@@ -612,14 +613,30 @@ fn help_invocation() -> CliInvocation {
 }
 
 fn parse_shell_compare(args: Vec<String>) -> Result<CliInvocation, CliParseError> {
-    if args.len() != 1 {
-        return Err(usage_error("shell-compare requires PATH"));
+    let mut select_left = false;
+    let mut path = None;
+
+    for arg in args {
+        if arg == "--select-left" || arg == "select-left" {
+            select_left = true;
+            continue;
+        }
+
+        if path.is_some() {
+            return Err(usage_error(
+                "shell-compare accepts optional --select-left and a single PATH",
+            ));
+        }
+
+        path = Some(arg);
     }
 
+    let Some(path) = path else {
+        return Err(usage_error("shell-compare requires PATH"));
+    };
+
     Ok(CliInvocation {
-        command: CliCommand::ShellCompare {
-            path: args[0].clone(),
-        },
+        command: CliCommand::ShellCompare { path, select_left },
         exit_code: CliExitCode::Success,
     })
 }
@@ -921,6 +938,22 @@ mod tests {
             shell_compare.command,
             CliCommand::ShellCompare {
                 path: "D:/work/file.txt".to_owned(),
+                select_left: false,
+            }
+        );
+
+        let select_left = parse_cli_args([
+            "open-diff-app",
+            "--shell-compare",
+            "--select-left",
+            "D:/work/left.txt",
+        ])
+        .expect("select-left shell compare should parse");
+        assert_eq!(
+            select_left.command,
+            CliCommand::ShellCompare {
+                path: "D:/work/left.txt".to_owned(),
+                select_left: true,
             }
         );
 

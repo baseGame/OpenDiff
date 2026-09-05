@@ -48,6 +48,17 @@ impl ShellCompareFlow {
         }))
     }
 
+    /// Always records `path` as the pending left side (Beyond Compare "Select Left").
+    pub fn select_left_only(
+        &mut self,
+        path: impl Into<String>,
+    ) -> Result<ShellCompareOutcome, ShellCompareFlowError> {
+        let path = normalize_shell_path(path.into())?;
+        self.pending_left = Some(path.clone());
+
+        Ok(ShellCompareOutcome::PendingLeft { left: path })
+    }
+
     pub fn pending_left(&self) -> Option<&str> {
         self.pending_left.as_deref()
     }
@@ -83,6 +94,22 @@ impl ShellCompareStateStore {
         match &outcome {
             ShellCompareOutcome::PendingLeft { left } => self.write_pending_left(left)?,
             ShellCompareOutcome::Ready(_) => self.clear_pending_left()?,
+        }
+
+        Ok(outcome)
+    }
+
+    pub fn select_left_only(
+        &self,
+        path: impl Into<String>,
+    ) -> Result<ShellCompareOutcome, ShellCompareFlowError> {
+        let mut flow = ShellCompareFlow {
+            pending_left: self.read_pending_left()?,
+        };
+        let outcome = flow.select_left_only(path)?;
+
+        if let ShellCompareOutcome::PendingLeft { left } = &outcome {
+            self.write_pending_left(left)?;
         }
 
         Ok(outcome)
@@ -143,29 +170,49 @@ impl WindowsShellExtensionScriptBuilder {
     }
 
     pub fn registration_script(&self) -> String {
-        let label = powershell_quote(&format!("Compare with {}", self.config.product_name));
+        let compare_label = powershell_quote(&format!("Compare with {}", self.config.product_name));
+        let select_file_label = powershell_quote("Select Left File for Compare");
+        let select_folder_label = powershell_quote("Select Left Folder for Compare");
         let executable = powershell_quote(&self.config.executable_path);
-        let command = powershell_quote(&format!(
-            "& {} --shell-compare \"%1\"",
-            powershell_quote(&self.config.executable_path)
+        let compare_command = powershell_quote(&format!(
+            "\"{}\" --shell-compare \"%1\"",
+            self.config.executable_path
         ));
-        let file_key = self.file_context_menu_key();
-        let directory_key = self.directory_context_menu_key();
+        let select_left_command = powershell_quote(&format!(
+            "\"{}\" --shell-compare --select-left \"%1\"",
+            self.config.executable_path
+        ));
+        let file_compare_key = self.file_compare_key();
+        let directory_compare_key = self.directory_compare_key();
+        let file_select_key = self.file_select_left_key();
+        let directory_select_key = self.directory_select_left_key();
 
         format!(
-            r#"# Register Open Diff Windows context menu entries for the current user.
+            r#"# Register Open Diff Windows Explorer context menu entries for the current user.
+# Compare with Open Diff: dual-select two items, or compare against a previously selected left side.
+# Select Left File/Folder for Compare: mark the left side, then use Compare with Open Diff on the right.
 $ErrorActionPreference = 'Stop'
 
 $entries = @(
   @{{
-    Key = '{file_key}'
-    Label = {label}
-    Command = {command}
+    Key = '{file_compare_key}'
+    Label = {compare_label}
+    Command = {compare_command}
   }},
   @{{
-    Key = '{directory_key}'
-    Label = {label}
-    Command = {command}
+    Key = '{directory_compare_key}'
+    Label = {compare_label}
+    Command = {compare_command}
+  }},
+  @{{
+    Key = '{file_select_key}'
+    Label = {select_file_label}
+    Command = {select_left_command}
+  }},
+  @{{
+    Key = '{directory_select_key}'
+    Label = {select_folder_label}
+    Command = {select_left_command}
   }}
 )
 
@@ -181,16 +228,24 @@ foreach ($entry in $entries) {{
     }
 
     pub fn uninstall_script(&self) -> String {
-        let file_key = self.file_context_menu_key();
-        let directory_key = self.directory_context_menu_key();
+        let keys = [
+            self.file_compare_key(),
+            self.directory_compare_key(),
+            self.file_select_left_key(),
+            self.directory_select_left_key(),
+        ];
+        let keys_literal = keys
+            .iter()
+            .map(|key| format!("  '{key}'"))
+            .collect::<Vec<_>>()
+            .join(",\n");
 
         format!(
-            r#"# Remove Open Diff Windows context menu entries for the current user.
+            r#"# Remove Open Diff Windows Explorer context menu entries for the current user.
 $ErrorActionPreference = 'Stop'
 
 $keys = @(
-  '{file_key}',
-  '{directory_key}'
+{keys_literal}
 )
 
 foreach ($key in $keys) {{
@@ -202,16 +257,30 @@ foreach ($key in $keys) {{
         )
     }
 
-    fn file_context_menu_key(&self) -> String {
+    fn file_compare_key(&self) -> String {
         format!(
             "HKCU:\\Software\\Classes\\*\\shell\\{}",
             self.config.verb_key
         )
     }
 
-    fn directory_context_menu_key(&self) -> String {
+    fn directory_compare_key(&self) -> String {
         format!(
             "HKCU:\\Software\\Classes\\Directory\\shell\\{}",
+            self.config.verb_key
+        )
+    }
+
+    fn file_select_left_key(&self) -> String {
+        format!(
+            "HKCU:\\Software\\Classes\\*\\shell\\{}SelectLeft",
+            self.config.verb_key
+        )
+    }
+
+    fn directory_select_left_key(&self) -> String {
+        format!(
+            "HKCU:\\Software\\Classes\\Directory\\shell\\{}SelectLeft",
             self.config.verb_key
         )
     }
@@ -298,7 +367,7 @@ mod tests {
     #[test]
     fn builds_windows_context_menu_registration_script_for_files_and_directories() {
         let config = WindowsShellExtensionConfig::new(
-            "OpenDiff",
+            "Open Diff",
             "C:/Program Files/OpenDiff/open-diff-app.exe",
         );
 
@@ -306,16 +375,23 @@ mod tests {
 
         assert!(script.contains("HKCU:\\Software\\Classes\\*\\shell\\OpenDiff"));
         assert!(script.contains("HKCU:\\Software\\Classes\\Directory\\shell\\OpenDiff"));
-        assert!(script.contains("Compare with OpenDiff"));
+        assert!(script.contains("HKCU:\\Software\\Classes\\*\\shell\\OpenDiffSelectLeft"));
+        assert!(script.contains("HKCU:\\Software\\Classes\\Directory\\shell\\OpenDiffSelectLeft"));
+        assert!(script.contains("Compare with Open Diff"));
+        assert!(script.contains("Select Left File for Compare"));
+        assert!(script.contains("Select Left Folder for Compare"));
         assert!(script.contains("open-diff-app.exe"));
         assert!(script.contains("--shell-compare"));
+        assert!(script.contains("--select-left"));
         assert!(script.contains("%1"));
+        assert!(script
+            .contains(r#""C:/Program Files/OpenDiff/open-diff-app.exe" --shell-compare "%1""#));
     }
 
     #[test]
     fn builds_windows_context_menu_uninstall_script_for_registered_keys() {
         let config = WindowsShellExtensionConfig::new(
-            "OpenDiff",
+            "Open Diff",
             "C:/Program Files/OpenDiff/open-diff-app.exe",
         );
 
@@ -324,6 +400,8 @@ mod tests {
         assert!(script.contains("Remove-Item"));
         assert!(script.contains("HKCU:\\Software\\Classes\\*\\shell\\OpenDiff"));
         assert!(script.contains("HKCU:\\Software\\Classes\\Directory\\shell\\OpenDiff"));
+        assert!(script.contains("HKCU:\\Software\\Classes\\*\\shell\\OpenDiffSelectLeft"));
+        assert!(script.contains("HKCU:\\Software\\Classes\\Directory\\shell\\OpenDiffSelectLeft"));
     }
 
     #[test]
@@ -395,6 +473,25 @@ mod tests {
                 ..
             }) if route == "/compare/folder"
         ));
+    }
+
+    #[test]
+    fn shell_compare_select_left_only_overwrites_pending_left() {
+        let mut flow = ShellCompareFlow::default();
+
+        flow.select_path("D:/work/old-left.txt")
+            .expect("first path should be accepted");
+        let outcome = flow
+            .select_left_only("D:/work/new-left.txt")
+            .expect("select left should replace pending path");
+
+        assert_eq!(
+            outcome,
+            ShellCompareOutcome::PendingLeft {
+                left: "D:/work/new-left.txt".to_owned(),
+            }
+        );
+        assert_eq!(flow.pending_left(), Some("D:/work/new-left.txt"));
     }
 
     #[test]

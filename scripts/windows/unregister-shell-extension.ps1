@@ -6,7 +6,9 @@ $ErrorActionPreference = 'Stop'
 
 $keys = @(
   "HKCU:\Software\Classes\*\shell\$VerbKey",
-  "HKCU:\Software\Classes\Directory\shell\$VerbKey"
+  "HKCU:\Software\Classes\Directory\shell\$VerbKey",
+  "HKCU:\Software\Classes\*\shell\${VerbKey}SelectLeft",
+  "HKCU:\Software\Classes\Directory\shell\${VerbKey}SelectLeft"
 )
 
 foreach ($key in $keys) {
@@ -15,4 +17,4 @@ foreach ($key in $keys) {
   }
 }
 
-Write-Host 'Removed OpenDiff context menu entries for files and folders.'
+Write-Host 'Removed Open Diff Explorer context menu entries for files and folders.'

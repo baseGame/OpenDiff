@@ -1,6 +1,7 @@
 import type { SessionDocument, SessionType } from '@/types/session'
 
-export type SessionLaunchSource = 'home' | 'drop' | 'saved-session' | 'command' | 'workspace'
+export type SessionLaunchSource =
+  'home' | 'drop' | 'saved-session' | 'command' | 'workspace' | 'shell'
 
 export interface SessionLaunchLocation {
   uri: string

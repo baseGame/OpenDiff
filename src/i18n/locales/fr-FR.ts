@@ -688,7 +688,14 @@ export const frFR: LanguagePack = {
     'ui.compareCrc': 'Comparer le CRC',
     'ui.folderCriteria': 'Critères de comparaison',
     'ui.windowsShell': 'Shell Windows',
-    'ui.registerShellExtension': 'Enregistrer l’extension shell',
+    'ui.registerShellExtension': 'Installer le menu contextuel Explorateur',
+    'ui.installExplorerContextMenu': 'Installer le menu contextuel Explorateur',
+    'ui.removeExplorerContextMenu': 'Supprimer le menu contextuel Explorateur',
+    'ui.shellExtensionFlowHint':
+      'Select two items and choose Compare, or Select Left then Compare on the other side.',
+    'status.shellUnregistered': 'Windows Explorer context menu removed',
+    'status.shellUnregisterScriptGenerated':
+      'Windows only. Unregister script generated but not applied.',
     'ui.windowsOnly': 'Windows uniquement',
     'ui.shellExtensionHint':
       'Ajoute Open Diff à l’Explorateur pour les fichiers et dossiers sélectionnés.',

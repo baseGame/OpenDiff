@@ -1679,53 +1679,19 @@ pub struct ShellRegistrationResult {
 pub fn register_windows_shell_extension(
     executable_path: Option<String>,
 ) -> Result<ShellRegistrationResult, AppErrorPayload> {
-    let executable = executable_path.unwrap_or_else(|| {
-        std::env::current_exe()
-            .map(|path| path.display().to_string())
-            .unwrap_or_else(|_| "open-diff".to_owned())
-    });
+    let executable = resolve_shell_extension_executable(executable_path);
     let config = shell_core::WindowsShellExtensionConfig::new("Open Diff", executable);
     let script = shell_core::WindowsShellExtensionScriptBuilder::new(config).registration_script();
 
     #[cfg(windows)]
     {
-        let temp = std::env::temp_dir().join("open-diff-register-shell.ps1");
-        fs::write(&temp, &script).map_err(|error| {
-            AppErrorPayload::new(
-                AppErrorCode::Unknown,
-                "error.app.unknown.title",
-                error.to_string(),
-            )
-        })?;
-        let output = std::process::Command::new("powershell")
-            .args([
-                "-NoProfile",
-                "-ExecutionPolicy",
-                "Bypass",
-                "-File",
-                &temp.display().to_string(),
-            ])
-            .output()
-            .map_err(|error| {
-                AppErrorPayload::new(
-                    AppErrorCode::Unknown,
-                    "error.app.unknown.title",
-                    error.to_string(),
-                )
-            })?;
-        if !output.status.success() {
-            return Err(AppErrorPayload::new(
-                AppErrorCode::Unknown,
-                "error.app.unknown.title",
-                String::from_utf8_lossy(&output.stderr).into_owned(),
-            ));
-        }
+        apply_windows_powershell_script(&script, "open-diff-register-shell.ps1")?;
 
         Ok(ShellRegistrationResult {
             windows: true,
             applied: true,
             script,
-            message: "Windows shell extension registered".to_owned(),
+            message: "Windows Explorer context menu installed".to_owned(),
         })
     }
 
@@ -1738,6 +1704,90 @@ pub fn register_windows_shell_extension(
             message: "Windows only. Registration script generated but not applied.".to_owned(),
         })
     }
+}
+
+fn resolve_shell_extension_executable(executable_path: Option<String>) -> String {
+    executable_path.unwrap_or_else(|| {
+        std::env::current_exe()
+            .map(|path| path.display().to_string())
+            .unwrap_or_else(|_| "open-diff".to_owned())
+    })
+}
+
+fn apply_windows_powershell_script(script: &str, temp_name: &str) -> Result<(), AppErrorPayload> {
+    let temp = std::env::temp_dir().join(temp_name);
+    fs::write(&temp, script).map_err(|error| {
+        AppErrorPayload::new(
+            AppErrorCode::Unknown,
+            "error.app.unknown.title",
+            error.to_string(),
+        )
+    })?;
+    let output = std::process::Command::new("powershell")
+        .args([
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            &temp.display().to_string(),
+        ])
+        .output()
+        .map_err(|error| {
+            AppErrorPayload::new(
+                AppErrorCode::Unknown,
+                "error.app.unknown.title",
+                error.to_string(),
+            )
+        })?;
+    if !output.status.success() {
+        return Err(AppErrorPayload::new(
+            AppErrorCode::Unknown,
+            "error.app.unknown.title",
+            String::from_utf8_lossy(&output.stderr).into_owned(),
+        ));
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub fn unregister_windows_shell_extension(
+    executable_path: Option<String>,
+) -> Result<ShellRegistrationResult, AppErrorPayload> {
+    let executable = resolve_shell_extension_executable(executable_path);
+    let config = shell_core::WindowsShellExtensionConfig::new("Open Diff", executable);
+    let script = shell_core::WindowsShellExtensionScriptBuilder::new(config).uninstall_script();
+
+    #[cfg(windows)]
+    {
+        apply_windows_powershell_script(&script, "open-diff-unregister-shell.ps1")?;
+
+        Ok(ShellRegistrationResult {
+            windows: true,
+            applied: true,
+            script,
+            message: "Windows Explorer context menu removed".to_owned(),
+        })
+    }
+
+    #[cfg(not(windows))]
+    {
+        let _ = executable;
+        Ok(ShellRegistrationResult {
+            windows: false,
+            applied: false,
+            script,
+            message: "Windows only. Unregister script generated but not applied.".to_owned(),
+        })
+    }
+}
+
+#[tauri::command]
+pub fn take_shell_compare_launch(
+) -> Result<Option<crate::shell_startup::ShellCompareLaunchPayload>, AppErrorPayload> {
+    crate::shell_startup::take_shell_compare_launch().map_err(|error| {
+        AppErrorPayload::new(AppErrorCode::Unknown, "error.app.unknown.title", error)
+    })
 }
 
 #[tauri::command]
