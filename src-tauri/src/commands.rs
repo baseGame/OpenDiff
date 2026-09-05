@@ -1714,6 +1714,7 @@ fn resolve_shell_extension_executable(executable_path: Option<String>) -> String
     })
 }
 
+#[cfg(windows)]
 fn apply_windows_powershell_script(script: &str, temp_name: &str) -> Result<(), AppErrorPayload> {
     let temp = std::env::temp_dir().join(temp_name);
     fs::write(&temp, script).map_err(|error| {
