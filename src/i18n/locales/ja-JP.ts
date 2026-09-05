@@ -101,6 +101,8 @@ export const jaJP: LanguagePack = {
     'ui.cliReportsAndRepeatableComparisonJobs': 'CLI, reports, and repeatable comparison jobs',
     'ui.close': 'Close',
     'ui.closeAll': 'Close All',
+    'ui.closeOthers': '他を閉じる',
+    'ui.closeToTheRight': '右側を閉じる',
     'ui.codec': 'Codec',
     'ui.columnMapping': 'Column Mapping',
     'ui.columnMappings': 'Column mappings',
@@ -674,6 +676,12 @@ export const jaJP: LanguagePack = {
     'ui.compareCrc': 'CRC を比較',
     'ui.folderCriteria': '比較条件',
     'ui.windowsShell': 'Windows シェル',
+    'ui.unixShell': 'macOS / Linux シェル',
+    'ui.installUnixShellIntegration': 'シェル連携をインストール',
+    'ui.removeUnixShellIntegration': 'シェル連携を削除',
+    'ui.unixShellHint':
+      'Linux では .desktop の「別のアプリで開く」を、macOS では shell-compare ヘルパーと Open With 用アプリをインストールします。CLI --shell-compare を再利用します。',
+    'ui.unixShellCliHint': 'CLI も利用可: open-diff-cli shell-compare [--select-left] <path>',
     'ui.registerShellExtension': 'エクスプローラーのコンテキストメニューをインストール',
     'ui.installExplorerContextMenu': 'エクスプローラーのコンテキストメニューをインストール',
     'ui.removeExplorerContextMenu': 'エクスプローラーのコンテキストメニューを削除',
@@ -688,6 +696,10 @@ export const jaJP: LanguagePack = {
     'ui.policyPasswordsDisabled': '管理者ポリシーによりパスワードの保存は無効です。',
     'status.shellRegistered':
       'Windows エクスプローラーのコンテキストメニューをインストールしました',
+    'status.unixShellRegistered': 'シェル連携をインストールしました',
+    'status.unixShellUnregistered': 'シェル連携を削除しました',
+    'status.unixShellScriptGenerated':
+      'シェル連携スクリプトを生成しましたが、このプラットフォームでは適用されていません。',
     'status.shellUnregistered': 'Windows エクスプローラーのコンテキストメニューを削除しました',
     'status.shellScriptGenerated':
       'Windows のみ。登録スクリプトは生成されましたが適用されていません。',

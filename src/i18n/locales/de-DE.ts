@@ -101,6 +101,8 @@ export const deDE: LanguagePack = {
     'ui.clipboardText': 'Text in der Zwischenablage',
     'ui.close': 'Schließen',
     'ui.closeAll': 'Alle schließen',
+    'ui.closeOthers': 'Andere schließen',
+    'ui.closeToTheRight': 'Rechtsseitige schließen',
     'ui.codec': 'Codec',
     'ui.columnMapping': 'Spaltenzuordnung',
     'ui.columnMappings': 'Spaltenzuordnungen',
@@ -693,6 +695,12 @@ export const deDE: LanguagePack = {
     'ui.compareCrc': 'CRC vergleichen',
     'ui.folderCriteria': 'Vergleichskriterien',
     'ui.windowsShell': 'Windows-Shell',
+    'ui.unixShell': 'macOS- / Linux-Shell',
+    'ui.installUnixShellIntegration': 'Shell-Integration installieren',
+    'ui.removeUnixShellIntegration': 'Shell-Integration entfernen',
+    'ui.unixShellHint':
+      'Installiert einen .desktop Open-With-Eintrag unter Linux oder einen shell-compare-Helfer plus Open-With-App-Stub unter macOS. Nutzt CLI --shell-compare.',
+    'ui.unixShellCliHint': 'Auch verfügbar: open-diff-cli shell-compare [--select-left] <path>',
     'ui.registerShellExtension': 'Explorer-Kontextmenü installieren',
     'ui.installExplorerContextMenu': 'Explorer-Kontextmenü installieren',
     'ui.removeExplorerContextMenu': 'Explorer-Kontextmenü entfernen',
@@ -708,6 +716,10 @@ export const deDE: LanguagePack = {
     'ui.policyPasswordsDisabled':
       'Das Speichern von Passwörtern ist durch die Administratorrichtlinie deaktiviert.',
     'status.shellRegistered': 'Windows-Explorer-Kontextmenü installiert',
+    'status.unixShellRegistered': 'Shell-Integration installiert',
+    'status.unixShellUnregistered': 'Shell-Integration entfernt',
+    'status.unixShellScriptGenerated':
+      'Shell-Integrationsskript erzeugt, aber auf dieser Plattform nicht angewendet.',
     'status.shellUnregistered': 'Windows-Explorer-Kontextmenü entfernt',
     'status.shellScriptGenerated':
       'Nur Windows. Registrierungsskript erzeugt, aber nicht angewendet.',
