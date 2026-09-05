@@ -95,7 +95,9 @@ onBeforeUnmount(() => window.removeEventListener('click', onDocumentClick))
       <input
         :value="left"
         type="text"
+        class="path-input"
         data-testid="path-pair-left"
+        :title="left"
         @input="emit('update:left', ($event.target as HTMLInputElement).value)"
         @contextmenu="onPathContextMenu($event, 'left')"
       />
@@ -122,7 +124,9 @@ onBeforeUnmount(() => window.removeEventListener('click', onDocumentClick))
       <input
         :value="right"
         type="text"
+        class="path-input"
         data-testid="path-pair-right"
+        :title="right"
         @input="emit('update:right', ($event.target as HTMLInputElement).value)"
         @contextmenu="onPathContextMenu($event, 'right')"
       />
@@ -166,3 +170,18 @@ onBeforeUnmount(() => window.removeEventListener('click', onDocumentClick))
     </div>
   </section>
 </template>
+
+<style scoped>
+.path-pair-field input.path-input {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.path-pair-field button:focus-visible,
+.path-pair-run:focus-visible,
+.path-pair-swap:focus-visible {
+  outline: 2px solid var(--app-primary, #4aa3ff);
+  outline-offset: 1px;
+}
+</style>

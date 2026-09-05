@@ -160,6 +160,7 @@ async function runCompare(wrapper: VueWrapper): Promise<void> {
 
 describe('FolderCompareView', () => {
   beforeEach(() => {
+    localStorage.clear()
     setActivePinia(createPinia())
     push.mockClear()
     vi.clearAllMocks()
@@ -171,6 +172,7 @@ describe('FolderCompareView', () => {
     expect(wrapper.text()).not.toContain('generated-120.log')
     expect(wrapper.text()).not.toContain('D:/workspace/left')
     expect(wrapper.findAll('[data-testid="folder-row"]')).toHaveLength(0)
+    expect(wrapper.find('[data-testid="folder-empty-state"]').exists()).toBe(true)
   })
 
   it('runs a real folder comparison request and renders returned rows', async () => {
@@ -346,5 +348,54 @@ describe('FolderCompareView', () => {
       ],
     })
     expect(wrapper.text()).toMatch(/Sync finished|同步完成/)
+  })
+  it('filters rows by Same/Different/Orphans and persists the selection', async () => {
+    const wrapper = mountFolderCompareView()
+
+    await runCompare(wrapper)
+
+    const sameToggle = wrapper.find('[data-testid="toggle-status-same"]')
+
+    await sameToggle.setValue(false)
+    await sameToggle.trigger('change')
+    await flushPromises()
+
+    const statuses = wrapper
+      .findAll('[data-testid="folder-row"]')
+      .map((row) => row.classes().find((name) => name.startsWith('status-')))
+
+    expect(statuses.length).toBeGreaterThan(0)
+    expect(statuses.every((status) => status !== 'status-same')).toBe(true)
+
+    const stored = JSON.parse(localStorage.getItem('open-diff-folder-display-filters') ?? '{}') as {
+      statuses: string[]
+      showSuppressed: boolean
+    }
+
+    expect(stored.statuses).not.toContain('Same')
+    expect(stored.statuses).toContain('Different')
+  })
+
+  it('shows a readable compare error instead of undefined', async () => {
+    vi.mocked(compareFolderPaths).mockRejectedValueOnce(undefined)
+    const wrapper = mountFolderCompareView()
+
+    await wrapper.find('[data-testid="folder-left-root"]').setValue('D:/left')
+    await wrapper.find('[data-testid="folder-right-root"]').setValue('D:/right')
+    await wrapper.find('[data-testid="run-folder-compare"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="folder-compare-error"]').text()).toContain(
+      'Comparison failed',
+    )
+  })
+
+  it('exposes full path tooltips on path inputs', async () => {
+    const wrapper = mountFolderCompareView()
+    const longPath = 'D:/very/long/path/to/project/left-root-directory'
+
+    await wrapper.find('[data-testid="folder-left-root"]').setValue(longPath)
+
+    expect(wrapper.find('[data-testid="folder-left-root"]').attributes('title')).toBe(longPath)
   })
 })

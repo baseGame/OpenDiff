@@ -820,3 +820,19 @@ select {
 .in-app-context-menu button:focus-visible {
   background: var(--app-surface-muted);
 }
+
+/* P3 path UX + a11y lite */
+.bc-path-row input.path-input,
+.path-pair-field input,
+.path-field-row input {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bc-path-row button:focus-visible,
+.folder-actions .n-button:focus-visible,
+.home-primary-cta:focus-visible {
+  outline: 2px solid var(--app-primary, #4aa3ff);
+  outline-offset: 1px;
+}

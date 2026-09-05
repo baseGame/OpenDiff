@@ -85,6 +85,8 @@ describe('HomeView', () => {
       'script',
     ])
     expect(wrapper.find('[data-testid="home-how-to-start"]').text()).toContain('How to start')
+    expect(wrapper.find('[data-testid="home-browse-folders"]').text()).toContain('Browse folders')
+    expect(wrapper.find('[data-testid="home-drop-here"]').text()).toContain('Drop here')
     expect(wrapper.text()).toContain('Compare two text files and see what changed')
   })
 

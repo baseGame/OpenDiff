@@ -14,6 +14,8 @@ import {
 import { createChildCompareLaunch } from '@/app/childSession'
 import { listenDesktopPathDrop, resolveDropInputsFromPaths } from '@/app/desktopDrop'
 import { pickNativePath } from '@/app/filePicker'
+import { formatCompareError } from '@/app/compareError'
+import { loadFolderDisplayFilters, saveFolderDisplayFilters } from '@/app/folderDisplayFilters'
 import {
   changeFolderEntryAttributes,
   compareFolderPaths,
@@ -31,7 +33,7 @@ import type {
   FolderCompareRow as FolderCompareResponseRow,
   FolderCompareSideEntry,
 } from '@/types/diff'
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import WorkbenchShell from '@/components/workbench/WorkbenchShell.vue'
 import WorkbenchInspector from '@/components/workbench/WorkbenchInspector.vue'
@@ -120,10 +122,10 @@ const reportStatus = ref('')
 const { t } = useI18n()
 const folderCompareLoading = ref(false)
 const folderCompareError = ref<string>()
-const visibleStatuses = ref<Set<FolderStatus>>(
-  new Set(['Same', 'Different', 'Left only', 'Right only']),
-)
-const showSuppressedFilters = ref(false)
+const initialDisplayFilters = loadFolderDisplayFilters()
+const visibleStatuses = ref<Set<FolderStatus>>(new Set(initialDisplayFilters.statuses))
+const showSuppressedFilters = ref(initialDisplayFilters.showSuppressed)
+let folderCompareGeneration = 0
 const rowHeight = 34
 const virtualViewportRows = 18
 const virtualOverscanRows = 4
@@ -333,6 +335,13 @@ function isSuppressed(row: FolderTreeRow): boolean {
   return !visibleStatuses.value.has(row.status)
 }
 
+function persistDisplayFilters(): void {
+  saveFolderDisplayFilters({
+    statuses: [...visibleStatuses.value],
+    showSuppressed: showSuppressedFilters.value,
+  })
+}
+
 function toggleStatuses(statuses: FolderStatus[], selected: boolean): void {
   const next = new Set(visibleStatuses.value)
 
@@ -346,7 +355,12 @@ function toggleStatuses(statuses: FolderStatus[], selected: boolean): void {
 
   visibleStatuses.value = next
   scrollTop.value = 0
+  persistDisplayFilters()
 }
+
+watch(showSuppressedFilters, () => {
+  persistDisplayFilters()
+})
 
 function toggleFolder(row: FolderTreeRow): void {
   if (row.kind !== 'directory') {
@@ -377,6 +391,8 @@ function isExpanded(row: FolderTreeRow): boolean {
 }
 
 async function runFolderCompare(): Promise<void> {
+  const generation = ++folderCompareGeneration
+
   folderCompareLoading.value = true
   folderCompareError.value = undefined
 
@@ -387,16 +403,36 @@ async function runFolderCompare(): Promise<void> {
       criteria: { ...folderCriteria.value },
     })
 
+    if (generation !== folderCompareGeneration) {
+      return
+    }
+
     applyFolderCompareResponse(response)
     lastCompare.recordFolderCompare({
       leftRoot: response.leftRoot,
       rightRoot: response.rightRoot,
     })
   } catch (error) {
-    folderCompareError.value = error instanceof Error ? error.message : String(error)
+    if (generation !== folderCompareGeneration) {
+      return
+    }
+
+    folderCompareError.value = formatCompareError(error, t)
   } finally {
-    folderCompareLoading.value = false
+    if (generation === folderCompareGeneration) {
+      folderCompareLoading.value = false
+    }
   }
+}
+
+function cancelFolderCompare(): void {
+  if (!folderCompareLoading.value) {
+    return
+  }
+
+  folderCompareGeneration += 1
+  folderCompareLoading.value = false
+  folderCompareError.value = t('error.compare.cancelled')
 }
 
 function applyFolderCompareResponse(response: FolderCompareResponse): void {
@@ -522,7 +558,7 @@ async function openSelectedWithAssociatedApplication(): Promise<void> {
     await openPathExternal(path)
     recordOpenAction(createAssociatedApplicationOpenAction(path))
   } catch (error) {
-    folderCompareError.value = error instanceof Error ? error.message : String(error)
+    folderCompareError.value = formatCompareError(error, t)
   }
 }
 
@@ -537,7 +573,7 @@ async function openSelectedWithApplication(application: ExternalApplicationConfi
     await openPathExternal(path, application.executable)
     recordOpenAction(createOpenWithAction(path, application.name, application.executable))
   } catch (error) {
-    folderCompareError.value = error instanceof Error ? error.message : String(error)
+    folderCompareError.value = formatCompareError(error, t)
   }
 }
 
@@ -1128,9 +1164,11 @@ onUnmounted(() => {
               <input
                 v-model="leftRoot"
                 type="text"
+                class="path-input"
                 data-testid="folder-left-root"
                 autocomplete="off"
                 spellcheck="false"
+                :title="leftRoot"
                 @dragover.prevent
                 @drop="handlePathFieldDrop($event, 'left')"
                 @contextmenu="openPathContextMenu($event, 'left')"
@@ -1150,9 +1188,11 @@ onUnmounted(() => {
               <input
                 v-model="rightRoot"
                 type="text"
+                class="path-input"
                 data-testid="folder-right-root"
                 autocomplete="off"
                 spellcheck="false"
+                :title="rightRoot"
                 @dragover.prevent
                 @drop="handlePathFieldDrop($event, 'right')"
                 @contextmenu="openPathContextMenu($event, 'right')"
@@ -1222,9 +1262,18 @@ onUnmounted(() => {
             >{{ $t('ui.compare') }}</NButton
           >
           <NButton
+            v-if="folderCompareLoading"
+            size="small"
+            secondary
+            data-testid="cancel-folder-compare"
+            @click="cancelFolderCompare"
+            >{{ $t('ui.cancel') }}</NButton
+          >
+          <NButton
             size="small"
             secondary
             data-testid="refresh-folder-compare"
+            :disabled="folderCompareLoading"
             @click="runFolderCompare"
             >{{ $t('ui.refresh') }}</NButton
           >
@@ -1388,6 +1437,21 @@ onUnmounted(() => {
       >
         <span>{{ leftRoot }}</span>
         <span>{{ rightRoot }}</span>
+      </section>
+
+      <section
+        v-if="folderCompareLoading"
+        class="folder-action-status folder-compare-progress"
+        data-testid="folder-compare-progress"
+      >
+        <span>{{ $t('status.comparing') }}…</span>
+        <button
+          type="button"
+          data-testid="cancel-folder-compare-banner"
+          @click="cancelFolderCompare"
+        >
+          {{ $t('ui.cancel') }}
+        </button>
       </section>
 
       <section
@@ -1758,6 +1822,20 @@ onUnmounted(() => {
             data-column="right-type"
             >{{ $t('ui.type') }}</span
           >
+        </div>
+        <div
+          v-if="rows.length === 0 && !folderCompareLoading"
+          class="folder-empty-state"
+          data-testid="folder-empty-state"
+        >
+          {{ $t('ui.emptyCompareHint') }}
+        </div>
+        <div
+          v-else-if="rows.length > 0 && visibleRows.length === 0"
+          class="folder-empty-state"
+          data-testid="folder-filtered-empty"
+        >
+          {{ $t('ui.noFilteredRows') }}
         </div>
         <div
           class="tree-body"
@@ -2429,9 +2507,50 @@ onUnmounted(() => {
   gap: 6px;
 }
 
-.path-field-row input {
+.path-field-row input,
+.path-input {
   flex: 1;
   min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.path-field-row button:focus-visible {
+  outline: 2px solid var(--app-primary, #4aa3ff);
+  outline-offset: 1px;
+}
+
+.folder-empty-state {
+  display: grid;
+  place-items: center;
+  min-height: 120px;
+  padding: 24px;
+  color: var(--app-text-muted);
+  font-size: 13px;
+  text-align: center;
+}
+
+.folder-compare-progress {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.folder-compare-progress button {
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--app-border);
+  border-radius: 4px;
+  background: var(--app-canvas);
+  color: var(--app-text);
+  cursor: pointer;
+}
+
+.folder-compare-progress button:focus-visible {
+  outline: 2px solid var(--app-primary, #4aa3ff);
+  outline-offset: 1px;
 }
 
 .path-field-row button,

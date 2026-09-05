@@ -13,6 +13,7 @@ import StatusSummaryGrid from '@/components/workbench/StatusSummaryGrid.vue'
 import { useI18n } from '@/i18n'
 import { grammarForPath } from '@/app/syntaxGrammars'
 import { pickNativePath } from '@/app/filePicker'
+import { formatCompareError } from '@/app/compareError'
 
 type DiffLine = TextDiffResponse['lines'][number]
 
@@ -33,6 +34,7 @@ const reportStatus = ref('')
 const result = ref<TextDiffResponse | null>(null)
 const loading = ref(false)
 const error = ref('')
+let textCompareGeneration = 0
 const dirty = ref(false)
 const showSourceEditors = ref(false)
 const leftUndoStack = ref<string[]>([])
@@ -247,23 +249,49 @@ function recordCurrentTextCompare(): void {
 }
 
 async function runDiff(): Promise<void> {
+  const generation = ++textCompareGeneration
+
   loading.value = true
   error.value = ''
   try {
-    result.value = await diffText(buildDiffRequest())
+    const next = await diffText(buildDiffRequest())
+
+    if (generation !== textCompareGeneration) {
+      return
+    }
+
+    result.value = next
     recordCurrentTextCompare()
     ignoredDiffKeys.value = new Set()
     bookmarks.value = {}
     currentDiffIndex.value = 0
     dirty.value = false
   } catch (event) {
-    error.value = String(event)
+    if (generation !== textCompareGeneration) {
+      return
+    }
+
+    error.value = formatCompareError(event, t)
   } finally {
-    loading.value = false
+    if (generation === textCompareGeneration) {
+      loading.value = false
+    }
   }
 }
 
+function cancelTextCompare(): void {
+  if (!loading.value) {
+    return
+  }
+
+  textCompareGeneration += 1
+  loading.value = false
+  error.value = t('error.compare.cancelled')
+}
+
 async function loadLaunchTextFiles(leftPath: string, rightPath: string): Promise<void> {
+  const generation = ++textCompareGeneration
+
   loading.value = true
   error.value = ''
 
@@ -273,20 +301,35 @@ async function loadLaunchTextFiles(leftPath: string, rightPath: string): Promise
       readTextFile(rightPath),
     ])
 
+    if (generation !== textCompareGeneration) {
+      return
+    }
+
     left.value = leftFile.text
     right.value = rightFile.text
     leftPathLabel.value = leftFile.path
     rightPathLabel.value = rightFile.path
     result.value = await diffText(buildDiffRequest())
+
+    if (generation !== textCompareGeneration) {
+      return
+    }
+
     recordCurrentTextCompare()
     ignoredDiffKeys.value = new Set()
     bookmarks.value = {}
     currentDiffIndex.value = 0
     dirty.value = false
   } catch (event) {
-    error.value = String(event)
+    if (generation !== textCompareGeneration) {
+      return
+    }
+
+    error.value = formatCompareError(event, t)
   } finally {
-    loading.value = false
+    if (generation === textCompareGeneration) {
+      loading.value = false
+    }
   }
 }
 
@@ -793,12 +836,37 @@ function toggleSourceEditors(): void {
           @click="runDiff"
           >{{ $t('ui.runDiff') }}</NButton
         >
+        <button
+          v-if="loading"
+          type="button"
+          class="toolbar-button"
+          data-testid="cancel-text-compare"
+          @click="cancelTextCompare"
+        >
+          {{ $t('ui.cancel') }}
+        </button>
       </WorkbenchToolbar>
+      <section
+        v-if="loading"
+        class="text-compare-progress"
+        data-testid="text-compare-progress"
+      >
+        <span>{{ $t('status.comparing') }}…</span>
+        <button
+          type="button"
+          data-testid="cancel-text-compare-banner"
+          @click="cancelTextCompare"
+        >
+          {{ $t('ui.cancel') }}
+        </button>
+      </section>
       <section class="bc-path-row">
         <input
           v-model="leftPathLabel"
           type="text"
+          class="path-input"
           data-testid="text-left-path"
+          :title="leftPathLabel"
           :placeholder="$t('ui.remoteUriHint')"
         />
         <button
@@ -818,7 +886,9 @@ function toggleSourceEditors(): void {
         <input
           v-model="rightPathLabel"
           type="text"
+          class="path-input"
           data-testid="text-right-path"
+          :title="rightPathLabel"
           :placeholder="$t('ui.remoteUriHint')"
         />
         <button
@@ -1036,6 +1106,34 @@ function toggleSourceEditors(): void {
   </WorkbenchShell>
 </template>
 <style scoped>
+.text-compare-progress {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--app-border-soft, #d7dbe3);
+  background: var(--app-surface-low, #f3f3f3);
+  color: var(--app-text-muted);
+  font-size: 12px;
+}
+
+.text-compare-progress button,
+.toolbar-button:focus-visible {
+  outline: 2px solid var(--app-primary, #4aa3ff);
+  outline-offset: 1px;
+}
+
+.text-compare-progress button {
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--app-border, #c7cdd6);
+  border-radius: 4px;
+  background: var(--app-canvas, #ffffff);
+  color: var(--app-text, #111111);
+  cursor: pointer;
+}
+
 .compare-toolbar {
   gap: 6px;
 }
