@@ -1986,6 +1986,48 @@ pub fn check_text_file_changed(
         .map_err(|error| file_error("read", &path, error))
 }
 
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClassifiedPathEntry {
+    pub path: String,
+    pub kind: String,
+}
+
+#[tauri::command]
+pub fn classify_paths(paths: Vec<String>) -> Vec<ClassifiedPathEntry> {
+    paths
+        .into_iter()
+        .map(|path| {
+            let kind = path_kind_label(Path::new(&path));
+            ClassifiedPathEntry { path, kind }
+        })
+        .collect()
+}
+
+#[tauri::command]
+pub fn pick_path(directory: bool) -> Result<Option<String>, AppErrorPayload> {
+    // ponytail: rfd native dialog; cancelled selection returns None
+    let dialog = rfd::FileDialog::new();
+    let picked = if directory {
+        dialog.pick_folder()
+    } else {
+        dialog.pick_file()
+    };
+
+    Ok(picked.map(|path| path.to_string_lossy().into_owned()))
+}
+
+fn path_kind_label(path: &Path) -> String {
+    if path.is_dir() {
+        "directory".to_owned()
+    } else if path.is_file() {
+        "file".to_owned()
+    } else {
+        "unknown".to_owned()
+    }
+}
+
 fn file_error(operation: &str, path: &str, error: FileReadError) -> AppErrorPayload {
     match error {
         FileReadError::NotFound(message) => AppErrorPayload::new(

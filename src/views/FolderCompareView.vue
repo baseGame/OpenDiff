@@ -10,6 +10,8 @@ import {
   type FileOperationConfirmation,
 } from '@/app/fileOperationConfirmation'
 import { createChildCompareLaunch } from '@/app/childSession'
+import { listenDesktopPathDrop, resolveDropInputsFromPaths } from '@/app/desktopDrop'
+import { pickNativePath } from '@/app/filePicker'
 import {
   changeFolderEntryAttributes,
   compareFolderPaths,
@@ -26,7 +28,7 @@ import type {
   FolderCompareRow as FolderCompareResponseRow,
   FolderCompareSideEntry,
 } from '@/types/diff'
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import WorkbenchShell from '@/components/workbench/WorkbenchShell.vue'
 import WorkbenchInspector from '@/components/workbench/WorkbenchInspector.vue'
@@ -145,6 +147,13 @@ const pendingSyncSafetyItems = ref<SyncPreviewItem[]>([])
 const lastSyncAction = ref<string>()
 
 onMounted(() => {
+  window.addEventListener('click', closeContextMenus)
+  void listenDesktopPathDrop(async (paths) => {
+    await applyDroppedPaths(paths)
+  }).then((stop) => {
+    stopDesktopDrop = stop
+  })
+
   const launch = sessionLaunch.consumeLaunch('/compare/folder')
 
   if (!launch) {
@@ -916,9 +925,158 @@ function archivePath(path: string): string {
   return `${path.slice(0, separatorIndex)}/archive/${path.slice(separatorIndex + 1)}`
 }
 
+const rowContextMenu = ref<{ x: number; y: number; rowId: string }>()
+const pathContextMenu = ref<{ x: number; y: number; side: 'left' | 'right' }>()
+let stopDesktopDrop: (() => void) | undefined
+
+async function browseFolder(side: 'left' | 'right'): Promise<void> {
+  const selected = await pickNativePath({ directory: true })
+
+  if (!selected) {
+    return
+  }
+
+  if (side === 'left') {
+    leftRoot.value = selected
+  } else {
+    rightRoot.value = selected
+  }
+}
+
+async function applyDroppedPaths(paths: string[]): Promise<void> {
+  const inputs = await resolveDropInputsFromPaths(paths)
+  const first = inputs.at(0)
+  const second = inputs.at(1)
+
+  if (first && second) {
+    leftRoot.value = first.path
+    rightRoot.value = second.path
+
+    return
+  }
+
+  if (first) {
+    // ponytail: single drop fills empty side first, else left
+    if (!leftRoot.value) {
+      leftRoot.value = first.path
+    } else if (!rightRoot.value) {
+      rightRoot.value = first.path
+    } else {
+      leftRoot.value = first.path
+    }
+  }
+}
+
+function handlePathFieldDrop(event: DragEvent, side: 'left' | 'right'): void {
+  event.preventDefault()
+  const text = event.dataTransfer?.getData('text/plain').trim()
+  const file = event.dataTransfer?.files.item(0) ?? undefined
+  const path = text && text.length > 0 ? text : (file?.webkitRelativePath ?? file?.name)
+
+  if (!path) {
+    return
+  }
+
+  if (side === 'left') {
+    leftRoot.value = path
+  } else {
+    rightRoot.value = path
+  }
+}
+
+function openRowContextMenu(event: MouseEvent, row: FolderTreeRow): void {
+  event.preventDefault()
+  selectRow(row)
+  rowContextMenu.value = { x: event.clientX, y: event.clientY, rowId: row.id }
+  pathContextMenu.value = undefined
+}
+
+function openPathContextMenu(event: MouseEvent, side: 'left' | 'right'): void {
+  event.preventDefault()
+  pathContextMenu.value = { x: event.clientX, y: event.clientY, side }
+  rowContextMenu.value = undefined
+}
+
+function closeContextMenus(): void {
+  rowContextMenu.value = undefined
+  pathContextMenu.value = undefined
+}
+
+async function copyRowPath(): Promise<void> {
+  const row = selectedRow.value
+  const root = leftRoot.value.length > 0 ? leftRoot.value : rightRoot.value
+  const path =
+    row?.leftPath ??
+    row?.rightPath ??
+    (row && root.length > 0 ? folderSidePath(root, row.relativePath) : undefined)
+
+  closeContextMenus()
+
+  if (!path) {
+    return
+  }
+
+  try {
+    await navigator.clipboard.writeText(path)
+  } catch {
+    // ponytail: ignore clipboard denial
+  }
+}
+
+function contextOpenSelected(): void {
+  closeContextMenus()
+  openSelectedFile()
+}
+
+function contextCopySelectedTo(direction: 'Left' | 'Right'): void {
+  closeContextMenus()
+  copySelectedTo(direction)
+}
+
+async function runPathMenuAction(action: 'clear' | 'paste'): Promise<void> {
+  const side = pathContextMenu.value?.side
+
+  closeContextMenus()
+
+  if (!side) {
+    return
+  }
+
+  if (action === 'clear') {
+    if (side === 'left') {
+      leftRoot.value = ''
+    } else {
+      rightRoot.value = ''
+    }
+
+    return
+  }
+
+  try {
+    const text = await navigator.clipboard.readText()
+
+    if (!text) {
+      return
+    }
+
+    if (side === 'left') {
+      leftRoot.value = text.trim()
+    } else {
+      rightRoot.value = text.trim()
+    }
+  } catch {
+    // ponytail: ignore clipboard denial
+  }
+}
+
 function handleTreeScroll(event: Event): void {
   scrollTop.value = (event.currentTarget as HTMLElement).scrollTop
 }
+
+onUnmounted(() => {
+  stopDesktopDrop?.()
+  window.removeEventListener('click', closeContextMenus)
+})
 </script>
 
 <template>
@@ -933,23 +1091,47 @@ function handleTreeScroll(event: Event): void {
         <div class="path-pair">
           <label>
             <span>{{ $t('ui.leftFolder') }}</span>
-            <input
-              v-model="leftRoot"
-              type="text"
-              data-testid="folder-left-root"
-              autocomplete="off"
-              spellcheck="false"
-            />
+            <div class="path-field-row">
+              <input
+                v-model="leftRoot"
+                type="text"
+                data-testid="folder-left-root"
+                autocomplete="off"
+                spellcheck="false"
+                @dragover.prevent
+                @drop="handlePathFieldDrop($event, 'left')"
+                @contextmenu="openPathContextMenu($event, 'left')"
+              />
+              <button
+                type="button"
+                data-testid="folder-browse-left"
+                @click="browseFolder('left')"
+              >
+                {{ $t('ui.browse') }}
+              </button>
+            </div>
           </label>
           <label>
             <span>{{ $t('ui.rightFolder') }}</span>
-            <input
-              v-model="rightRoot"
-              type="text"
-              data-testid="folder-right-root"
-              autocomplete="off"
-              spellcheck="false"
-            />
+            <div class="path-field-row">
+              <input
+                v-model="rightRoot"
+                type="text"
+                data-testid="folder-right-root"
+                autocomplete="off"
+                spellcheck="false"
+                @dragover.prevent
+                @drop="handlePathFieldDrop($event, 'right')"
+                @contextmenu="openPathContextMenu($event, 'right')"
+              />
+              <button
+                type="button"
+                data-testid="folder-browse-right"
+                @click="browseFolder('right')"
+              >
+                {{ $t('ui.browse') }}
+              </button>
+            </div>
           </label>
           <p
             class="archive-path-hint"
@@ -1563,6 +1745,7 @@ function handleTreeScroll(event: Event): void {
               :data-row-id="row.id"
               data-testid="folder-row"
               @click="selectRow(row)"
+              @contextmenu="openRowContextMenu($event, row)"
             >
               <span
                 class="name-cell left-name"
@@ -1634,6 +1817,65 @@ function handleTreeScroll(event: Event): void {
       </section>
     </section>
 
+    <div
+      v-if="rowContextMenu"
+      class="in-app-context-menu"
+      data-testid="folder-row-context-menu"
+      :style="{ left: `${rowContextMenu.x}px`, top: `${rowContextMenu.y}px` }"
+      @click.stop
+    >
+      <button
+        type="button"
+        data-testid="folder-ctx-copy-path"
+        @click="copyRowPath"
+      >
+        {{ $t('ui.copyPath') }}
+      </button>
+      <button
+        type="button"
+        data-testid="folder-ctx-open"
+        :disabled="!selectedFilePath"
+        @click="contextOpenSelected"
+      >
+        {{ $t('ui.open') }}
+      </button>
+      <button
+        type="button"
+        data-testid="folder-ctx-copy-left"
+        :disabled="!selectedFilePath"
+        @click="contextCopySelectedTo('Left')"
+      >
+        {{ $t('ui.copyLeft') }}
+      </button>
+      <button
+        type="button"
+        data-testid="folder-ctx-copy-right"
+        :disabled="!selectedFilePath"
+        @click="contextCopySelectedTo('Right')"
+      >
+        {{ $t('ui.copyRight') }}
+      </button>
+    </div>
+    <div
+      v-if="pathContextMenu"
+      class="in-app-context-menu"
+      data-testid="folder-path-context-menu"
+      :style="{ left: `${pathContextMenu.x}px`, top: `${pathContextMenu.y}px` }"
+      @click.stop
+    >
+      <button
+        type="button"
+        @click="runPathMenuAction('clear')"
+      >
+        {{ $t('ui.clear') }}
+      </button>
+      <button
+        type="button"
+        @click="runPathMenuAction('paste')"
+      >
+        {{ $t('ui.paste') }}
+      </button>
+    </div>
     <template #inspector>
       <WorkbenchInspector>
         <section class="workbench-inspector-section">
@@ -2143,5 +2385,53 @@ function handleTreeScroll(event: Event): void {
   .folder-actions {
     justify-content: start;
   }
+}
+
+.path-field-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.path-field-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+.path-field-row button,
+.in-app-context-menu button {
+  flex: none;
+}
+
+.in-app-context-menu {
+  position: fixed;
+  z-index: 40;
+  display: grid;
+  min-width: 160px;
+  padding: 4px;
+  border: 1px solid var(--app-border);
+  border-radius: 4px;
+  background: var(--app-surface);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.16);
+}
+
+.in-app-context-menu button {
+  padding: 6px 10px;
+  border: 0;
+  background: transparent;
+  color: var(--app-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.in-app-context-menu button:hover,
+.in-app-context-menu button:focus-visible {
+  background: var(--app-surface-muted);
+}
+
+.in-app-context-menu button:disabled {
+  cursor: default;
+  opacity: 0.45;
 }
 </style>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { classifyDropInputs } from './dropInput'
+import { classifyDropInputs, dropInputsFromAbsolutePaths, guessDropSourceKind } from './dropInput'
 
 describe('classifyDropInputs', () => {
   it('identifies two file inputs', () => {
@@ -54,5 +54,26 @@ describe('classifyDropInputs', () => {
       left: { displayName: 'change.patch' },
       right: { displayName: 'change.patch' },
     })
+  })
+})
+
+describe('guessDropSourceKind', () => {
+  it('treats extension-bearing paths as files', () => {
+    expect(guessDropSourceKind('C:/work/left.txt')).toBe('file')
+    expect(guessDropSourceKind('/tmp/notes.md')).toBe('file')
+  })
+
+  it('treats extensionless and trailing-slash paths as directories', () => {
+    expect(guessDropSourceKind('C:/work/left')).toBe('directory')
+    expect(guessDropSourceKind('/tmp/project/')).toBe('directory')
+  })
+})
+
+describe('dropInputsFromAbsolutePaths', () => {
+  it('preserves absolute paths while classifying kinds', () => {
+    expect(dropInputsFromAbsolutePaths(['/abs/left.txt', '/abs/right/', '  '])).toEqual([
+      { path: '/abs/left.txt', kind: 'file' },
+      { path: '/abs/right/', kind: 'directory' },
+    ])
   })
 })

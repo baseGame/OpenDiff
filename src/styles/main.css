@@ -789,3 +789,34 @@ select {
     display: none;
   }
 }
+
+.path-context-menu,
+.in-app-context-menu {
+  position: fixed;
+  z-index: 40;
+  display: grid;
+  min-width: 140px;
+  padding: 4px;
+  border: 1px solid var(--app-border);
+  border-radius: 4px;
+  background: var(--app-surface);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.16);
+}
+
+.path-context-menu button,
+.in-app-context-menu button {
+  padding: 6px 10px;
+  border: 0;
+  background: transparent;
+  color: var(--app-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.path-context-menu button:hover,
+.path-context-menu button:focus-visible,
+.in-app-context-menu button:hover,
+.in-app-context-menu button:focus-visible {
+  background: var(--app-surface-muted);
+}

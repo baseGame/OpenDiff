@@ -79,3 +79,43 @@ function isPatchPath(path: string): boolean {
 
   return lower.endsWith('.diff') || lower.endsWith('.patch')
 }
+
+/** ponytail: extension/trailing-slash heuristic when Rust classify_paths is unavailable */
+export function guessDropSourceKind(path: string): DropSourceKind {
+  const normalized = path.replaceAll('\\', '/').replace(/\/+$/u, '')
+  const original = path.replaceAll('\\', '/')
+
+  if (original.endsWith('/')) {
+    return 'directory'
+  }
+
+  const name = pathDisplayName(normalized)
+
+  if (!name.includes('.')) {
+    return 'directory'
+  }
+
+  return 'file'
+}
+
+export function dropInputsFromAbsolutePaths(paths: string[]): DropInput[] {
+  return paths
+    .map((path) => path.trim())
+    .filter(Boolean)
+    .map((path) => ({
+      path,
+      kind: guessDropSourceKind(path),
+    }))
+}
+
+export function dropInputsFromClassifiedPaths(
+  entries: { path: string; kind: string }[],
+): DropInput[] {
+  return entries.map((entry) => ({
+    path: entry.path,
+    kind:
+      entry.kind === 'directory' || entry.kind === 'file'
+        ? entry.kind
+        : guessDropSourceKind(entry.path),
+  }))
+}
