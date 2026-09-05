@@ -14,12 +14,21 @@ import {
 } from '@/api/diff'
 import { executeFolderSync, previewFolderSync } from '@/api/sync'
 import { useSessionLaunchStore } from '@/stores/sessionLaunch'
+import { openPathExternal } from '@/api/integration'
 import { useTabsStore } from '@/stores/tabs'
 
 const push = vi.fn()
 
 vi.mock('vue-router', () => ({
   useRouter: () => ({ push }),
+}))
+
+vi.mock('@/api/integration', () => ({
+  openPathExternal: vi.fn().mockResolvedValue({
+    path: 'D:/left/src/main.ts',
+    executable: null,
+    launched: true,
+  }),
 }))
 
 vi.mock('@/api/sync', () => ({
@@ -202,7 +211,7 @@ describe('FolderCompareView', () => {
     expect(useTabsStore().tabs.some((tab) => tab.route === '/compare/text')).toBe(true)
   })
 
-  it('keeps unfinished open-with and align-with actions disabled without unimplemented labels', async () => {
+  it('launches open-with and associated apps for the selected file', async () => {
     const wrapper = mountFolderCompareView()
 
     await runCompare(wrapper)
@@ -211,21 +220,37 @@ describe('FolderCompareView', () => {
     const openWith = wrapper.find('[data-testid="open-with-selected-file"]')
     const associated = wrapper.find('[data-testid="open-associated-file"]')
     const vscode = wrapper.find('[data-testid="open-with-custom-vscode"]')
+
+    expect(openWith.attributes('disabled')).toBeUndefined()
+    expect(associated.attributes('disabled')).toBeUndefined()
+    expect(vscode.attributes('disabled')).toBeUndefined()
+    expect(openWith.text()).not.toContain('unimplemented')
+
+    await associated.trigger('click')
+    await flushPromises()
+    expect(openPathExternal).toHaveBeenCalledWith('D:/left/src/main.ts')
+
+    vi.mocked(openPathExternal).mockClear()
+    await vscode.trigger('click')
+    await flushPromises()
+    expect(openPathExternal).toHaveBeenCalledWith('D:/left/src/main.ts', 'code')
+    expect(wrapper.text()).toContain('Open With Visual Studio Code')
+  })
+
+  it('keeps unfinished align-with actions disabled without unimplemented labels', async () => {
+    const wrapper = mountFolderCompareView()
+
+    await runCompare(wrapper)
+    await wrapper.find('[data-row-id="src-main-ts"]').trigger('click')
+
     const alignWith = wrapper.find('[data-testid="align-with-selected-file"]')
     const breakAlignment = wrapper.find('[data-testid="break-selected-alignment"]')
 
-    expect(openWith.attributes('disabled')).toBeDefined()
-    expect(associated.attributes('disabled')).toBeDefined()
-    expect(vscode.attributes('disabled')).toBeDefined()
     expect(alignWith.attributes('disabled')).toBeDefined()
     expect(breakAlignment.attributes('disabled')).toBeDefined()
-    expect(openWith.text()).toBe('Open With')
-    expect(associated.text()).toBe('Associated App')
-    expect(vscode.text()).toBe('Visual Studio Code')
     expect(alignWith.text()).toBe('Align With')
     expect(breakAlignment.text()).toBe('Break Alignment')
-    expect(openWith.text()).not.toContain('unimplemented')
-    expect(wrapper.find('[data-testid="folder-open-action-status"]').exists()).toBe(false)
+    expect(alignWith.text()).not.toContain('unimplemented')
     expect(wrapper.find('[data-testid="folder-alignment-action-status"]').exists()).toBe(false)
   })
 

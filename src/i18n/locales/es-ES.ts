@@ -97,6 +97,8 @@ export const esES: LanguagePack = {
     'ui.clipboardText': 'Texto del portapapeles',
     'ui.close': 'Cerca',
     'ui.closeAll': 'Cerrar todo',
+    'ui.closeOthers': 'Cerrar otras',
+    'ui.closeToTheRight': 'Cerrar a la derecha',
     'ui.codec': 'Códec',
     'ui.columnMapping': 'Mapeo de columnas',
     'ui.columnMappings': 'Asignaciones de columnas',
@@ -687,6 +689,12 @@ export const esES: LanguagePack = {
     'ui.compareCrc': 'Comparar CRC',
     'ui.folderCriteria': 'Criterios de comparación',
     'ui.windowsShell': 'Shell de Windows',
+    'ui.unixShell': 'Shell de macOS / Linux',
+    'ui.installUnixShellIntegration': 'Instalar integración de shell',
+    'ui.removeUnixShellIntegration': 'Quitar integración de shell',
+    'ui.unixShellHint':
+      'Instala una entrada .desktop Abrir con en Linux, o un ayudante shell-compare y una app Abrir con en macOS. Reutiliza CLI --shell-compare.',
+    'ui.unixShellCliHint': 'También disponible: open-diff-cli shell-compare [--select-left] <path>',
     'ui.registerShellExtension': 'Instalar menú contextual del Explorador',
     'ui.installExplorerContextMenu': 'Instalar menú contextual del Explorador',
     'ui.removeExplorerContextMenu': 'Quitar menú contextual del Explorador',
@@ -703,6 +711,10 @@ export const esES: LanguagePack = {
     'ui.policyPasswordsDisabled':
       'Guardar contraseñas está deshabilitado por la directiva de administrador.',
     'status.shellRegistered': 'Extensión de shell de Windows registrada',
+    'status.unixShellRegistered': 'Integración de shell instalada',
+    'status.unixShellUnregistered': 'Integración de shell eliminada',
+    'status.unixShellScriptGenerated':
+      'Script de integración de shell generado, pero no aplicado en esta plataforma.',
     'status.shellScriptGenerated':
       'Solo Windows. Se generó el script de registro pero no se aplicó.',
     'status.gitConfigWritten': 'Se escribió la configuración Git {kind}',

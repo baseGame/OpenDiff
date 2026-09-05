@@ -93,6 +93,8 @@ export const koKR: LanguagePack = {
     'ui.clipboardText': '클립보드 텍스트',
     'ui.close': '닫다',
     'ui.closeAll': '모두 닫기',
+    'ui.closeOthers': '다른 탭 닫기',
+    'ui.closeToTheRight': '오른쪽 닫기',
     'ui.codec': '코덱',
     'ui.columnMapping': '열 매핑',
     'ui.columnMappings': '열 매핑',
@@ -672,6 +674,12 @@ export const koKR: LanguagePack = {
     'ui.compareCrc': 'CRC 비교',
     'ui.folderCriteria': '비교 조건',
     'ui.windowsShell': 'Windows 셸',
+    'ui.unixShell': 'macOS / Linux 셸',
+    'ui.installUnixShellIntegration': '셸 통합 설치',
+    'ui.removeUnixShellIntegration': '셸 통합 제거',
+    'ui.unixShellHint':
+      'Linux에는 .desktop 다른 앱으로 열기 항목을, macOS에는 shell-compare 도우미와 Open With 앱 스텁을 설치합니다. CLI --shell-compare를 재사용합니다.',
+    'ui.unixShellCliHint': 'CLI도 사용 가능: open-diff-cli shell-compare [--select-left] <path>',
     'ui.registerShellExtension': '탐색기 컨텍스트 메뉴 설치',
     'ui.installExplorerContextMenu': '탐색기 컨텍스트 메뉴 설치',
     'ui.removeExplorerContextMenu': '탐색기 컨텍스트 메뉴 제거',
@@ -684,6 +692,10 @@ export const koKR: LanguagePack = {
     'ui.policyRemoteDisabled': '관리자 정책으로 원격 프로필이 비활성화되었습니다.',
     'ui.policyPasswordsDisabled': '관리자 정책으로 비밀번호 저장이 비활성화되었습니다.',
     'status.shellRegistered': 'Windows 탐색기 컨텍스트 메뉴가 설치되었습니다',
+    'status.unixShellRegistered': '셸 통합이 설치되었습니다',
+    'status.unixShellUnregistered': '셸 통합이 제거되었습니다',
+    'status.unixShellScriptGenerated':
+      '셸 통합 스크립트가 생성되었지만 이 플랫폼에는 적용되지 않았습니다.',
     'status.shellUnregistered': 'Windows 탐색기 컨텍스트 메뉴가 제거되었습니다',
     'status.shellScriptGenerated':
       'Windows 전용. 등록 스크립트는 생성되었지만 적용되지 않았습니다.',

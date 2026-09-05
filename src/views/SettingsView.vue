@@ -10,7 +10,9 @@ import {
 } from '@/app/commandRegistry'
 import { parseSessionPackage } from '@/app/sessionFile'
 import {
+  registerUnixShellIntegration,
   registerWindowsShellExtension,
+  unregisterUnixShellIntegration,
   unregisterWindowsShellExtension,
   writeGitIntegration,
   writeSvnIntegration,
@@ -166,6 +168,40 @@ async function unregisterShellExtension(): Promise<void> {
     integrationStatus.value = result.applied
       ? t('status.shellUnregistered')
       : t('status.shellUnregisterScriptGenerated')
+  } catch (error) {
+    integrationError.value = error instanceof Error ? error.message : String(error)
+  } finally {
+    integrationWriting.value = false
+  }
+}
+
+async function registerUnixShell(): Promise<void> {
+  integrationWriting.value = true
+  integrationError.value = ''
+
+  try {
+    const result = await registerUnixShellIntegration(executablePath.value.trim() || undefined)
+
+    integrationStatus.value = result.applied
+      ? t('status.unixShellRegistered')
+      : t('status.unixShellScriptGenerated')
+  } catch (error) {
+    integrationError.value = error instanceof Error ? error.message : String(error)
+  } finally {
+    integrationWriting.value = false
+  }
+}
+
+async function unregisterUnixShell(): Promise<void> {
+  integrationWriting.value = true
+  integrationError.value = ''
+
+  try {
+    const result = await unregisterUnixShellIntegration(executablePath.value.trim() || undefined)
+
+    integrationStatus.value = result.applied
+      ? t('status.unixShellUnregistered')
+      : t('status.unixShellScriptGenerated')
   } catch (error) {
     integrationError.value = error instanceof Error ? error.message : String(error)
   } finally {
@@ -428,12 +464,30 @@ function parseShortcutText(value: string): string[] {
               >
             </NSpace>
           </div>
-          <p
-            v-if="!policy.isWindows"
-            data-testid="windows-only-hint"
-          >
-            {{ $t('ui.windowsOnly') }}
-          </p>
+          <div class="settings-row shell-extension-row">
+            <div>
+              <strong>{{ $t('ui.unixShell') }}</strong>
+              <span>{{ $t('ui.unixShellHint') }}</span>
+              <span>{{ $t('ui.unixShellCliHint') }}</span>
+            </div>
+            <NSpace>
+              <NButton
+                size="small"
+                type="primary"
+                data-testid="register-unix-shell-integration"
+                :disabled="!policy.supportsUnixShell || integrationWriting"
+                @click="registerUnixShell"
+                >{{ $t('ui.installUnixShellIntegration') }}</NButton
+              >
+              <NButton
+                size="small"
+                data-testid="unregister-unix-shell-integration"
+                :disabled="!policy.supportsUnixShell || integrationWriting"
+                @click="unregisterUnixShell"
+                >{{ $t('ui.removeUnixShellIntegration') }}</NButton
+              >
+            </NSpace>
+          </div>
         </div>
       </NCard>
 

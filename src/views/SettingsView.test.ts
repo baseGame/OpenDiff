@@ -23,6 +23,24 @@ vi.mock('@/api/integration', () => ({
     script: '',
     message: 'Windows only',
   }),
+  unregisterWindowsShellExtension: vi.fn().mockResolvedValue({
+    windows: false,
+    applied: false,
+    script: '',
+    message: 'Windows only',
+  }),
+  registerUnixShellIntegration: vi.fn().mockResolvedValue({
+    windows: false,
+    applied: true,
+    script: '',
+    message: 'unix ok',
+  }),
+  unregisterUnixShellIntegration: vi.fn().mockResolvedValue({
+    windows: false,
+    applied: true,
+    script: '',
+    message: 'unix ok',
+  }),
 }))
 
 describe('SettingsView', () => {

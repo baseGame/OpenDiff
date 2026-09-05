@@ -230,6 +230,15 @@ export function invokeResponse(command: string, args: Record<string, unknown> = 
     case 'register_windows_shell_extension':
     case 'unregister_windows_shell_extension':
       return { windows: false, applied: false, script: '', message: 'Windows only' }
+    case 'register_unix_shell_integration':
+    case 'unregister_unix_shell_integration':
+      return { windows: false, applied: true, script: '', message: 'unix shell ok' }
+    case 'open_path_external':
+      return {
+        path: args.path ?? '',
+        executable: args.executable ?? null,
+        launched: true,
+      }
     case 'take_shell_compare_launch':
       return null
     case 'load_admin_policy':

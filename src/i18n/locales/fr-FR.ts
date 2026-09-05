@@ -98,6 +98,8 @@ export const frFR: LanguagePack = {
     'ui.clipboardText': 'Texte du presse-papiers',
     'ui.close': 'Fermer',
     'ui.closeAll': 'Fermer tout',
+    'ui.closeOthers': 'Fermer les autres',
+    'ui.closeToTheRight': 'Fermer à droite',
     'ui.codec': 'Codec',
     'ui.columnMapping': 'Mappage de colonnes',
     'ui.columnMappings': 'Mappages de colonnes',
@@ -688,6 +690,12 @@ export const frFR: LanguagePack = {
     'ui.compareCrc': 'Comparer le CRC',
     'ui.folderCriteria': 'Critères de comparaison',
     'ui.windowsShell': 'Shell Windows',
+    'ui.unixShell': 'Shell macOS / Linux',
+    'ui.installUnixShellIntegration': 'Installer l’intégration shell',
+    'ui.removeUnixShellIntegration': 'Supprimer l’intégration shell',
+    'ui.unixShellHint':
+      'Installe une entrée .desktop Ouvrir avec sous Linux, ou un assistant shell-compare et une app Ouvrir avec sous macOS. Réutilise CLI --shell-compare.',
+    'ui.unixShellCliHint': 'Aussi disponible : open-diff-cli shell-compare [--select-left] <path>',
     'ui.registerShellExtension': 'Installer le menu contextuel Explorateur',
     'ui.installExplorerContextMenu': 'Installer le menu contextuel Explorateur',
     'ui.removeExplorerContextMenu': 'Supprimer le menu contextuel Explorateur',
@@ -704,6 +712,10 @@ export const frFR: LanguagePack = {
     'ui.policyPasswordsDisabled':
       'L’enregistrement des mots de passe est désactivé par la stratégie d’administration.',
     'status.shellRegistered': 'Extension shell Windows enregistrée',
+    'status.unixShellRegistered': 'Intégration shell installée',
+    'status.unixShellUnregistered': 'Intégration shell supprimée',
+    'status.unixShellScriptGenerated':
+      'Script d’intégration shell généré, mais non appliqué sur cette plateforme.',
     'status.shellScriptGenerated':
       'Windows uniquement. Script d’enregistrement généré mais non appliqué.',
     'status.gitConfigWritten': 'Configuration Git {kind} écrite',

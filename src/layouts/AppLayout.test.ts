@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import AppLayout from './AppLayout.vue'
 import { createAppI18n, installI18n } from '@/i18n'
 import { useSettingsStore } from '@/stores/settings'
+import { useTabsStore } from '@/stores/tabs'
 import { useStatusBarStore } from '@/stores/statusBar'
 
 const push = vi.fn()
@@ -223,6 +224,25 @@ describe('AppLayout command palette', () => {
     expect(wrapper.find('[data-testid="status-bar"]').text()).toContain('Differences: 4')
     expect(wrapper.find('[data-testid="status-bar"]').text()).toContain('Encoding: UTF-8 / LF')
     expect(wrapper.find('[data-testid="status-bar"]').text()).toContain('Filter: All rows')
+  })
+
+  it('shows tab context menu actions and closes others', async () => {
+    const wrapper = mountAppLayout()
+    const tabs = useTabsStore()
+
+    tabs.openTab({ title: 'Text', route: '/compare/text', dirty: false })
+    tabs.openTab({ title: 'Folder', route: '/compare/folder', dirty: false })
+    await wrapper.vm.$nextTick()
+    const folderId = tabs.activeTabId
+
+    await wrapper.find(`[data-testid="tab-chip-${folderId}"]`).trigger('contextmenu')
+    expect(wrapper.find('[data-testid="tab-context-menu"]').exists()).toBe(true)
+    expect(
+      wrapper.find('[data-testid="tab-ctx-close-others"]').attributes('disabled'),
+    ).toBeUndefined()
+
+    await wrapper.find('[data-testid="tab-ctx-close-others"]').trigger('click')
+    expect(tabs.tabs.map((tab) => tab.route)).toEqual(['/', '/compare/folder'])
   })
 })
 

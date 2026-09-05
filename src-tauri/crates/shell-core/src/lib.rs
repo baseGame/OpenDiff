@@ -1,3 +1,9 @@
+mod unix;
+
+pub use unix::{
+    LinuxDesktopIntegrationBuilder, MacOsShellIntegrationBuilder, UnixShellIntegrationConfig,
+};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ShellCompareSessionType {
     Text,

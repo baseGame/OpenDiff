@@ -1783,6 +1783,224 @@ pub fn unregister_windows_shell_extension(
 }
 
 #[tauri::command]
+pub fn register_unix_shell_integration(
+    executable_path: Option<String>,
+) -> Result<ShellRegistrationResult, AppErrorPayload> {
+    let executable = resolve_shell_extension_executable(executable_path);
+    let config = shell_core::UnixShellIntegrationConfig::new("Open Diff", executable);
+
+    #[cfg(target_os = "linux")]
+    {
+        let script = shell_core::LinuxDesktopIntegrationBuilder::new(config).install_script();
+        apply_unix_shell_script(&script, "open-diff-register-unix-shell.sh")?;
+        return Ok(ShellRegistrationResult {
+            windows: false,
+            applied: true,
+            script,
+            message: "Linux Open With / shell-compare desktop entry installed".to_owned(),
+        });
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        let script = shell_core::MacOsShellIntegrationBuilder::new(config).install_script();
+        apply_unix_shell_script(&script, "open-diff-register-unix-shell.sh")?;
+        return Ok(ShellRegistrationResult {
+            windows: false,
+            applied: true,
+            script,
+            message: "macOS shell-compare helper and Open With app installed".to_owned(),
+        });
+    }
+
+    #[cfg(not(any(target_os = "linux", target_os = "macos")))]
+    {
+        let script = shell_core::LinuxDesktopIntegrationBuilder::new(config).install_script();
+        Ok(ShellRegistrationResult {
+            windows: false,
+            applied: false,
+            script,
+            message: "Unix shell integration applies on Linux or macOS only.".to_owned(),
+        })
+    }
+}
+
+#[tauri::command]
+pub fn unregister_unix_shell_integration(
+    executable_path: Option<String>,
+) -> Result<ShellRegistrationResult, AppErrorPayload> {
+    let executable = resolve_shell_extension_executable(executable_path);
+    let config = shell_core::UnixShellIntegrationConfig::new("Open Diff", executable);
+
+    #[cfg(target_os = "linux")]
+    {
+        let script = shell_core::LinuxDesktopIntegrationBuilder::new(config).uninstall_script();
+        apply_unix_shell_script(&script, "open-diff-unregister-unix-shell.sh")?;
+        return Ok(ShellRegistrationResult {
+            windows: false,
+            applied: true,
+            script,
+            message: "Linux Open With / shell-compare desktop entry removed".to_owned(),
+        });
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        let script = shell_core::MacOsShellIntegrationBuilder::new(config).uninstall_script();
+        apply_unix_shell_script(&script, "open-diff-unregister-unix-shell.sh")?;
+        return Ok(ShellRegistrationResult {
+            windows: false,
+            applied: true,
+            script,
+            message: "macOS shell-compare helper removed".to_owned(),
+        });
+    }
+
+    #[cfg(not(any(target_os = "linux", target_os = "macos")))]
+    {
+        let _ = executable;
+        let script = shell_core::LinuxDesktopIntegrationBuilder::new(config).uninstall_script();
+        Ok(ShellRegistrationResult {
+            windows: false,
+            applied: false,
+            script,
+            message: "Unix shell integration applies on Linux or macOS only.".to_owned(),
+        })
+    }
+}
+
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+fn apply_unix_shell_script(script: &str, temp_name: &str) -> Result<(), AppErrorPayload> {
+    let temp = std::env::temp_dir().join(temp_name);
+    fs::write(&temp, script).map_err(|error| {
+        AppErrorPayload::new(
+            AppErrorCode::Unknown,
+            "error.app.unknown.title",
+            error.to_string(),
+        )
+    })?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = fs::metadata(&temp)
+            .map_err(|error| {
+                AppErrorPayload::new(
+                    AppErrorCode::Unknown,
+                    "error.app.unknown.title",
+                    error.to_string(),
+                )
+            })?
+            .permissions();
+        perms.set_mode(0o755);
+        fs::set_permissions(&temp, perms).map_err(|error| {
+            AppErrorPayload::new(
+                AppErrorCode::Unknown,
+                "error.app.unknown.title",
+                error.to_string(),
+            )
+        })?;
+    }
+    let output = std::process::Command::new("bash")
+        .arg(&temp)
+        .output()
+        .map_err(|error| {
+            AppErrorPayload::new(
+                AppErrorCode::Unknown,
+                "error.app.unknown.title",
+                error.to_string(),
+            )
+        })?;
+    if !output.status.success() {
+        return Err(AppErrorPayload::new(
+            AppErrorCode::Unknown,
+            "error.app.unknown.title",
+            String::from_utf8_lossy(&output.stderr).into_owned(),
+        ));
+    }
+
+    Ok(())
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OpenPathExternalResult {
+    pub path: String,
+    pub executable: Option<String>,
+    pub launched: bool,
+}
+
+#[tauri::command]
+pub fn open_path_external(
+    path: String,
+    executable: Option<String>,
+) -> Result<OpenPathExternalResult, AppErrorPayload> {
+    let trimmed = path.trim();
+    if trimmed.is_empty() {
+        return Err(AppErrorPayload::new(
+            AppErrorCode::Unknown,
+            "error.app.unknown.title",
+            "Path is required".to_owned(),
+        ));
+    }
+
+    let result = if let Some(exe) = executable
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        std::process::Command::new(exe)
+            .arg(trimmed)
+            .spawn()
+            .map(|_| OpenPathExternalResult {
+                path: trimmed.to_owned(),
+                executable: Some(exe.to_owned()),
+                launched: true,
+            })
+    } else {
+        open_path_with_system_default(trimmed).map(|_| OpenPathExternalResult {
+            path: trimmed.to_owned(),
+            executable: None,
+            launched: true,
+        })
+    };
+
+    result.map_err(|error| {
+        AppErrorPayload::new(
+            AppErrorCode::Unknown,
+            "error.app.unknown.title",
+            error.to_string(),
+        )
+    })
+}
+
+fn open_path_with_system_default(path: &str) -> std::io::Result<std::process::Child> {
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("cmd")
+            .args(["/C", "start", "", path])
+            .spawn()
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open").arg(path).spawn()
+    }
+
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        std::process::Command::new("xdg-open").arg(path).spawn()
+    }
+
+    #[cfg(not(any(target_os = "windows", target_os = "macos", unix)))]
+    {
+        Err(std::io::Error::new(
+            std::io::ErrorKind::Unsupported,
+            "Opening paths is unsupported on this platform",
+        ))
+    }
+}
+
+#[tauri::command]
 pub fn take_shell_compare_launch(
 ) -> Result<Option<crate::shell_startup::ShellCompareLaunchPayload>, AppErrorPayload> {
     crate::shell_startup::take_shell_compare_launch().map_err(|error| {
