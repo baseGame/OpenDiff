@@ -678,14 +678,17 @@ export const enUS: LanguagePack = {
     'ui.installExplorerContextMenu': 'Install Explorer context menu',
     'ui.removeExplorerContextMenu': 'Remove Explorer context menu',
     'ui.windowsOnly': 'Windows only',
-    'ui.shellExtensionHint': 'Adds Compare with Open Diff and Select Left File/Folder for Compare to Explorer.',
-    'ui.shellExtensionFlowHint': 'Select two items and choose Compare, or Select Left then Compare on the other side.',
+    'ui.shellExtensionHint':
+      'Adds Compare with Open Diff and Select Left File/Folder for Compare to Explorer.',
+    'ui.shellExtensionFlowHint':
+      'Select two items and choose Compare, or Select Left then Compare on the other side.',
     'ui.policyRemoteDisabled': 'Remote profiles are disabled by administrator policy.',
     'ui.policyPasswordsDisabled': 'Saving passwords is disabled by administrator policy.',
     'status.shellRegistered': 'Windows Explorer context menu installed',
     'status.shellUnregistered': 'Windows Explorer context menu removed',
     'status.shellScriptGenerated': 'Windows only. Registration script generated but not applied.',
-    'status.shellUnregisterScriptGenerated': 'Windows only. Unregister script generated but not applied.',
+    'status.shellUnregisterScriptGenerated':
+      'Windows only. Unregister script generated but not applied.',
     'status.gitConfigWritten': 'Wrote Git {kind} configuration',
     'status.patchApplied': 'Patch applied',
     'status.patchWritten': 'Patch written to {path}',

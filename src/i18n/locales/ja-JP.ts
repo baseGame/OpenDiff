@@ -677,14 +677,17 @@ export const jaJP: LanguagePack = {
     'ui.registerShellExtension': 'エクスプローラーのコンテキストメニューをインストール',
     'ui.installExplorerContextMenu': 'エクスプローラーのコンテキストメニューをインストール',
     'ui.removeExplorerContextMenu': 'エクスプローラーのコンテキストメニューを削除',
-    'ui.shellExtensionFlowHint': 'Select two items and choose Compare, or Select Left then Compare on the other side.',
-    'status.shellUnregisterScriptGenerated': 'Windows only. Unregister script generated but not applied.',
+    'ui.shellExtensionFlowHint':
+      'Select two items and choose Compare, or Select Left then Compare on the other side.',
+    'status.shellUnregisterScriptGenerated':
+      'Windows only. Unregister script generated but not applied.',
     'ui.windowsOnly': 'Windows のみ',
     'ui.shellExtensionHint':
       '選択したファイルとフォルダーに対してエクスプローラーへ Open Diff を追加します。',
     'ui.policyRemoteDisabled': '管理者ポリシーによりリモートプロファイルは無効です。',
     'ui.policyPasswordsDisabled': '管理者ポリシーによりパスワードの保存は無効です。',
-    'status.shellRegistered': 'Windows エクスプローラーのコンテキストメニューをインストールしました',
+    'status.shellRegistered':
+      'Windows エクスプローラーのコンテキストメニューをインストールしました',
     'status.shellUnregistered': 'Windows エクスプローラーのコンテキストメニューを削除しました',
     'status.shellScriptGenerated':
       'Windows のみ。登録スクリプトは生成されましたが適用されていません。',

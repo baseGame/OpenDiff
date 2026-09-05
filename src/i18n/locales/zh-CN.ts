@@ -663,7 +663,8 @@ export const zhCN: LanguagePack = {
     'ui.installExplorerContextMenu': '安装资源管理器右键菜单',
     'ui.removeExplorerContextMenu': '移除资源管理器右键菜单',
     'ui.windowsOnly': '仅 Windows',
-    'ui.shellExtensionHint': '在资源管理器中添加“使用 Open Diff 比较”和“选择左侧文件/文件夹以便比较”。',
+    'ui.shellExtensionHint':
+      '在资源管理器中添加“使用 Open Diff 比较”和“选择左侧文件/文件夹以便比较”。',
     'ui.shellExtensionFlowHint': '可同时选中两项后比较，或先选择左侧，再对另一侧执行比较。',
     'ui.policyRemoteDisabled': '管理员策略已禁用远程配置。',
     'ui.policyPasswordsDisabled': '管理员策略已禁止保存密码。',

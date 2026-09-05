@@ -675,8 +675,10 @@ export const koKR: LanguagePack = {
     'ui.registerShellExtension': '탐색기 컨텍스트 메뉴 설치',
     'ui.installExplorerContextMenu': '탐색기 컨텍스트 메뉴 설치',
     'ui.removeExplorerContextMenu': '탐색기 컨텍스트 메뉴 제거',
-    'ui.shellExtensionFlowHint': 'Select two items and choose Compare, or Select Left then Compare on the other side.',
-    'status.shellUnregisterScriptGenerated': 'Windows only. Unregister script generated but not applied.',
+    'ui.shellExtensionFlowHint':
+      'Select two items and choose Compare, or Select Left then Compare on the other side.',
+    'status.shellUnregisterScriptGenerated':
+      'Windows only. Unregister script generated but not applied.',
     'ui.windowsOnly': 'Windows 전용',
     'ui.shellExtensionHint': '선택한 파일과 폴더에 대해 탐색기에 Open Diff를 추가합니다.',
     'ui.policyRemoteDisabled': '관리자 정책으로 원격 프로필이 비활성화되었습니다.',

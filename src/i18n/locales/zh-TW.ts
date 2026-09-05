@@ -664,7 +664,8 @@ export const zhTW: LanguagePack = {
     'ui.installExplorerContextMenu': '安裝檔案總管右鍵功能表',
     'ui.removeExplorerContextMenu': '移除檔案總管右鍵功能表',
     'ui.windowsOnly': '僅限 Windows',
-    'ui.shellExtensionHint': '在檔案總管加入「使用 Open Diff 比較」與「選擇左側檔案/資料夾以便比較」。',
+    'ui.shellExtensionHint':
+      '在檔案總管加入「使用 Open Diff 比較」與「選擇左側檔案/資料夾以便比較」。',
     'ui.shellExtensionFlowHint': '可同時選取兩項後比較，或先選擇左側，再對另一側執行比較。',
     'ui.policyRemoteDisabled': '系統管理員原則已停用遠端設定。',
     'ui.policyPasswordsDisabled': '系統管理員原則已禁止儲存密碼。',

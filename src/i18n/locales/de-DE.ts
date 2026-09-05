@@ -696,10 +696,13 @@ export const deDE: LanguagePack = {
     'ui.registerShellExtension': 'Explorer-Kontextmenü installieren',
     'ui.installExplorerContextMenu': 'Explorer-Kontextmenü installieren',
     'ui.removeExplorerContextMenu': 'Explorer-Kontextmenü entfernen',
-    'status.shellUnregisterScriptGenerated': 'Windows only. Unregister script generated but not applied.',
+    'status.shellUnregisterScriptGenerated':
+      'Windows only. Unregister script generated but not applied.',
     'ui.windowsOnly': 'Nur Windows',
-    'ui.shellExtensionHint': 'Fügt „Compare with Open Diff“ und „Select Left File/Folder for Compare“ im Explorer hinzu.',
-    'ui.shellExtensionFlowHint': 'Zwei Elemente auswählen und Compare wählen, oder zuerst Select Left und dann Compare auf der anderen Seite.',
+    'ui.shellExtensionHint':
+      'Fügt „Compare with Open Diff“ und „Select Left File/Folder for Compare“ im Explorer hinzu.',
+    'ui.shellExtensionFlowHint':
+      'Zwei Elemente auswählen und Compare wählen, oder zuerst Select Left und dann Compare auf der anderen Seite.',
     'ui.policyRemoteDisabled':
       'Remoteprofile sind durch die Administrat<fim-middle>orrichtlinie deaktiviert.',
     'ui.policyPasswordsDisabled':
