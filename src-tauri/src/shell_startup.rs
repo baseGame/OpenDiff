@@ -40,7 +40,7 @@ pub fn prepare_shell_startup(args: impl IntoIterator<Item = String>) -> ShellSta
 
     match outcome {
         Ok(ShellCompareOutcome::PendingLeft { left }) => {
-            eprintln!("Open Diff: selected left side for compare: {left}");
+            let _ = left;
             ShellStartupDecision::ExitQuiet
         }
         Ok(ShellCompareOutcome::Ready(action)) => {
@@ -61,9 +61,7 @@ pub fn take_shell_compare_launch() -> Result<Option<ShellCompareLaunchPayload>, 
     match std::fs::read_to_string(&path) {
         Ok(raw) => {
             let _ = std::fs::remove_file(&path);
-            let payload: ShellCompareLaunchPayload = serde_json::from_str(&raw)
-                .map_err(|error| format!("invalid shell compare launch payload: {error}"))?;
-            Ok(Some(payload))
+            Ok(Some(parse_shell_compare_launch(&raw)?))
         }
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
         Err(error) => Err(error.to_string()),
@@ -81,8 +79,58 @@ fn write_shell_compare_launch(action: &ShellCompareAction) -> Result<(), String>
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).map_err(|error| error.to_string())?;
     }
-    let raw = serde_json::to_string_pretty(&payload).map_err(|error| error.to_string())?;
-    std::fs::write(path, raw).map_err(|error| error.to_string())
+    std::fs::write(path, encode_shell_compare_launch(&payload)).map_err(|error| error.to_string())
+}
+
+fn encode_shell_compare_launch(payload: &ShellCompareLaunchPayload) -> String {
+    // Four-line payload avoids a direct serde_json dependency in the app crate.
+    format!(
+        "{}\n{}\n{}\n{}\n",
+        escape_launch_line(&payload.left),
+        escape_launch_line(&payload.right),
+        escape_launch_line(&payload.route),
+        escape_launch_line(&payload.session_type)
+    )
+}
+
+fn parse_shell_compare_launch(raw: &str) -> Result<ShellCompareLaunchPayload, String> {
+    let mut lines = raw.lines();
+    let left = unescape_launch_line(lines.next().ok_or("missing left path")?);
+    let right = unescape_launch_line(lines.next().ok_or("missing right path")?);
+    let route = unescape_launch_line(lines.next().ok_or("missing route")?);
+    let session_type = unescape_launch_line(lines.next().ok_or("missing session type")?);
+
+    Ok(ShellCompareLaunchPayload {
+        left,
+        right,
+        route,
+        session_type,
+    })
+}
+
+fn escape_launch_line(value: &str) -> String {
+    value.replace('\\', "\\\\").replace('\n', "\\n")
+}
+
+fn unescape_launch_line(value: &str) -> String {
+    let mut out = String::with_capacity(value.len());
+    let mut chars = value.chars();
+    while let Some(ch) = chars.next() {
+        if ch == '\\' {
+            match chars.next() {
+                Some('n') => out.push('\n'),
+                Some('\\') => out.push('\\'),
+                Some(other) => {
+                    out.push('\\');
+                    out.push(other);
+                }
+                None => out.push('\\'),
+            }
+        } else {
+            out.push(ch);
+        }
+    }
+    out
 }
 
 fn session_type_name(session_type: ShellCompareSessionType) -> &'static str {
@@ -98,7 +146,7 @@ pub fn shell_compare_state_path() -> std::path::PathBuf {
 }
 
 pub fn shell_compare_launch_path() -> std::path::PathBuf {
-    open_diff_config_dir().join("shell-compare-launch.json")
+    open_diff_config_dir().join("shell-compare-launch.txt")
 }
 
 fn open_diff_config_dir() -> std::path::PathBuf {
