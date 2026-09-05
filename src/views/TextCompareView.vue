@@ -12,6 +12,7 @@ import WorkbenchInspector from '@/components/workbench/WorkbenchInspector.vue'
 import StatusSummaryGrid from '@/components/workbench/StatusSummaryGrid.vue'
 import { useI18n } from '@/i18n'
 import { grammarForPath } from '@/app/syntaxGrammars'
+import { pickNativePath } from '@/app/filePicker'
 
 type DiffLine = TextDiffResponse['lines'][number]
 
@@ -50,6 +51,20 @@ const showHtmlPreview = ref(false)
 const bookmarkSlots = Array.from({ length: 10 }, (_, index) => index)
 const selectedBookmark = ref(0)
 const bookmarks = ref<Record<number, string>>({})
+
+async function browseTextPath(side: 'left' | 'right'): Promise<void> {
+  const selected = await pickNativePath({ directory: false })
+
+  if (!selected) {
+    return
+  }
+
+  if (side === 'left') {
+    leftPathLabel.value = selected
+  } else {
+    rightPathLabel.value = selected
+  }
+}
 
 const statsLabel = computed(() => {
   if (!result.value) return t('status.noComparisonYet')
@@ -788,6 +803,13 @@ function toggleSourceEditors(): void {
         />
         <button
           type="button"
+          data-testid="text-browse-left"
+          @click="browseTextPath('left')"
+        >
+          {{ $t('ui.browse') }}
+        </button>
+        <button
+          type="button"
           data-testid="swap-text-paths"
           @click="swapPaths"
         >
@@ -799,6 +821,13 @@ function toggleSourceEditors(): void {
           data-testid="text-right-path"
           :placeholder="$t('ui.remoteUriHint')"
         />
+        <button
+          type="button"
+          data-testid="text-browse-right"
+          @click="browseTextPath('right')"
+        >
+          {{ $t('ui.browse') }}
+        </button>
         <button
           type="button"
           data-testid="load-text-files"

@@ -1,3 +1,5 @@
+import { invoke } from '@tauri-apps/api/core'
+import { isTauriRuntime } from './desktopDrop'
 import { addRecentPath, type RecentPath, type RecentPathKind } from './pathHistory'
 
 export interface FilePickerOpenOptions {
@@ -45,3 +47,20 @@ export async function pickRecentPath(
     history: addRecentPath(options.history, recentPath),
   }
 }
+
+/** Opens a native file/folder picker via Tauri `pick_path` (rfd). Returns null when cancelled / non-Tauri. */
+export async function pickNativePath(options: FilePickerOpenOptions): Promise<string | null> {
+  if (!isTauriRuntime()) {
+    return null
+  }
+
+  try {
+    const selected = await invoke<string | null>('pick_path', { directory: options.directory })
+
+    return selected
+  } catch {
+    return null
+  }
+}
+
+export const tauriFilePickerOpen: FilePickerOpen = (options) => pickNativePath(options)

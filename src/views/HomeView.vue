@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   Binary,
@@ -22,6 +22,7 @@ import {
 } from '@lucide/vue'
 import { readClipboardTextSource } from '@/app/clipboardSource'
 import { classifyDropInputs } from '@/app/dropInput'
+import { listenDesktopPathDrop, resolveDropInputsFromPaths } from '@/app/desktopDrop'
 import { filterSavedSessions } from '@/app/savedSessions'
 import { selectSessionForDrop } from '@/app/sessionAutoSelect'
 import { sessionCatalog } from '@/app/sessionCatalog'
@@ -155,6 +156,26 @@ const historyItems = computed(() =>
     active: session.id === selectedSavedSession.value?.id,
   })),
 )
+
+let stopDesktopDrop: (() => void) | undefined
+
+onMounted(() => {
+  void listenDesktopPathDrop(async (paths) => {
+    isDragging.value = false
+
+    const inputs = await resolveDropInputsFromPaths(paths)
+
+    setDropInputs(inputs)
+    // ponytail: auto-run when paths ready
+    openSelectedDropSession()
+  }).then((stop) => {
+    stopDesktopDrop = stop
+  })
+})
+
+onUnmounted(() => {
+  stopDesktopDrop?.()
+})
 
 function openSession(entry: SessionCatalogEntry): void {
   if (!entry.implemented || !entry.route) {
