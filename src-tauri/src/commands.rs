@@ -1782,7 +1782,6 @@ pub fn unregister_windows_shell_extension(
     }
 }
 
-
 #[tauri::command]
 pub fn register_unix_shell_integration(
     executable_path: Option<String>,
@@ -1870,6 +1869,7 @@ pub fn unregister_unix_shell_integration(
     }
 }
 
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 fn apply_unix_shell_script(script: &str, temp_name: &str) -> Result<(), AppErrorPayload> {
     let temp = std::env::temp_dir().join(temp_name);
     fs::write(&temp, script).map_err(|error| {
