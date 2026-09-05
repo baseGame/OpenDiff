@@ -21,7 +21,7 @@ fn main() {
             println!("Commands:");
             println!("  compare <left> <right>");
             println!("  compare-folders <left> <right>");
-            println!("  shell-compare <path>");
+            println!("  shell-compare [--select-left] <path>");
             println!("  git-difftool-config [--global|--local] [--write] <executable-path>");
             println!("  git-mergetool-config [--global|--local] [--write] <executable-path>");
             println!("  svn-diff <svn external diff args>");
@@ -49,9 +49,14 @@ fn main() {
             );
             std::process::exit(cli_exit_code_value(result.exit_code));
         }
-        CliCommand::ShellCompare { path } => {
+        CliCommand::ShellCompare { path, select_left } => {
             let store = ShellCompareStateStore::new(shell_compare_state_path());
-            match store.select_path(&path) {
+            let outcome = if select_left {
+                store.select_left_only(&path)
+            } else {
+                store.select_path(&path)
+            };
+            match outcome {
                 Ok(ShellCompareOutcome::PendingLeft { left }) => {
                     println!("shell compare pending left: {left}");
                 }

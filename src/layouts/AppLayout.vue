@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter, RouterView } from 'vue-router'
 import {
   ArrowDown,
@@ -40,11 +40,13 @@ import { usePolicyStore } from '@/stores/policy'
 import { useSettingsStore } from '@/stores/settings'
 import { useStatusBarStore } from '@/stores/statusBar'
 import { useSavedSessionsStore } from '@/stores/savedSessions'
+import { useSessionLaunchStore } from '@/stores/sessionLaunch'
 import { useTabsStore } from '@/stores/tabs'
+import { takeShellCompareLaunch } from '@/api/integration'
+import type { SessionType } from '@/types/session'
 import type { AppCommand, CommandId } from '@/app/commandRegistry'
 import type { ViewActionName } from '@/app/commandSystem'
 import type { SessionCatalogEntry } from '@/app/sessionCatalog'
-import type { SessionType } from '@/types/session'
 
 type AppMenuId = 'session' | 'file' | 'actions' | 'edit' | 'search' | 'view' | 'tools' | 'help'
 
@@ -72,7 +74,41 @@ const settings = useSettingsStore()
 const policy = usePolicyStore()
 const statusBar = useStatusBarStore()
 const tabs = useTabsStore()
+const sessionLaunch = useSessionLaunchStore()
 const savedSessions = useSavedSessionsStore()
+
+onMounted(() => {
+  void (async () => {
+    try {
+      const launch = await takeShellCompareLaunch()
+      if (!launch) {
+        return
+      }
+
+      const sessionType = launch.sessionType as SessionType
+      const kind = sessionType === 'folder-compare' ? 'directory' : 'file'
+      const title = `${launch.left.split(/[/\\]/).pop() ?? launch.left} vs ${launch.right.split(/[/\\]/).pop() ?? launch.right}`
+
+      sessionLaunch.setPendingLaunch({
+        id: crypto.randomUUID(),
+        source: 'shell',
+        sessionType,
+        title,
+        route: launch.route,
+        locations: {
+          left: { uri: launch.left, kind, readOnly: false },
+          right: { uri: launch.right, kind, readOnly: false },
+        },
+        autoRun: true,
+      })
+      tabs.openTab({ title, route: launch.route, dirty: false })
+      void router.push(launch.route)
+    } catch {
+      // ponytail: ignore missing shell launch outside Windows Explorer flow
+    }
+  })()
+})
+
 const commandPaletteOpen = ref(false)
 const commandQuery = ref('')
 const languageMenuOpen = ref(false)

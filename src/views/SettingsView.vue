@@ -11,6 +11,7 @@ import {
 import { parseSessionPackage } from '@/app/sessionFile'
 import {
   registerWindowsShellExtension,
+  unregisterWindowsShellExtension,
   writeGitIntegration,
   writeSvnIntegration,
 } from '@/api/integration'
@@ -148,6 +149,23 @@ async function registerShellExtension(): Promise<void> {
     integrationStatus.value = result.applied
       ? t('status.shellRegistered')
       : t('status.shellScriptGenerated')
+  } catch (error) {
+    integrationError.value = error instanceof Error ? error.message : String(error)
+  } finally {
+    integrationWriting.value = false
+  }
+}
+
+async function unregisterShellExtension(): Promise<void> {
+  integrationWriting.value = true
+  integrationError.value = ''
+
+  try {
+    const result = await unregisterWindowsShellExtension(executablePath.value.trim() || undefined)
+
+    integrationStatus.value = result.applied
+      ? t('status.shellUnregistered')
+      : t('status.shellUnregisterScriptGenerated')
   } catch (error) {
     integrationError.value = error instanceof Error ? error.message : String(error)
   } finally {
@@ -386,18 +404,29 @@ function parseShortcutText(value: string): string[] {
           >
             {{ integrationError }}
           </p>
-          <div class="settings-row">
+          <div class="settings-row shell-extension-row">
             <div>
               <strong>{{ $t('ui.windowsShell') }}</strong>
               <span>{{ $t('ui.shellExtensionHint') }}</span>
+              <span>{{ $t('ui.shellExtensionFlowHint') }}</span>
             </div>
-            <NButton
-              size="small"
-              data-testid="register-shell-extension"
-              :disabled="!policy.isWindows || integrationWriting"
-              @click="registerShellExtension"
-              >{{ $t('ui.registerShellExtension') }}</NButton
-            >
+            <NSpace>
+              <NButton
+                size="small"
+                type="primary"
+                data-testid="register-shell-extension"
+                :disabled="!policy.isWindows || integrationWriting"
+                @click="registerShellExtension"
+                >{{ $t('ui.installExplorerContextMenu') }}</NButton
+              >
+              <NButton
+                size="small"
+                data-testid="unregister-shell-extension"
+                :disabled="!policy.isWindows || integrationWriting"
+                @click="unregisterShellExtension"
+                >{{ $t('ui.removeExplorerContextMenu') }}</NButton
+              >
+            </NSpace>
           </div>
           <p
             v-if="!policy.isWindows"

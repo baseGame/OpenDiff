@@ -228,7 +228,10 @@ export function invokeResponse(command: string, args: Record<string, unknown> = 
     case 'write_svn_integration':
       return 'Wrote config'
     case 'register_windows_shell_extension':
+    case 'unregister_windows_shell_extension':
       return { windows: false, applied: false, script: '', message: 'Windows only' }
+    case 'take_shell_compare_launch':
+      return null
     case 'load_admin_policy':
       return { savePasswords: true, remoteProfiles: true, updateChecks: true }
     case 'app_runtime_info':

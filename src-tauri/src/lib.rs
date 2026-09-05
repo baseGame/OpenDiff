@@ -1,4 +1,7 @@
+pub use shell_startup::{prepare_shell_startup, ShellStartupDecision};
+
 mod commands;
+mod shell_startup;
 mod sources;
 
 pub fn run() {
@@ -41,6 +44,8 @@ pub fn run() {
             commands::query_live_windows_registry,
             commands::read_text_file,
             commands::register_windows_shell_extension,
+            commands::take_shell_compare_launch,
+            commands::unregister_windows_shell_extension,
             commands::rename_folder_entry,
             commands::run_script,
             commands::save_hex_edits,

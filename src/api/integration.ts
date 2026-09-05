@@ -36,3 +36,22 @@ export function registerWindowsShellExtension(
     executablePath,
   })
 }
+
+export function unregisterWindowsShellExtension(
+  executablePath?: string,
+): Promise<ShellRegistrationResult> {
+  return invoke<ShellRegistrationResult>('unregister_windows_shell_extension', {
+    executablePath,
+  })
+}
+
+export interface ShellCompareLaunchPayload {
+  left: string
+  right: string
+  route: string
+  sessionType: string
+}
+
+export function takeShellCompareLaunch(): Promise<ShellCompareLaunchPayload | null> {
+  return invoke<ShellCompareLaunchPayload | null>('take_shell_compare_launch')
+}

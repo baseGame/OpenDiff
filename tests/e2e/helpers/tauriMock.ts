@@ -269,13 +269,20 @@ export async function installTauriInvokeMock(page: Page): Promise<void> {
           return Promise.resolve({ os: 'linux', family: 'unix' })
         }
 
-        if (command === 'register_windows_shell_extension') {
+        if (
+          command === 'register_windows_shell_extension' ||
+          command === 'unregister_windows_shell_extension'
+        ) {
           return Promise.resolve({
             windows: false,
             applied: false,
             script: '',
             message: 'Windows only',
           })
+        }
+
+        if (command === 'take_shell_compare_launch') {
+          return Promise.resolve(null)
         }
 
         return Promise.resolve({})
