@@ -1986,7 +1986,6 @@ pub fn check_text_file_changed(
         .map_err(|error| file_error("read", &path, error))
 }
 
-
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ClassifiedPathEntry {
