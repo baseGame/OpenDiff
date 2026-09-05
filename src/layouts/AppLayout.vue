@@ -116,6 +116,7 @@ const languageMenuOpen = ref(false)
 const activeMenu = ref<AppMenuId>()
 const lastViewAction = ref<ViewActionName>()
 const pendingCloseTab = ref<{ id: string; title: string }>()
+const tabContextMenu = ref<{ x: number; y: number; tabId: string }>()
 const visibleCommands = computed(() => filterCommands(commandRegistry, commandQuery.value))
 const toolbarCommands = computed(() => getCommandsForPlacement(commandRegistry, 'toolbar'))
 const availableLocales = i18n.availableLocales
@@ -308,6 +309,7 @@ function toggleApplicationMenu(menu: AppMenuId): void {
 function closeChromeMenus(): void {
   activeMenu.value = undefined
   languageMenuOpen.value = false
+  tabContextMenu.value = undefined
 }
 
 function requestCloseTab(tab: { id: string; title: string; dirty: boolean }): void {
@@ -327,6 +329,57 @@ function confirmCloseDirtyTab(): void {
 
   tabs.closeTab(pendingCloseTab.value.id)
   pendingCloseTab.value = undefined
+}
+
+function openTabContextMenu(event: MouseEvent, tabId: string): void {
+  event.preventDefault()
+  tabContextMenu.value = { x: event.clientX, y: event.clientY, tabId }
+  activeMenu.value = undefined
+  languageMenuOpen.value = false
+}
+
+function contextTab():
+  { id: string; title: string; titleKey?: string; dirty: boolean } | undefined {
+  const menu = tabContextMenu.value
+
+  if (!menu) {
+    return undefined
+  }
+
+  return tabs.tabs.find((tab) => tab.id === menu.tabId)
+}
+
+function requestCloseContextTab(): void {
+  const tab = contextTab()
+
+  tabContextMenu.value = undefined
+  if (!tab || !tabs.canCloseTab(tab.id)) {
+    return
+  }
+
+  requestCloseTab({ id: tab.id, title: displayTabTitle(tab), dirty: tab.dirty })
+}
+
+function requestCloseOtherTabs(): void {
+  const tab = contextTab()
+
+  tabContextMenu.value = undefined
+  if (!tab || !tabs.canCloseOtherTabs(tab.id)) {
+    return
+  }
+
+  tabs.closeOtherTabs(tab.id)
+}
+
+function requestCloseTabsToTheRight(): void {
+  const tab = contextTab()
+
+  tabContextMenu.value = undefined
+  if (!tab || !tabs.canCloseTabsToTheRight(tab.id)) {
+    return
+  }
+
+  tabs.closeTabsToTheRight(tab.id)
 }
 
 function toggleLanguageMenu(): void {
@@ -612,6 +665,8 @@ const sourceSessionTypes = new Set<SessionType>([
             :key="tab.id"
             class="tab-chip"
             :class="{ active: tabs.activeTabId === tab.id, dirty: tab.dirty }"
+            :data-testid="`tab-chip-${tab.id}`"
+            @contextmenu="openTabContextMenu($event, tab.id)"
           >
             <button
               type="button"
@@ -643,6 +698,40 @@ const sourceSessionTypes = new Set<SessionType>([
             {{ t('ui.close') }}
           </button>
         </section>
+
+        <div
+          v-if="tabContextMenu"
+          class="tab-context-menu"
+          data-testid="tab-context-menu"
+          :style="{ left: `${tabContextMenu.x}px`, top: `${tabContextMenu.y}px` }"
+          @click.stop
+        >
+          <button
+            type="button"
+            data-testid="tab-ctx-close"
+            :disabled="!tabs.canCloseTab(tabContextMenu.tabId)"
+            @click="requestCloseContextTab"
+          >
+            {{ t('ui.close') }}
+          </button>
+          <button
+            type="button"
+            data-testid="tab-ctx-close-others"
+            :disabled="!tabs.canCloseOtherTabs(tabContextMenu.tabId)"
+            @click="requestCloseOtherTabs"
+          >
+            {{ t('ui.closeOthers') }}
+          </button>
+          <button
+            type="button"
+            data-testid="tab-ctx-close-to-the-right"
+            :disabled="!tabs.canCloseTabsToTheRight(tabContextMenu.tabId)"
+            @click="requestCloseTabsToTheRight"
+          >
+            {{ t('ui.closeToTheRight') }}
+          </button>
+        </div>
+
         <section
           class="global-toolbar"
           data-testid="global-toolbar"
@@ -1039,19 +1128,46 @@ const sourceSessionTypes = new Set<SessionType>([
 }
 
 .tab-strip {
-  position: relative;
-  z-index: -1;
   display: flex;
   gap: 4px;
-  width: 1px;
   min-width: 0;
-  height: 0;
-  min-height: 0;
-  padding: 0;
+  padding: 6px 8px 0;
   overflow: auto hidden;
+  border-bottom: 1px solid var(--app-border);
+  background: var(--app-panel, var(--app-canvas));
+}
+
+.tab-context-menu {
+  position: fixed;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  min-width: 160px;
+  padding: 4px;
+  border: 1px solid var(--app-border);
+  border-radius: 6px;
+  background: var(--app-canvas);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.18);
+}
+
+.tab-context-menu button {
+  padding: 6px 10px;
   border: 0;
+  border-radius: 4px;
   background: transparent;
-  opacity: 0;
+  color: var(--app-text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.tab-context-menu button:hover:not(:disabled),
+.tab-context-menu button:focus-visible:not(:disabled) {
+  background: var(--app-hover, rgb(127 127 127 / 0.16));
+}
+
+.tab-context-menu button:disabled {
+  cursor: default;
+  opacity: 0.45;
 }
 
 .tab-chip {

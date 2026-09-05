@@ -101,6 +101,8 @@ export const enUS: LanguagePack = {
     'ui.cliReportsAndRepeatableComparisonJobs': 'CLI, reports, and repeatable comparison jobs',
     'ui.close': 'Close',
     'ui.closeAll': 'Close All',
+    'ui.closeOthers': 'Close Others',
+    'ui.closeToTheRight': 'Close to the Right',
     'ui.codec': 'Codec',
     'ui.columnMapping': 'Column Mapping',
     'ui.columnMappings': 'Column mappings',
@@ -674,6 +676,12 @@ export const enUS: LanguagePack = {
     'ui.compareCrc': 'Compare CRC',
     'ui.folderCriteria': 'Compare criteria',
     'ui.windowsShell': 'Windows shell',
+    'ui.unixShell': 'macOS / Linux shell',
+    'ui.installUnixShellIntegration': 'Install shell integration',
+    'ui.removeUnixShellIntegration': 'Remove shell integration',
+    'ui.unixShellHint':
+      'Installs a .desktop Open With entry on Linux, or a shell-compare helper + Open With app stub on macOS. Reuses CLI --shell-compare.',
+    'ui.unixShellCliHint': 'Also available: open-diff-cli shell-compare [--select-left] <path>',
     'ui.registerShellExtension': 'Install Explorer context menu',
     'ui.installExplorerContextMenu': 'Install Explorer context menu',
     'ui.removeExplorerContextMenu': 'Remove Explorer context menu',
@@ -685,6 +693,10 @@ export const enUS: LanguagePack = {
     'ui.policyRemoteDisabled': 'Remote profiles are disabled by administrator policy.',
     'ui.policyPasswordsDisabled': 'Saving passwords is disabled by administrator policy.',
     'status.shellRegistered': 'Windows Explorer context menu installed',
+    'status.unixShellRegistered': 'Shell integration installed',
+    'status.unixShellUnregistered': 'Shell integration removed',
+    'status.unixShellScriptGenerated':
+      'Shell integration script generated but not applied on this platform.',
     'status.shellUnregistered': 'Windows Explorer context menu removed',
     'status.shellScriptGenerated': 'Windows only. Registration script generated but not applied.',
     'status.shellUnregisterScriptGenerated':

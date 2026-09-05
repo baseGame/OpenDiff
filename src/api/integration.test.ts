@@ -1,5 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { writeGitIntegration, writeSvnIntegration } from './integration'
+import {
+  openPathExternal,
+  registerUnixShellIntegration,
+  writeGitIntegration,
+  writeSvnIntegration,
+} from './integration'
 import { invoke } from '@tauri-apps/api/core'
 
 vi.mock('@tauri-apps/api/core', () => ({
@@ -23,6 +28,26 @@ describe('integration api', () => {
     expect(invoke).toHaveBeenCalledWith('write_svn_integration', {
       executablePath: '/usr/bin/open-diff',
       wrapperPath: '/tmp/open-diff-svn.sh',
+    })
+  })
+
+  it('opens paths externally and registers unix shell integration', async () => {
+    vi.mocked(invoke).mockResolvedValueOnce({ path: '/tmp/a.txt', launched: true })
+    await openPathExternal('/tmp/a.txt', 'code')
+    expect(invoke).toHaveBeenCalledWith('open_path_external', {
+      path: '/tmp/a.txt',
+      executable: 'code',
+    })
+
+    vi.mocked(invoke).mockResolvedValueOnce({
+      windows: false,
+      applied: true,
+      script: '',
+      message: 'ok',
+    })
+    await registerUnixShellIntegration('/usr/bin/open-diff-app')
+    expect(invoke).toHaveBeenCalledWith('register_unix_shell_integration', {
+      executablePath: '/usr/bin/open-diff-app',
     })
   })
 })

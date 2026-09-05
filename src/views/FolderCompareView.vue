@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import {
+  createAssociatedApplicationOpenAction,
   createDefaultOpenAction,
+  createOpenWithAction,
   listEnabledExternalApplications,
   type ExternalApplicationConfig,
   type FileOpenAction,
@@ -22,6 +24,7 @@ import {
   renameFolderEntry,
   touchFolderEntry,
 } from '@/api/diff'
+import { openPathExternal } from '@/api/integration'
 import type {
   FolderCompareCriteria,
   FolderCompareResponse,
@@ -506,6 +509,36 @@ function selectRow(row: FolderTreeRow): void {
 
 function recordOpenAction(action: FileOpenAction): void {
   lastOpenAction.value = action
+}
+
+async function openSelectedWithAssociatedApplication(): Promise<void> {
+  const path = selectedFilePath.value
+
+  if (!path) {
+    return
+  }
+
+  try {
+    await openPathExternal(path)
+    recordOpenAction(createAssociatedApplicationOpenAction(path))
+  } catch (error) {
+    folderCompareError.value = error instanceof Error ? error.message : String(error)
+  }
+}
+
+async function openSelectedWithApplication(application: ExternalApplicationConfig): Promise<void> {
+  const path = selectedFilePath.value
+
+  if (!path || !application.enabled || !application.executable.trim()) {
+    return
+  }
+
+  try {
+    await openPathExternal(path, application.executable)
+    recordOpenAction(createOpenWithAction(path, application.name, application.executable))
+  } catch (error) {
+    folderCompareError.value = error instanceof Error ? error.message : String(error)
+  }
 }
 
 function openSelectedFile(): void {
@@ -1221,7 +1254,8 @@ onUnmounted(() => {
             size="small"
             secondary
             data-testid="open-with-selected-file"
-            disabled
+            :disabled="!selectedFilePath"
+            @click="openSelectedWithAssociatedApplication"
             >{{ $t('ui.openWith') }}</NButton
           >
           <NButton
@@ -1230,7 +1264,8 @@ onUnmounted(() => {
             size="small"
             secondary
             :data-testid="`open-with-custom-${application.id}`"
-            disabled
+            :disabled="!selectedFilePath || !application.executable"
+            @click="openSelectedWithApplication(application)"
           >
             {{ application.name }}
           </NButton>
@@ -1238,7 +1273,8 @@ onUnmounted(() => {
             size="small"
             secondary
             data-testid="open-associated-file"
-            disabled
+            :disabled="!selectedFilePath"
+            @click="openSelectedWithAssociatedApplication"
             >{{ $t('ui.associatedApp') }}</NButton
           >
           <NButton

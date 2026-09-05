@@ -10,6 +10,9 @@ export const usePolicyStore = defineStore('policy', () => {
   const os = ref('')
   const family = ref('')
   const isWindows = computed(() => os.value === 'windows' || family.value === 'windows')
+  const isMac = computed(() => os.value === 'macos' || os.value === 'darwin')
+  const isLinux = computed(() => os.value === 'linux')
+  const supportsUnixShell = computed(() => isMac.value || isLinux.value)
 
   function apply(flags: PolicyFlags): void {
     savePasswords.value = flags.savePasswords
@@ -43,6 +46,9 @@ export const usePolicyStore = defineStore('policy', () => {
     os,
     family,
     isWindows,
+    isMac,
+    isLinux,
+    supportsUnixShell,
     apply,
     load,
   }

@@ -231,7 +231,8 @@ Open Diff is intended to generate shareable comparison summaries.
 
 Open Diff includes command-line and scripted workflows for the commands that are already implemented.
 
-- Run comparisons from the command line, including `shell-compare`.
+- Run comparisons from the command line, including `shell-compare` / `open-diff-cli shell-compare [--select-left] <path>`.
+- Install optional macOS/Linux shell helpers (`.desktop` Open With or Open With `.app` stub) from Settings; Windows Explorer verbs remain available.
 - Generate machine-readable results.
 - Execute supported script commands such as LOAD, COMPARE, REPORT, and SYNC.
 - Generate Git difftool, Git mergetool, and Subversion external diff setup commands.
@@ -242,7 +243,7 @@ These items stay unimplemented and are labeled as such in the UI:
 
 - S3, Dropbox, OneDrive, FTPS, and SVN remote protocols.
 - 7z archive comparison (ZIP and TAR are live).
-- Open With and Align With from folder compare.
+- Align With from folder compare.
 - A full Beyond Compare script language. Supported commands run; others return `unsupported`.
 - Live Windows registry hives (exported `.reg` files compare).
 - Custom keyboard shortcuts and additional report formats.

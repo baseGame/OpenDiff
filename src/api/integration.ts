@@ -55,3 +55,35 @@ export interface ShellCompareLaunchPayload {
 export function takeShellCompareLaunch(): Promise<ShellCompareLaunchPayload | null> {
   return invoke<ShellCompareLaunchPayload | null>('take_shell_compare_launch')
 }
+
+export function registerUnixShellIntegration(
+  executablePath?: string,
+): Promise<ShellRegistrationResult> {
+  return invoke<ShellRegistrationResult>('register_unix_shell_integration', {
+    executablePath,
+  })
+}
+
+export function unregisterUnixShellIntegration(
+  executablePath?: string,
+): Promise<ShellRegistrationResult> {
+  return invoke<ShellRegistrationResult>('unregister_unix_shell_integration', {
+    executablePath,
+  })
+}
+
+export interface OpenPathExternalResult {
+  path: string
+  executable?: string | null
+  launched: boolean
+}
+
+export function openPathExternal(
+  path: string,
+  executable?: string,
+): Promise<OpenPathExternalResult> {
+  return invoke<OpenPathExternalResult>('open_path_external', {
+    path,
+    executable,
+  })
+}

@@ -68,6 +68,49 @@ export const useTabsStore = defineStore('tabs', () => {
     }
   }
 
+  function canCloseTab(id: string): boolean {
+    return id !== 'home' && tabs.value.some((tab) => tab.id === id)
+  }
+
+  function canCloseOtherTabs(id: string): boolean {
+    return tabs.value.some((tab) => tab.id !== id && tab.id !== 'home')
+  }
+
+  function canCloseTabsToTheRight(id: string): boolean {
+    const index = tabs.value.findIndex((tab) => tab.id === id)
+
+    if (index < 0) {
+      return false
+    }
+
+    return tabs.value.slice(index + 1).some((tab) => tab.id !== 'home')
+  }
+
+  function closeOtherTabs(id: string): void {
+    if (!tabs.value.some((tab) => tab.id === id)) {
+      return
+    }
+
+    tabs.value = tabs.value.filter((tab) => tab.id === id || tab.id === 'home')
+    activeTabId.value = id
+  }
+
+  function closeTabsToTheRight(id: string): void {
+    const index = tabs.value.findIndex((tab) => tab.id === id)
+
+    if (index < 0) {
+      return
+    }
+
+    const kept = tabs.value.slice(0, index + 1)
+    const closedActive = !kept.some((tab) => tab.id === activeTabId.value)
+
+    tabs.value = kept
+    if (closedActive) {
+      activeTabId.value = id
+    }
+  }
+
   function setTabDirty(id: string, dirty: boolean): boolean {
     const tab = tabs.value.find((item) => item.id === id)
 
@@ -106,6 +149,11 @@ export const useTabsStore = defineStore('tabs', () => {
     activeTab,
     openTab,
     closeTab,
+    canCloseTab,
+    canCloseOtherTabs,
+    canCloseTabsToTheRight,
+    closeOtherTabs,
+    closeTabsToTheRight,
     setTabDirty,
     workspaceSnapshot,
     restoreWorkspaceTabs,

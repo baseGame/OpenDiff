@@ -28,3 +28,52 @@ describe('useTabsStore workspace restore', () => {
     })
   })
 })
+
+describe('useTabsStore close actions', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+  })
+
+  it('closes other tabs while keeping home and the target', () => {
+    const store = useTabsStore()
+
+    store.openTab({ title: 'Text', route: '/compare/text', dirty: false })
+    store.openTab({ title: 'Folder', route: '/compare/folder', dirty: false })
+    const folderId = store.activeTabId
+
+    expect(store.canCloseOtherTabs(folderId)).toBe(true)
+    store.closeOtherTabs(folderId)
+
+    expect(store.tabs.map((tab) => tab.route)).toEqual(['/', '/compare/folder'])
+    expect(store.activeTabId).toBe(folderId)
+  })
+
+  it('closes tabs to the right of the selected tab', () => {
+    const store = useTabsStore()
+
+    store.openTab({ title: 'Text', route: '/compare/text', dirty: false })
+    const textId = store.activeTabId
+
+    store.openTab({ title: 'Folder', route: '/compare/folder', dirty: false })
+    store.openTab({ title: 'Hex', route: '/compare/hex', dirty: false })
+
+    expect(store.canCloseTabsToTheRight(textId)).toBe(true)
+    store.closeTabsToTheRight(textId)
+
+    expect(store.tabs.map((tab) => tab.route)).toEqual(['/', '/compare/text'])
+    expect(store.activeTabId).toBe(textId)
+  })
+
+  it('disables close actions that would be no-ops', () => {
+    const store = useTabsStore()
+
+    expect(store.canCloseTab('home')).toBe(false)
+    expect(store.canCloseOtherTabs('home')).toBe(false)
+    expect(store.canCloseTabsToTheRight('home')).toBe(false)
+
+    store.openTab({ title: 'Text', route: '/compare/text', dirty: false })
+    expect(store.canCloseTab(store.activeTabId)).toBe(true)
+    expect(store.canCloseOtherTabs(store.activeTabId)).toBe(false)
+    expect(store.canCloseTabsToTheRight(store.activeTabId)).toBe(false)
+  })
+})

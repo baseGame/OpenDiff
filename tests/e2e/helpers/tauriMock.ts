@@ -281,6 +281,31 @@ export async function installTauriInvokeMock(page: Page): Promise<void> {
           })
         }
 
+        if (
+          command === 'register_unix_shell_integration' ||
+          command === 'unregister_unix_shell_integration'
+        ) {
+          return Promise.resolve({
+            windows: false,
+            applied: true,
+            script: '',
+            message: 'unix shell ok',
+          })
+        }
+
+        if (command === 'open_path_external') {
+          const payload =
+            args && typeof args === 'object'
+              ? (args as { path?: string; executable?: string | null })
+              : {}
+
+          return Promise.resolve({
+            path: payload.path ?? '',
+            executable: payload.executable ?? null,
+            launched: true,
+          })
+        }
+
         if (command === 'take_shell_compare_launch') {
           return Promise.resolve(null)
         }
