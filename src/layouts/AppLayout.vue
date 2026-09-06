@@ -159,10 +159,13 @@ onMounted(() => {
   ).then((stop) => {
     stopDesktopDrop = stop
   })
+
+  window.addEventListener('keydown', onChromeKeydown)
 })
 
 onUnmounted(() => {
   stopDesktopDrop?.()
+  window.removeEventListener('keydown', onChromeKeydown)
 })
 
 const commandPaletteOpen = ref(false)
@@ -409,6 +412,21 @@ function closeChromeMenus(): void {
   tabContextMenu.value = undefined
 }
 
+function onChromeKeydown(event: KeyboardEvent): void {
+  if (event.key === 'Escape') {
+    if (
+      activeMenu.value ||
+      languageMenuOpen.value ||
+      tabContextMenu.value ||
+      commandPaletteOpen.value
+    ) {
+      event.preventDefault()
+      closeChromeMenus()
+      commandPaletteOpen.value = false
+    }
+  }
+}
+
 function requestCloseTab(tab: { id: string; title: string; dirty: boolean }): void {
   if (tab.dirty) {
     pendingCloseTab.value = { id: tab.id, title: tab.title }
@@ -560,6 +578,7 @@ const sourceSessionTypes = new Set<SessionType>([
             type="button"
             :class="{ active: activeMenu === menu.id }"
             :aria-expanded="activeMenu === menu.id"
+            aria-haspopup="menu"
             :data-testid="`menu-${menu.id}`"
             @click="toggleApplicationMenu(menu.id)"
           >
@@ -568,6 +587,7 @@ const sourceSessionTypes = new Set<SessionType>([
           <section
             v-if="activeMenu === menu.id"
             class="menu-panel"
+            role="menu"
             data-testid="menu-panel"
             @click.stop
           >
@@ -921,6 +941,8 @@ const sourceSessionTypes = new Set<SessionType>([
 }
 
 .menu-bar {
+  position: relative;
+  z-index: 80;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   grid-template-rows: 40px 38px;
@@ -928,6 +950,7 @@ const sourceSessionTypes = new Set<SessionType>([
   gap: 0;
   min-width: 0;
   padding: 0;
+  overflow: visible;
   border-bottom: 1px solid #c7cbd1;
   background: #ffffff;
 }
@@ -936,7 +959,7 @@ const sourceSessionTypes = new Set<SessionType>([
   position: absolute;
   top: calc(100% + 4px);
   left: 0;
-  z-index: 60;
+  z-index: 90;
   display: grid;
   width: 210px;
   max-height: calc(100vh - 72px);
@@ -1003,13 +1026,14 @@ const sourceSessionTypes = new Set<SessionType>([
   min-width: 0;
   height: 38px;
   padding: 0 10px;
-  overflow: auto hidden;
+  overflow: visible;
   border-top: 1px solid #e7e9ed;
   background: #ffffff;
 }
 
 .menu-group {
   position: relative;
+  z-index: 70;
 }
 
 .menus button,

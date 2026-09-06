@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { mount, type VueWrapper } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -243,6 +246,28 @@ describe('AppLayout command palette', () => {
     expect(wrapper.find('[data-testid="menu-command-edit.copyLeft"]').exists()).toBe(false)
   })
 
+  it('closes an open application menu with Escape', async () => {
+    const wrapper = mountAppLayout()
+
+    await wrapper.find('[data-testid="menu-file"]').trigger('click')
+    expect(wrapper.find('[data-testid="menu-panel"]').exists()).toBe(true)
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('[data-testid="menu-panel"]').exists()).toBe(false)
+  })
+
+  it('exposes clickable menus with aria-haspopup on Home', async () => {
+    routePath = '/'
+    const wrapper = mountAppLayout()
+
+    expect(wrapper.find('[data-testid="menu-session"]').attributes('aria-haspopup')).toBe('menu')
+    await wrapper.find('[data-testid="menu-session"]').trigger('click')
+    expect(wrapper.find('[data-testid="menu-panel"]').attributes('role')).toBe('menu')
+    expect(wrapper.find('[data-testid="menu-command-open.textCompare"]').exists()).toBe(true)
+  })
+
   it('closes an open application menu when clicking outside it', async () => {
     const wrapper = mountAppLayout()
 
@@ -380,6 +405,19 @@ describe('AppLayout command palette', () => {
     expect(launchStore.pendingLaunch).toBeUndefined()
     expect(statusBar.report.comparisonStatus).toBe('Drop exactly two files or folders.')
     expect(statusBar.report.source).toBe('drop')
+  })
+
+  it('does not clip application menus with overflow-y hidden on .menus', () => {
+    const source = readFileSync(
+      resolve(dirname(fileURLToPath(import.meta.url)), './AppLayout.vue'),
+      'utf8',
+    )
+    const menusBlock = /\.menus\s*\{[^}]+\}/.exec(source)
+
+    expect(menusBlock?.[0]).toBeTruthy()
+
+    expect(menusBlock?.[0]).toContain('overflow: visible')
+    expect(menusBlock?.[0]).not.toContain('overflow: auto hidden')
   })
 
   it('shows tab context menu actions and closes others', async () => {
