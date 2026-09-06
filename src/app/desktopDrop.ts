@@ -55,7 +55,7 @@ export async function listenDesktopPathDrop(
     return () => undefined
   }
 
-  const stoppers: Array<() => void> = []
+  const stoppers: (() => void)[] = []
   let lastDropKey = ''
   let lastDropAt = 0
 
@@ -75,36 +75,29 @@ export async function listenDesktopPathDrop(
 
     lastDropKey = key
     lastDropAt = now
-    onPhase?.('drop', `${cleaned.length} path(s)`)
+    onPhase?.('drop', `${String(cleaned.length)} path(s)`)
     void onPaths(cleaned)
   }
 
   try {
     const { getCurrentWebview } = await import('@tauri-apps/api/webview')
     const unlisten = await getCurrentWebview().onDragDropEvent((event) => {
-      if (event.payload.type === 'enter') {
-        onPhase?.('enter', `${event.payload.paths.length} path(s)`)
+      switch (event.payload.type) {
+        case 'enter':
+          onPhase?.('enter', `${String(event.payload.paths.length)} path(s)`)
 
-        return
+          return
+        case 'over':
+          onPhase?.('over')
+
+          return
+        case 'leave':
+          onPhase?.('leave')
+
+          return
+        case 'drop':
+          deliverPaths(event.payload.paths)
       }
-
-      if (event.payload.type === 'over') {
-        onPhase?.('over')
-
-        return
-      }
-
-      if (event.payload.type === 'leave') {
-        onPhase?.('leave')
-
-        return
-      }
-
-      if (event.payload.type !== 'drop') {
-        return
-      }
-
-      deliverPaths(event.payload.paths)
     })
 
     stoppers.push(unlisten)
@@ -117,10 +110,10 @@ export async function listenDesktopPathDrop(
   try {
     const { listen } = await import('@tauri-apps/api/event')
     const unlistenDrop = await listen<string[]>('open-diff://desktop-drop', (event) => {
-      deliverPaths(event.payload ?? [])
+      deliverPaths(event.payload)
     })
     const unlistenEnter = await listen<string[]>('open-diff://desktop-drag-enter', (event) => {
-      onPhase?.('enter', `${(event.payload ?? []).length} path(s)`)
+      onPhase?.('enter', `${String(event.payload.length)} path(s)`)
     })
     const unlistenLeave = await listen('open-diff://desktop-drag-leave', () => {
       onPhase?.('leave')
