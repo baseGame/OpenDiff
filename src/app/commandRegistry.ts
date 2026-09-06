@@ -2,11 +2,20 @@ export type CommandId =
   | 'open.textCompare'
   | 'open.folderCompare'
   | 'open.textPatch'
+  | 'open.textEdit'
+  | 'open.fileFormats'
+  | 'open.remoteProfiles'
   | 'open.settings'
   | 'theme.toggle'
   | 'session.save'
   | 'session.saveAs'
   | 'session.export'
+  | 'session.newTab'
+  | 'session.newWindow'
+  | 'session.openSession'
+  | 'session.loadWorkspace'
+  | 'session.closeTab'
+  | 'session.exit'
   | 'edit.copyLeft'
   | 'edit.copyRight'
   | 'diff.previous'
@@ -14,6 +23,14 @@ export type CommandId =
   | 'view.showAll'
   | 'view.showDifferences'
   | 'workspace.save'
+  | 'tools.exportSettings'
+  | 'tools.importSettings'
+  | 'tools.restoreFactoryDefaults'
+  | 'tools.saveSnapshot'
+  | 'help.contents'
+  | 'help.about'
+  | 'help.checkForUpdates'
+  | 'help.support'
 
 export type CommandVisibility = 'global' | 'view' | 'hidden'
 export type ShortcutScope = 'global' | 'text-compare'
@@ -21,6 +38,7 @@ export type CommandPlacement = 'command-palette' | 'toolbar' | 'menu'
 export type CommandAction =
   | { type: 'navigate'; route: string; titleKey: string }
   | { type: 'toggle-theme' }
+  | { type: 'noop' }
   | {
       type: 'view-action'
       name:
@@ -34,6 +52,9 @@ export type CommandAction =
         | 'show-all'
         | 'show-differences'
         | 'workspace-save'
+        | 'close-tab'
+        | 'about'
+        | 'check-for-updates'
     }
 
 export interface CommandShortcut {
@@ -97,7 +118,7 @@ export const commandRegistry: AppCommand[] = [
   },
   {
     id: 'open.settings',
-    titleKey: 'command.openSettings',
+    titleKey: 'ui.options',
     keywords: ['settings', 'preferences', 'open'],
     enabled: true,
     visibility: 'global',
@@ -207,13 +228,187 @@ export const commandRegistry: AppCommand[] = [
   },
   {
     id: 'workspace.save',
-    titleKey: 'ui.workspace',
+    titleKey: 'ui.saveWorkspaceAs',
     keywords: ['workspace', 'save'],
     enabled: true,
     visibility: 'global',
     defaultShortcut: { keys: ['Ctrl', 'Alt', 'S'], scope: 'global' },
     placements: ['command-palette', 'menu'],
     action: { type: 'view-action', name: 'workspace-save' },
+  },
+  {
+    id: 'open.textEdit',
+    titleKey: 'ui.editTextFile',
+    keywords: ['text', 'edit', 'open'],
+    enabled: true,
+    visibility: 'global',
+    defaultShortcut: { keys: ['Ctrl', 'Alt', 'E'], scope: 'global' },
+    placements: ['command-palette', 'menu'],
+    action: { type: 'navigate', route: '/edit/text', titleKey: 'ui.textEdit' },
+  },
+  {
+    id: 'open.fileFormats',
+    titleKey: 'ui.fileFormats',
+    keywords: ['file', 'formats', 'tools'],
+    enabled: true,
+    visibility: 'global',
+    defaultShortcut: { keys: ['Ctrl', 'Alt', 'M'], scope: 'global' },
+    placements: ['command-palette', 'menu'],
+    action: { type: 'navigate', route: '/settings/file-formats', titleKey: 'ui.fileFormats' },
+  },
+  {
+    id: 'open.remoteProfiles',
+    titleKey: 'ui.profiles',
+    keywords: ['profiles', 'remote', 'ftp', 'tools'],
+    enabled: true,
+    visibility: 'global',
+    defaultShortcut: { keys: ['Ctrl', 'Alt', 'R'], scope: 'global' },
+    placements: ['command-palette', 'menu'],
+    action: {
+      type: 'navigate',
+      route: '/settings/remote-profiles',
+      titleKey: 'ui.remoteProfiles',
+    },
+  },
+  {
+    id: 'session.newTab',
+    titleKey: 'ui.newTab',
+    keywords: ['session', 'tab', 'home', 'new'],
+    enabled: true,
+    visibility: 'global',
+    defaultShortcut: { keys: ['Ctrl', 'T'], scope: 'global' },
+    placements: ['command-palette', 'menu'],
+    action: { type: 'navigate', route: '/', titleKey: 'ui.home' },
+  },
+  {
+    id: 'session.newWindow',
+    titleKey: 'ui.newWindow',
+    keywords: ['session', 'window', 'new'],
+    enabled: false,
+    visibility: 'global',
+    defaultShortcut: { keys: ['Ctrl', 'Shift', 'N'], scope: 'global' },
+    placements: ['command-palette', 'menu'],
+    action: { type: 'noop' },
+  },
+  {
+    id: 'session.openSession',
+    titleKey: 'ui.openSession',
+    keywords: ['session', 'open', 'home'],
+    enabled: true,
+    visibility: 'global',
+    defaultShortcut: { keys: ['Ctrl', 'O'], scope: 'global' },
+    placements: ['command-palette', 'menu'],
+    action: { type: 'navigate', route: '/', titleKey: 'ui.home' },
+  },
+  {
+    id: 'session.loadWorkspace',
+    titleKey: 'ui.loadWorkspace',
+    keywords: ['workspace', 'load'],
+    enabled: false,
+    visibility: 'global',
+    defaultShortcut: { keys: ['Ctrl', 'Alt', 'O'], scope: 'global' },
+    placements: ['command-palette', 'menu'],
+    action: { type: 'noop' },
+  },
+  {
+    id: 'session.closeTab',
+    titleKey: 'ui.closeTab',
+    keywords: ['session', 'close', 'tab'],
+    enabled: true,
+    visibility: 'global',
+    defaultShortcut: { keys: ['Ctrl', 'W'], scope: 'global' },
+    placements: ['command-palette', 'menu'],
+    action: { type: 'view-action', name: 'close-tab' },
+  },
+  {
+    id: 'session.exit',
+    titleKey: 'ui.exit',
+    keywords: ['exit', 'quit'],
+    enabled: false,
+    visibility: 'global',
+    defaultShortcut: { keys: ['Alt', 'F4'], scope: 'global' },
+    placements: ['command-palette', 'menu'],
+    action: { type: 'noop' },
+  },
+  {
+    id: 'tools.exportSettings',
+    titleKey: 'ui.exportSettings',
+    keywords: ['export', 'settings', 'tools'],
+    enabled: false,
+    visibility: 'global',
+    defaultShortcut: { keys: ['Ctrl', 'Alt', 'X'], scope: 'global' },
+    placements: ['command-palette', 'menu'],
+    action: { type: 'noop' },
+  },
+  {
+    id: 'tools.importSettings',
+    titleKey: 'ui.importSettings',
+    keywords: ['import', 'settings', 'tools'],
+    enabled: false,
+    visibility: 'global',
+    defaultShortcut: { keys: ['Ctrl', 'Alt', 'I'], scope: 'global' },
+    placements: ['command-palette', 'menu'],
+    action: { type: 'noop' },
+  },
+  {
+    id: 'tools.restoreFactoryDefaults',
+    titleKey: 'ui.restoreFactoryDefaults',
+    keywords: ['restore', 'factory', 'defaults', 'tools'],
+    enabled: false,
+    visibility: 'global',
+    defaultShortcut: { keys: ['Ctrl', 'Alt', 'D'], scope: 'global' },
+    placements: ['command-palette', 'menu'],
+    action: { type: 'noop' },
+  },
+  {
+    id: 'tools.saveSnapshot',
+    titleKey: 'ui.saveSnapshot',
+    keywords: ['snapshot', 'save', 'tools'],
+    enabled: false,
+    visibility: 'global',
+    defaultShortcut: { keys: ['Ctrl', 'Alt', 'Y'], scope: 'global' },
+    placements: ['command-palette', 'menu'],
+    action: { type: 'noop' },
+  },
+  {
+    id: 'help.contents',
+    titleKey: 'ui.helpContents',
+    keywords: ['help', 'contents'],
+    enabled: false,
+    visibility: 'global',
+    defaultShortcut: { keys: ['F1'], scope: 'global' },
+    placements: ['command-palette', 'menu'],
+    action: { type: 'noop' },
+  },
+  {
+    id: 'help.about',
+    titleKey: 'ui.about',
+    keywords: ['help', 'about'],
+    enabled: true,
+    visibility: 'global',
+    defaultShortcut: { keys: ['Ctrl', 'Shift', 'A'], scope: 'global' },
+    placements: ['command-palette', 'menu'],
+    action: { type: 'view-action', name: 'about' },
+  },
+  {
+    id: 'help.checkForUpdates',
+    titleKey: 'ui.checkForUpdates',
+    keywords: ['help', 'update', 'updates'],
+    enabled: true,
+    visibility: 'global',
+    defaultShortcut: { keys: ['Ctrl', 'Shift', 'U'], scope: 'global' },
+    placements: ['command-palette', 'menu'],
+    action: { type: 'view-action', name: 'check-for-updates' },
+  },
+  {
+    id: 'help.support',
+    titleKey: 'ui.support',
+    keywords: ['help', 'support'],
+    enabled: false,
+    visibility: 'global',
+    defaultShortcut: { keys: ['Ctrl', 'Shift', 'H'], scope: 'global' },
+    placements: ['command-palette', 'menu'],
+    action: { type: 'noop' },
   },
 ]
 

@@ -65,7 +65,7 @@ describe('HomeView', () => {
 
     const cards = wrapper.findAll('[data-testid="home-new-session-card"]')
 
-    expect(cards).toHaveLength(16)
+    expect(cards).toHaveLength(12)
     expect(cards.map((card) => card.attributes('data-session-type'))).toEqual([
       'folder-compare',
       'folder-merge',
@@ -73,28 +73,30 @@ describe('HomeView', () => {
       'text-compare',
       'text-merge',
       'text-edit',
-      'text-patch',
-      'clipboard-compare',
       'hex-compare',
       'media-compare',
       'picture-compare',
       'registry-compare',
       'table-compare',
       'version-compare',
-      'archive-compare',
-      'script',
     ])
-    expect(wrapper.find('[data-testid="home-how-to-start"]').text()).toContain('How to start')
+    expect(wrapper.find('[data-testid="home-how-to-start"]').text()).toContain(
+      'Drag folders or files onto a session icon',
+    )
     expect(wrapper.find('[data-testid="home-browse-folders"]').text()).toContain('Browse folders')
     expect(wrapper.find('[data-testid="home-drop-here"]').text()).toContain('Drop here')
-    expect(wrapper.text()).toContain('Compare two text files and see what changed')
+    expect(wrapper.text()).toContain('Text Compare')
+    expect(wrapper.find('[data-testid="home-tree-text-compare"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="home-tree-text-edit"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="home-tree-auto-saved"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="home-tree-today"]').exists()).toBe(true)
   })
 
   it('renders new session cards, recent sessions table and workspace inspector first', () => {
     const wrapper = mountHomeView()
 
     expect(wrapper.find('[data-testid="home-new-session"]').exists()).toBe(true)
-    expect(wrapper.findAll('[data-testid="home-new-session-card"]')).toHaveLength(16)
+    expect(wrapper.findAll('[data-testid="home-new-session-card"]')).toHaveLength(12)
     expect(wrapper.find('[data-testid="home-recent-sessions"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="home-workspace-inspector"]').exists()).toBe(true)
     expect(wrapper.find('.drop-zone').exists()).toBe(false)

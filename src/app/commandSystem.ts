@@ -46,6 +46,10 @@ export function createCommandExecutor(
       return true
     }
 
+    if (command.action.type === 'noop') {
+      return true
+    }
+
     context.dispatchViewAction(command.action.name)
 
     return true

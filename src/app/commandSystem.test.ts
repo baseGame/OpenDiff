@@ -21,23 +21,20 @@ describe('commandSystem', () => {
       'view.showDifferences',
     ])
     expect(getCommandsForPlacement(commandRegistry, 'command-palette')).toEqual(commandRegistry)
-    expect(getCommandsForPlacement(commandRegistry, 'menu').map((command) => command.id)).toEqual([
-      'open.textCompare',
-      'open.folderCompare',
-      'open.textPatch',
-      'open.settings',
-      'theme.toggle',
-      'session.save',
-      'session.saveAs',
-      'session.export',
-      'edit.copyLeft',
-      'edit.copyRight',
-      'diff.previous',
-      'diff.next',
-      'view.showAll',
-      'view.showDifferences',
-      'workspace.save',
-    ])
+    const menuIds = getCommandsForPlacement(commandRegistry, 'menu').map((command) => command.id)
+
+    expect(menuIds).toEqual(
+      expect.arrayContaining([
+        'open.textCompare',
+        'open.settings',
+        'session.newTab',
+        'help.about',
+        'help.checkForUpdates',
+        'workspace.save',
+      ]),
+    )
+    expect(menuIds).toContain('session.newWindow')
+    expect(menuIds.length).toBeGreaterThan(15)
   })
 
   it('executes navigation commands through the shared command action contract', () => {

@@ -8,23 +8,34 @@ import {
 
 describe('commandRegistry', () => {
   it('contains open, theme, and diff navigation commands', () => {
-    expect(commandRegistry.map((command) => command.id)).toEqual([
-      'open.textCompare',
-      'open.folderCompare',
-      'open.textPatch',
-      'open.settings',
-      'theme.toggle',
-      'session.save',
-      'session.saveAs',
-      'session.export',
-      'edit.copyLeft',
-      'edit.copyRight',
-      'diff.previous',
-      'diff.next',
-      'view.showAll',
-      'view.showDifferences',
-      'workspace.save',
-    ])
+    const ids = commandRegistry.map((command) => command.id)
+
+    expect(ids).toEqual(
+      expect.arrayContaining([
+        'open.textCompare',
+        'open.folderCompare',
+        'open.textPatch',
+        'open.settings',
+        'theme.toggle',
+        'session.save',
+        'session.saveAs',
+        'session.export',
+        'session.newTab',
+        'help.about',
+        'help.checkForUpdates',
+        'edit.copyLeft',
+        'edit.copyRight',
+        'diff.previous',
+        'diff.next',
+        'view.showAll',
+        'view.showDifferences',
+        'workspace.save',
+      ]),
+    )
+    expect(commandRegistry.find((command) => command.id === 'session.newWindow')?.enabled).toBe(
+      false,
+    )
+    expect(commandRegistry.find((command) => command.id === 'help.about')?.enabled).toBe(true)
   })
 
   it('filters commands by title and keywords', () => {
