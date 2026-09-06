@@ -1206,13 +1206,13 @@ onUnmounted(() => {
               </button>
             </div>
           </label>
-          <p
-            class="archive-path-hint"
-            data-testid="folder-path-hint"
-          >
-            {{ $t('ui.archivePathHint') }}
-          </p>
         </div>
+        <p
+          class="archive-path-hint"
+          data-testid="folder-path-hint"
+        >
+          {{ $t('ui.archivePathHint') }}
+        </p>
         <fieldset
           class="folder-criteria"
           data-testid="folder-criteria"
@@ -2058,6 +2058,18 @@ onUnmounted(() => {
   grid-template-columns: minmax(0, 1fr);
   align-items: stretch;
   gap: 10px;
+  overflow: visible;
+}
+
+.path-pair,
+.archive-path-hint,
+.folder-criteria,
+.folder-actions {
+  position: static;
+  grid-column: 1;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
 }
 
 .path-pair {
@@ -2078,10 +2090,9 @@ onUnmounted(() => {
 }
 
 .archive-path-hint {
-  grid-column: 1 / -1;
-  margin: 0;
   color: var(--app-text-muted);
   font-size: 12px;
+  line-height: 1.35;
 }
 
 .folder-criteria {
@@ -2089,7 +2100,6 @@ onUnmounted(() => {
   flex-wrap: wrap;
   align-items: center;
   gap: 8px 14px;
-  margin: 0;
   padding: 0;
   border: 0;
   color: var(--app-text-muted);
@@ -2097,6 +2107,10 @@ onUnmounted(() => {
 }
 
 .folder-criteria legend {
+  display: block;
+  float: none;
+  width: 100%;
+  margin: 0 0 6px;
   padding: 0;
   color: var(--app-text);
   font-weight: 600;
@@ -2126,7 +2140,6 @@ onUnmounted(() => {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  min-width: 0;
 }
 
 .folder-root-summary {
@@ -2500,6 +2513,12 @@ onUnmounted(() => {
 .status-left-only strong,
 .status-right-only strong {
   color: var(--diff-deleted-fg);
+}
+
+@media (width <= 1100px) {
+  .path-pair {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 @media (width <= 760px) {

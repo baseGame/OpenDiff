@@ -559,14 +559,25 @@ select {
   overflow: visible !important;
 }
 
+.folder-toolbar .path-pair,
+.folder-toolbar .archive-path-hint,
+.folder-toolbar .folder-criteria,
+.folder-toolbar .folder-actions {
+  position: static !important;
+  grid-column: 1 !important;
+  grid-row: auto !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  overflow: visible !important;
+}
+
 .folder-toolbar .path-pair {
   display: grid !important;
   grid-template-columns: minmax(140px, 1fr) minmax(140px, 1fr) !important;
   grid-auto-rows: auto !important;
   gap: 8px !important;
-  min-width: 0 !important;
   min-height: 0 !important;
-  overflow: visible !important;
 }
 
 .folder-toolbar .path-pair > label {
@@ -584,29 +595,47 @@ select {
   line-height: 1.2 !important;
 }
 
-.folder-toolbar .path-pair > label > input {
+.folder-toolbar .path-pair .path-field-row {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  width: 100% !important;
+  min-width: 0 !important;
+}
+
+.folder-toolbar .path-pair .path-field-row > input,
+.folder-toolbar .path-pair .path-field-row > .path-input {
   display: block !important;
   box-sizing: border-box !important;
-  width: 100% !important;
+  flex: 1 1 auto !important;
+  width: auto !important;
   min-width: 0 !important;
   height: 30px !important;
   min-height: 30px !important;
   padding: 0 8px !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
   pointer-events: auto !important;
   opacity: 1 !important;
 }
 
+.folder-toolbar .path-pair .path-field-row > button {
+  flex: 0 0 auto !important;
+  white-space: nowrap !important;
+}
+
+.folder-toolbar .archive-path-hint {
+  display: block !important;
+  color: #555555 !important;
+  font-size: 11px !important;
+  line-height: 1.35 !important;
+}
+
 .folder-toolbar .folder-actions {
-  position: static !important;
   display: flex !important;
-  grid-column: 1 !important;
-  grid-row: auto !important;
   flex-wrap: wrap !important;
   gap: 6px !important;
-  width: 100% !important;
-  min-width: 0 !important;
-  margin: 0 !important;
-  overflow: visible !important;
 }
 
 .folder-toolbar .folder-criteria {
@@ -614,8 +643,16 @@ select {
   flex-wrap: wrap !important;
   align-items: center !important;
   gap: 8px 14px !important;
-  min-width: 0 !important;
-  overflow: visible !important;
+}
+
+.folder-toolbar .folder-criteria legend {
+  display: block !important;
+  float: none !important;
+  width: 100% !important;
+  margin: 0 0 6px !important;
+  padding: 0 !important;
+  color: #111111 !important;
+  font-weight: 600 !important;
 }
 
 .folder-toolbar .folder-criteria label {
@@ -632,6 +669,12 @@ select {
   min-width: 0 !important;
   overflow-wrap: anywhere !important;
   white-space: normal !important;
+}
+
+@media (width <= 1100px) {
+  .folder-toolbar .path-pair {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
 }
 
 .folder-root-summary,
