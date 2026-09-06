@@ -9,6 +9,12 @@ import { useSessionLaunchStore } from '@/stores/sessionLaunch'
 import { useStatusBarStore } from '@/stores/statusBar'
 import type { TextDiffRequest } from '@/types/diff'
 
+const push = vi.fn()
+
+vi.mock('vue-router', () => ({
+  useRouter: () => ({ push }),
+}))
+
 vi.mock('@/api/diff', () => ({
   diffText: vi.fn().mockResolvedValue({
     lines: [],
@@ -90,6 +96,54 @@ describe('TextCompareView', () => {
     setActivePinia(createPinia())
     vi.mocked(diffText).mockClear()
     vi.mocked(readTextFile).mockClear()
+  })
+
+  it('renders the Text Compare session toolbar order', () => {
+    const wrapper = mountTextCompareView()
+    const ids = [
+      'home',
+      'all',
+      'diffs',
+      'same',
+      'context',
+      'minor',
+      'rules',
+      'copy',
+      'next-section',
+      'prev-section',
+      'swap',
+      'reload',
+    ]
+
+    expect(wrapper.find('[data-testid="text-session-toolbar-bar"]').exists()).toBe(true)
+    expect(
+      wrapper
+        .findAll('[data-testid^="text-session-toolbar-"]')
+        .filter((node) => node.attributes('data-testid') !== 'text-session-toolbar-bar')
+        .map((node) => node.attributes('data-testid')?.replace('text-session-toolbar-', '')),
+    ).toEqual(ids)
+    expect(
+      wrapper.find('[data-testid="text-session-toolbar-same"]').attributes('disabled'),
+    ).toBeDefined()
+    expect(
+      wrapper.find('[data-testid="text-session-toolbar-rules"]').attributes('disabled'),
+    ).toBeDefined()
+    expect(wrapper.html()).not.toContain('未实现')
+  })
+
+  it('swaps paths from the session toolbar', async () => {
+    const wrapper = mountTextCompareView()
+
+    await wrapper.find('[data-testid="text-left-path"]').setValue('D:/left.txt')
+    await wrapper.find('[data-testid="text-right-path"]').setValue('D:/right.txt')
+    await wrapper.find('[data-testid="text-session-toolbar-swap"]').trigger('click')
+
+    expect((wrapper.find('[data-testid="text-left-path"]').element as HTMLInputElement).value).toBe(
+      'D:/right.txt',
+    )
+    expect(
+      (wrapper.find('[data-testid="text-right-path"]').element as HTMLInputElement).value,
+    ).toBe('D:/left.txt')
   })
 
   it('passes the selected algorithm when running a diff', async () => {

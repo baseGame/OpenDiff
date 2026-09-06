@@ -15,6 +15,7 @@ import { createChildCompareLaunch } from '@/app/childSession'
 import { pickNativePath } from '@/app/filePicker'
 import { formatCompareError } from '@/app/compareError'
 import { loadFolderDisplayFilters, saveFolderDisplayFilters } from '@/app/folderDisplayFilters'
+import { buildFolderCompareToolbar, pathPairTitle } from '@/app/sessionToolbars'
 import {
   changeFolderEntryAttributes,
   compareFolderPaths,
@@ -155,6 +156,7 @@ function applyFolderLaunch(
 ): void {
   leftRoot.value = launch.locations.left?.uri ?? leftRoot.value
   rightRoot.value = launch.locations.right?.uri ?? rightRoot.value
+  syncFolderTabTitle()
 
   if (launch.autoRun && launch.locations.left?.uri && launch.locations.right?.uri) {
     void runFolderCompare()
@@ -186,6 +188,10 @@ watch(
     }
   },
 )
+
+watch([leftRoot, rightRoot], () => {
+  syncFolderTabTitle()
+})
 
 const summary = computed(() => ({
   total: rows.value.length,
@@ -398,6 +404,93 @@ function expandAllFolders(): void {
 
 function collapseAllFolders(): void {
   expandedDirectoryIds.value = new Set()
+}
+
+function swapFolderRoots(): void {
+  const nextLeft = rightRoot.value
+
+  rightRoot.value = leftRoot.value
+  leftRoot.value = nextLeft
+  syncFolderTabTitle()
+}
+
+function showAllFolderStatuses(): void {
+  visibleStatuses.value = new Set(['Same', 'Different', 'Left only', 'Right only'])
+  persistDisplayFilters()
+}
+
+function showSameFolderStatuses(): void {
+  visibleStatuses.value = new Set(['Same'])
+  persistDisplayFilters()
+}
+
+function syncFolderTabTitle(): void {
+  if (!leftRoot.value || !rightRoot.value) {
+    return
+  }
+
+  tabs.setTabTitle('/compare/folder', pathPairTitle(leftRoot.value, rightRoot.value))
+}
+
+function goHomeFromFolder(): void {
+  tabs.openTab({ title: 'Home', titleKey: 'ui.home', route: '/', dirty: false })
+  void router.push('/')
+}
+
+const folderSessionToolbar = computed(() =>
+  buildFolderCompareToolbar({
+    home: true,
+    all: true,
+    same: true,
+    minor: false,
+    rules: false,
+    copy: Boolean(selectedFilePath.value),
+    expand: true,
+    collapse: true,
+    select: false,
+    files: false,
+    refresh: Boolean(leftRoot.value && rightRoot.value) && !folderCompareLoading.value,
+    swap: Boolean(leftRoot.value || rightRoot.value),
+    stop: folderCompareLoading.value,
+    filters: false,
+    peek: false,
+  }),
+)
+
+function runFolderToolbarCommand(commandId: string): void {
+  switch (commandId) {
+    case 'home':
+      goHomeFromFolder()
+      break
+    case 'all':
+      showAllFolderStatuses()
+      break
+    case 'same':
+      showSameFolderStatuses()
+      break
+    case 'copy':
+      if (selectedFilePath.value) {
+        copySelectedTo('Right')
+      }
+      break
+    case 'expand':
+      expandAllFolders()
+      break
+    case 'collapse':
+      collapseAllFolders()
+      break
+    case 'refresh':
+      void runFolderCompare()
+      break
+    case 'swap':
+      swapFolderRoots()
+      break
+    case 'stop':
+      cancelFolderCompare()
+      break
+    default:
+      break
+  }
 }
 
 function isExpanded(row: FolderTreeRow): boolean {
@@ -1142,6 +1235,9 @@ onUnmounted(() => {
     :eyebrow="$t('ui.folder')"
     :subtitle="`${leftRoot} -> ${rightRoot}`"
     :inspector-label="$t('ui.folderCompareInspector')"
+    :toolbar-commands="folderSessionToolbar"
+    toolbar-test-id-prefix="folder-session-toolbar"
+    @toolbar-command="runFolderToolbarCommand"
   >
     <section class="folder-compare-view">
       <header class="folder-toolbar">

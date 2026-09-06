@@ -759,5 +759,12 @@ export const frFR: LanguagePack = {
     'ui.homeStartHint': 'Parcourez des dossiers ou déposez deux éléments ici.',
     'ui.noFilteredRows': 'Aucun élément ne correspond aux filtres.',
     'status.syncCompleted': 'Sync finished: {succeeded} succeeded, {failed} failed',
+    'ui.expand': 'Développer',
+    'ui.collapse': 'Réduire',
+    'ui.peek': 'Aperçu',
+    'ui.filters': 'Filtres',
+    'ui.stop': 'Arrêter',
+    'ui.nextSection': 'Section suivante',
+    'ui.prevSection': 'Section précédente',
   },
 }

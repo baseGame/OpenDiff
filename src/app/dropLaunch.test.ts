@@ -27,7 +27,7 @@ describe('resolveDropLaunch', () => {
       sessionType: 'text-compare',
       route: '/compare/text',
       autoRun: true,
-      title: 'left.txt vs right.txt',
+      title: 'left.txt <--> right.txt',
       locations: {
         left: { uri: 'C:/work/left.txt', kind: 'file', displayName: 'left.txt' },
         right: { uri: 'C:/work/right.txt', kind: 'file', displayName: 'right.txt' },
@@ -122,7 +122,7 @@ describe('createLaunchFromDrop', () => {
       id: 'fixed',
       source: 'drop',
       sessionType: 'text-compare',
-      title: 'a.ts vs b.ts',
+      title: 'a.ts <--> b.ts',
       route: '/compare/text',
       locations: {
         left: { uri: 'C:/a.ts', displayName: 'a.ts', kind: 'file', readOnly: false },

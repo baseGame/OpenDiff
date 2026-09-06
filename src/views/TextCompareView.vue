@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watchEffect } from 'vue'
+import { computed, onMounted, ref, watch, watchEffect } from 'vue'
+import { useRouter } from 'vue-router'
 import { diffText, exportTextCompareReport, readTextFile } from '@/api/diff'
 import { useStatusBarStore } from '@/stores/statusBar'
 import { useLastCompareStore } from '@/stores/lastCompare'
 import { useSessionLaunchStore } from '@/stores/sessionLaunch'
+import { useTabsStore } from '@/stores/tabs'
 import type { TextDiffAlgorithm, TextDiffRequest, TextDiffResponse } from '@/types/diff'
 import TextDiffPanel from '@/components/diff/TextDiffPanel.vue'
 import WorkbenchShell from '@/components/workbench/WorkbenchShell.vue'
@@ -14,6 +16,7 @@ import { useI18n } from '@/i18n'
 import { grammarForPath } from '@/app/syntaxGrammars'
 import { pickNativePath } from '@/app/filePicker'
 import { formatCompareError } from '@/app/compareError'
+import { buildTextCompareToolbar, pathPairTitle } from '@/app/sessionToolbars'
 
 type DiffLine = TextDiffResponse['lines'][number]
 
@@ -24,6 +27,8 @@ const rightPathLabel = ref('')
 const statusBar = useStatusBarStore()
 const sessionLaunch = useSessionLaunchStore()
 const lastCompare = useLastCompareStore()
+const tabs = useTabsStore()
+const router = useRouter()
 const { t } = useI18n()
 const algorithm = ref<TextDiffAlgorithm>('myers')
 const ignoreWhitespace = ref(false)
@@ -494,6 +499,16 @@ function goToNextDiff(): void {
   currentDiffIndex.value = Math.min(currentDiffIndex.value + 1, activeDiffRows.value.length - 1)
 }
 
+function goToPreviousDiff(): void {
+  if (activeDiffRows.value.length === 0) {
+    currentDiffIndex.value = 0
+
+    return
+  }
+
+  currentDiffIndex.value = Math.max(currentDiffIndex.value - 1, 0)
+}
+
 function ignoreCurrentDiff(): void {
   if (activeDiffRows.value.length === 0) {
     return
@@ -630,6 +645,80 @@ function closeHtmlPreviewWhenUnavailable(): void {
   }
 }
 
+const textDiffPanelRef = ref<{
+  setDisplayMode: (mode: 'all' | 'differences') => void
+} | null>(null)
+
+function syncTextTabTitle(): void {
+  if (!leftPathLabel.value || !rightPathLabel.value) {
+    return
+  }
+
+  tabs.setTabTitle('/compare/text', pathPairTitle(leftPathLabel.value, rightPathLabel.value))
+}
+
+function goHomeFromText(): void {
+  tabs.openTab({ title: 'Home', titleKey: 'ui.home', route: '/', dirty: false })
+  void router.push('/')
+}
+
+const textSessionToolbar = computed(() =>
+  buildTextCompareToolbar({
+    home: true,
+    all: true,
+    diffs: true,
+    same: false,
+    context: false,
+    minor: false,
+    rules: false,
+    copy: Boolean(result.value) && activeDiffRows.value.length > 0,
+    'next-section': activeDiffRows.value.length > 0,
+    'prev-section': activeDiffRows.value.length > 0,
+    swap: Boolean(leftPathLabel.value || rightPathLabel.value || left.value || right.value),
+    reload:
+      Boolean(leftPathLabel.value && rightPathLabel.value) || Boolean(left.value || right.value),
+  }),
+)
+
+function runTextToolbarCommand(commandId: string): void {
+  switch (commandId) {
+    case 'home':
+      goHomeFromText()
+      break
+    case 'all':
+      textDiffPanelRef.value?.setDisplayMode('all')
+      break
+    case 'diffs':
+      textDiffPanelRef.value?.setDisplayMode('differences')
+      break
+    case 'copy':
+      copyCurrentDiff('leftToRight')
+      break
+    case 'next-section':
+      goToNextDiff()
+      break
+    case 'prev-section':
+      goToPreviousDiff()
+      break
+    case 'swap':
+      swapPaths()
+      break
+    case 'reload':
+      if (leftPathLabel.value && rightPathLabel.value) {
+        void loadLaunchTextFiles(leftPathLabel.value, rightPathLabel.value)
+      } else {
+        void runDiff()
+      }
+      break
+    default:
+      break
+  }
+}
+
+watch([leftPathLabel, rightPathLabel], () => {
+  syncTextTabTitle()
+})
+
 function toggleSourceEditors(): void {
   showSourceEditors.value = !showSourceEditors.value
 }
@@ -643,6 +732,9 @@ function toggleSourceEditors(): void {
     :subtitle="statsLabel"
     :inspector-label="$t('ui.textCompareInspector')"
     data-testid="text-workbench"
+    :toolbar-commands="textSessionToolbar"
+    toolbar-test-id-prefix="text-session-toolbar"
+    @toolbar-command="runTextToolbarCommand"
   >
     <template #title-actions>
       <span class="stats">{{ statsLabel }}</span>
@@ -1020,6 +1112,7 @@ function toggleSourceEditors(): void {
 
       <TextDiffPanel
         v-if="result"
+        ref="textDiffPanelRef"
         :lines="result.lines"
         :grammar="grammarForPath(leftPathLabel || rightPathLabel)"
       />

@@ -764,5 +764,12 @@ export const deDE: LanguagePack = {
     'ui.homeStartHint': 'Ordner durchsuchen oder zwei Elemente hier ablegen.',
     'ui.noFilteredRows': 'Keine Einträge für die aktuellen Filter.',
     'status.syncCompleted': 'Sync finished: {succeeded} succeeded, {failed} failed',
+    'ui.expand': 'Erweitern',
+    'ui.collapse': 'Reduzieren',
+    'ui.peek': 'Einblick',
+    'ui.filters': 'Filter',
+    'ui.stop': 'Stopp',
+    'ui.nextSection': 'Nächster Abschnitt',
+    'ui.prevSection': 'Vorheriger Abschnitt',
   },
 }

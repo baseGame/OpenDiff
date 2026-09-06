@@ -92,7 +92,7 @@ onMounted(() => {
 
       const sessionType = launch.sessionType as SessionType
       const kind = sessionType === 'folder-compare' ? 'directory' : 'file'
-      const title = `${launch.left.split(/[/\\]/).pop() ?? launch.left} vs ${launch.right.split(/[/\\]/).pop() ?? launch.right}`
+      const title = `${launch.left.split(/[/\\]/).pop() ?? launch.left} <--> ${launch.right.split(/[/\\]/).pop() ?? launch.right}`
 
       sessionLaunch.setPendingLaunch({
         id: crypto.randomUUID(),
@@ -285,13 +285,22 @@ const localizedStatusSegments = computed(() => [
 ])
 const windowTitle = computed(() => {
   if (route.path === '/') {
-    return 'Home - Beyond Compare'
+    return 'Home - OpenDiff'
   }
 
   const entry = sessionCatalog.find((item) => item.route === route.path)
-  const title = entry ? t(entry.titleKey) : t('app.brand')
+  const sessionName = entry ? t(entry.titleKey) : t('app.brand')
+  const active = tabs.activeTab
+  const pathPairTitle =
+    active.route === route.path && !active.titleKey && active.title.includes('<-->')
+      ? active.title
+      : undefined
 
-  return `${title} - Beyond Compare`
+  if (pathPairTitle) {
+    return `${pathPairTitle} - ${sessionName} - OpenDiff`
+  }
+
+  return `${sessionName} - OpenDiff`
 })
 
 function navigate(nextRoute: string, title: string, titleKey?: string): void {

@@ -85,7 +85,7 @@ export function createLaunchFromDrop(
     id: options.id ?? crypto.randomUUID(),
     source: 'drop',
     sessionType: selection.sessionType,
-    title: `${classification.left.displayName} vs ${classification.right.displayName}`,
+    title: `${classification.left.displayName} <--> ${classification.right.displayName}`,
     route: selection.route,
     locations: {
       left: dropItemToLaunchLocation(classification.left),

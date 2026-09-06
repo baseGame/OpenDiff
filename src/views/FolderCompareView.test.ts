@@ -166,6 +166,42 @@ describe('FolderCompareView', () => {
     vi.clearAllMocks()
   })
 
+  it('renders the Folder Compare session toolbar order', () => {
+    const wrapper = mountFolderCompareView()
+    const ids = [
+      'home',
+      'all',
+      'same',
+      'minor',
+      'rules',
+      'copy',
+      'expand',
+      'collapse',
+      'select',
+      'files',
+      'refresh',
+      'swap',
+      'stop',
+      'filters',
+      'peek',
+    ]
+
+    expect(wrapper.find('[data-testid="folder-session-toolbar-bar"]').exists()).toBe(true)
+    expect(
+      wrapper
+        .findAll('[data-testid^="folder-session-toolbar-"]')
+        .filter((node) => node.attributes('data-testid') !== 'folder-session-toolbar-bar')
+        .map((node) => node.attributes('data-testid')?.replace('folder-session-toolbar-', '')),
+    ).toEqual(ids)
+    expect(
+      wrapper.find('[data-testid="folder-session-toolbar-minor"]').attributes('disabled'),
+    ).toBeDefined()
+    expect(
+      wrapper.find('[data-testid="folder-session-toolbar-peek"]').attributes('disabled'),
+    ).toBeDefined()
+    expect(wrapper.html()).not.toContain('未实现')
+  })
+
   it('does not render a demo folder tree before a real compare', () => {
     const wrapper = mountFolderCompareView()
 

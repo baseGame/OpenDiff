@@ -758,5 +758,12 @@ export const esES: LanguagePack = {
     'ui.homeStartHint': 'Examina carpetas o suelta dos elementos aquí.',
     'ui.noFilteredRows': 'Ningún elemento coincide con los filtros.',
     'status.syncCompleted': 'Sync finished: {succeeded} succeeded, {failed} failed',
+    'ui.expand': 'Expandir',
+    'ui.collapse': 'Contraer',
+    'ui.peek': 'Vista previa',
+    'ui.filters': 'Filtros',
+    'ui.stop': 'Detener',
+    'ui.nextSection': 'Sección siguiente',
+    'ui.prevSection': 'Sección anterior',
   },
 }
