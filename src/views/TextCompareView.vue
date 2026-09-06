@@ -1161,16 +1161,17 @@ function toggleSourceEditors(): void {
 .toolbar-button {
   flex: 0 0 auto;
   width: auto;
-  max-width: none;
+  max-width: 12em;
   height: 28px;
   padding: 0 10px;
-  overflow: visible;
+  overflow: hidden;
   border: 1px solid var(--app-border);
   border-radius: 4px;
   background: var(--app-canvas);
   color: var(--app-text);
   font-size: 12px;
   line-height: 1.2;
+  text-overflow: ellipsis;
   white-space: nowrap;
   cursor: pointer;
 }

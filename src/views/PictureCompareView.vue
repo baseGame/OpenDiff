@@ -731,20 +731,25 @@ h2 {
 
 .picture-pixel-preview {
   display: grid;
-  grid-template-columns: auto auto 18px auto;
+  grid-template-columns: minmax(0, auto) minmax(0, auto) 18px minmax(0, 1fr);
   align-items: center;
   align-content: end;
   gap: 8px;
+  min-width: 0;
   min-height: 32px;
   padding: 0 8px;
+  overflow: hidden;
   border: 1px solid var(--app-border);
   border-radius: 6px;
   background: var(--app-bg);
 }
 
 .picture-pixel-preview strong {
+  min-width: 0;
+  overflow: hidden;
   font-size: 12px;
   font-weight: 700;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 

@@ -209,10 +209,10 @@ select {
   flex: 0 0 auto;
   width: auto;
   min-width: 72px;
-  max-width: none;
+  max-width: 120px;
   height: 66px;
   padding: 3px 8px 4px;
-  overflow: visible;
+  overflow: hidden;
   border: 0;
   border-right: 1px solid #c9cdd3;
   background: transparent;
@@ -226,8 +226,10 @@ select {
 .bc-toolbar-command > span,
 .bc-toolbar-command > label {
   display: block;
-  max-width: none;
-  overflow: visible;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -308,25 +310,29 @@ select {
   box-sizing: border-box;
   width: auto;
   min-width: 0;
-  max-width: none;
+  max-width: 12em;
   height: auto;
   min-height: 24px;
   padding: 4px 10px;
-  overflow: visible;
+  overflow: hidden;
   border: 1px solid transparent;
   border-radius: 2px;
   background: transparent;
   color: var(--app-text);
   font-size: 12px;
   line-height: 1.2;
+  text-overflow: ellipsis;
   white-space: nowrap;
   cursor: pointer;
 }
 
 .workbench-toolbar button > span,
 .path-pair-bar button > span {
-  display: inline;
-  overflow: visible;
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -361,7 +367,7 @@ select {
 
 .path-pair-field {
   display: grid;
-  grid-template-columns: auto 14px minmax(0, 1fr);
+  grid-template-columns: auto 14px minmax(0, 1fr) auto;
   align-items: center;
   gap: 6px;
   min-width: 0;
@@ -404,11 +410,14 @@ select {
   min-width: 0;
   height: 30px;
   padding: 0 8px;
+  overflow: hidden;
   border: 1px solid #bfc4cc;
   border-radius: 2px;
   background: #ffffff;
   color: #111111;
   font-size: 20px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .bc-path-row button {
@@ -824,7 +833,23 @@ select {
 /* P3 path UX + a11y lite */
 .bc-path-row input.path-input,
 .path-pair-field input,
-.path-field-row input {
+.path-field-row input,
+.hex-wrap-controls input[type='text'],
+.hex-wrap-controls input:not([type]),
+.folder-toolbar .path-pair input,
+.path-pair input,
+.output-path-input {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hex-wrap-controls label {
+  min-width: 0;
+}
+
+.hex-wrap-controls strong {
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

@@ -627,16 +627,27 @@ h1 {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+  min-width: 0;
 }
 
 .settings-row div {
   display: grid;
   gap: 4px;
+  min-width: 0;
+}
+
+.settings-row strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .settings-row span {
+  min-width: 0;
   color: var(--app-text-muted);
   font-size: 12px;
+  overflow-wrap: anywhere;
 }
 
 .locale-select {
