@@ -390,6 +390,33 @@ describe('FolderCompareView', () => {
     )
   })
 
+  it('applies a pending folder drop launch while already mounted', async () => {
+    mountFolderCompareView()
+    const launchStore = useSessionLaunchStore()
+
+    launchStore.setPendingLaunch({
+      id: 'drop-folder-1',
+      source: 'drop',
+      sessionType: 'folder-compare',
+      title: 'folder-a vs folder-b',
+      route: '/compare/folder',
+      autoRun: true,
+      locations: {
+        left: { uri: 'D:/drops/folder-a', kind: 'directory', readOnly: false },
+        right: { uri: 'D:/drops/folder-b', kind: 'directory', readOnly: false },
+      },
+    })
+    await flushPromises()
+
+    expect(compareFolderPaths).toHaveBeenCalledWith(
+      expect.objectContaining({
+        leftRoot: 'D:/drops/folder-a',
+        rightRoot: 'D:/drops/folder-b',
+      }),
+    )
+    expect(launchStore.pendingLaunch).toBeUndefined()
+  })
+
   it('exposes full path tooltips on path inputs', async () => {
     const wrapper = mountFolderCompareView()
     const longPath = 'D:/very/long/path/to/project/left-root-directory'

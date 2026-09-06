@@ -12,7 +12,6 @@ import {
   type FileOperationConfirmation,
 } from '@/app/fileOperationConfirmation'
 import { createChildCompareLaunch } from '@/app/childSession'
-import { listenDesktopPathDrop, resolveDropInputsFromPaths } from '@/app/desktopDrop'
 import { pickNativePath } from '@/app/filePicker'
 import { formatCompareError } from '@/app/compareError'
 import { loadFolderDisplayFilters, saveFolderDisplayFilters } from '@/app/folderDisplayFilters'
@@ -151,27 +150,42 @@ const syncPreviewItems = ref<SyncPreviewItem[]>([])
 const pendingSyncSafetyItems = ref<SyncPreviewItem[]>([])
 const lastSyncAction = ref<string>()
 
-onMounted(() => {
-  window.addEventListener('click', closeContextMenus)
-  void listenDesktopPathDrop(async (paths) => {
-    await applyDroppedPaths(paths)
-  }).then((stop) => {
-    stopDesktopDrop = stop
-  })
-
-  const launch = sessionLaunch.consumeLaunch('/compare/folder')
-
-  if (!launch) {
-    return
-  }
-
+function applyFolderLaunch(
+  launch: NonNullable<ReturnType<typeof sessionLaunch.consumeLaunch>>,
+): void {
   leftRoot.value = launch.locations.left?.uri ?? leftRoot.value
   rightRoot.value = launch.locations.right?.uri ?? rightRoot.value
 
   if (launch.autoRun && launch.locations.left?.uri && launch.locations.right?.uri) {
     void runFolderCompare()
   }
+}
+
+onMounted(() => {
+  window.addEventListener('click', closeContextMenus)
+
+  const launch = sessionLaunch.consumeLaunch('/compare/folder')
+
+  if (launch) {
+    applyFolderLaunch(launch)
+  }
 })
+
+// AppLayout owns the single Tauri drop listener; apply fresh launches while this view stays mounted.
+watch(
+  () => sessionLaunch.pendingLaunch,
+  (pending) => {
+    if (pending?.route !== '/compare/folder') {
+      return
+    }
+
+    const launch = sessionLaunch.consumeLaunch('/compare/folder')
+
+    if (launch) {
+      applyFolderLaunch(launch)
+    }
+  },
+)
 
 const summary = computed(() => ({
   total: rows.value.length,
@@ -996,7 +1010,6 @@ function archivePath(path: string): string {
 
 const rowContextMenu = ref<{ x: number; y: number; rowId: string }>()
 const pathContextMenu = ref<{ x: number; y: number; side: 'left' | 'right' }>()
-let stopDesktopDrop: (() => void) | undefined
 
 async function browseFolder(side: 'left' | 'right'): Promise<void> {
   const selected = await pickNativePath({ directory: true })
@@ -1009,30 +1022,6 @@ async function browseFolder(side: 'left' | 'right'): Promise<void> {
     leftRoot.value = selected
   } else {
     rightRoot.value = selected
-  }
-}
-
-async function applyDroppedPaths(paths: string[]): Promise<void> {
-  const inputs = await resolveDropInputsFromPaths(paths)
-  const first = inputs.at(0)
-  const second = inputs.at(1)
-
-  if (first && second) {
-    leftRoot.value = first.path
-    rightRoot.value = second.path
-
-    return
-  }
-
-  if (first) {
-    // ponytail: single drop fills empty side first, else left
-    if (!leftRoot.value) {
-      leftRoot.value = first.path
-    } else if (!rightRoot.value) {
-      rightRoot.value = first.path
-    } else {
-      leftRoot.value = first.path
-    }
   }
 }
 
@@ -1143,7 +1132,6 @@ function handleTreeScroll(event: Event): void {
 }
 
 onUnmounted(() => {
-  stopDesktopDrop?.()
   window.removeEventListener('click', closeContextMenus)
 })
 </script>

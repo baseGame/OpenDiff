@@ -35,6 +35,11 @@ export async function resolveDropInputsFromPaths(paths: string[]): Promise<DropI
   return dropInputsFromAbsolutePaths(cleaned)
 }
 
+/**
+ * Listen for OS file/folder drops with absolute paths (Tauri native drag-drop).
+ * Requires `dragDropEnabled: true` on the window and `core:default` capability
+ * so `onDragDropEvent` can register event listeners.
+ */
 export async function listenDesktopPathDrop(
   onPaths: (paths: string[]) => void | Promise<void>,
 ): Promise<() => void> {
@@ -53,7 +58,9 @@ export async function listenDesktopPathDrop(
     })
 
     return unlisten
-  } catch {
+  } catch (error) {
+    console.warn('[OpenDiff] desktop path drop listener unavailable', error)
+
     return () => undefined
   }
 }
