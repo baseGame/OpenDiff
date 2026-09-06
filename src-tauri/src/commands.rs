@@ -1794,12 +1794,12 @@ pub fn register_unix_shell_integration(
     {
         let script = shell_core::LinuxDesktopIntegrationBuilder::new(config).install_script();
         apply_unix_shell_script(&script, "open-diff-register-unix-shell.sh")?;
-        return Ok(ShellRegistrationResult {
+        Ok(ShellRegistrationResult {
             windows: false,
             applied: true,
             script,
             message: "Linux Open With / shell-compare desktop entry installed".to_owned(),
-        });
+        })
     }
 
     #[cfg(target_os = "macos")]
@@ -1837,12 +1837,12 @@ pub fn unregister_unix_shell_integration(
     {
         let script = shell_core::LinuxDesktopIntegrationBuilder::new(config).uninstall_script();
         apply_unix_shell_script(&script, "open-diff-unregister-unix-shell.sh")?;
-        return Ok(ShellRegistrationResult {
+        Ok(ShellRegistrationResult {
             windows: false,
             applied: true,
             script,
             message: "Linux Open With / shell-compare desktop entry removed".to_owned(),
-        });
+        })
     }
 
     #[cfg(target_os = "macos")]
