@@ -519,11 +519,13 @@ describe('session UI to command linkage', () => {
       expectCommand('test_remote_profile', { id: 'prod-sftp' })
     } finally {
       Reflect.deleteProperty(window, '__TAURI_INTERNALS__')
-      vi.mocked(invoke).mockImplementation((command: string, args: Record<string, unknown> = {}) => {
-        helper.invokeCalls.push({ command, args })
+      vi.mocked(invoke).mockImplementation(
+        (command: string, args: Record<string, unknown> = {}) => {
+          helper.invokeCalls.push({ command, args })
 
-        return Promise.resolve(helper.invokeResponse(command, args))
-      })
+          return Promise.resolve(helper.invokeResponse(command, args))
+        },
+      )
     }
   })
 
