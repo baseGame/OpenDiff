@@ -251,8 +251,8 @@ jobs:
           }
 
           function isInstallerArtifact(name) {
-            return /\.(dmg|deb|rpm|msi|appimage|exe)$/i.test(name) ||
-              /installer|tauri-bundle|opendiff|nsis|setup-bundle|appbundle/i.test(name)
+            return /\.(dmg|deb|rpm|msi|appimage|exe|zip)$/i.test(name) ||
+              /installer|tauri-bundle|opendiff|nsis|setup-bundle|appbundle|portable/i.test(name)
           }
 
           function isEvidenceArtifact(name) {
@@ -517,3 +517,14 @@ jobs:
           retryAttempts: 2
           # Installers go only to the GitHub Release. Do not set uploadWorkflowArtifacts
           # unless those Actions artifacts also get installer_artifact_retention_days.
+
+      - name: Build and upload Windows portable zip
+        if: matrix.platform == 'windows-latest'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $zip = & pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/windows/package-portable.ps1 -SkipBuild
+          if (-not (Test-Path -LiteralPath $zip)) { throw "Portable zip missing: $zip" }
+          gh release upload $env:GITHUB_REF_NAME $zip --clobber --repo $env:GITHUB_REPOSITORY
+          Write-Host "Uploaded $zip"
