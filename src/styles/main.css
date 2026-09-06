@@ -550,9 +550,10 @@ select {
 .folder-toolbar {
   display: grid !important;
   grid-template-columns: minmax(0, 1fr) !important;
-  grid-template-rows: auto auto !important;
+  grid-auto-flow: row !important;
+  grid-auto-rows: auto !important;
   align-items: stretch !important;
-  gap: 8px !important;
+  gap: 10px !important;
   min-height: 0 !important;
   padding: 8px 10px !important;
   overflow: visible !important;
@@ -597,10 +598,14 @@ select {
 
 .folder-toolbar .folder-actions {
   display: flex !important;
+  position: static !important;
+  grid-column: 1 !important;
   grid-row: auto !important;
   flex-wrap: wrap !important;
   gap: 6px !important;
+  width: 100% !important;
   min-width: 0 !important;
+  margin: 0 !important;
   overflow: visible !important;
 }
 

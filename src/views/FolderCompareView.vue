@@ -1212,45 +1212,45 @@ onUnmounted(() => {
           >
             {{ $t('ui.archivePathHint') }}
           </p>
-          <fieldset
-            class="folder-criteria"
-            data-testid="folder-criteria"
-          >
-            <legend>{{ $t('ui.folderCriteria') }}</legend>
-            <label>
-              <input
-                v-model="folderCriteria.compareSize"
-                data-testid="folder-criteria-size"
-                type="checkbox"
-              />
-              <span>{{ $t('ui.compareBySize') }}</span>
-            </label>
-            <label>
-              <input
-                v-model="folderCriteria.compareModifiedTime"
-                data-testid="folder-criteria-timestamp"
-                type="checkbox"
-              />
-              <span>{{ $t('ui.compareByTimestamp') }}</span>
-            </label>
-            <label>
-              <input
-                v-model="folderCriteria.compareContents"
-                data-testid="folder-criteria-contents"
-                type="checkbox"
-              />
-              <span>{{ $t('ui.compareBinaryContents') }}</span>
-            </label>
-            <label>
-              <input
-                v-model="folderCriteria.compareCrc"
-                data-testid="folder-criteria-crc"
-                type="checkbox"
-              />
-              <span>{{ $t('ui.compareCrc') }}</span>
-            </label>
-          </fieldset>
         </div>
+        <fieldset
+          class="folder-criteria"
+          data-testid="folder-criteria"
+        >
+          <legend>{{ $t('ui.folderCriteria') }}</legend>
+          <label>
+            <input
+              v-model="folderCriteria.compareSize"
+              data-testid="folder-criteria-size"
+              type="checkbox"
+            />
+            <span>{{ $t('ui.compareBySize') }}</span>
+          </label>
+          <label>
+            <input
+              v-model="folderCriteria.compareModifiedTime"
+              data-testid="folder-criteria-timestamp"
+              type="checkbox"
+            />
+            <span>{{ $t('ui.compareByTimestamp') }}</span>
+          </label>
+          <label>
+            <input
+              v-model="folderCriteria.compareContents"
+              data-testid="folder-criteria-contents"
+              type="checkbox"
+            />
+            <span>{{ $t('ui.compareBinaryContents') }}</span>
+          </label>
+          <label>
+            <input
+              v-model="folderCriteria.compareCrc"
+              data-testid="folder-criteria-crc"
+              type="checkbox"
+            />
+            <span>{{ $t('ui.compareCrc') }}</span>
+          </label>
+        </fieldset>
         <div class="folder-actions">
           <NButton
             size="small"
@@ -2055,9 +2055,9 @@ onUnmounted(() => {
 
 .folder-toolbar {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: end;
-  gap: 12px;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: stretch;
+  gap: 10px;
 }
 
 .path-pair {
@@ -2086,7 +2086,6 @@ onUnmounted(() => {
 
 .folder-criteria {
   display: flex;
-  grid-column: 1 / -1;
   flex-wrap: wrap;
   align-items: center;
   gap: 8px 14px;
@@ -2125,7 +2124,9 @@ onUnmounted(() => {
 
 .folder-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
+  min-width: 0;
 }
 
 .folder-root-summary {
