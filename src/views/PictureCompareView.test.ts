@@ -5,6 +5,10 @@ import PictureCompareView from './PictureCompareView.vue'
 import { comparePictureFiles } from '@/api/diff'
 import { useSessionLaunchStore } from '@/stores/sessionLaunch'
 
+vi.mock('vue-router', () => ({
+  useRouter: () => ({ push: vi.fn() }),
+}))
+
 vi.mock('@/api/diff', () => ({
   comparePictureFiles: vi.fn().mockResolvedValue({
     left: {
@@ -211,5 +215,49 @@ describe('PictureCompareView', () => {
     expect(wrapper.find('[data-testid="picture-metadata-panel"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="picture-metadata-dimensions"]').text()).toContain('2 x 1')
     expect(wrapper.find('[data-testid="picture-metadata-dimensions"]').exists()).toBe(true)
+  })
+
+  it('starts without hardcoded picture statistics before a compare', () => {
+    const wrapper = mount(PictureCompareView)
+
+    expect(wrapper.find('[data-testid="picture-total-pixels"]').text()).toBe('--')
+    expect(wrapper.find('[data-testid="picture-different-pixels"]').text()).toBe('--')
+    expect(wrapper.find('[data-testid="picture-difference-ratio"]').text()).toBe('--')
+    expect(wrapper.find('[data-testid="picture-bounding-rect"]').text()).toBe('--')
+  })
+
+  it('renders Picture session toolbar with Tol and Range stubs disabled', () => {
+    const wrapper = mount(PictureCompareView)
+    const ids = ['home', 'tol', 'range', 'blend', 'minor', 'rules', 'swap', 'reload', 'meta']
+
+    expect(wrapper.find('[data-testid="picture-session-toolbar-bar"]').exists()).toBe(true)
+    expect(
+      wrapper
+        .findAll('[data-testid^="picture-session-toolbar-"]')
+        .filter((node) => node.attributes('data-testid') !== 'picture-session-toolbar-bar')
+        .map((node) => node.attributes('data-testid')?.replace('picture-session-toolbar-', '')),
+    ).toEqual(ids)
+    expect(
+      wrapper.find('[data-testid="picture-session-toolbar-tol"]').attributes('disabled'),
+    ).toBeDefined()
+    expect(
+      wrapper.find('[data-testid="picture-session-toolbar-range"]').attributes('disabled'),
+    ).toBeDefined()
+    expect(wrapper.html()).not.toContain('unimplemented')
+  })
+
+  it('swaps paths from the Picture session toolbar', async () => {
+    const wrapper = mount(PictureCompareView)
+
+    await wrapper.find('[data-testid="picture-left-path"]').setValue('C:/images/left.png')
+    await wrapper.find('[data-testid="picture-right-path"]').setValue('C:/images/right.png')
+    await wrapper.find('[data-testid="picture-session-toolbar-swap"]').trigger('click')
+
+    expect(
+      (wrapper.find('[data-testid="picture-left-path"]').element as HTMLInputElement).value,
+    ).toBe('C:/images/right.png')
+    expect(
+      (wrapper.find('[data-testid="picture-right-path"]').element as HTMLInputElement).value,
+    ).toBe('C:/images/left.png')
   })
 })

@@ -1,10 +1,20 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildFolderCompareToolbar,
+  buildHexCompareToolbar,
+  buildMediaCompareToolbar,
+  buildPictureCompareToolbar,
+  buildRegistryCompareToolbar,
+  buildTableCompareToolbar,
   buildTextCompareToolbar,
+  buildVersionCompareToolbar,
   folderCompareToolbarOrder,
+  hexCompareToolbarOrder,
   pathPairTitle,
+  pictureCompareToolbarOrder,
+  tableCompareToolbarOrder,
   textCompareToolbarOrder,
+  versionCompareToolbarOrder,
 } from './sessionToolbars'
 
 describe('sessionToolbars', () => {
@@ -46,6 +56,60 @@ describe('sessionToolbars', () => {
 
     expect(toolbar.map((item) => item.id)).toEqual([...textCompareToolbarOrder])
     expect(toolbar.find((item) => item.id === 'minor')?.enabled).toBe(false)
+  })
+
+  it('keeps Hex Compare toolbar in expected order', () => {
+    const toolbar = buildHexCompareToolbar({
+      home: true,
+      all: true,
+      diffs: true,
+      'next-diff': true,
+      'prev-diff': true,
+      swap: true,
+      reload: true,
+    })
+
+    expect(toolbar.map((item) => item.id)).toEqual([...hexCompareToolbarOrder])
+    expect(toolbar.find((item) => item.id === 'same')?.enabled).toBe(false)
+    expect(toolbar.find((item) => item.id === 'rules')?.enabled).toBe(false)
+  })
+
+  it('keeps Table Compare toolbar in expected order', () => {
+    const toolbar = buildTableCompareToolbar({
+      home: true,
+      'next-diff': true,
+      'prev-diff': true,
+      swap: true,
+      reload: true,
+    })
+
+    expect(toolbar.map((item) => item.id)).toEqual([...tableCompareToolbarOrder])
+    expect(toolbar.find((item) => item.id === 'minor')?.enabled).toBe(false)
+  })
+
+  it('keeps Picture Compare toolbar stubs disabled without fake labels', () => {
+    const toolbar = buildPictureCompareToolbar({
+      home: true,
+      swap: true,
+      reload: true,
+    })
+
+    expect(toolbar.map((item) => item.id)).toEqual([...pictureCompareToolbarOrder])
+    expect(toolbar.find((item) => item.id === 'tol')?.enabled).toBe(false)
+    expect(toolbar.find((item) => item.id === 'range')?.enabled).toBe(false)
+    expect(toolbar.find((item) => item.id === 'blend')?.enabled).toBe(false)
+    expect(toolbar.find((item) => item.id === 'meta')?.enabled).toBe(false)
+    expect(toolbar.every((item) => !item.labelKey.includes('unimplemented'))).toBe(true)
+  })
+
+  it('keeps Registry Media and Version toolbars ordered', () => {
+    expect(buildRegistryCompareToolbar({ home: true }).map((item) => item.id)).toContain('expand')
+    expect(
+      buildMediaCompareToolbar({ home: true, swap: true }).find((i) => i.id === 'swap')?.enabled,
+    ).toBe(true)
+    expect(buildVersionCompareToolbar({ home: true }).map((item) => item.id)).toEqual([
+      ...versionCompareToolbarOrder,
+    ])
   })
 
   it('formats path pair titles', () => {

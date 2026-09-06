@@ -765,5 +765,9 @@ export const esES: LanguagePack = {
     'ui.stop': 'Detener',
     'ui.nextSection': 'Sección siguiente',
     'ui.prevSection': 'Sección anterior',
+    'ui.tol': 'Tol',
+    'ui.range': 'Range',
+    'ui.blend': 'Blend',
+    'ui.meta': 'Meta',
   },
 }

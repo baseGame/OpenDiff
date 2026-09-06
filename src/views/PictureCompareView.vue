@@ -1,12 +1,15 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { comparePictureFiles } from '@/api/diff'
 import { localFileSrc } from '@/app/localFileSrc'
 import type { PictureCompareResponse, PictureMetadataRow } from '@/types/diff'
 import WorkbenchShell from '@/components/workbench/WorkbenchShell.vue'
 import WorkbenchInspector from '@/components/workbench/WorkbenchInspector.vue'
 import StatusSummaryGrid from '@/components/workbench/StatusSummaryGrid.vue'
+import { buildPictureCompareToolbar, pathPairTitle } from '@/app/sessionToolbars'
 import { useSessionLaunchStore } from '@/stores/sessionLaunch'
+import { useTabsStore } from '@/stores/tabs'
 import { useI18n } from '@/i18n'
 
 const zoom = ref(100)
@@ -28,6 +31,8 @@ const { t } = useI18n()
 const leftPath = ref('')
 const rightPath = ref('')
 const sessionLaunch = useSessionLaunchStore()
+const tabs = useTabsStore()
+const router = useRouter()
 const leftPictureName = ref('')
 const rightPictureName = ref('')
 const loading = ref(false)
@@ -98,11 +103,26 @@ const rightImageStyle = computed<Record<string, string>>(() => ({
   transform: rightImageTransform.value,
 }))
 
-const pictureDifferenceRatioText = computed(
-  () => `${(pictureStatistics.value.differenceRatio * 100).toFixed(2)}%`,
+const pictureDifferenceRatioText = computed(() => {
+  if (!compared.value) {
+    return '--'
+  }
+
+  return `${(pictureStatistics.value.differenceRatio * 100).toFixed(2)}%`
+})
+
+const pictureTotalPixelsText = computed(() =>
+  compared.value ? String(pictureStatistics.value.totalPixels) : '--',
+)
+const pictureDifferentPixelsText = computed(() =>
+  compared.value ? String(pictureStatistics.value.differentPixels) : '--',
 )
 
 const pictureBoundingRectText = computed(() => {
+  if (!compared.value) {
+    return '--'
+  }
+
   const rect = pictureStatistics.value.boundingRect
 
   if (!rect) {
@@ -110,6 +130,68 @@ const pictureBoundingRectText = computed(() => {
   }
 
   return `${String(rect.x)}, ${String(rect.y)}, ${String(rect.width)} x ${String(rect.height)}`
+})
+
+function syncPictureTabTitle(): void {
+  if (!leftPath.value || !rightPath.value) {
+    return
+  }
+
+  tabs.setTabTitle('/compare/picture', pathPairTitle(leftPath.value, rightPath.value))
+}
+
+function goHomeFromPicture(): void {
+  tabs.openTab({ title: 'Home', titleKey: 'ui.home', route: '/', dirty: false })
+  void router.push('/')
+}
+
+function swapPicturePaths(): void {
+  const nextLeftPath = rightPath.value
+
+  rightPath.value = leftPath.value
+  leftPath.value = nextLeftPath
+  const nextLeftName = rightPictureName.value
+
+  rightPictureName.value = leftPictureName.value
+  leftPictureName.value = nextLeftName
+  syncPictureTabTitle()
+  if (leftPath.value && rightPath.value && compared.value) {
+    void runPictureCompare()
+  }
+}
+
+const pictureSessionToolbar = computed(() =>
+  buildPictureCompareToolbar({
+    home: true,
+    tol: false,
+    range: false,
+    blend: false,
+    minor: false,
+    rules: false,
+    swap: Boolean(leftPath.value || rightPath.value),
+    reload: Boolean(leftPath.value && rightPath.value),
+    meta: false,
+  }),
+)
+
+function runPictureToolbarCommand(commandId: string): void {
+  switch (commandId) {
+    case 'home':
+      goHomeFromPicture()
+      break
+    case 'swap':
+      swapPicturePaths()
+      break
+    case 'reload':
+      void runPictureCompare()
+      break
+    default:
+      break
+  }
+}
+
+watch([leftPath, rightPath], () => {
+  syncPictureTabTitle()
 })
 
 function rotatePicture(delta: number): void {
@@ -137,6 +219,7 @@ function applyPictureResult(result: PictureCompareResponse): void {
   rightPictureName.value = result.right.name
   metadataRows.value = result.metadataRows
   pictureStatistics.value = result.statistics
+  syncPictureTabTitle()
 }
 
 async function runPictureCompare(): Promise<void> {
@@ -166,6 +249,9 @@ async function runPictureCompare(): Promise<void> {
     :eyebrow="$t('ui.picture')"
     :subtitle="pictureDifferenceRatioText"
     :inspector-label="$t('ui.pictureCompareInspector')"
+    :toolbar-commands="pictureSessionToolbar"
+    toolbar-test-id-prefix="picture-session-toolbar"
+    @toolbar-command="runPictureToolbarCommand"
   >
     <section class="picture-compare-view">
       <header class="picture-header">
@@ -223,12 +309,12 @@ async function runPictureCompare(): Promise<void> {
       <section class="picture-stat-grid">
         <article>
           <span>{{ $t('ui.totalPixels') }}</span>
-          <strong data-testid="picture-total-pixels">{{ pictureStatistics.totalPixels }}</strong>
+          <strong data-testid="picture-total-pixels">{{ pictureTotalPixelsText }}</strong>
         </article>
         <article>
           <span>{{ $t('ui.differentPixels') }}</span>
           <strong data-testid="picture-different-pixels">
-            {{ pictureStatistics.differentPixels }}
+            {{ pictureDifferentPixelsText }}
           </strong>
         </article>
         <article>
@@ -474,7 +560,7 @@ async function runPictureCompare(): Promise<void> {
               { label: $t('ui.zoom'), value: `${zoom}%` },
               {
                 label: $t('ui.differentPixels'),
-                value: pictureStatistics.differentPixels,
+                value: pictureDifferentPixelsText,
                 tone: 'modified',
               },
               {

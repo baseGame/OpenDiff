@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { compareRegistryExports, readTextFile } from '@/api/diff'
 import type {
   RegistryCompareResponse,
@@ -10,7 +11,9 @@ import type {
 } from '@/types/diff'
 import WorkbenchShell from '@/components/workbench/WorkbenchShell.vue'
 import WorkbenchInspector from '@/components/workbench/WorkbenchInspector.vue'
+import { buildRegistryCompareToolbar } from '@/app/sessionToolbars'
 import { useSessionLaunchStore } from '@/stores/sessionLaunch'
+import { useTabsStore } from '@/stores/tabs'
 import { useI18n } from '@/i18n'
 
 interface FlatRegistryKeyNode extends RegistryKeyNode {
@@ -21,6 +24,8 @@ const registryStatuses: RegistryDiffStatus[] = ['added', 'removed', 'modified', 
 const leftExport = ref('')
 const rightExport = ref('')
 const sessionLaunch = useSessionLaunchStore()
+const tabs = useTabsStore()
+const router = useRouter()
 const { t } = useI18n()
 const leftName = ref('left.reg')
 const rightName = ref('right.reg')
@@ -149,6 +154,49 @@ async function loadLaunchRegistryExports(leftPath: string, rightPath: string): P
 function fileNameFromPath(path: string): string {
   return path.replaceAll('\\', '/').split('/').filter(Boolean).at(-1) ?? path
 }
+
+const registrySessionToolbar = computed(() =>
+  buildRegistryCompareToolbar({
+    home: true,
+    all: false,
+    diffs: false,
+    same: false,
+    copy: false,
+    swap: Boolean(leftExport.value || rightExport.value),
+    reload: Boolean(leftExport.value && rightExport.value),
+    expand: false,
+    collapse: false,
+  }),
+)
+
+function runRegistryToolbarCommand(commandId: string): void {
+  if (commandId === 'home') {
+    tabs.openTab({ title: 'Home', titleKey: 'ui.home', route: '/', dirty: false })
+    void router.push('/')
+
+    return
+  }
+
+  if (commandId === 'swap') {
+    const nextLeft = rightExport.value
+
+    rightExport.value = leftExport.value
+    leftExport.value = nextLeft
+    const nextLeftName = rightName.value
+
+    rightName.value = leftName.value
+    leftName.value = nextLeftName
+    if (leftExport.value && rightExport.value) {
+      void runRegistryCompare()
+    }
+
+    return
+  }
+
+  if (commandId === 'reload') {
+    void runRegistryCompare()
+  }
+}
 </script>
 
 <template>
@@ -157,6 +205,9 @@ function fileNameFromPath(path: string): string {
     :eyebrow="$t('ui.registry')"
     :subtitle="`${leftName} -> ${rightName}`"
     :inspector-label="$t('ui.registryCompareInspector')"
+    :toolbar-commands="registrySessionToolbar"
+    toolbar-test-id-prefix="registry-session-toolbar"
+    @toolbar-command="runRegistryToolbarCommand"
   >
     <section class="registry-compare-view">
       <header class="registry-header">

@@ -244,12 +244,15 @@ const visibleAppMenus = computed(() => {
   const homeMenus: AppMenuId[] = ['session', 'view', 'tools', 'help']
   const folderMenus: AppMenuId[] = ['session', 'actions', 'edit', 'search', 'view', 'tools', 'help']
   const fileMenus: AppMenuId[] = ['session', 'file', 'edit', 'search', 'view', 'tools', 'help']
+  const pictureMenus: AppMenuId[] = ['session', 'file', 'edit', 'view', 'tools', 'help']
   let wantedMenus = fileMenus
 
   if (route.path === '/') {
     wantedMenus = homeMenus
   } else if (route.path.includes('/folder')) {
     wantedMenus = folderMenus
+  } else if (route.path.includes('/picture')) {
+    wantedMenus = pictureMenus
   }
 
   const menuById = new Map(appMenus.map((menu) => [menu.id, menu]))

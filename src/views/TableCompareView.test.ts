@@ -6,6 +6,10 @@ import { compareTable, readTextFile } from '@/api/diff'
 import { useSessionLaunchStore } from '@/stores/sessionLaunch'
 import type { TableCompareRequest } from '@/types/diff'
 
+vi.mock('vue-router', () => ({
+  useRouter: () => ({ push: vi.fn() }),
+}))
+
 vi.mock('@/api/diff', () => ({
   compareTable: vi.fn().mockResolvedValue({
     leftColumns: [
@@ -204,6 +208,44 @@ describe('TableCompareView', () => {
     expect(wrapper.find('[data-testid="active-table-cell"]').text()).toContain('A-1')
 
     await wrapper.find('[data-testid="next-table-difference"]').trigger('click')
+
+    expect(wrapper.find('[data-testid="active-table-cell"]').text()).toContain('12 -> 14')
+  })
+
+  it('renders the Table Compare session toolbar order', () => {
+    const wrapper = mountTableCompareView()
+    const ids = [
+      'home',
+      'all',
+      'diffs',
+      'same',
+      'minor',
+      'rules',
+      'copy',
+      'next-diff',
+      'prev-diff',
+      'swap',
+      'reload',
+    ]
+
+    expect(wrapper.find('[data-testid="table-session-toolbar-bar"]').exists()).toBe(true)
+    expect(
+      wrapper
+        .findAll('[data-testid^="table-session-toolbar-"]')
+        .filter((node) => node.attributes('data-testid') !== 'table-session-toolbar-bar')
+        .map((node) => node.attributes('data-testid')?.replace('table-session-toolbar-', '')),
+    ).toEqual(ids)
+    expect(
+      wrapper.find('[data-testid="table-session-toolbar-minor"]').attributes('disabled'),
+    ).toBeDefined()
+  })
+
+  it('navigates differences from the Table session toolbar', async () => {
+    const wrapper = mountTableCompareView()
+
+    await wrapper.find('[data-testid="run-table-compare"]').trigger('click')
+    await wrapper.vm.$nextTick()
+    await wrapper.find('[data-testid="table-session-toolbar-next-diff"]').trigger('click')
 
     expect(wrapper.find('[data-testid="active-table-cell"]').text()).toContain('12 -> 14')
   })

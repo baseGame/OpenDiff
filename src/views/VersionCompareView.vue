@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { compareVersionFiles } from '@/api/diff'
 import { useI18n } from '@/i18n'
 import type {
@@ -8,7 +9,9 @@ import type {
   VersionFieldStatus,
   VersionSideSummary,
 } from '@/types/diff'
+import { buildVersionCompareToolbar } from '@/app/sessionToolbars'
 import { useSessionLaunchStore } from '@/stores/sessionLaunch'
+import { useTabsStore } from '@/stores/tabs'
 
 const versionStatuses: VersionFieldStatus[] = ['added', 'removed', 'modified', 'unchanged']
 
@@ -21,42 +24,12 @@ const emptyVersionSide: VersionSideSummary = {
   fileVersion: '',
   productVersion: '',
 }
-const versionToolbarCommands = computed(() => [
-  { id: 'home', glyph: 'H', labelKey: 'ui.home', enabled: false },
-  { id: 'all', glyph: '*', labelKey: 'ui.all', enabled: true },
-  { id: 'diffs', glyph: '!=', labelKey: 'ui.diffs', enabled: true },
-  { id: 'same', glyph: '=', labelKey: 'ui.same', enabled: true },
-  { id: 'minor', glyph: '~', labelKey: 'ui.minor', enabled: false },
-  { id: 'rules', glyph: 'R', labelKey: 'ui.rules', enabled: false },
-  {
-    id: 'next',
-    glyph: 'N',
-    labelKey: 'ui.nextDifference',
-    enabled: differenceFields.value.length > 0,
-  },
-  {
-    id: 'prev',
-    glyph: 'P',
-    labelKey: 'ui.previousDifference',
-    enabled: differenceFields.value.length > 0,
-  },
-  {
-    id: 'swap',
-    glyph: '<>',
-    labelKey: 'ui.swap',
-    enabled: Boolean(leftPath.value || rightPath.value),
-  },
-  {
-    id: 'reload',
-    glyph: 'R',
-    labelKey: 'ui.reload',
-    enabled: Boolean(leftPath.value && rightPath.value),
-  },
-])
 const { t } = useI18n()
 const leftPath = ref('')
 const rightPath = ref('')
 const sessionLaunch = useSessionLaunchStore()
+const tabs = useTabsStore()
+const router = useRouter()
 const leftVersion = ref<VersionSideSummary>({ ...emptyVersionSide })
 const rightVersion = ref<VersionSideSummary>({ ...emptyVersionSide })
 const versionFields = ref<VersionFieldRow[]>([])
@@ -114,7 +87,29 @@ const differenceFields = computed(() =>
   versionFields.value.filter((field) => field.status !== 'unchanged'),
 )
 
+const versionToolbarCommands = computed(() =>
+  buildVersionCompareToolbar({
+    home: true,
+    all: true,
+    diffs: true,
+    same: true,
+    minor: false,
+    rules: false,
+    'next-diff': differenceFields.value.length > 0,
+    'prev-diff': differenceFields.value.length > 0,
+    swap: Boolean(leftPath.value || rightPath.value),
+    reload: Boolean(leftPath.value && rightPath.value),
+  }),
+)
+
 function runVersionToolbarCommand(commandId: string): void {
+  if (commandId === 'home') {
+    tabs.openTab({ title: 'Home', titleKey: 'ui.home', route: '/', dirty: false })
+    void router.push('/')
+
+    return
+  }
+
   if (commandId === 'all' || commandId === 'diffs' || commandId === 'same') {
     fieldFilter.value = commandId
     activeFieldIndex.value = 0
@@ -141,13 +136,13 @@ function runVersionToolbarCommand(commandId: string): void {
     return
   }
 
-  if (commandId === 'next' && differenceFields.value.length > 0) {
+  if (commandId === 'next-diff' && differenceFields.value.length > 0) {
     activeFieldIndex.value = (activeFieldIndex.value + 1) % differenceFields.value.length
 
     return
   }
 
-  if (commandId === 'prev' && differenceFields.value.length > 0) {
+  if (commandId === 'prev-diff' && differenceFields.value.length > 0) {
     activeFieldIndex.value =
       (activeFieldIndex.value - 1 + differenceFields.value.length) % differenceFields.value.length
   }
@@ -204,8 +199,8 @@ async function runVersionCompare(): Promise<void> {
       :data-testid="`version-toolbar-${command.id}`"
       @click="runVersionToolbarCommand(command.id)"
     >
-      <span class="bc-toolbar-glyph">{{ command.glyph }}</span
-      ><span>{{ $t(command.labelKey) }}</span>
+      <span class="bc-toolbar-glyph">{{ command.glyph }}</span>
+      <span>{{ $t(command.labelKey) }}</span>
     </button>
   </section>
   <section class="version-compare-view">

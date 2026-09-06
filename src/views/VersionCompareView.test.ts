@@ -5,6 +5,10 @@ import VersionCompareView from './VersionCompareView.vue'
 import { compareVersionFiles } from '@/api/diff'
 import { useSessionLaunchStore } from '@/stores/sessionLaunch'
 
+vi.mock('vue-router', () => ({
+  useRouter: () => ({ push: vi.fn() }),
+}))
+
 vi.mock('@/api/diff', () => ({
   compareVersionFiles: vi.fn().mockResolvedValue({
     left: {
@@ -99,8 +103,12 @@ describe('VersionCompareView', () => {
     expect(wrapper.text()).toContain('Version Compare')
     expect(wrapper.text()).not.toContain('left-app.exe')
     expect(wrapper.find('[data-testid="version-summary-modified"]').text()).toContain('0')
+    expect(wrapper.find('[data-testid="version-toolbar-home"]').exists()).toBe(true)
     expect(
-      wrapper.find('[data-testid="version-toolbar-home"]').attributes('disabled'),
+      wrapper.find('[data-testid="version-toolbar-minor"]').attributes('disabled'),
+    ).toBeDefined()
+    expect(
+      wrapper.find('[data-testid="version-toolbar-rules"]').attributes('disabled'),
     ).toBeDefined()
   })
 

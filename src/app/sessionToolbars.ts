@@ -1,4 +1,4 @@
-/** Folder Compare and Text Compare session toolbar layouts. */
+/** Session toolbar layouts for compare views. */
 
 export interface SessionToolbarCommand {
   id: string
@@ -40,10 +40,87 @@ export const textCompareToolbarOrder = [
   'reload',
 ] as const
 
-const folderMeta: Record<
-  (typeof folderCompareToolbarOrder)[number],
-  { glyph: string; labelKey: string }
-> = {
+export const hexCompareToolbarOrder = [
+  'home',
+  'all',
+  'diffs',
+  'same',
+  'rules',
+  'copy',
+  'next-diff',
+  'prev-diff',
+  'swap',
+  'reload',
+] as const
+
+export const tableCompareToolbarOrder = [
+  'home',
+  'all',
+  'diffs',
+  'same',
+  'minor',
+  'rules',
+  'copy',
+  'next-diff',
+  'prev-diff',
+  'swap',
+  'reload',
+] as const
+
+export const pictureCompareToolbarOrder = [
+  'home',
+  'tol',
+  'range',
+  'blend',
+  'minor',
+  'rules',
+  'swap',
+  'reload',
+  'meta',
+] as const
+
+export const registryCompareToolbarOrder = [
+  'home',
+  'all',
+  'diffs',
+  'same',
+  'copy',
+  'swap',
+  'reload',
+  'expand',
+  'collapse',
+] as const
+
+export const mediaCompareToolbarOrder = [
+  'home',
+  'all',
+  'diffs',
+  'same',
+  'minor',
+  'rules',
+  'swap',
+  'reload',
+] as const
+
+export const versionCompareToolbarOrder = [
+  'home',
+  'all',
+  'diffs',
+  'same',
+  'minor',
+  'rules',
+  'next-diff',
+  'prev-diff',
+  'swap',
+  'reload',
+] as const
+
+interface ToolbarMeta {
+  glyph: string
+  labelKey: string
+}
+
+const folderMeta: Record<(typeof folderCompareToolbarOrder)[number], ToolbarMeta> = {
   home: { glyph: 'H', labelKey: 'ui.home' },
   all: { glyph: '*', labelKey: 'ui.all' },
   same: { glyph: '=', labelKey: 'ui.same' },
@@ -61,10 +138,7 @@ const folderMeta: Record<
   peek: { glyph: 'P', labelKey: 'ui.peek' },
 }
 
-const textMeta: Record<
-  (typeof textCompareToolbarOrder)[number],
-  { glyph: string; labelKey: string }
-> = {
+const textMeta: Record<(typeof textCompareToolbarOrder)[number], ToolbarMeta> = {
   home: { glyph: 'H', labelKey: 'ui.home' },
   all: { glyph: '*', labelKey: 'ui.all' },
   diffs: { glyph: '!=', labelKey: 'ui.diffs' },
@@ -79,26 +153,140 @@ const textMeta: Record<
   reload: { glyph: 'R', labelKey: 'ui.reload' },
 }
 
+const hexMeta: Record<(typeof hexCompareToolbarOrder)[number], ToolbarMeta> = {
+  home: { glyph: 'H', labelKey: 'ui.home' },
+  all: { glyph: '*', labelKey: 'ui.all' },
+  diffs: { glyph: '!=', labelKey: 'ui.diffs' },
+  same: { glyph: '=', labelKey: 'ui.same' },
+  rules: { glyph: 'R', labelKey: 'ui.rules' },
+  copy: { glyph: 'C', labelKey: 'ui.copy' },
+  'next-diff': { glyph: 'N', labelKey: 'ui.nextDifference' },
+  'prev-diff': { glyph: 'P', labelKey: 'ui.previousDifference' },
+  swap: { glyph: '<>', labelKey: 'ui.swap' },
+  reload: { glyph: 'R', labelKey: 'ui.reload' },
+}
+
+const tableMeta: Record<(typeof tableCompareToolbarOrder)[number], ToolbarMeta> = {
+  home: { glyph: 'H', labelKey: 'ui.home' },
+  all: { glyph: '*', labelKey: 'ui.all' },
+  diffs: { glyph: '!=', labelKey: 'ui.diffs' },
+  same: { glyph: '=', labelKey: 'ui.same' },
+  minor: { glyph: '~', labelKey: 'ui.minor' },
+  rules: { glyph: 'R', labelKey: 'ui.rules' },
+  copy: { glyph: 'C', labelKey: 'ui.copy' },
+  'next-diff': { glyph: 'N', labelKey: 'ui.nextDifference' },
+  'prev-diff': { glyph: 'P', labelKey: 'ui.previousDifference' },
+  swap: { glyph: '<>', labelKey: 'ui.swap' },
+  reload: { glyph: 'R', labelKey: 'ui.reload' },
+}
+
+const pictureMeta: Record<(typeof pictureCompareToolbarOrder)[number], ToolbarMeta> = {
+  home: { glyph: 'H', labelKey: 'ui.home' },
+  tol: { glyph: 'T', labelKey: 'ui.tol' },
+  range: { glyph: 'G', labelKey: 'ui.range' },
+  blend: { glyph: 'B', labelKey: 'ui.blend' },
+  minor: { glyph: '~', labelKey: 'ui.minor' },
+  rules: { glyph: 'R', labelKey: 'ui.rules' },
+  swap: { glyph: '<>', labelKey: 'ui.swap' },
+  reload: { glyph: 'R', labelKey: 'ui.reload' },
+  meta: { glyph: 'M', labelKey: 'ui.meta' },
+}
+
+const registryMeta: Record<(typeof registryCompareToolbarOrder)[number], ToolbarMeta> = {
+  home: { glyph: 'H', labelKey: 'ui.home' },
+  all: { glyph: '*', labelKey: 'ui.all' },
+  diffs: { glyph: '!=', labelKey: 'ui.diffs' },
+  same: { glyph: '=', labelKey: 'ui.same' },
+  copy: { glyph: 'C', labelKey: 'ui.copy' },
+  swap: { glyph: '<>', labelKey: 'ui.swap' },
+  reload: { glyph: 'R', labelKey: 'ui.reload' },
+  expand: { glyph: '+', labelKey: 'ui.expand' },
+  collapse: { glyph: '-', labelKey: 'ui.collapse' },
+}
+
+const mediaMeta: Record<(typeof mediaCompareToolbarOrder)[number], ToolbarMeta> = {
+  home: { glyph: 'H', labelKey: 'ui.home' },
+  all: { glyph: '*', labelKey: 'ui.all' },
+  diffs: { glyph: '!=', labelKey: 'ui.diffs' },
+  same: { glyph: '=', labelKey: 'ui.same' },
+  minor: { glyph: '~', labelKey: 'ui.minor' },
+  rules: { glyph: 'R', labelKey: 'ui.rules' },
+  swap: { glyph: '<>', labelKey: 'ui.swap' },
+  reload: { glyph: 'R', labelKey: 'ui.reload' },
+}
+
+const versionMeta: Record<(typeof versionCompareToolbarOrder)[number], ToolbarMeta> = {
+  home: { glyph: 'H', labelKey: 'ui.home' },
+  all: { glyph: '*', labelKey: 'ui.all' },
+  diffs: { glyph: '!=', labelKey: 'ui.diffs' },
+  same: { glyph: '=', labelKey: 'ui.same' },
+  minor: { glyph: '~', labelKey: 'ui.minor' },
+  rules: { glyph: 'R', labelKey: 'ui.rules' },
+  'next-diff': { glyph: 'N', labelKey: 'ui.nextDifference' },
+  'prev-diff': { glyph: 'P', labelKey: 'ui.previousDifference' },
+  swap: { glyph: '<>', labelKey: 'ui.swap' },
+  reload: { glyph: 'R', labelKey: 'ui.reload' },
+}
+
+function buildToolbar<T extends string>(
+  order: readonly T[],
+  meta: Record<T, ToolbarMeta>,
+  enabled: Partial<Record<T, boolean>>,
+): SessionToolbarCommand[] {
+  return order.map((id) => ({
+    id,
+    glyph: meta[id].glyph,
+    labelKey: meta[id].labelKey,
+    enabled: Boolean(enabled[id]),
+  }))
+}
+
 export function buildFolderCompareToolbar(
   enabled: Partial<Record<(typeof folderCompareToolbarOrder)[number], boolean>>,
 ): SessionToolbarCommand[] {
-  return folderCompareToolbarOrder.map((id) => ({
-    id,
-    glyph: folderMeta[id].glyph,
-    labelKey: folderMeta[id].labelKey,
-    enabled: Boolean(enabled[id]),
-  }))
+  return buildToolbar(folderCompareToolbarOrder, folderMeta, enabled)
 }
 
 export function buildTextCompareToolbar(
   enabled: Partial<Record<(typeof textCompareToolbarOrder)[number], boolean>>,
 ): SessionToolbarCommand[] {
-  return textCompareToolbarOrder.map((id) => ({
-    id,
-    glyph: textMeta[id].glyph,
-    labelKey: textMeta[id].labelKey,
-    enabled: Boolean(enabled[id]),
-  }))
+  return buildToolbar(textCompareToolbarOrder, textMeta, enabled)
+}
+
+export function buildHexCompareToolbar(
+  enabled: Partial<Record<(typeof hexCompareToolbarOrder)[number], boolean>>,
+): SessionToolbarCommand[] {
+  return buildToolbar(hexCompareToolbarOrder, hexMeta, enabled)
+}
+
+export function buildTableCompareToolbar(
+  enabled: Partial<Record<(typeof tableCompareToolbarOrder)[number], boolean>>,
+): SessionToolbarCommand[] {
+  return buildToolbar(tableCompareToolbarOrder, tableMeta, enabled)
+}
+
+export function buildPictureCompareToolbar(
+  enabled: Partial<Record<(typeof pictureCompareToolbarOrder)[number], boolean>>,
+): SessionToolbarCommand[] {
+  return buildToolbar(pictureCompareToolbarOrder, pictureMeta, enabled)
+}
+
+export function buildRegistryCompareToolbar(
+  enabled: Partial<Record<(typeof registryCompareToolbarOrder)[number], boolean>>,
+): SessionToolbarCommand[] {
+  return buildToolbar(registryCompareToolbarOrder, registryMeta, enabled)
+}
+
+export function buildMediaCompareToolbar(
+  enabled: Partial<Record<(typeof mediaCompareToolbarOrder)[number], boolean>>,
+): SessionToolbarCommand[] {
+  return buildToolbar(mediaCompareToolbarOrder, mediaMeta, enabled)
+}
+
+export function buildVersionCompareToolbar(
+  enabled: Partial<Record<(typeof versionCompareToolbarOrder)[number], boolean>>,
+): SessionToolbarCommand[] {
+  return buildToolbar(versionCompareToolbarOrder, versionMeta, enabled)
 }
 
 export function pathPairTitle(leftPath: string, rightPath: string): string {

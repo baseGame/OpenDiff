@@ -750,5 +750,9 @@ export const jaJP: LanguagePack = {
     'ui.stop': '停止',
     'ui.nextSection': '次のセクション',
     'ui.prevSection': '前のセクション',
+    'ui.tol': 'Tol',
+    'ui.range': 'Range',
+    'ui.blend': 'Blend',
+    'ui.meta': 'Meta',
   },
 }

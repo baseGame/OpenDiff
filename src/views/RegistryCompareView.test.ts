@@ -5,6 +5,10 @@ import RegistryCompareView from './RegistryCompareView.vue'
 import { compareRegistryExports, readTextFile } from '@/api/diff'
 import { useSessionLaunchStore } from '@/stores/sessionLaunch'
 
+vi.mock('vue-router', () => ({
+  useRouter: () => ({ push: vi.fn() }),
+}))
+
 vi.mock('@/api/diff', () => ({
   compareRegistryExports: vi.fn().mockResolvedValue({
     leftName: 'fixture-left.reg',
