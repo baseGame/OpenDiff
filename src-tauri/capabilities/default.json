@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Default capability for the main OpenDiff window (core events needed for desktop drag-drop).",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}

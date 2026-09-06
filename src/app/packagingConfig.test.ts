@@ -5,6 +5,13 @@ import { describe, expect, it } from 'vitest'
 interface TauriConfig {
   productName: string
   identifier: string
+  app?: {
+    windows?: {
+      label?: string
+      title?: string
+      dragDropEnabled?: boolean
+    }[]
+  }
   bundle: {
     targets: string[] | string
     category?: string
@@ -110,6 +117,25 @@ describe('packagingConfig', () => {
     })
     expect(config.bundle.windows?.wix?.upgradeCode).toBe('90ffd755-2be3-5b35-8809-0f6022d8f999')
     expect(config.bundle.windows?.wix?.language).toBe('en-US')
+  })
+
+  it('enables native desktop drag-drop and grants core event capability', () => {
+    const config = JSON.parse(
+      readFileSync(resolve(process.cwd(), 'src-tauri/tauri.conf.json'), 'utf8'),
+    ) as TauriConfig
+    const capabilityPath = resolve(process.cwd(), 'src-tauri/capabilities/default.json')
+    const capability = JSON.parse(readFileSync(capabilityPath, 'utf8')) as {
+      identifier: string
+      windows: string[]
+      permissions: string[]
+    }
+
+    expect(config.app?.windows?.[0]?.label).toBe('main')
+    expect(config.app?.windows?.[0]?.dragDropEnabled).toBe(true)
+    expect(existsSync(capabilityPath)).toBe(true)
+    expect(capability.identifier).toBe('default')
+    expect(capability.windows).toContain('main')
+    expect(capability.permissions).toContain('core:default')
   })
 
   it('defines macOS app and DMG bundle metadata for macOS builders', () => {

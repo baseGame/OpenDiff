@@ -12,12 +12,14 @@
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "OpenDiff",
         "width": 1280,
         "height": 820,
         "minWidth": 980,
         "minHeight": 640,
-        "resizable": true
+        "resizable": true,
+        "dragDropEnabled": true
       }
     ],
     "security": {
