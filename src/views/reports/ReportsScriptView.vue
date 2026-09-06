@@ -2,6 +2,11 @@
 import { computed, ref } from 'vue'
 import { exportFolderCompareReport, exportTextCompareReport } from '@/api/diff'
 import { runScript } from '@/api/script'
+import {
+  loadRecentReportExports,
+  recordRecentReportExport,
+  type RecentReportExport,
+} from '@/app/reportExports'
 import WorkbenchShell from '@/components/workbench/WorkbenchShell.vue'
 import WorkbenchToolbar from '@/components/workbench/WorkbenchToolbar.vue'
 import WorkbenchInspector from '@/components/workbench/WorkbenchInspector.vue'
@@ -12,12 +17,7 @@ import { useLastCompareStore } from '@/stores/lastCompare'
 type ReportKind = 'text' | 'folder'
 type ReportFormat = 'html' | 'text' | 'json'
 
-interface ReportJob {
-  name: string
-  type: string
-  stateKey: string
-  target: string
-}
+type ReportJob = RecentReportExport
 
 const lastCompare = useLastCompareStore()
 const { t } = useI18n()
@@ -28,7 +28,7 @@ const rightPath = ref(lastCompare.text?.rightSource ?? lastCompare.folder?.right
 const outputPath = ref('')
 const leftText = ref(lastCompare.text?.left ?? '')
 const rightText = ref(lastCompare.text?.right ?? '')
-const jobs = ref<ReportJob[]>([])
+const jobs = ref<ReportJob[]>(loadRecentReportExports())
 const running = ref(false)
 const error = ref('')
 const lastExport = ref('')
@@ -87,26 +87,20 @@ async function runExport(): Promise<void> {
           })
 
     lastExport.value = response.outputPath ?? target
-    jobs.value = [
-      {
-        name: lastExport.value.split(/[\\/]/u).at(-1) ?? lastExport.value,
-        type: reportFormat.value.toUpperCase(),
-        stateKey: 'ui.completed',
-        target: lastExport.value,
-      },
-      ...jobs.value,
-    ]
+    jobs.value = recordRecentReportExport(jobs.value, {
+      name: lastExport.value.split(/[\\/]/u).at(-1) ?? lastExport.value,
+      type: reportFormat.value.toUpperCase(),
+      stateKey: 'ui.completed',
+      target: lastExport.value,
+    })
   } catch (event) {
     error.value = String(event)
-    jobs.value = [
-      {
-        name: t('ui.export'),
-        type: reportFormat.value.toUpperCase(),
-        stateKey: 'ui.error',
-        target: outputPath.value || t('status.noComparisonYet'),
-      },
-      ...jobs.value,
-    ]
+    jobs.value = recordRecentReportExport(jobs.value, {
+      name: t('ui.export'),
+      type: reportFormat.value.toUpperCase(),
+      stateKey: 'ui.error',
+      target: outputPath.value || t('status.noComparisonYet'),
+    })
   } finally {
     running.value = false
   }
@@ -130,26 +124,20 @@ async function runCurrentScript(): Promise<void> {
       `reports=${String(response.reportsWritten)}`,
       ...response.logs,
     ].join('\n')
-    jobs.value = [
-      {
-        name: scriptPath.value.trim() || t('ui.script'),
-        type: 'SCRIPT',
-        stateKey: 'ui.completed',
-        target: response.logs.at(-1) ?? scriptResult.value,
-      },
-      ...jobs.value,
-    ]
+    jobs.value = recordRecentReportExport(jobs.value, {
+      name: scriptPath.value.trim() || t('ui.script'),
+      type: 'SCRIPT',
+      stateKey: 'ui.completed',
+      target: response.logs.at(-1) ?? scriptResult.value,
+    })
   } catch (event) {
     error.value = String(event)
-    jobs.value = [
-      {
-        name: t('ui.runScript'),
-        type: 'SCRIPT',
-        stateKey: 'ui.error',
-        target: scriptPath.value || t('ui.scriptSource'),
-      },
-      ...jobs.value,
-    ]
+    jobs.value = recordRecentReportExport(jobs.value, {
+      name: t('ui.runScript'),
+      type: 'SCRIPT',
+      stateKey: 'ui.error',
+      target: scriptPath.value || t('ui.scriptSource'),
+    })
   } finally {
     scriptRunning.value = false
   }
@@ -212,7 +200,7 @@ function fillFromLastCompare(): void {
     <section class="reports-script-view">
       <section class="report-panel">
         <header class="split-pane-header active">
-          <strong>{{ $t('ui.jobs') }}</strong>
+          <strong>{{ $t('ui.recentExports') }}</strong>
           <span>{{ $t('status.definitions', { count: jobs.length }) }}</span>
         </header>
         <section class="report-export-form">
@@ -333,7 +321,7 @@ function fillFromLastCompare(): void {
     <template #inspector>
       <WorkbenchInspector>
         <section class="workbench-inspector-section">
-          <h2>{{ $t('ui.jobs') }}</h2>
+          <h2>{{ $t('ui.recentExports') }}</h2>
           <StatusSummaryGrid
             :items="[
               { label: $t('ui.completed'), value: completedCount, tone: 'added' },

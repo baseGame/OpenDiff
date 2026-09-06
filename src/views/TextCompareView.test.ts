@@ -170,6 +170,17 @@ describe('TextCompareView', () => {
     expect(wrapper.text()).not.toContain('line two')
   })
 
+  it('applies selected file format rules to text compare options', async () => {
+    const wrapper = mountTextCompareView()
+
+    await wrapper.find('[data-testid="text-format-select"]').setValue('plain-text')
+    await wrapper.find('[data-testid="apply-text-format"]').trigger('click')
+
+    expect(
+      (wrapper.find('[data-testid="ignore-whitespace"]').element as HTMLInputElement).checked,
+    ).toBe(true)
+  })
+
   it('passes ignore rules through to the text diff command', async () => {
     const wrapper = mountTextCompareView()
 

@@ -2,10 +2,19 @@
 import { computed, onMounted, ref } from 'vue'
 import WorkbenchShell from '@/components/workbench/WorkbenchShell.vue'
 import WorkbenchInspector from '@/components/workbench/WorkbenchInspector.vue'
+import { isTauriRuntime } from '@/app/desktopDrop'
+import {
+  deleteLocalRemoteProfile,
+  loadLocalRemoteProfiles,
+  saveLocalRemoteProfiles,
+  upsertLocalRemoteProfile,
+  type LocalRemoteProfile,
+} from '@/app/remoteProfilesLocal'
 import { useI18n } from '@/i18n'
 import { usePolicyStore } from '@/stores/policy'
 import {
   deleteRemoteProfile,
+  formatRemoteUri,
   isImplementedRemoteProtocol,
   listRemoteProfiles,
   saveRemoteProfile,
@@ -50,45 +59,15 @@ interface RemoteProfileDraft {
   implemented: boolean
 }
 
-const builtInProfiles: RemoteProfile[] = [
-  {
-    id: 'prod-sftp',
-    name: 'Production SFTP',
-    protocol: 'sftp',
-    endpoint: {
-      host: 'files.example.com',
-      port: 22,
-      rootPath: '/deployments',
-    },
-    credentialRef: {
-      kind: 'system-keychain',
-      key: 'prod-sftp-main',
-    },
-  },
-  {
-    id: 'team-webdav',
-    name: 'Team WebDAV',
-    protocol: 'web-dav',
-    endpoint: {
-      host: 'dav.example.com',
-      port: 443,
-      rootPath: '/shared/releases',
-    },
-    credentialRef: {
-      kind: 'environment',
-      key: 'OPEN_DIFF_WEBDAV_CREDENTIAL',
-    },
-  },
-]
-
-const profiles = ref<RemoteProfile[]>(builtInProfiles.map((profile) => cloneProfile(profile)))
+const profiles = ref<RemoteProfile[]>([])
 const { t } = useI18n()
 const policy = usePolicyStore()
-const selectedProfileId = ref(profiles.value[0]?.id ?? '')
-const draft = ref<RemoteProfileDraft>(toDraft(profiles.value[0] ?? emptyProfile()))
-const testStatusKey = ref('status.remoteUnavailable')
+const selectedProfileId = ref('')
+const draft = ref<RemoteProfileDraft>(toDraft(emptyProfile()))
+const testStatusKey = ref(initialTestStatusKey())
 const testStatusParams = ref<Record<string, string | number>>({})
 const testing = ref(false)
+const persistenceMode = ref<'desktop' | 'local'>('local')
 
 const sortedProfiles = computed(() =>
   [...profiles.value].sort((left, right) => left.name.localeCompare(right.name)),
@@ -107,11 +86,34 @@ const credentialSummary = computed(
 )
 const testStatus = computed(() => t(testStatusKey.value, testStatusParams.value))
 const canTestProfile = computed(
-  () => isImplementedRemoteProtocol(draft.value.protocol) && Boolean(draft.value.host.trim()),
+  () =>
+    isTauriRuntime() &&
+    isImplementedRemoteProtocol(draft.value.protocol) &&
+    Boolean(draft.value.host.trim()) &&
+    Boolean((draft.value.id || selectedProfileId.value).trim()),
 )
 const canSaveProfile = computed(
   () => policy.remoteProfiles && isImplementedRemoteProtocol(draft.value.protocol),
 )
+const testDisabledReasonKey = computed(() => {
+  if (!isTauriRuntime()) {
+    return 'status.remoteTestRequiresDesktop'
+  }
+
+  if (!isImplementedRemoteProtocol(draft.value.protocol)) {
+    return 'status.remoteUnavailable'
+  }
+
+  if (!draft.value.host.trim()) {
+    return 'status.remoteNoHost'
+  }
+
+  if (!(draft.value.id || selectedProfileId.value).trim()) {
+    return 'status.remoteSaveBeforeTest'
+  }
+
+  return ''
+})
 
 onMounted(() => {
   void loadPersistedProfiles()
@@ -121,14 +123,31 @@ async function loadPersistedProfiles(): Promise<void> {
   try {
     const loaded = await listRemoteProfiles()
 
+    persistenceMode.value = 'desktop'
+    applyViews(loaded)
+    mirrorViewsToLocal(loaded)
+
     if (loaded.length === 0) {
-      return
+      createNewProfile()
+      setTestStatus(initialTestStatusKey())
     }
 
-    applyViews(loaded)
-  } catch (error) {
-    void error
+    return
+  } catch {
+    persistenceMode.value = 'local'
   }
+
+  const local = loadLocalRemoteProfiles()
+
+  if (local.length === 0) {
+    createNewProfile()
+    setTestStatus(initialTestStatusKey())
+
+    return
+  }
+
+  applyLocalProfiles(local)
+  setTestStatus(initialTestStatusKey())
 }
 
 function selectProfile(profileId: string): void {
@@ -140,13 +159,13 @@ function selectProfile(profileId: string): void {
 
   selectedProfileId.value = profile.id
   draft.value = toDraft(profile)
-  setTestStatus('status.remoteUnavailable')
+  setTestStatus(testDisabledReasonKey.value || initialTestStatusKey())
 }
 
 function createNewProfile(): void {
   selectedProfileId.value = ''
   draft.value = toDraft(emptyProfile())
-  setTestStatus('status.remoteUnavailable')
+  setTestStatus(testDisabledReasonKey.value || initialTestStatusKey())
 }
 
 async function saveProfile(): Promise<void> {
@@ -168,16 +187,22 @@ async function saveProfile(): Promise<void> {
       password: policy.savePasswords ? draft.value.password || undefined : undefined,
     })
 
+    persistenceMode.value = 'desktop'
     applyViews(saved, nextProfile.id)
+    mirrorViewsToLocal(saved)
     draft.value.password = ''
+    setTestStatus(testDisabledReasonKey.value || initialTestStatusKey())
   } catch {
-    upsertLocalProfile(nextProfile)
+    persistenceMode.value = 'local'
+    persistLocalProfile(nextProfile, draft.value.username.trim() || undefined)
     selectedProfileId.value = nextProfile.id
     draft.value = {
       ...toDraft(nextProfile),
       username: draft.value.username,
       password: '',
+      uri: formatRemoteUri(nextProfile.protocol, nextProfile.id, nextProfile.endpoint.rootPath),
     }
+    setTestStatus(testDisabledReasonKey.value || initialTestStatusKey())
   }
 }
 
@@ -191,9 +216,14 @@ async function deleteProfile(): Promise<void> {
   try {
     const remaining = await deleteRemoteProfile(removedId)
 
+    persistenceMode.value = 'desktop'
     applyViews(remaining)
+    mirrorViewsToLocal(remaining)
   } catch {
-    profiles.value = profiles.value.filter((profile) => profile.id !== removedId)
+    persistenceMode.value = 'local'
+    const remaining = deleteLocalRemoteProfile(profiles.value.map(toLocalProfile), removedId)
+
+    applyLocalProfiles(remaining)
   }
 
   if (profiles.value.length === 0) {
@@ -206,11 +236,12 @@ async function deleteProfile(): Promise<void> {
 
   selectedProfileId.value = nextProfile.id
   draft.value = toDraft(nextProfile)
+  setTestStatus(testDisabledReasonKey.value || initialTestStatusKey())
 }
 
 async function testProfileConnection(): Promise<void> {
   if (!canTestProfile.value) {
-    setTestStatus('status.remoteUnavailable')
+    setTestStatus(testDisabledReasonKey.value || 'status.remoteUnavailable')
 
     return
   }
@@ -239,6 +270,10 @@ function setTestStatus(key: string, params: Record<string, string | number> = {}
   testStatusParams.value = params
 }
 
+function initialTestStatusKey(): string {
+  return isTauriRuntime() ? 'status.remoteUnavailable' : 'status.remoteTestRequiresDesktop'
+}
+
 function applyViews(views: RemoteProfileView[], selectedId = selectedProfileId.value): void {
   profiles.value = views.map((view) => ({
     id: view.id,
@@ -255,10 +290,14 @@ function applyViews(views: RemoteProfileView[], selectedId = selectedProfileId.v
     },
   }))
 
-  const selected =
-    profiles.value.find((profile) => profile.id === selectedId) ??
-    profiles.value.at(0) ??
-    emptyProfile()
+  if (profiles.value.length === 0) {
+    selectedProfileId.value = ''
+    draft.value = toDraft(emptyProfile())
+
+    return
+  }
+
+  const selected = profiles.value.find((profile) => profile.id === selectedId) ?? profiles.value[0]
 
   selectedProfileId.value = selected.id
   draft.value = {
@@ -269,13 +308,80 @@ function applyViews(views: RemoteProfileView[], selectedId = selectedProfileId.v
   }
 }
 
-function upsertLocalProfile(nextProfile: RemoteProfile): void {
-  const existingIndex = profiles.value.findIndex((profile) => profile.id === nextProfile.id)
+function applyLocalProfiles(
+  local: LocalRemoteProfile[],
+  selectedId = selectedProfileId.value,
+): void {
+  profiles.value = local.map((profile) => ({
+    id: profile.id,
+    name: profile.name,
+    protocol: profile.protocol,
+    endpoint: {
+      host: profile.host,
+      port: profile.port,
+      rootPath: profile.rootPath,
+    },
+    credentialRef: {
+      kind: 'profile-store',
+      key: profile.id,
+    },
+  }))
 
-  if (existingIndex >= 0) {
-    profiles.value.splice(existingIndex, 1, nextProfile)
-  } else {
-    profiles.value.push(nextProfile)
+  if (profiles.value.length === 0) {
+    selectedProfileId.value = ''
+    draft.value = toDraft(emptyProfile())
+
+    return
+  }
+
+  const selected = profiles.value.find((profile) => profile.id === selectedId) ?? profiles.value[0]
+  const source = local.find((profile) => profile.id === selected.id)
+
+  selectedProfileId.value = selected.id
+  draft.value = {
+    ...toDraft(selected),
+    username: source?.username ?? '',
+    uri: formatRemoteUri(selected.protocol, selected.id, selected.endpoint.rootPath),
+    implemented: isImplementedRemoteProtocol(selected.protocol),
+  }
+}
+
+function persistLocalProfile(nextProfile: RemoteProfile, username?: string): void {
+  const local = upsertLocalRemoteProfile(profiles.value.map(toLocalProfile), {
+    id: nextProfile.id,
+    name: nextProfile.name,
+    protocol: nextProfile.protocol,
+    host: nextProfile.endpoint.host,
+    port: nextProfile.endpoint.port,
+    rootPath: nextProfile.endpoint.rootPath,
+    username,
+  })
+
+  applyLocalProfiles(local, nextProfile.id)
+}
+
+function mirrorViewsToLocal(views: RemoteProfileView[]): void {
+  saveLocalRemoteProfiles(
+    views.map((view) => ({
+      id: view.id,
+      name: view.name,
+      protocol: view.protocol,
+      host: view.host,
+      port: view.port,
+      rootPath: view.rootPath,
+      username: view.username ?? undefined,
+    })),
+  )
+}
+
+function toLocalProfile(profile: RemoteProfile): LocalRemoteProfile {
+  return {
+    id: profile.id,
+    name: profile.name,
+    protocol: profile.protocol,
+    host: profile.endpoint.host,
+    port: profile.endpoint.port,
+    rootPath: profile.endpoint.rootPath,
   }
 }
 
@@ -330,10 +436,6 @@ function emptyProfile(): RemoteProfile {
       key: '',
     },
   }
-}
-
-function cloneProfile(profile: RemoteProfile): RemoteProfile {
-  return JSON.parse(JSON.stringify(profile)) as RemoteProfile
 }
 
 function valueOrFallback(value: string, fallback: string): string {
@@ -400,7 +502,11 @@ function credentialKindLabel(kind: CredentialReferenceKind): string {
         class="remote-unavailable"
         data-testid="remote-unavailable-notice"
       >
-        {{ $t('ui.remoteNotImplemented') }}
+        {{
+          persistenceMode === 'desktop'
+            ? $t('ui.remoteNotImplemented')
+            : $t('ui.remoteLocalPersistenceHint')
+        }}
       </p>
       <header class="profile-header">
         <div>

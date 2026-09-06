@@ -9,6 +9,7 @@ import {
   saveRemoteProfile,
   testRemoteProfile,
 } from '@/api/remote'
+import { remoteProfilesStorageKey, saveLocalRemoteProfiles } from '@/app/remoteProfilesLocal'
 
 vi.mock('@/api/remote', async (importOriginal) => {
   const actual = await importOriginal<typeof remoteApi>()
@@ -27,37 +28,53 @@ vi.mock('@/api/remote', async (importOriginal) => {
 describe('RemoteProfileView', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
+    localStorage.clear()
     vi.mocked(listRemoteProfiles).mockClear()
     vi.mocked(saveRemoteProfile).mockClear()
     vi.mocked(deleteRemoteProfile).mockClear()
     vi.mocked(testRemoteProfile).mockClear()
+    vi.mocked(listRemoteProfiles).mockRejectedValue(new Error('no backend'))
+    vi.mocked(saveRemoteProfile).mockRejectedValue(new Error('no backend'))
+    vi.mocked(deleteRemoteProfile).mockRejectedValue(new Error('no backend'))
   })
 
-  it('renders built-in remote profiles without plaintext credentials', () => {
+  it('loads persisted local profiles and does not invent demo hosts', async () => {
+    saveLocalRemoteProfiles([
+      {
+        id: 'stage-sftp',
+        name: 'Stage SFTP',
+        protocol: 'sftp',
+        host: 'stage.example.com',
+        port: 22,
+        rootPath: '/apps',
+      },
+    ])
+
     const wrapper = mount(RemoteProfileView, {
       global: { plugins: [createPinia()] },
     })
+
+    await flushPromises()
 
     expect(wrapper.find('[data-testid="remote-unavailable-notice"]').exists()).toBe(true)
-    expect(wrapper.text()).toContain('Remote Profiles')
-    expect(wrapper.find('[data-testid="remote-profile-list"]').text()).toContain('Production SFTP')
-    expect(wrapper.find('[data-testid="remote-profile-list"]').text()).toContain('Team WebDAV')
-    expect(wrapper.text()).toContain('Credential reference')
-    expect(wrapper.text()).toContain('System keychain')
-    expect(wrapper.find('[data-testid="remote-profile-password-input"]').attributes('type')).toBe(
-      'password',
+    expect(wrapper.find('[data-testid="remote-profile-list"]').text()).toContain('Stage SFTP')
+    expect(wrapper.text()).not.toContain('files.example.com')
+    expect(wrapper.text()).not.toContain('dav.example.com')
+    expect(wrapper.find('[data-testid="remote-profile-test-status"]').text()).toContain(
+      'desktop app',
     )
-    expect(wrapper.text()).not.toContain('correct-horse')
-    expect(wrapper.text()).not.toContain('token')
+    expect(wrapper.find('[data-testid="test-remote-profile"]').attributes('disabled')).toBeDefined()
   })
 
-  it('selects and edits a remote profile', async () => {
+  it('persists edited profiles to localStorage when the desktop backend is unavailable', async () => {
     const wrapper = mount(RemoteProfileView, {
       global: { plugins: [createPinia()] },
     })
 
-    await wrapper.find('[data-testid="select-remote-profile-team-webdav"]').trigger('click')
+    await flushPromises()
+    await wrapper.find('[data-testid="new-remote-profile"]').trigger('click')
     await wrapper.find('[data-testid="remote-profile-name-input"]').setValue('Team WebDAV Primary')
+    await wrapper.find('[data-testid="remote-profile-protocol-select"]').setValue('web-dav')
     await wrapper.find('[data-testid="remote-profile-host-input"]').setValue('dav2.example.com')
     await wrapper.find('[data-testid="remote-profile-root-input"]').setValue('/shared/v2')
     await wrapper.find('[data-testid="save-remote-profile"]').trigger('click')
@@ -69,13 +86,16 @@ describe('RemoteProfileView', () => {
     expect(wrapper.find('[data-testid="remote-profile-summary"]').text()).toContain(
       'dav2.example.com',
     )
-    expect(wrapper.find('[data-testid="remote-profile-summary"]').text()).toContain('/shared/v2')
-    expect(
-      wrapper.find('[data-testid="test-remote-profile"]').attributes('disabled'),
-    ).toBeUndefined()
+    expect(localStorage.getItem(remoteProfilesStorageKey)).toContain('Team WebDAV Primary')
+    expect(wrapper.find('[data-testid="test-remote-profile"]').attributes('disabled')).toBeDefined()
   })
 
-  it('creates, tests, and deletes a real FTP profile', async () => {
+  it('creates, tests, and deletes a real FTP profile through the desktop API', async () => {
+    Object.defineProperty(window, '__TAURI_INTERNALS__', {
+      configurable: true,
+      value: {},
+    })
+    vi.mocked(listRemoteProfiles).mockResolvedValue([])
     vi.mocked(saveRemoteProfile).mockResolvedValue([
       {
         id: 'release-ftp',
@@ -96,6 +116,8 @@ describe('RemoteProfileView', () => {
     const wrapper = mount(RemoteProfileView, {
       global: { plugins: [createPinia()] },
     })
+
+    await flushPromises()
 
     await wrapper.find('[data-testid="new-remote-profile"]').trigger('click')
     await wrapper.find('[data-testid="remote-profile-name-input"]').setValue('Release FTP')
@@ -134,6 +156,8 @@ describe('RemoteProfileView', () => {
     await flushPromises()
 
     expect(deleteRemoteProfile).toHaveBeenCalledWith('release-ftp')
+
+    Reflect.deleteProperty(window, '__TAURI_INTERNALS__')
   })
 
   it('disables save for unfinished remote protocols without unimplemented labels', async () => {
@@ -141,6 +165,7 @@ describe('RemoteProfileView', () => {
       global: { plugins: [createPinia()] },
     })
 
+    await flushPromises()
     await wrapper.find('[data-testid="new-remote-profile"]').trigger('click')
     await wrapper.find('[data-testid="remote-profile-protocol-select"]').setValue('s3')
 
