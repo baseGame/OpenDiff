@@ -123,6 +123,19 @@ export const useTabsStore = defineStore('tabs', () => {
     return true
   }
 
+  function setTabTitle(idOrRoute: string, title: string): boolean {
+    const tab = tabs.value.find((item) => item.id === idOrRoute || item.route === idOrRoute)
+
+    if (!tab || tab.id === 'home') {
+      return false
+    }
+
+    tab.title = title
+    tab.titleKey = undefined
+
+    return true
+  }
+
   function workspaceSnapshot(): WorkspaceTabsSnapshot {
     return {
       tabs: tabs.value.map((tab) => ({ ...tab })),
@@ -155,6 +168,7 @@ export const useTabsStore = defineStore('tabs', () => {
     closeOtherTabs,
     closeTabsToTheRight,
     setTabDirty,
+    setTabTitle,
     workspaceSnapshot,
     restoreWorkspaceTabs,
   }

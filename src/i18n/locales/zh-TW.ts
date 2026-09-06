@@ -724,5 +724,12 @@ export const zhTW: LanguagePack = {
     'ui.homeStartHint': '瀏覽資料夾，或把兩個項目拖到這裡。',
     'ui.noFilteredRows': '沒有符合目前篩選的項目。',
     'status.syncCompleted': '同步完成：成功 {succeeded}，失敗 {failed}',
+    'ui.expand': '展開',
+    'ui.collapse': '摺疊',
+    'ui.peek': '預覽',
+    'ui.filters': '篩選器',
+    'ui.stop': '停止',
+    'ui.nextSection': '下一節',
+    'ui.prevSection': '上一節',
   },
 }

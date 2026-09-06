@@ -75,6 +75,58 @@ describe('AppLayout command palette', () => {
     expect(wrapper.find('[data-testid="menu-command-session.newTab"]').exists()).toBe(true)
   })
 
+  it('shows Session Actions Edit Search View Tools Help on Folder Compare', () => {
+    routePath = '/compare/folder'
+    const wrapper = mountAppLayout()
+    const menuOrder = [
+      'menu-session',
+      'menu-actions',
+      'menu-edit',
+      'menu-search',
+      'menu-view',
+      'menu-tools',
+      'menu-help',
+    ]
+
+    expect(
+      wrapper
+        .findAll('.menus > .menu-group > button')
+        .map((node) => node.attributes('data-testid')),
+    ).toEqual(menuOrder)
+    expect(wrapper.find('[data-testid="menu-file"]').exists()).toBe(false)
+  })
+
+  it('shows Session File Edit Search View Tools Help on Text Compare', () => {
+    routePath = '/compare/text'
+    const wrapper = mountAppLayout()
+
+    expect(wrapper.find('[data-testid="menu-session"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="menu-file"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="menu-edit"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="menu-search"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="menu-view"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="menu-tools"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="menu-help"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="menu-actions"]').exists()).toBe(false)
+  })
+
+  it('formats window title with path pair when the active tab has known paths', async () => {
+    routePath = '/compare/text'
+    const wrapper = mountAppLayout()
+    const tabs = useTabsStore()
+
+    tabs.openTab({
+      title: 'Text Compare',
+      titleKey: 'ui.textCompare',
+      route: '/compare/text',
+      dirty: false,
+    })
+    tabs.setTabTitle('/compare/text', 'left.txt <--> right.txt')
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('.brand').text()).toContain('left.txt <--> right.txt - Text Compare')
+  })
+
   it('does not show hardcoded fake session counts in the chrome', () => {
     const wrapper = mountAppLayout()
 

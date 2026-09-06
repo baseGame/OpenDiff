@@ -739,5 +739,12 @@ export const koKR: LanguagePack = {
     'ui.homeStartHint': '폴더를 찾아보거나 두 항목을 여기에 놓으세요.',
     'ui.noFilteredRows': '현재 필터와 일치하는 항목이 없습니다.',
     'status.syncCompleted': 'Sync finished: {succeeded} succeeded, {failed} failed',
+    'ui.expand': '펼치기',
+    'ui.collapse': '접기',
+    'ui.peek': '미리보기',
+    'ui.filters': '필터',
+    'ui.stop': '중지',
+    'ui.nextSection': '다음 섹션',
+    'ui.prevSection': '이전 섹션',
   },
 }

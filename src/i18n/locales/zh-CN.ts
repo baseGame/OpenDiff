@@ -723,5 +723,12 @@ export const zhCN: LanguagePack = {
     'ui.homeStartHint': '浏览文件夹，或把两个项目拖到这里。',
     'ui.noFilteredRows': '没有符合当前筛选的项目。',
     'status.syncCompleted': '同步完成：成功 {succeeded}，失败 {failed}',
+    'ui.expand': '展开',
+    'ui.collapse': '折叠',
+    'ui.peek': '预览',
+    'ui.filters': '过滤器',
+    'ui.stop': '停止',
+    'ui.nextSection': '下一节',
+    'ui.prevSection': '上一节',
   },
 }

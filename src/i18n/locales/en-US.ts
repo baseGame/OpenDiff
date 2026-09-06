@@ -744,5 +744,12 @@ export const enUS: LanguagePack = {
       'Drag folders or files onto a session icon, or click a session icon to begin.',
     'ui.noFilteredRows': 'No items match the current filters.',
     'status.syncCompleted': 'Sync finished: {succeeded} succeeded, {failed} failed',
+    'ui.expand': 'Expand',
+    'ui.collapse': 'Collapse',
+    'ui.peek': 'Peek',
+    'ui.filters': 'Filters',
+    'ui.stop': 'Stop',
+    'ui.nextSection': 'Next Section',
+    'ui.prevSection': 'Prev Section',
   },
 }

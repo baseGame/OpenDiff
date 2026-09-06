@@ -743,5 +743,12 @@ export const jaJP: LanguagePack = {
     'ui.homeStartHint': 'フォルダーを参照するか、2 つの項目をここにドロップします。',
     'ui.noFilteredRows': '現在のフィルターに一致する項目はありません。',
     'status.syncCompleted': 'Sync finished: {succeeded} succeeded, {failed} failed',
+    'ui.expand': '展開',
+    'ui.collapse': '折りたたみ',
+    'ui.peek': 'ピーク',
+    'ui.filters': 'フィルタ',
+    'ui.stop': '停止',
+    'ui.nextSection': '次のセクション',
+    'ui.prevSection': '前のセクション',
   },
 }

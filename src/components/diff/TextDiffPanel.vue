@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+
 import type { DiffLine, InlineDiffSegment } from '@/types/diff'
 
 const textDiffRowHeightPx = 24
@@ -410,6 +411,12 @@ const splitBySyntaxTokens = (
 
   return parts
 }
+
+defineExpose({
+  setDisplayMode,
+  jumpToNextDiff,
+  jumpToPreviousDiff,
+})
 </script>
 
 <template>
