@@ -48,6 +48,41 @@ describe('AppLayout command palette', () => {
     desktopDropHandlers.length = 0
   })
 
+  it('shows Session View Tools Help menus on Home', async () => {
+    routePath = '/'
+    const wrapper = mountAppLayout()
+
+    expect(wrapper.find('[data-testid="menu-session"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="menu-view"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="menu-tools"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="menu-help"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="menu-file"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="menu-actions"]').exists()).toBe(false)
+
+    await wrapper.find('[data-testid="menu-help"]').trigger('click')
+    expect(wrapper.find('[data-testid="menu-command-help.about"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="menu-command-help.checkForUpdates"]').exists()).toBe(true)
+    expect(
+      wrapper.find('[data-testid="menu-command-help.contents"]').attributes('disabled'),
+    ).toBeDefined()
+    expect(wrapper.find('[data-testid="menu-panel"]').text()).not.toContain('unimplemented')
+    expect(wrapper.find('[data-testid="menu-panel"]').text()).not.toContain('未实现')
+
+    await wrapper.find('[data-testid="menu-session"]').trigger('click')
+    expect(
+      wrapper.find('[data-testid="menu-command-session.newWindow"]').attributes('disabled'),
+    ).toBeDefined()
+    expect(wrapper.find('[data-testid="menu-command-session.newTab"]').exists()).toBe(true)
+  })
+
+  it('does not show hardcoded fake session counts in the chrome', () => {
+    const wrapper = mountAppLayout()
+
+    expect(wrapper.html()).not.toContain('<b>142</b>')
+    expect(wrapper.html()).not.toContain('<b>34</b>')
+    expect(wrapper.html()).not.toContain('>5</b>')
+  })
+
   it('searches and executes navigation commands', async () => {
     const wrapper = mountAppLayout()
 

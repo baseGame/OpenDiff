@@ -3,20 +3,16 @@ import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   Binary,
-  Clipboard,
   Columns3,
   Code2,
   Database,
   FileCog,
-  FileDiff,
   FileText,
   FolderGit2,
   FolderOpen,
   FolderSync,
   GitMerge,
   Image,
-  Package,
-  Play,
   Table2,
   type LucideIcon,
 } from '@lucide/vue'
@@ -44,49 +40,58 @@ import type { SessionCatalogEntry } from '@/app/sessionCatalog'
 import type { SessionDocument, SessionType } from '@/types/session'
 import type { SessionLaunchLocation, SessionLaunchPayload } from '@/types/sessionLaunch'
 
-type QuickStartType =
+/** BC5 Home center launch buttons (12), matching home.png order. */
+type HomeLaunchType =
   | 'folder-compare'
   | 'folder-merge'
   | 'folder-sync'
   | 'text-compare'
   | 'text-merge'
   | 'text-edit'
-  | 'text-patch'
-  | 'clipboard-compare'
   | 'hex-compare'
   | 'media-compare'
   | 'picture-compare'
   | 'registry-compare'
   | 'table-compare'
   | 'version-compare'
-  | 'archive-compare'
-  | 'script'
+
+/** BC5 Home left tree under New (Text Edit is center-only). */
+type HomeTreeType = Exclude<HomeLaunchType, 'text-edit'>
 
 interface QuickStartEntry extends SessionCatalogEntry {
   icon: LucideIcon
 }
 
-const quickStartTypes: QuickStartType[] = [
+const homeLaunchTypes: HomeLaunchType[] = [
   'folder-compare',
   'folder-merge',
   'folder-sync',
   'text-compare',
   'text-merge',
   'text-edit',
-  'text-patch',
-  'clipboard-compare',
   'hex-compare',
   'media-compare',
   'picture-compare',
   'registry-compare',
   'table-compare',
   'version-compare',
-  'archive-compare',
-  'script',
 ]
 
-const quickStartIcons: Record<QuickStartType, LucideIcon> = {
-  'clipboard-compare': Clipboard,
+const homeTreeTypes: HomeTreeType[] = [
+  'folder-compare',
+  'folder-merge',
+  'folder-sync',
+  'text-compare',
+  'text-merge',
+  'hex-compare',
+  'media-compare',
+  'picture-compare',
+  'registry-compare',
+  'table-compare',
+  'version-compare',
+]
+
+const quickStartIcons: Record<HomeLaunchType, LucideIcon> = {
   'folder-compare': FolderOpen,
   'folder-merge': FolderGit2,
   'folder-sync': FolderSync,
@@ -98,10 +103,7 @@ const quickStartIcons: Record<QuickStartType, LucideIcon> = {
   'text-compare': Code2,
   'text-edit': FileText,
   'text-merge': GitMerge,
-  'text-patch': FileDiff,
   'version-compare': FileCog,
-  'archive-compare': Package,
-  script: Play,
 }
 
 const router = useRouter()
@@ -111,11 +113,13 @@ const savedSessions = useSavedSessionsStore()
 const sessionLaunch = useSessionLaunchStore()
 const workspaces = useWorkspacesStore()
 const selectedSessionId = ref<string>()
-const selectedSavedSession = computed(
-  () =>
+const selectedSavedSession = computed(() => {
+  const selected =
     savedSessions.sessions.find((session) => session.id === selectedSessionId.value) ??
-    savedSessions.sessions.at(0),
-)
+    savedSessions.autoSavedSessions.find((session) => session.id === selectedSessionId.value)
+
+  return selected ?? savedSessions.sessions.at(0) ?? savedSessions.autoSavedSessions.at(0)
+})
 const selectedSessionPreview = computed(() => {
   const session = selectedSavedSession.value
 
@@ -142,14 +146,43 @@ const filteredSavedSessions = computed(() =>
   }),
 )
 const quickStartEntries = computed<QuickStartEntry[]>(() =>
-  quickStartTypes
+  homeLaunchTypes
     .map((type) => {
       const entry = sessionCatalog.find((item) => item.type === type)
 
       return entry ? { ...entry, icon: quickStartIcons[type] } : undefined
     })
-    .filter((entry): entry is QuickStartEntry => Boolean(entry?.implemented)),
+    .filter((entry): entry is QuickStartEntry => Boolean(entry?.route)),
 )
+const homeTreeEntries = computed<QuickStartEntry[]>(() =>
+  homeTreeTypes
+    .map((type) => {
+      const entry = sessionCatalog.find((item) => item.type === type)
+
+      return entry ? { ...entry, icon: quickStartIcons[type] } : undefined
+    })
+    .filter((entry): entry is QuickStartEntry => Boolean(entry?.route)),
+)
+const todaySessions = computed(() => {
+  const start = new Date()
+
+  start.setHours(0, 0, 0, 0)
+
+  const startMs = start.getTime()
+
+  return savedSessions.sessions.filter((session) => {
+    const stamp = session.metadata.lastOpenedAt
+
+    if (!stamp) {
+      return false
+    }
+
+    const opened = Date.parse(stamp)
+
+    return Number.isFinite(opened) && opened >= startMs
+  })
+})
+const autoSavedTreeSessions = computed(() => savedSessions.autoSavedSessions)
 const historyItems = computed(() =>
   savedSessions.sessions.slice(0, 6).map((session) => ({
     title: session.name,
@@ -159,7 +192,7 @@ const historyItems = computed(() =>
 )
 
 function openSession(entry: SessionCatalogEntry): void {
-  if (!entry.implemented || !entry.route) {
+  if (!entry.route) {
     return
   }
 
@@ -540,10 +573,11 @@ function openSelectedPreview(): void {
             <strong>{{ $t('ui.new') }}</strong>
           </button>
           <button
-            v-for="entry in quickStartEntries"
+            v-for="entry in homeTreeEntries"
             :key="`tree-${entry.type}`"
             type="button"
             class="bc-tree-row child"
+            :data-testid="`home-tree-${entry.type}`"
             @click="openSession(entry)"
           >
             <span></span>
@@ -556,24 +590,40 @@ function openSelectedPreview(): void {
           <button
             type="button"
             class="bc-tree-row expanded"
+            data-testid="home-tree-auto-saved"
           >
             <span>▾</span>
             <FolderOpen :size="17" />
             <strong>{{ $t('ui.autoSaved') }}</strong>
           </button>
           <button
+            v-for="session in autoSavedTreeSessions"
+            :key="`tree-autosaved-${session.id}`"
             type="button"
-            class="bc-tree-row child"
+            class="bc-tree-row saved"
+            :data-testid="`home-tree-autosaved-${session.id}`"
+            @click="selectSavedSession(session)"
+            @dblclick="openSavedSession(session)"
+          >
+            <span></span>
+            <FolderOpen :size="16" />
+            <strong>{{ session.name }}</strong>
+          </button>
+          <button
+            type="button"
+            class="bc-tree-row child expanded"
+            data-testid="home-tree-today"
           >
             <span>▾</span>
             <FolderOpen :size="17" />
             <strong>{{ $t('ui.today') }}</strong>
           </button>
           <button
-            v-for="session in savedSessions.sessions.slice(0, 4)"
-            :key="`tree-saved-${session.id}`"
+            v-for="session in todaySessions"
+            :key="`tree-today-${session.id}`"
             type="button"
             class="bc-tree-row saved"
+            :data-testid="`home-tree-today-${session.id}`"
             @click="selectSavedSession(session)"
             @dblclick="openSavedSession(session)"
           >
@@ -654,8 +704,7 @@ function openSelectedPreview(): void {
             @dragleave="handleDragLeave"
             @drop="handleDrop"
           >
-            <strong>{{ $t('ui.howToStart') }}</strong>
-            <span>{{ $t('ui.homeStartHint') }}</span>
+            <strong>{{ $t('ui.dragFoldersOrFilesOntoSessionIcon') }}</strong>
             <div class="home-primary-ctas">
               <button
                 type="button"
@@ -691,7 +740,6 @@ function openSelectedPreview(): void {
                 />
               </span>
               <h3>{{ $t(entry.titleKey) }}</h3>
-              <p>{{ $t(entry.summaryKey) }}</p>
             </article>
           </div>
         </section>

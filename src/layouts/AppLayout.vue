@@ -156,7 +156,19 @@ const appMenus: AppMenuDefinition[] = [
   {
     id: 'session',
     titleKey: 'ui.session',
-    commandIds: ['open.textCompare', 'open.folderCompare', 'session.save', 'session.saveAs'],
+    commandIds: [
+      'open.textCompare',
+      'open.folderCompare',
+      'session.newTab',
+      'session.newWindow',
+      'session.openSession',
+      'session.loadWorkspace',
+      'workspace.save',
+      'session.save',
+      'session.saveAs',
+      'session.closeTab',
+      'session.exit',
+    ],
   },
   {
     id: 'file',
@@ -186,12 +198,23 @@ const appMenus: AppMenuDefinition[] = [
   {
     id: 'tools',
     titleKey: 'ui.tools',
-    commandIds: ['open.settings', 'session.export', 'theme.toggle'],
+    commandIds: [
+      'open.settings',
+      'open.fileFormats',
+      'open.remoteProfiles',
+      'tools.exportSettings',
+      'tools.importSettings',
+      'tools.restoreFactoryDefaults',
+      'tools.saveSnapshot',
+      'open.textEdit',
+      'open.textPatch',
+      'theme.toggle',
+    ],
   },
   {
     id: 'help',
     titleKey: 'ui.help',
-    commandIds: ['open.settings'],
+    commandIds: ['help.contents', 'help.about', 'help.checkForUpdates', 'help.support'],
   },
 ]
 const visibleAppMenus = computed(() => {
@@ -226,6 +249,13 @@ const executeRegisteredCommand = createCommandExecutor(commandRegistry, {
     lastViewAction.value = name
     if (name === 'save' && tabs.activeTab.id !== 'home') {
       tabs.setTabDirty(tabs.activeTab.id, true)
+    }
+    if (name === 'close-tab') {
+      const active = tabs.activeTab
+
+      if (tabs.canCloseTab(active.id)) {
+        requestCloseTab({ id: active.id, title: displayTabTitle(active), dirty: active.dirty })
+      }
     }
   },
 })
@@ -662,7 +692,6 @@ const sourceSessionTypes = new Set<SessionType>([
           >
             <Cloud :size="15" />
             <span>{{ t('ui.remoteProfiles') }}</span>
-            <b>5</b>
           </button>
           <button
             class="nav-item"
@@ -672,7 +701,6 @@ const sourceSessionTypes = new Set<SessionType>([
           >
             <Braces :size="15" />
             <span>{{ t('ui.fileFormats') }}</span>
-            <b>34</b>
           </button>
           <button
             class="nav-item"
@@ -682,7 +710,6 @@ const sourceSessionTypes = new Set<SessionType>([
           >
             <Settings :size="15" />
             <span>{{ t('ui.settings') }}</span>
-            <b>34</b>
           </button>
         </nav>
       </aside>

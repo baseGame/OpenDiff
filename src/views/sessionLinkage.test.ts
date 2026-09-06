@@ -130,8 +130,11 @@ describe('session UI to command linkage', () => {
     expect(wrapper.text()).not.toContain('Compare sample text')
     expect(wrapper.text()).not.toContain('Config updated')
     expect(wrapper.text()).not.toContain('Release v1.2')
-    expect(wrapper.find('[data-session-type="text-patch"]').exists()).toBe(true)
-    expect(wrapper.find('[data-session-type="clipboard-compare"]').exists()).toBe(true)
+    // BC5 Home center grid: Text Edit (not Text Patch / Clipboard Compare).
+    expect(wrapper.find('[data-session-type="text-edit"]').exists()).toBe(true)
+    expect(wrapper.find('[data-session-type="folder-compare"]').exists()).toBe(true)
+    expect(wrapper.find('[data-session-type="text-patch"]').exists()).toBe(false)
+    expect(wrapper.find('[data-session-type="clipboard-compare"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="home-edit-selected"]').attributes('disabled')).toBeDefined()
     expect(invokeCalls).toEqual([])
   })
