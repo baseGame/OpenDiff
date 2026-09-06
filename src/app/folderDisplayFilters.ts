@@ -5,6 +5,7 @@ export const folderDisplayFiltersStorageKey = 'open-diff-folder-display-filters'
 export interface FolderDisplayFiltersState {
   statuses: FolderDisplayStatus[]
   showSuppressed: boolean
+  filesOnly: boolean
 }
 
 const allStatuses: FolderDisplayStatus[] = ['Same', 'Different', 'Left only', 'Right only']
@@ -13,6 +14,7 @@ export function defaultFolderDisplayFilters(): FolderDisplayFiltersState {
   return {
     statuses: [...allStatuses],
     showSuppressed: false,
+    filesOnly: false,
   }
 }
 
@@ -36,6 +38,7 @@ export function loadFolderDisplayFilters(
     return {
       statuses: statuses.length > 0 ? statuses : [...allStatuses],
       showSuppressed: Boolean(parsed.showSuppressed),
+      filesOnly: Boolean(parsed.filesOnly),
     }
   } catch {
     return defaultFolderDisplayFilters()
@@ -51,6 +54,7 @@ export function saveFolderDisplayFilters(
     JSON.stringify({
       statuses: state.statuses,
       showSuppressed: state.showSuppressed,
+      filesOnly: state.filesOnly,
     }),
   )
 }

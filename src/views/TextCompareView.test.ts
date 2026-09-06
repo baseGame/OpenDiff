@@ -124,11 +124,42 @@ describe('TextCompareView', () => {
     ).toEqual(ids)
     expect(
       wrapper.find('[data-testid="text-session-toolbar-same"]').attributes('disabled'),
-    ).toBeDefined()
+    ).toBeUndefined()
+    expect(
+      wrapper.find('[data-testid="text-session-toolbar-context"]').attributes('disabled'),
+    ).toBeUndefined()
+    expect(
+      wrapper.find('[data-testid="text-session-toolbar-minor"]').attributes('disabled'),
+    ).toBeUndefined()
     expect(
       wrapper.find('[data-testid="text-session-toolbar-rules"]').attributes('disabled'),
-    ).toBeDefined()
+    ).toBeUndefined()
     expect(wrapper.html()).not.toContain('未实现')
+  })
+
+  it('toggles the text rules panel from the session toolbar', async () => {
+    const wrapper = mountTextCompareView()
+
+    expect(
+      wrapper.find('[data-testid="text-rules-panel"]').attributes('style') ?? '',
+    ).not.toContain('display: none')
+    await wrapper.find('[data-testid="text-session-toolbar-rules"]').trigger('click')
+    expect(wrapper.find('[data-testid="text-rules-panel"]').attributes('style') ?? '').toContain(
+      'display: none',
+    )
+    await wrapper.find('[data-testid="text-session-toolbar-rules"]').trigger('click')
+    expect(
+      wrapper.find('[data-testid="text-rules-panel"]').attributes('style') ?? '',
+    ).not.toContain('display: none')
+  })
+
+  it('toggles minor whitespace ignore from the session toolbar', async () => {
+    const wrapper = mountTextCompareView()
+
+    await wrapper.find('[data-testid="text-session-toolbar-minor"]').trigger('click')
+    expect(
+      (wrapper.find('[data-testid="ignore-whitespace"]').element as HTMLInputElement).checked,
+    ).toBe(true)
   })
 
   it('swaps paths from the session toolbar', async () => {

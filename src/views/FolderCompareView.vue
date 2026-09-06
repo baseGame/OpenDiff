@@ -127,6 +127,9 @@ const folderCompareError = ref<string>()
 const initialDisplayFilters = loadFolderDisplayFilters()
 const visibleStatuses = ref<Set<FolderStatus>>(new Set(initialDisplayFilters.statuses))
 const showSuppressedFilters = ref(initialDisplayFilters.showSuppressed)
+const filesOnlyFilter = ref(initialDisplayFilters.filesOnly)
+const showFolderRules = ref(true)
+const showFolderFilters = ref(true)
 let folderCompareGeneration = 0
 const rowHeight = 34
 const virtualViewportRows = 18
@@ -282,7 +285,8 @@ const visibleRows = computed(() =>
     (row) =>
       (!row.parentId || expandedDirectoryIds.value.has(row.parentId)) &&
       !excludedRowIds.value.has(row.id) &&
-      (visibleStatuses.value.has(row.status) || showSuppressedFilters.value),
+      (visibleStatuses.value.has(row.status) || showSuppressedFilters.value) &&
+      (!filesOnlyFilter.value || row.kind === 'file'),
   ),
 )
 const virtualStartIndex = computed(() =>
@@ -412,6 +416,7 @@ function persistDisplayFilters(): void {
   saveFolderDisplayFilters({
     statuses: [...visibleStatuses.value],
     showSuppressed: showSuppressedFilters.value,
+    filesOnly: filesOnlyFilter.value,
   })
 }
 
@@ -432,6 +437,10 @@ function toggleStatuses(statuses: FolderStatus[], selected: boolean): void {
 }
 
 watch(showSuppressedFilters, () => {
+  persistDisplayFilters()
+})
+
+watch(filesOnlyFilter, () => {
   persistDisplayFilters()
 })
 
@@ -477,6 +486,11 @@ function showSameFolderStatuses(): void {
   persistDisplayFilters()
 }
 
+function toggleFilesOnlyFilter(): void {
+  filesOnlyFilter.value = !filesOnlyFilter.value
+  scrollTop.value = 0
+}
+
 function syncFolderTabTitle(): void {
   if (!leftRoot.value || !rightRoot.value) {
     return
@@ -496,16 +510,16 @@ const folderSessionToolbar = computed(() =>
     all: true,
     same: true,
     minor: false,
-    rules: false,
+    rules: true,
     copy: Boolean(selectedFilePath.value),
     expand: true,
     collapse: true,
     select: false,
-    files: false,
+    files: true,
     refresh: Boolean(leftRoot.value && rightRoot.value) && !folderCompareLoading.value,
     swap: Boolean(leftRoot.value || rightRoot.value),
     stop: folderCompareLoading.value,
-    filters: false,
+    filters: true,
     peek: false,
   }),
 )
@@ -521,6 +535,9 @@ function runFolderToolbarCommand(commandId: string): void {
     case 'same':
       showSameFolderStatuses()
       break
+    case 'rules':
+      showFolderRules.value = !showFolderRules.value
+      break
     case 'copy':
       if (selectedFilePath.value) {
         copySelectedTo('Right')
@@ -532,6 +549,9 @@ function runFolderToolbarCommand(commandId: string): void {
     case 'collapse':
       collapseAllFolders()
       break
+    case 'files':
+      toggleFilesOnlyFilter()
+      break
     case 'refresh':
       void runFolderCompare()
       break
@@ -540,6 +560,9 @@ function runFolderToolbarCommand(commandId: string): void {
       break
     case 'stop':
       cancelFolderCompare()
+      break
+    case 'filters':
+      showFolderFilters.value = !showFolderFilters.value
       break
     default:
       break
@@ -1418,6 +1441,7 @@ onUnmounted(() => {
           {{ $t('ui.archivePathHint') }}
         </p>
         <fieldset
+          v-show="showFolderRules"
           class="folder-criteria"
           data-testid="folder-criteria"
         >
@@ -1683,7 +1707,11 @@ onUnmounted(() => {
         </label>
       </section>
 
-      <section class="display-filters">
+      <section
+        v-show="showFolderFilters"
+        class="display-filters"
+        data-testid="folder-display-filters"
+      >
         <label
           v-for="option in displayStatusOptions"
           :key="option.testId"
@@ -1703,6 +1731,14 @@ onUnmounted(() => {
             type="checkbox"
           />
           <span>{{ $t('ui.suppressed') }}</span>
+        </label>
+        <label>
+          <input
+            v-model="filesOnlyFilter"
+            data-testid="toggle-files-only-filter"
+            type="checkbox"
+          />
+          <span>{{ $t('ui.filesOnly') }}</span>
         </label>
       </section>
 
