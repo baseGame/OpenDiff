@@ -233,9 +233,68 @@ describe('FolderCompareView', () => {
       wrapper.find('[data-testid="folder-session-toolbar-minor"]').attributes('disabled'),
     ).toBeDefined()
     expect(
+      wrapper.find('[data-testid="folder-session-toolbar-rules"]').attributes('disabled'),
+    ).toBeUndefined()
+    expect(
+      wrapper.find('[data-testid="folder-session-toolbar-filters"]').attributes('disabled'),
+    ).toBeUndefined()
+    expect(
+      wrapper.find('[data-testid="folder-session-toolbar-files"]').attributes('disabled'),
+    ).toBeUndefined()
+    expect(
       wrapper.find('[data-testid="folder-session-toolbar-peek"]').attributes('disabled'),
     ).toBeDefined()
+    expect(
+      wrapper.find('[data-testid="folder-session-toolbar-select"]').attributes('disabled'),
+    ).toBeDefined()
     expect(wrapper.html()).not.toContain('未实现')
+  })
+
+  it('toggles rules and filters panels from the session toolbar', async () => {
+    const wrapper = mountFolderCompareView()
+
+    expect(wrapper.find('[data-testid="folder-criteria"]').attributes('style') ?? '').not.toContain(
+      'display: none',
+    )
+    expect(
+      wrapper.find('[data-testid="folder-display-filters"]').attributes('style') ?? '',
+    ).not.toContain('display: none')
+
+    await wrapper.find('[data-testid="folder-session-toolbar-rules"]').trigger('click')
+    expect(wrapper.find('[data-testid="folder-criteria"]').attributes('style') ?? '').toContain(
+      'display: none',
+    )
+
+    await wrapper.find('[data-testid="folder-session-toolbar-filters"]').trigger('click')
+    expect(
+      wrapper.find('[data-testid="folder-display-filters"]').attributes('style') ?? '',
+    ).toContain('display: none')
+
+    await wrapper.find('[data-testid="folder-session-toolbar-rules"]').trigger('click')
+    await wrapper.find('[data-testid="folder-session-toolbar-filters"]').trigger('click')
+    expect(wrapper.find('[data-testid="folder-criteria"]').attributes('style') ?? '').not.toContain(
+      'display: none',
+    )
+    expect(
+      wrapper.find('[data-testid="folder-display-filters"]').attributes('style') ?? '',
+    ).not.toContain('display: none')
+  })
+
+  it('filters the folder tree to files only from the session toolbar', async () => {
+    const wrapper = mountFolderCompareView()
+
+    await runCompare(wrapper)
+    expect(wrapper.find('[data-row-id="src"]').exists()).toBe(true)
+    expect(wrapper.find('[data-row-id="src-main-ts"]').exists()).toBe(true)
+
+    await wrapper.find('[data-testid="folder-session-toolbar-files"]').trigger('click')
+    expect(wrapper.find('[data-row-id="src"]').exists()).toBe(false)
+    expect(wrapper.find('[data-row-id="src-main-ts"]').exists()).toBe(true)
+    expect(wrapper.find('[data-row-id="readme-md"]').exists()).toBe(true)
+    expect(
+      (wrapper.find('[data-testid="toggle-files-only-filter"]').element as HTMLInputElement)
+        .checked,
+    ).toBe(true)
   })
 
   it('does not render a demo folder tree before a real compare', () => {

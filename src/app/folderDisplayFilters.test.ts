@@ -19,12 +19,30 @@ describe('folderDisplayFilters', () => {
     saveFolderDisplayFilters({
       statuses: ['Different', 'Left only', 'Right only'],
       showSuppressed: true,
+      filesOnly: true,
     })
 
     expect(localStorage.getItem(folderDisplayFiltersStorageKey)).toContain('Different')
     expect(loadFolderDisplayFilters()).toEqual({
       statuses: ['Different', 'Left only', 'Right only'],
       showSuppressed: true,
+      filesOnly: true,
+    })
+  })
+
+  it('defaults filesOnly to false for older persisted payloads', () => {
+    localStorage.setItem(
+      folderDisplayFiltersStorageKey,
+      JSON.stringify({
+        statuses: ['Same'],
+        showSuppressed: false,
+      }),
+    )
+
+    expect(loadFolderDisplayFilters()).toEqual({
+      statuses: ['Same'],
+      showSuppressed: false,
+      filesOnly: false,
     })
   })
 })

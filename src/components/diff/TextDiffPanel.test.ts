@@ -256,6 +256,38 @@ describe('TextDiffPanel', () => {
     )
   })
 
+  it('filters to same lines only', async () => {
+    const lines: DiffLine[] = [
+      {
+        leftNumber: 1,
+        rightNumber: 1,
+        leftText: 'same line',
+        rightText: 'same line',
+        kind: 'equal',
+        inlineSegments: { left: [], right: [] },
+      },
+      {
+        leftNumber: 2,
+        rightNumber: 2,
+        leftText: 'left only',
+        rightText: 'right only',
+        kind: 'modified',
+        inlineSegments: { left: [], right: [] },
+      },
+    ]
+
+    const wrapper = mount(TextDiffPanel, { props: { lines } })
+
+    await wrapper.find('[data-testid="text-diff-show-same"]').trigger('click')
+    await nextTick()
+
+    expect(wrapper.text()).toContain('same line')
+    expect(wrapper.text()).not.toContain('left only')
+    expect(wrapper.find('[data-testid="text-diff-show-same"]').classes()).toContain(
+      'diff-filter-button-active',
+    )
+  })
+
   it('updates difference context rows from the toolbar input', async () => {
     const lines: DiffLine[] = Array.from({ length: 12 }, (_, index) => {
       const lineNumber = index + 1

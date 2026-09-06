@@ -9,7 +9,7 @@ const overscanRowCount = 12
 const defaultViewportHeight = 480
 const defaultDifferenceContextRows = 2
 
-type DiffDisplayMode = 'all' | 'differences'
+type DiffDisplayMode = 'all' | 'differences' | 'same'
 
 interface VisibleDiffRow {
   index: number
@@ -75,6 +75,13 @@ const wordWrap = ref(false)
 const displayRows = computed((): VisibleDiffRow[] => {
   if (displayMode.value === 'all') {
     return props.lines.map((line, index) => ({ index, sourceIndex: index, line }))
+  }
+
+  if (displayMode.value === 'same') {
+    return props.lines
+      .map((line, sourceIndex) => ({ line, sourceIndex }))
+      .filter(({ line }) => line.kind === 'equal')
+      .map(({ line, sourceIndex }, index) => ({ index, sourceIndex, line }))
   }
 
   const visibleSourceIndexes = new Set<number>()
@@ -149,6 +156,15 @@ const setDisplayMode = (mode: DiffDisplayMode): void => {
   jumpToLine(0)
 }
 
+const setDifferenceContextRowCount = (value: number): void => {
+  if (Number.isNaN(value)) {
+    return
+  }
+
+  differenceContextRows.value = Math.min(99, Math.max(0, Math.trunc(value)))
+  jumpToLine(0)
+}
+
 const setDifferenceContextRows = (event: Event): void => {
   const target = event.currentTarget
 
@@ -156,14 +172,7 @@ const setDifferenceContextRows = (event: Event): void => {
     return
   }
 
-  const nextValue = Number.parseInt(target.value, 10)
-
-  if (Number.isNaN(nextValue)) {
-    return
-  }
-
-  differenceContextRows.value = Math.min(99, Math.max(0, nextValue))
-  jumpToLine(0)
+  setDifferenceContextRowCount(Number.parseInt(target.value, 10))
 }
 
 const toggleWhitespace = (): void => {
@@ -414,6 +423,7 @@ const splitBySyntaxTokens = (
 
 defineExpose({
   setDisplayMode,
+  setDifferenceContextRowCount,
   jumpToNextDiff,
   jumpToPreviousDiff,
 })
@@ -449,6 +459,15 @@ defineExpose({
             @click="setDisplayMode('differences')"
           >
             {{ $t('ui.showDifferences') }}
+          </button>
+          <button
+            type="button"
+            class="diff-filter-button"
+            :class="{ 'diff-filter-button-active': displayMode === 'same' }"
+            data-testid="text-diff-show-same"
+            @click="setDisplayMode('same')"
+          >
+            {{ $t('ui.showSame') }}
           </button>
         </div>
         <label class="diff-context-control"

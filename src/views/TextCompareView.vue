@@ -37,6 +37,7 @@ const ignoreWhitespace = ref(false)
 const ignoreCase = ref(false)
 const ignoreLineEndings = ref(false)
 const ignoreRegexInput = ref('')
+const showTextRules = ref(true)
 const fileFormats = ref(loadFileFormats())
 const selectedFormatId = ref('')
 const reportStatus = ref('')
@@ -690,7 +691,8 @@ function closeHtmlPreviewWhenUnavailable(): void {
 }
 
 const textDiffPanelRef = ref<{
-  setDisplayMode: (mode: 'all' | 'differences') => void
+  setDisplayMode: (mode: 'all' | 'differences' | 'same') => void
+  setDifferenceContextRowCount: (value: number) => void
 } | null>(null)
 
 function syncTextTabTitle(): void {
@@ -711,10 +713,10 @@ const textSessionToolbar = computed(() =>
     home: true,
     all: true,
     diffs: true,
-    same: false,
-    context: false,
-    minor: false,
-    rules: false,
+    same: true,
+    context: true,
+    minor: true,
+    rules: true,
     copy: Boolean(result.value) && activeDiffRows.value.length > 0,
     'next-section': activeDiffRows.value.length > 0,
     'prev-section': activeDiffRows.value.length > 0,
@@ -723,6 +725,19 @@ const textSessionToolbar = computed(() =>
       Boolean(leftPathLabel.value && rightPathLabel.value) || Boolean(left.value || right.value),
   }),
 )
+
+function toggleTextMinorRules(): void {
+  ignoreWhitespace.value = !ignoreWhitespace.value
+
+  if (left.value || right.value || result.value) {
+    void runDiff()
+  }
+}
+
+function showTextContextMode(): void {
+  textDiffPanelRef.value?.setDisplayMode('differences')
+  textDiffPanelRef.value?.setDifferenceContextRowCount(2)
+}
 
 function runTextToolbarCommand(commandId: string): void {
   switch (commandId) {
@@ -734,6 +749,18 @@ function runTextToolbarCommand(commandId: string): void {
       break
     case 'diffs':
       textDiffPanelRef.value?.setDisplayMode('differences')
+      break
+    case 'same':
+      textDiffPanelRef.value?.setDisplayMode('same')
+      break
+    case 'context':
+      showTextContextMode()
+      break
+    case 'minor':
+      toggleTextMinorRules()
+      break
+    case 'rules':
+      showTextRules.value = !showTextRules.value
       break
     case 'copy':
       copyCurrentDiff('leftToRight')
@@ -944,34 +971,41 @@ function toggleSourceEditors(): void {
           <option value="patience">{{ $t('ui.patience') }}</option>
           <option value="histogram">{{ $t('ui.histogram') }}</option>
         </select>
-        <label class="find-option">
-          <input
-            v-model="ignoreWhitespace"
-            data-testid="ignore-whitespace"
-            type="checkbox"
-          />{{ $t('ui.whitespace') }}</label
+        <fieldset
+          v-show="showTextRules"
+          class="text-rules-panel"
+          data-testid="text-rules-panel"
         >
-        <label class="find-option">
+          <legend>{{ $t('ui.rules') }}</legend>
+          <label class="find-option">
+            <input
+              v-model="ignoreWhitespace"
+              data-testid="ignore-whitespace"
+              type="checkbox"
+            />{{ $t('ui.whitespace') }}</label
+          >
+          <label class="find-option">
+            <input
+              v-model="ignoreCase"
+              data-testid="ignore-case"
+              type="checkbox"
+            />{{ $t('ui.case') }}</label
+          >
+          <label class="find-option">
+            <input
+              v-model="ignoreLineEndings"
+              data-testid="ignore-line-endings"
+              type="checkbox"
+            />{{ $t('ui.lineEndings') }}</label
+          >
           <input
-            v-model="ignoreCase"
-            data-testid="ignore-case"
-            type="checkbox"
-          />{{ $t('ui.case') }}</label
-        >
-        <label class="find-option">
-          <input
-            v-model="ignoreLineEndings"
-            data-testid="ignore-line-endings"
-            type="checkbox"
-          />{{ $t('ui.lineEndings') }}</label
-        >
-        <input
-          v-model="ignoreRegexInput"
-          class="find-input"
-          data-testid="ignore-regexes"
-          type="text"
-          :placeholder="$t('ui.regex')"
-        />
+            v-model="ignoreRegexInput"
+            class="find-input"
+            data-testid="ignore-regexes"
+            type="text"
+            :placeholder="$t('ui.regex')"
+          />
+        </fieldset>
         <button
           type="button"
           data-testid="export-text-html-report"
@@ -1309,6 +1343,22 @@ function toggleSourceEditors(): void {
 
 .status-chip {
   color: var(--app-text-muted);
+  font-size: 12px;
+}
+
+.text-rules-panel {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--od-border, #d0d7de);
+  border-radius: 6px;
+}
+
+.text-rules-panel legend {
+  padding: 0 4px;
   font-size: 12px;
 }
 
