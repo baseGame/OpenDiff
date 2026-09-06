@@ -597,8 +597,8 @@ select {
 }
 
 .folder-toolbar .folder-actions {
-  display: flex !important;
   position: static !important;
+  display: flex !important;
   grid-column: 1 !important;
   grid-row: auto !important;
   flex-wrap: wrap !important;
