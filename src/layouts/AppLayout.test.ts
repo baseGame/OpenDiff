@@ -24,7 +24,7 @@ vi.mock('vue-router', () => ({
 const desktopDropHandlers: ((paths: string[]) => void | Promise<void>)[] = []
 
 vi.mock('@/app/desktopDrop', () => ({
-  listenDesktopPathDrop: vi.fn((onPaths: (paths: string[]) => void | Promise<void>) => {
+  listenDesktopPathDrop: vi.fn((onPaths: (paths: string[]) => void | Promise<void>, _onPhase?: unknown) => {
     desktopDropHandlers.push(onPaths)
 
     return Promise.resolve(() => undefined)

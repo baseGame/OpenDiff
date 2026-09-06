@@ -2622,6 +2622,7 @@ dependencies = [
  "file-core",
  "folder-core",
  "folder-merge-core",
+ "gtk",
  "hex-core",
  "image",
  "image-core",
@@ -2646,6 +2647,7 @@ dependencies = [
  "tokio",
  "version-core",
  "vfs-core",
+ "webkit2gtk",
 ]
 
 [[package]]

@@ -13,11 +13,13 @@ describe('desktopDrop', () => {
 
   it('returns a no-op unlisten outside Tauri', async () => {
     const onPaths = vi.fn()
-    const stop = await listenDesktopPathDrop(onPaths)
+    const onPhase = vi.fn()
+    const stop = await listenDesktopPathDrop(onPaths, onPhase)
 
     expect(typeof stop).toBe('function')
     stop()
     expect(onPaths).not.toHaveBeenCalled()
+    expect(onPhase).toHaveBeenCalledWith('unavailable', 'not-tauri')
   })
 
   it('falls back to path heuristics when classify_paths is unavailable', async () => {
