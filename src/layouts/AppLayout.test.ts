@@ -24,11 +24,13 @@ vi.mock('vue-router', () => ({
 const desktopDropHandlers: ((paths: string[]) => void | Promise<void>)[] = []
 
 vi.mock('@/app/desktopDrop', () => ({
-  listenDesktopPathDrop: vi.fn((onPaths: (paths: string[]) => void | Promise<void>, _onPhase?: unknown) => {
-    desktopDropHandlers.push(onPaths)
+  listenDesktopPathDrop: vi.fn(
+    (onPaths: (paths: string[]) => void | Promise<void>, _onPhase?: unknown) => {
+      desktopDropHandlers.push(onPaths)
 
-    return Promise.resolve(() => undefined)
-  }),
+      return Promise.resolve(() => undefined)
+    },
+  ),
   resolveDropInputsFromPaths: vi.fn((paths: string[]) =>
     Promise.resolve(
       paths.map((path) => ({
