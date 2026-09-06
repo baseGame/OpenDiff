@@ -126,7 +126,10 @@ function folderMergeActionLabel(action: FolderMergePlanRow['action']): string {
 }
 
 function canOpenConflictInTextMerge(conflict: FolderMergeConflict): boolean {
-  return conflict.leftContext.includes('File') && conflict.rightContext.includes('File')
+  return (
+    (conflict.leftContext?.includes('File') ?? false) &&
+    (conflict.rightContext?.includes('File') ?? false)
+  )
 }
 
 function openConflictInTextMerge(conflict: FolderMergeConflict): void {
