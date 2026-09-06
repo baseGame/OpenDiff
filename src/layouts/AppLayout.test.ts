@@ -6,6 +6,7 @@ import { createAppI18n, installI18n } from '@/i18n'
 import { useSettingsStore } from '@/stores/settings'
 import { useTabsStore } from '@/stores/tabs'
 import { useStatusBarStore } from '@/stores/statusBar'
+import { useSessionLaunchStore } from '@/stores/sessionLaunch'
 
 const push = vi.fn()
 let routePath = '/compare/text'
@@ -20,12 +21,31 @@ vi.mock('vue-router', () => ({
   useRouter: () => ({ push }),
 }))
 
+const desktopDropHandlers: ((paths: string[]) => void | Promise<void>)[] = []
+
+vi.mock('@/app/desktopDrop', () => ({
+  listenDesktopPathDrop: vi.fn((onPaths: (paths: string[]) => void | Promise<void>) => {
+    desktopDropHandlers.push(onPaths)
+
+    return Promise.resolve(() => undefined)
+  }),
+  resolveDropInputsFromPaths: vi.fn((paths: string[]) =>
+    Promise.resolve(
+      paths.map((path) => ({
+        path,
+        kind: path.includes('.') && !path.endsWith('/') ? 'file' : 'directory',
+      })),
+    ),
+  ),
+}))
+
 describe('AppLayout command palette', () => {
   beforeEach(() => {
     localStorage.clear()
     setActivePinia(createPinia())
     routePath = '/compare/text'
     push.mockClear()
+    desktopDropHandlers.length = 0
   })
 
   it('searches and executes navigation commands', async () => {
@@ -224,6 +244,40 @@ describe('AppLayout command palette', () => {
     expect(wrapper.find('[data-testid="status-bar"]').text()).toContain('Differences: 4')
     expect(wrapper.find('[data-testid="status-bar"]').text()).toContain('Encoding: UTF-8 / LF')
     expect(wrapper.find('[data-testid="status-bar"]').text()).toContain('Filter: All rows')
+  })
+
+  it('launches a compare session from a global desktop path drop', async () => {
+    mountAppLayout()
+    const launchStore = useSessionLaunchStore()
+
+    expect(desktopDropHandlers).toHaveLength(1)
+
+    await desktopDropHandlers[0]?.(['C:/work/left.txt', 'C:/work/right.txt'])
+
+    expect(push).toHaveBeenCalledWith('/compare/text')
+    expect(launchStore.pendingLaunch).toMatchObject({
+      source: 'drop',
+      sessionType: 'text-compare',
+      route: '/compare/text',
+      autoRun: true,
+      locations: {
+        left: { uri: 'C:/work/left.txt', kind: 'file' },
+        right: { uri: 'C:/work/right.txt', kind: 'file' },
+      },
+    })
+  })
+
+  it('reports invalid desktop drops on the status bar without navigating', async () => {
+    mountAppLayout()
+    const statusBar = useStatusBarStore()
+    const launchStore = useSessionLaunchStore()
+
+    await desktopDropHandlers[0]?.(['C:/work/only.txt'])
+
+    expect(push).not.toHaveBeenCalled()
+    expect(launchStore.pendingLaunch).toBeUndefined()
+    expect(statusBar.report.comparisonStatus).toBe('Drop exactly two files or folders.')
+    expect(statusBar.report.source).toBe('drop')
   })
 
   it('shows tab context menu actions and closes others', async () => {

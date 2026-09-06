@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter, RouterView } from 'vue-router'
 import {
   ArrowDown,
@@ -34,6 +34,8 @@ import {
 } from '@lucide/vue'
 import { commandRegistry, filterCommands } from '@/app/commandRegistry'
 import { createCommandExecutor, getCommandsForPlacement } from '@/app/commandSystem'
+import { listenDesktopPathDrop } from '@/app/desktopDrop'
+import { resolveDropLaunchFromPaths } from '@/app/dropLaunch'
 import { sessionCatalog } from '@/app/sessionCatalog'
 import { useI18n } from '@/i18n'
 import { usePolicyStore } from '@/stores/policy'
@@ -77,6 +79,8 @@ const tabs = useTabsStore()
 const sessionLaunch = useSessionLaunchStore()
 const savedSessions = useSavedSessionsStore()
 
+let stopDesktopDrop: (() => void) | undefined
+
 onMounted(() => {
   void (async () => {
     try {
@@ -108,6 +112,34 @@ onMounted(() => {
       // ponytail: ignore missing shell launch outside Windows Explorer flow
     }
   })()
+
+  void listenDesktopPathDrop(async (paths) => {
+    const result = await resolveDropLaunchFromPaths(paths, { autoRun: true })
+
+    if (!result.ok) {
+      statusBar.reportStatus({
+        comparisonStatus: result.reason,
+        source: 'drop',
+      })
+
+      return
+    }
+
+    sessionLaunch.setPendingLaunch(result.payload)
+    tabs.openTab({
+      title: result.selection.title,
+      titleKey: result.selection.titleKey,
+      route: result.selection.route,
+      dirty: false,
+    })
+    void router.push(result.selection.route)
+  }).then((stop) => {
+    stopDesktopDrop = stop
+  })
+})
+
+onUnmounted(() => {
+  stopDesktopDrop?.()
 })
 
 const commandPaletteOpen = ref(false)

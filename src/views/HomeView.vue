@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   Binary,
@@ -23,7 +23,7 @@ import {
 import { readClipboardTextSource } from '@/app/clipboardSource'
 import { pickNativePath } from '@/app/filePicker'
 import { classifyDropInputs } from '@/app/dropInput'
-import { listenDesktopPathDrop, resolveDropInputsFromPaths } from '@/app/desktopDrop'
+import { createLaunchFromDrop } from '@/app/dropLaunch'
 import { filterSavedSessions } from '@/app/savedSessions'
 import { selectSessionForDrop } from '@/app/sessionAutoSelect'
 import { sessionCatalog } from '@/app/sessionCatalog'
@@ -38,7 +38,7 @@ import { useSavedSessionsStore } from '@/stores/savedSessions'
 import { useSessionLaunchStore } from '@/stores/sessionLaunch'
 import { useTabsStore } from '@/stores/tabs'
 import { useWorkspacesStore } from '@/stores/workspaces'
-import type { ClassifiedDropItem, DropClassification, DropInput } from '@/app/dropInput'
+import type { DropClassification, DropInput } from '@/app/dropInput'
 import type { SessionSelection } from '@/app/sessionAutoSelect'
 import type { SessionCatalogEntry } from '@/app/sessionCatalog'
 import type { SessionDocument, SessionType } from '@/types/session'
@@ -158,26 +158,6 @@ const historyItems = computed(() =>
   })),
 )
 
-let stopDesktopDrop: (() => void) | undefined
-
-onMounted(() => {
-  void listenDesktopPathDrop(async (paths) => {
-    isDragging.value = false
-
-    const inputs = await resolveDropInputsFromPaths(paths)
-
-    setDropInputs(inputs)
-    // ponytail: auto-run when paths ready
-    openSelectedDropSession()
-  }).then((stop) => {
-    stopDesktopDrop = stop
-  })
-})
-
-onUnmounted(() => {
-  stopDesktopDrop?.()
-})
-
 function openSession(entry: SessionCatalogEntry): void {
   if (!entry.implemented || !entry.route) {
     return
@@ -235,6 +215,8 @@ function handleDrop(event: DragEvent): void {
   event.preventDefault()
   isDragging.value = false
   setDropInputs(inputsFromDataTransfer(event.dataTransfer))
+  // ponytail: HTML drop zone also auto-opens when the drop is valid
+  openSelectedDropSession()
 }
 
 function setDropInputs(inputs: DropInput[]): void {
@@ -267,7 +249,7 @@ function openSelectedDropSession(): void {
     return
   }
 
-  sessionLaunch.setPendingLaunch(createLaunchFromDrop(selectedDropSession.value))
+  sessionLaunch.setPendingLaunch(buildDropLaunchPayload(selectedDropSession.value))
   tabs.openTab({
     title: selectedDropSession.value.title,
     titleKey: selectedDropSession.value.titleKey,
@@ -277,26 +259,18 @@ function openSelectedDropSession(): void {
   void router.push(selectedDropSession.value.route)
 }
 
-function createLaunchFromDrop(selection: SessionSelection): SessionLaunchPayload {
+function buildDropLaunchPayload(selection: SessionSelection): SessionLaunchPayload {
   if (dropResult.value.kind === 'invalid' || !selection.route) {
     throw new Error('Cannot create a launch payload from an invalid drop.')
   }
 
-  return {
-    id: crypto.randomUUID(),
-    source: 'drop',
-    sessionType: selection.sessionType,
-    title: `${dropResult.value.left.displayName} vs ${dropResult.value.right.displayName}`,
-    route: selection.route,
-    locations: {
-      left: dropItemToLaunchLocation(dropResult.value.left),
-      right:
-        dropResult.value.kind === 'patch'
-          ? undefined
-          : dropItemToLaunchLocation(dropResult.value.right),
+  return createLaunchFromDrop(
+    dropResult.value,
+    { ...selection, route: selection.route },
+    {
+      autoRun: true,
     },
-    autoRun: true,
-  }
+  )
 }
 
 async function openClipboardText(): Promise<void> {
@@ -340,15 +314,6 @@ function simulateTextDrop(): void {
 
 function simulatePatchDrop(): void {
   setDropInputs([{ path: 'C:/work/change.patch', kind: 'file' }])
-}
-
-function dropItemToLaunchLocation(item: ClassifiedDropItem): SessionLaunchLocation {
-  return {
-    uri: item.path,
-    displayName: item.displayName,
-    kind: item.sourceKind,
-    readOnly: false,
-  }
 }
 
 function sessionLocationToLaunchLocation(

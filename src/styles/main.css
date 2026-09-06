@@ -396,7 +396,7 @@ select {
 
 .bc-path-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 42px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) auto auto minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 6px;
   min-height: 40px;
@@ -415,18 +415,26 @@ select {
   border-radius: 2px;
   background: #ffffff;
   color: #111111;
-  font-size: 20px;
+  font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .bc-path-row button {
+  box-sizing: border-box;
+  width: auto;
+  min-width: max-content;
+  max-width: none;
   height: 34px;
+  padding: 0 10px;
+  overflow: visible;
   border: 1px solid #bfc4cc;
   border-radius: 2px;
   background: #ffffff;
   color: #111111;
-  font-size: 18px;
+  font-size: 12px;
+  line-height: 1.2;
+  white-space: nowrap;
 }
 
 .workbench-inspector-stack {
@@ -594,6 +602,31 @@ select {
   gap: 6px !important;
   min-width: 0 !important;
   overflow: visible !important;
+}
+
+.folder-toolbar .folder-criteria {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+  gap: 8px 14px !important;
+  min-width: 0 !important;
+  overflow: visible !important;
+}
+
+.folder-toolbar .folder-criteria label {
+  display: inline-flex !important;
+  flex: 0 1 auto !important;
+  align-items: center !important;
+  gap: 6px !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  white-space: normal !important;
+}
+
+.folder-toolbar .folder-criteria label span {
+  min-width: 0 !important;
+  overflow-wrap: anywhere !important;
+  white-space: normal !important;
 }
 
 .folder-root-summary,
