@@ -1,6 +1,7 @@
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { InvokeArgs } from '@tauri-apps/api/core'
 import { invokeArgs, invokeCalls, lastInvoke, resetInvokeCalls } from '@/test/invokeMock'
 import HomeView from './HomeView.vue'
 import TextCompareView from './TextCompareView.vue'
@@ -498,14 +499,16 @@ describe('session UI to command linkage', () => {
       uri: 'sftp://profile/prod-sftp/',
     }
 
-    vi.mocked(invoke).mockImplementation((command: string, args: Record<string, unknown> = {}) => {
-      helper.invokeCalls.push({ command, args })
+    vi.mocked(invoke).mockImplementation((command: string, args: InvokeArgs = {}) => {
+      const recordArgs = args as Record<string, unknown>
+
+      helper.invokeCalls.push({ command, args: recordArgs })
 
       if (command === 'list_remote_profiles') {
         return Promise.resolve([seeded])
       }
 
-      return Promise.resolve(helper.invokeResponse(command, args))
+      return Promise.resolve(helper.invokeResponse(command, recordArgs))
     })
 
     try {
@@ -519,13 +522,13 @@ describe('session UI to command linkage', () => {
       expectCommand('test_remote_profile', { id: 'prod-sftp' })
     } finally {
       Reflect.deleteProperty(window, '__TAURI_INTERNALS__')
-      vi.mocked(invoke).mockImplementation(
-        (command: string, args: Record<string, unknown> = {}) => {
-          helper.invokeCalls.push({ command, args })
+      vi.mocked(invoke).mockImplementation((command: string, args: InvokeArgs = {}) => {
+        const recordArgs = args as Record<string, unknown>
 
-          return Promise.resolve(helper.invokeResponse(command, args))
-        },
-      )
+        helper.invokeCalls.push({ command, args: recordArgs })
+
+        return Promise.resolve(helper.invokeResponse(command, recordArgs))
+      })
     }
   })
 
