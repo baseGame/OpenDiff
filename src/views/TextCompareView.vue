@@ -13,6 +13,8 @@ import WorkbenchToolbar from '@/components/workbench/WorkbenchToolbar.vue'
 import WorkbenchInspector from '@/components/workbench/WorkbenchInspector.vue'
 import StatusSummaryGrid from '@/components/workbench/StatusSummaryGrid.vue'
 import { useI18n } from '@/i18n'
+import { loadFileFormats, matchFileFormat } from '@/app/fileFormats'
+import { textOptionsFromFormat } from '@/app/formatSessionRules'
 import { grammarForPath } from '@/app/syntaxGrammars'
 import { pickNativePath } from '@/app/filePicker'
 import { formatCompareError } from '@/app/compareError'
@@ -35,6 +37,8 @@ const ignoreWhitespace = ref(false)
 const ignoreCase = ref(false)
 const ignoreLineEndings = ref(false)
 const ignoreRegexInput = ref('')
+const fileFormats = ref(loadFileFormats())
+const selectedFormatId = ref('')
 const reportStatus = ref('')
 const result = ref<TextDiffResponse | null>(null)
 const loading = ref(false)
@@ -212,6 +216,46 @@ onMounted(() => {
     leftPathLabel.value = lastCompare.text.leftSource ?? leftPathLabel.value
     rightPathLabel.value = lastCompare.text.rightSource ?? rightPathLabel.value
   }
+
+  syncFormatFromPaths()
+})
+
+function applySelectedFileFormat(formatId = selectedFormatId.value): void {
+  const format = fileFormats.value.find((item) => item.id === formatId)
+
+  if (!format) {
+    return
+  }
+
+  selectedFormatId.value = format.id
+  const next = textOptionsFromFormat(format, {
+    ignoreWhitespace: ignoreWhitespace.value,
+    ignoreCase: ignoreCase.value,
+    ignoreLineEndings: ignoreLineEndings.value,
+    ignoreRegexes: ignoreRegexInput.value
+      .split('\n')
+      .map((value) => value.trim())
+      .filter(Boolean),
+  })
+
+  ignoreWhitespace.value = next.ignoreWhitespace
+  ignoreCase.value = next.ignoreCase
+  ignoreLineEndings.value = next.ignoreLineEndings
+  ignoreRegexInput.value = next.ignoreRegexes.join('\n')
+}
+
+function syncFormatFromPaths(): void {
+  const matched = matchFileFormat(leftPathLabel.value || rightPathLabel.value, fileFormats.value)
+
+  if (!matched) {
+    return
+  }
+
+  selectedFormatId.value = matched.id
+}
+
+watch([leftPathLabel, rightPathLabel], () => {
+  syncFormatFromPaths()
 })
 
 function detectLineEnding(value: string): string {
@@ -864,6 +908,33 @@ function toggleSourceEditors(): void {
           data-testid="bookmark-status"
           >{{ bookmarkStatus }}</span
         >
+        <label class="find-option format-select-label">
+          <span>{{ $t('ui.fileFormat') }}</span>
+          <select
+            v-model="selectedFormatId"
+            class="algorithm-select"
+            data-testid="text-format-select"
+            @change="applySelectedFileFormat()"
+          >
+            <option value="">{{ $t('ui.auto') }}</option>
+            <option
+              v-for="format in fileFormats"
+              :key="format.id"
+              :value="format.id"
+            >
+              {{ format.name }}
+            </option>
+          </select>
+        </label>
+        <button
+          type="button"
+          class="toolbar-button"
+          data-testid="apply-text-format"
+          :disabled="!selectedFormatId"
+          @click="applySelectedFileFormat()"
+        >
+          {{ $t('ui.applyFormatRules') }}
+        </button>
         <select
           v-model="algorithm"
           class="algorithm-select"

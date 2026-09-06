@@ -671,9 +671,9 @@ export const enUS: LanguagePack = {
     'ui.scriptPath': 'Script file',
     'ui.scriptSource': 'Script source',
     'ui.scriptingNotImplemented':
-      'Full BC scripting is not implemented. Supported commands run; others return unsupported.',
+      'Full legacy scripting is not implemented. Supported commands run; others return unsupported.',
     'ui.scriptingSupported':
-      'Supported commands: LOAD, FILTER, COMPARE, REPORT, LOG, BEEP, OPTION, SELECT, COPY, COPYTO, DELETE, RENAME, TOUCH, SNAPSHOT, SYNC, TEXT-REPORT, FOLDER-REPORT. Other BC commands return unsupported.',
+      'Supported commands: LOAD, FILTER, COMPARE, REPORT, LOG, BEEP, OPTION, SELECT, COPY, COPYTO, DELETE, RENAME, TOUCH, SNAPSHOT, SYNC, TEXT-REPORT, FOLDER-REPORT. Other script commands return unsupported.',
     'ui.secretsHint':
       'Passwords are stored only in a local secrets file (mode 0600), never in the profile list or logs.',
     'ui.sourceFile': 'Source file',
@@ -689,6 +689,20 @@ export const enUS: LanguagePack = {
     'ui.xls': 'XLS',
     'ui.xlsx': 'XLSX',
     'ui.followSystem': 'Follow system',
+    'ui.auto': 'Auto',
+    'ui.autoSaveLimit': 'Auto-save session limit',
+    'ui.applyFormatRules': 'Apply format rules',
+    'ui.fileFormat': 'File format',
+    'ui.integration': 'Integration',
+    'ui.localPath': 'Local path',
+    'ui.recentExports': 'Recent exports',
+    'ui.remoteLocalPersistenceHint':
+      'Profiles are saved locally in this browser session store. Connection tests require the desktop app.',
+    'ui.remoteProfile': 'Remote profile',
+    'status.remoteNoHost': 'Enter a host before testing the connection',
+    'status.remoteSaveBeforeTest': 'Save the profile before testing the connection',
+    'status.remoteTestRequiresDesktop':
+      'Connection tests require the desktop app; profile details still save locally',
     'ui.compareBySize': 'Compare size',
     'ui.compareByTimestamp': 'Compare timestamp',
     'ui.compareBinaryContents': 'Compare binary contents',

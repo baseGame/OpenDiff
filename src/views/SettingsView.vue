@@ -40,6 +40,16 @@ const integrationStatus = ref('')
 const integrationError = ref('')
 const integrationWriting = ref(false)
 const shortcutSearch = ref('')
+const optionsSection = ref<'appearance' | 'formats' | 'shortcuts' | 'integration' | 'sessions'>(
+  'appearance',
+)
+const optionsSections = [
+  { id: 'appearance' as const, labelKey: 'ui.appearance' },
+  { id: 'formats' as const, labelKey: 'ui.fileFormats' },
+  { id: 'shortcuts' as const, labelKey: 'ui.shortcuts' },
+  { id: 'integration' as const, labelKey: 'ui.integration' },
+  { id: 'sessions' as const, labelKey: 'ui.sessions' },
+]
 const shortcutDrafts = ref<Record<string, string>>(
   Object.fromEntries(
     commandRegistry.map((command) => [
@@ -231,6 +241,16 @@ function shortcutToText(shortcut: CommandShortcut): string {
   return shortcut.keys.join('+')
 }
 
+function onAutoSaveLimitInput(event: Event): void {
+  const target = event.target
+
+  if (!(target instanceof HTMLInputElement)) {
+    return
+  }
+
+  settings.setAutoSaveLimit(Number(target.value))
+}
+
 function parseShortcutText(value: string): string[] {
   return value
     .split('+')
@@ -247,9 +267,29 @@ function parseShortcutText(value: string): string[] {
     :inspector-label="$t('ui.settingsInspector')"
   >
     <section class="settings-view">
+      <nav
+        class="options-section-nav"
+        data-testid="options-section-nav"
+        :aria-label="$t('ui.options')"
+      >
+        <button
+          v-for="section in optionsSections"
+          :key="section.id"
+          type="button"
+          class="options-section-button"
+          :class="{ active: optionsSection === section.id }"
+          :data-testid="`options-section-${section.id}`"
+          @click="optionsSection = section.id"
+        >
+          {{ $t(section.labelKey) }}
+        </button>
+      </nav>
+
       <NCard
+        v-show="optionsSection === 'appearance'"
         :title="$t('ui.appearance')"
         size="small"
+        data-testid="options-appearance-card"
       >
         <NSpace align="center">
           <span>{{ $t('ui.theme') }}</span>
@@ -273,11 +313,25 @@ function parseShortcutText(value: string): string[] {
             @update:value="updateLocale"
           />
         </NSpace>
+        <label class="auto-save-limit-row">
+          <span>{{ $t('ui.autoSaveLimit') }}</span>
+          <input
+            class="auto-save-limit-input"
+            data-testid="auto-save-limit"
+            type="number"
+            min="0"
+            max="50"
+            :value="settings.autoSaveLimit"
+            @input="onAutoSaveLimitInput"
+          />
+        </label>
       </NCard>
 
       <NCard
+        v-show="optionsSection === 'formats'"
         :title="$t('ui.fileFormats')"
         size="small"
+        data-testid="options-formats-card"
       >
         <div class="settings-row">
           <div>
@@ -294,9 +348,10 @@ function parseShortcutText(value: string): string[] {
       </NCard>
 
       <NCard
-        v-if="policy.remoteProfiles"
+        v-if="policy.remoteProfiles && optionsSection === 'formats'"
         :title="$t('ui.remoteProfiles')"
         size="small"
+        data-testid="options-remote-card"
       >
         <div class="settings-row">
           <div>
@@ -313,8 +368,10 @@ function parseShortcutText(value: string): string[] {
       </NCard>
 
       <NCard
+        v-show="optionsSection === 'shortcuts'"
         :title="$t('ui.shortcuts')"
         size="small"
+        data-testid="options-shortcuts-card"
       >
         <div class="shortcut-config">
           <div class="settings-row">
@@ -367,8 +424,10 @@ function parseShortcutText(value: string): string[] {
       </NCard>
 
       <NCard
+        v-show="optionsSection === 'integration'"
         :title="$t('ui.gitIntegration')"
         size="small"
+        data-testid="options-integration-card"
       >
         <div class="integration-config">
           <p>{{ $t('ui.gitIntegration') }}</p>
@@ -492,8 +551,10 @@ function parseShortcutText(value: string): string[] {
       </NCard>
 
       <NCard
+        v-show="optionsSection === 'sessions'"
         :title="$t('ui.sharedSessions')"
         size="small"
+        data-testid="options-sessions-card"
       >
         <div class="shared-session-config">
           <div class="settings-row">
@@ -589,6 +650,32 @@ function parseShortcutText(value: string): string[] {
   height: 100%;
   padding: 24px;
   overflow: auto;
+}
+
+.options-section-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.options-section-button {
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--app-border);
+  border-radius: 6px;
+  background: var(--app-surface);
+  color: var(--app-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.options-section-button.active {
+  border-color: #2563eb;
+  background: rgb(37 99 235 / 0.12);
+}
+
+.auto-save-limit-input {
+  width: 120px;
 }
 
 h1 {

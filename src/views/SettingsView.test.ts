@@ -53,9 +53,27 @@ describe('SettingsView', () => {
     vi.spyOn(window, 'confirm').mockReturnValue(true)
   })
 
+  it('switches options sections and persists the auto-save limit', async () => {
+    const wrapper = mountSettingsView()
+    const settings = useSettingsStore()
+
+    expect(wrapper.find('[data-testid="options-appearance-card"]').isVisible()).toBe(true)
+
+    await wrapper.find('[data-testid="options-section-formats"]').trigger('click')
+
+    expect(wrapper.find('[data-testid="options-formats-card"]').isVisible()).toBe(true)
+
+    await wrapper.find('[data-testid="options-section-appearance"]').trigger('click')
+    await wrapper.find('[data-testid="auto-save-limit"]').setValue('18')
+
+    expect(settings.autoSaveLimit).toBe(18)
+    expect(localStorage.getItem('open-diff-auto-save-limit')).toBe('18')
+  })
+
   it('opens the file format management route', async () => {
     const wrapper = mountSettingsView()
 
+    await wrapper.find('[data-testid="options-section-formats"]').trigger('click')
     await wrapper.find('[data-testid="open-file-formats"]').trigger('click')
 
     expect(push).toHaveBeenCalledWith('/settings/file-formats')
@@ -64,6 +82,7 @@ describe('SettingsView', () => {
   it('opens the remote profile management route', async () => {
     const wrapper = mountSettingsView()
 
+    await wrapper.find('[data-testid="options-section-formats"]').trigger('click')
     await wrapper.find('[data-testid="open-remote-profiles"]').trigger('click')
 
     expect(push).toHaveBeenCalledWith('/settings/remote-profiles')
@@ -72,6 +91,7 @@ describe('SettingsView', () => {
   it('adds shared session file paths from settings', async () => {
     const wrapper = mountSettingsView()
 
+    await wrapper.find('[data-testid="options-section-sessions"]').trigger('click')
     await wrapper.find('[data-testid="shared-session-path-input"]').setValue('C:/team/shared.json')
     await wrapper.find('[data-testid="add-shared-session-path"]').trigger('click')
 
@@ -83,6 +103,7 @@ describe('SettingsView', () => {
     const savedSessions = useSavedSessionsStore()
     const sample = sampleSavedSessions[0]
 
+    await wrapper.find('[data-testid="options-section-sessions"]').trigger('click')
     await wrapper
       .find('[data-testid="shared-session-json-input"]')
       .setValue(serializeSessionPackage([sample]))
@@ -99,6 +120,7 @@ describe('SettingsView', () => {
   it('writes git and svn integration config after confirm', async () => {
     const wrapper = mountSettingsView()
 
+    await wrapper.find('[data-testid="options-section-integration"]').trigger('click')
     await wrapper.find('[data-testid="integration-executable-path"]').setValue('/usr/bin/open-diff')
     await wrapper.find('[data-testid="git-kind"]').setValue('difftool')
     await wrapper.find('[data-testid="write-git-config"]').trigger('click')
@@ -138,6 +160,7 @@ describe('SettingsView', () => {
     const wrapper = mountSettingsView()
     const settings = useSettingsStore()
 
+    await wrapper.find('[data-testid="options-section-shortcuts"]').trigger('click')
     await wrapper.find('[data-testid="shortcut-search"]').setValue('theme')
 
     expect(wrapper.text()).toContain('Toggle Theme')
@@ -159,6 +182,7 @@ describe('SettingsView', () => {
     const wrapper = mountSettingsView()
     const settings = useSettingsStore()
 
+    await wrapper.find('[data-testid="options-section-shortcuts"]').trigger('click')
     await wrapper.find('[data-testid="shortcut-search"]').setValue('theme')
     await wrapper.find('[data-testid="shortcut-input-theme.toggle"]').setValue('Ctrl+Shift+L')
     await wrapper.find('[data-testid="save-shortcut-theme.toggle"]').trigger('click')

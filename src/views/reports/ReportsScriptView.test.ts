@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import ReportsScriptView from './ReportsScriptView.vue'
 import { exportFolderCompareReport, exportTextCompareReport } from '@/api/diff'
 import { runScript } from '@/api/script'
+import { reportExportsStorageKey, saveRecentReportExports } from '@/app/reportExports'
 import { useLastCompareStore } from '@/stores/lastCompare'
 
 vi.mock('@/api/diff', () => ({
@@ -33,6 +34,7 @@ vi.mock('@/api/script', () => ({
 
 describe('ReportsScriptView', () => {
   beforeEach(() => {
+    localStorage.removeItem(reportExportsStorageKey)
     setActivePinia(createPinia())
     vi.mocked(exportTextCompareReport).mockClear()
     vi.mocked(exportFolderCompareReport).mockClear()
@@ -94,10 +96,29 @@ describe('ReportsScriptView', () => {
     })
   })
 
+  it('lists recently persisted exports instead of demo jobs', () => {
+    saveRecentReportExports([
+      {
+        name: 'folder-compare.html',
+        type: 'HTML',
+        stateKey: 'ui.completed',
+        target: '/tmp/folder-compare.html',
+        createdAt: '2026-09-06T00:00:00.000Z',
+      },
+    ])
+
+    const wrapper = mount(ReportsScriptView)
+
+    expect(wrapper.find('[data-testid="report-empty-jobs"]').exists()).toBe(false)
+    expect(wrapper.text()).toContain('folder-compare.html')
+    expect(wrapper.text()).toContain('/tmp/folder-compare.html')
+    expect(wrapper.text()).not.toContain('release-folder-diff.md')
+  })
+
   it('runs a script from the editor', async () => {
     const wrapper = mount(ReportsScriptView)
 
-    await wrapper.find('[data-testid="script-path"]').setValue('C:/work/job.bc')
+    await wrapper.find('[data-testid="script-path"]').setValue('C:/work/job.open-diff-script')
     await wrapper
       .find('[data-testid="script-source"]')
       .setValue('load left.txt\nload right.txt\ncompare\ntext-report out.txt\n')
@@ -106,7 +127,7 @@ describe('ReportsScriptView', () => {
 
     expect(runScript).toHaveBeenCalledWith({
       source: 'load left.txt\nload right.txt\ncompare\ntext-report out.txt\n',
-      path: 'C:/work/job.bc',
+      path: 'C:/work/job.open-diff-script',
     })
     expect(wrapper.find('[data-testid="script-result"]').text()).toContain('reports=1')
     expect(wrapper.find('[data-testid="script-result"]').text()).toContain('wrote report.txt')

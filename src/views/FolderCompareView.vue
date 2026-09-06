@@ -27,6 +27,8 @@ import {
   touchFolderEntry,
 } from '@/api/diff'
 import { openPathExternal } from '@/api/integration'
+import { formatRemoteUri, listRemoteProfiles, type RemoteProfileView } from '@/api/remote'
+import { loadLocalRemoteProfiles } from '@/app/remoteProfilesLocal'
 import type {
   FolderCompareCriteria,
   FolderCompareResponse,
@@ -150,6 +152,47 @@ const lastDifferenceNavigation = ref<string>()
 const syncPreviewItems = ref<SyncPreviewItem[]>([])
 const pendingSyncSafetyItems = ref<SyncPreviewItem[]>([])
 const lastSyncAction = ref<string>()
+const remoteProfiles = ref<RemoteProfileView[]>([])
+const selectedLeftProfileId = ref('')
+const selectedRightProfileId = ref('')
+
+async function loadRemoteProfileChoices(): Promise<void> {
+  try {
+    remoteProfiles.value = await listRemoteProfiles()
+  } catch {
+    remoteProfiles.value = loadLocalRemoteProfiles().map((profile) => ({
+      id: profile.id,
+      name: profile.name,
+      protocol: profile.protocol,
+      host: profile.host,
+      port: profile.port,
+      rootPath: profile.rootPath,
+      implemented: true,
+      uri: formatRemoteUri(profile.protocol, profile.id, profile.rootPath),
+      username: profile.username,
+    }))
+  }
+}
+
+function applyRemoteProfile(side: FolderSide, profileId: string): void {
+  const profile = remoteProfiles.value.find((item) => item.id === profileId)
+
+  if (!profile) {
+    return
+  }
+
+  const uri = formatRemoteUri(profile.protocol, profile.id, profile.rootPath || '/')
+
+  if (side === 'left') {
+    selectedLeftProfileId.value = profile.id
+    leftRoot.value = uri
+  } else {
+    selectedRightProfileId.value = profile.id
+    rightRoot.value = uri
+  }
+
+  syncFolderTabTitle()
+}
 
 function applyFolderLaunch(
   launch: NonNullable<ReturnType<typeof sessionLaunch.consumeLaunch>>,
@@ -165,6 +208,7 @@ function applyFolderLaunch(
 
 onMounted(() => {
   window.addEventListener('click', closeContextMenus)
+  void loadRemoteProfileChoices()
 
   const launch = sessionLaunch.consumeLaunch('/compare/folder')
 
@@ -1324,6 +1368,47 @@ onUnmounted(() => {
                 {{ $t('ui.browse') }}
               </button>
             </div>
+          </label>
+        </div>
+
+        <div
+          v-if="remoteProfiles.length > 0"
+          class="path-pair remote-profile-pair"
+          data-testid="folder-remote-profile-bar"
+        >
+          <label>
+            <span>{{ $t('ui.remoteProfile') }} ({{ $t('ui.left') }})</span>
+            <select
+              v-model="selectedLeftProfileId"
+              data-testid="folder-left-profile"
+              @change="applyRemoteProfile('left', selectedLeftProfileId)"
+            >
+              <option value="">{{ $t('ui.localPath') }}</option>
+              <option
+                v-for="profile in remoteProfiles"
+                :key="`left-${profile.id}`"
+                :value="profile.id"
+              >
+                {{ profile.name }}
+              </option>
+            </select>
+          </label>
+          <label>
+            <span>{{ $t('ui.remoteProfile') }} ({{ $t('ui.right') }})</span>
+            <select
+              v-model="selectedRightProfileId"
+              data-testid="folder-right-profile"
+              @change="applyRemoteProfile('right', selectedRightProfileId)"
+            >
+              <option value="">{{ $t('ui.localPath') }}</option>
+              <option
+                v-for="profile in remoteProfiles"
+                :key="`right-${profile.id}`"
+                :value="profile.id"
+              >
+                {{ profile.name }}
+              </option>
+            </select>
           </label>
         </div>
         <p

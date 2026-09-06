@@ -249,7 +249,49 @@ export async function installTauriInvokeMock(page: Page): Promise<void> {
           return Promise.resolve('connected')
         }
 
-        if (command === 'save_remote_profile' || command === 'delete_remote_profile') {
+        if (command === 'save_remote_profile') {
+          const draft =
+            args && typeof args === 'object' && 'draft' in args
+              ? (
+                  args as {
+                    draft: {
+                      id: string
+                      name: string
+                      protocol: string
+                      host: string
+                      port: number | null
+                      rootPath: string
+                      username?: string
+                    }
+                  }
+                ).draft
+              : null
+
+          if (!draft) {
+            return Promise.resolve([])
+          }
+
+          const normalizedRoot = draft.rootPath.startsWith('/')
+            ? draft.rootPath
+            : `/${draft.rootPath || ''}`
+          const scheme = draft.protocol === 'web-dav' ? 'webdav' : draft.protocol
+
+          return Promise.resolve([
+            {
+              id: draft.id,
+              name: draft.name,
+              protocol: draft.protocol,
+              host: draft.host,
+              port: draft.port,
+              rootPath: draft.rootPath || '/',
+              implemented: ['sftp', 'ftp', 'web-dav'].includes(draft.protocol),
+              uri: `${scheme}://profile/${draft.id}${normalizedRoot || '/'}`,
+              username: draft.username ?? null,
+            },
+          ])
+        }
+
+        if (command === 'delete_remote_profile') {
           return Promise.resolve([])
         }
 

@@ -211,7 +211,15 @@ test('remote profiles keep unfinished protocols disabled and can test SFTP', asy
   await expect(
     page.locator('[data-testid="remote-profile-protocol-select"] option[value="s3"]'),
   ).toHaveJSProperty('disabled', true)
-  await page.getByTestId('select-remote-profile-prod-sftp').click()
+  await expect(page.getByTestId('remote-profile-list')).not.toContainText('Prod SFTP')
+  await page.getByTestId('new-remote-profile').click()
+  await page.getByTestId('remote-profile-name-input').fill('CI SFTP')
+  await page.getByTestId('remote-profile-protocol-select').selectOption('sftp')
+  await page.getByTestId('remote-profile-host-input').fill('files.example.com')
+  await page.getByTestId('remote-profile-root-input').fill('/')
+  await page.getByTestId('save-remote-profile').click()
+  await expect(page.getByTestId('select-remote-profile-ci-sftp')).toBeVisible()
+  await page.getByTestId('select-remote-profile-ci-sftp').click()
   await page.getByTestId('test-remote-profile').click()
   await expect
     .poll(async () => (await lastInvoke(page, 'test_remote_profile'))?.command)
@@ -221,6 +229,9 @@ test('remote profiles keep unfinished protocols disabled and can test SFTP', asy
 test('settings shows follow-system theme and git/svn write controls', async ({ page }) => {
   await page.goto('/settings')
   await expect(page.getByTestId('theme-follow-system')).toBeVisible()
+  await expect(page.getByTestId('write-git-config')).toBeHidden()
+  await expect(page.getByTestId('write-svn-config')).toBeHidden()
+  await page.getByTestId('options-section-integration').click()
   await expect(page.getByTestId('write-git-config')).toBeVisible()
   await expect(page.getByTestId('write-svn-config')).toBeVisible()
   page.once('dialog', (dialog) => {

@@ -15,6 +15,8 @@ import {
 import { executeFolderSync, previewFolderSync } from '@/api/sync'
 import { useSessionLaunchStore } from '@/stores/sessionLaunch'
 import { openPathExternal } from '@/api/integration'
+import { saveLocalRemoteProfiles } from '@/app/remoteProfilesLocal'
+import type * as remoteApi from '@/api/remote'
 import { useTabsStore } from '@/stores/tabs'
 
 const push = vi.fn()
@@ -30,6 +32,15 @@ vi.mock('@/api/integration', () => ({
     launched: true,
   }),
 }))
+
+vi.mock('@/api/remote', async (importOriginal) => {
+  const actual = await importOriginal<typeof remoteApi>()
+
+  return {
+    ...actual,
+    listRemoteProfiles: vi.fn().mockRejectedValue(new Error('no backend')),
+  }
+})
 
 vi.mock('@/api/sync', () => ({
   executeFolderSync: vi.fn().mockResolvedValue({
@@ -164,6 +175,31 @@ describe('FolderCompareView', () => {
     setActivePinia(createPinia())
     push.mockClear()
     vi.clearAllMocks()
+  })
+
+  it('applies a remote profile URI into the folder path fields', async () => {
+    saveLocalRemoteProfiles([
+      {
+        id: 'stage-sftp',
+        name: 'Stage SFTP',
+        protocol: 'sftp',
+        host: 'stage.example.com',
+        port: 22,
+        rootPath: '/apps',
+      },
+    ])
+
+    const wrapper = mountFolderCompareView()
+
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="folder-remote-profile-bar"]').exists()).toBe(true)
+    await wrapper.find('[data-testid="folder-left-profile"]').setValue('stage-sftp')
+    await wrapper.find('[data-testid="folder-left-profile"]').trigger('change')
+
+    expect(
+      (wrapper.find('[data-testid="folder-left-root"]').element as HTMLInputElement).value,
+    ).toBe('sftp://profile/stage-sftp/apps')
   })
 
   it('renders the Folder Compare session toolbar order', () => {

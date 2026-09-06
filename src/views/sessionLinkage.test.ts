@@ -1,6 +1,7 @@
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { InvokeArgs } from '@tauri-apps/api/core'
 import { invokeArgs, invokeCalls, lastInvoke, resetInvokeCalls } from '@/test/invokeMock'
 import HomeView from './HomeView.vue'
 import TextCompareView from './TextCompareView.vue'
@@ -480,14 +481,55 @@ describe('session UI to command linkage', () => {
   })
 
   it('remote profiles test connection through test_remote_profile', async () => {
-    const wrapper = mountView(RemoteProfileView)
+    Object.defineProperty(window, '__TAURI_INTERNALS__', {
+      configurable: true,
+      value: {},
+    })
 
-    await flushPromises()
-    await wrapper.find('[data-testid="select-remote-profile-prod-sftp"]').trigger('click')
-    await wrapper.find('[data-testid="test-remote-profile"]').trigger('click')
-    await flushPromises()
+    const { invoke } = await import('@tauri-apps/api/core')
+    const helper = await import('@/test/invokeMock')
+    const seeded = {
+      id: 'prod-sftp',
+      name: 'Prod SFTP',
+      protocol: 'sftp' as const,
+      host: 'files.example.com',
+      port: 22,
+      rootPath: '/',
+      implemented: true,
+      uri: 'sftp://profile/prod-sftp/',
+    }
 
-    expectCommand('test_remote_profile', { id: 'prod-sftp' })
+    vi.mocked(invoke).mockImplementation((command: string, args: InvokeArgs = {}) => {
+      const recordArgs = args as Record<string, unknown>
+
+      helper.invokeCalls.push({ command, args: recordArgs })
+
+      if (command === 'list_remote_profiles') {
+        return Promise.resolve([seeded])
+      }
+
+      return Promise.resolve(helper.invokeResponse(command, recordArgs))
+    })
+
+    try {
+      const wrapper = mountView(RemoteProfileView)
+
+      await flushPromises()
+      await wrapper.find('[data-testid="select-remote-profile-prod-sftp"]').trigger('click')
+      await wrapper.find('[data-testid="test-remote-profile"]').trigger('click')
+      await flushPromises()
+
+      expectCommand('test_remote_profile', { id: 'prod-sftp' })
+    } finally {
+      Reflect.deleteProperty(window, '__TAURI_INTERNALS__')
+      vi.mocked(invoke).mockImplementation((command: string, args: InvokeArgs = {}) => {
+        const recordArgs = args as Record<string, unknown>
+
+        helper.invokeCalls.push({ command, args: recordArgs })
+
+        return Promise.resolve(helper.invokeResponse(command, recordArgs))
+      })
+    }
   })
 
   it('settings writes git and svn integration through invoke', async () => {
