@@ -21,7 +21,9 @@ pub const DESKTOP_DROP_EVENT: &str = "open-diff://desktop-drop";
 pub const DESKTOP_DRAG_ENTER_EVENT: &str = "open-diff://desktop-drag-enter";
 pub const DESKTOP_DRAG_LEAVE_EVENT: &str = "open-diff://desktop-drag-leave";
 
-pub fn install_linux_desktop_drop_bridge<R: Runtime>(window: &WebviewWindow<R>) -> tauri::Result<()> {
+pub fn install_linux_desktop_drop_bridge<R: Runtime>(
+    window: &WebviewWindow<R>,
+) -> tauri::Result<()> {
     let app = window.app_handle().clone();
     let window_label = window.label().to_string();
 
