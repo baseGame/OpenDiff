@@ -1,9 +1,15 @@
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import HexCompareView from './HexCompareView.vue'
 import { compareHexFiles, findHexInFile, saveHexEdits } from '@/api/diff'
 import { useSessionLaunchStore } from '@/stores/sessionLaunch'
+
+const push = vi.fn()
+
+vi.mock('vue-router', () => ({
+  useRouter: () => ({ push }),
+}))
 
 vi.mock('@/api/diff', () => ({
   compareHexFiles: vi.fn().mockResolvedValue({
@@ -42,7 +48,7 @@ async function runCompare(wrapper: ReturnType<typeof mount>): Promise<void> {
   await wrapper.find('[data-testid="hex-left-path"]').setValue('C:/bin/left.bin')
   await wrapper.find('[data-testid="hex-right-path"]').setValue('C:/bin/right.bin')
   await wrapper.find('[data-testid="run-hex-compare"]').trigger('click')
-  await wrapper.vm.$nextTick()
+  await flushPromises()
 }
 
 describe('HexCompareView', () => {
@@ -61,6 +67,66 @@ describe('HexCompareView', () => {
     expect((wrapper.find('[data-testid="hex-left-path"]').element as HTMLInputElement).value).toBe(
       '',
     )
+  })
+
+  it('renders the Hex Compare session toolbar order', () => {
+    const wrapper = mount(HexCompareView)
+    const ids = [
+      'home',
+      'all',
+      'diffs',
+      'same',
+      'rules',
+      'copy',
+      'next-diff',
+      'prev-diff',
+      'swap',
+      'reload',
+    ]
+
+    expect(wrapper.find('[data-testid="hex-session-toolbar-bar"]').exists()).toBe(true)
+    expect(
+      wrapper
+        .findAll('[data-testid^="hex-session-toolbar-"]')
+        .filter((node) => node.attributes('data-testid') !== 'hex-session-toolbar-bar')
+        .map((node) => node.attributes('data-testid')?.replace('hex-session-toolbar-', '')),
+    ).toEqual(ids)
+    expect(
+      wrapper.find('[data-testid="hex-session-toolbar-same"]').attributes('disabled'),
+    ).toBeDefined()
+    expect(
+      wrapper.find('[data-testid="hex-session-toolbar-rules"]').attributes('disabled'),
+    ).toBeDefined()
+  })
+
+  it('swaps paths and reloads from the session toolbar', async () => {
+    const wrapper = mount(HexCompareView)
+
+    await wrapper.find('[data-testid="hex-left-path"]').setValue('C:/bin/left.bin')
+    await wrapper.find('[data-testid="hex-right-path"]').setValue('C:/bin/right.bin')
+    await wrapper.find('[data-testid="hex-session-toolbar-swap"]').trigger('click')
+
+    expect((wrapper.find('[data-testid="hex-left-path"]').element as HTMLInputElement).value).toBe(
+      'C:/bin/right.bin',
+    )
+    expect((wrapper.find('[data-testid="hex-right-path"]').element as HTMLInputElement).value).toBe(
+      'C:/bin/left.bin',
+    )
+  })
+
+  it('jumps to the next difference range from the session toolbar', async () => {
+    const wrapper = mount(HexCompareView)
+
+    await runCompare(wrapper)
+
+    expect(
+      wrapper.find('[data-testid="hex-session-toolbar-next-diff"]').attributes('disabled'),
+    ).toBeUndefined()
+
+    await wrapper.find('[data-testid="hex-session-toolbar-next-diff"]').trigger('click')
+    await flushPromises()
+
+    expect(compareHexFiles).toHaveBeenLastCalledWith(expect.objectContaining({ offset: 1 }))
   })
 
   it('runs a hex comparison request and renders returned byte windows', async () => {

@@ -1,11 +1,20 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { compareHexFiles, findHexInFile, saveHexEdits } from '@/api/diff'
-import type { HexByteEdit, HexCompareResponse, HexFindMatch, HexViewCell } from '@/types/diff'
+import type {
+  HexByteEdit,
+  HexCompareResponse,
+  HexDiffRange,
+  HexFindMatch,
+  HexViewCell,
+} from '@/types/diff'
 import WorkbenchShell from '@/components/workbench/WorkbenchShell.vue'
 import WorkbenchInspector from '@/components/workbench/WorkbenchInspector.vue'
 import StatusSummaryGrid from '@/components/workbench/StatusSummaryGrid.vue'
+import { buildHexCompareToolbar, pathPairTitle } from '@/app/sessionToolbars'
 import { useSessionLaunchStore } from '@/stores/sessionLaunch'
+import { useTabsStore } from '@/stores/tabs'
 
 interface HexRow {
   offset: string
@@ -29,6 +38,9 @@ const rightCells = ref<HexViewCell[]>([])
 const leftTotalLen = ref(0)
 const rightTotalLen = ref(0)
 const diffRangeCount = ref(0)
+const diffRanges = ref<HexDiffRange[]>([])
+const navigationRanges = ref<HexDiffRange[]>([])
+const activeDiffRangeIndex = ref(0)
 const viewportWidth = ref(640)
 const diffOnly = ref(false)
 const hexOffset = ref(0)
@@ -45,6 +57,8 @@ const saveStatus = ref('')
 const loading = ref(false)
 const error = ref('')
 const sessionLaunch = useSessionLaunchStore()
+const tabs = useTabsStore()
+const router = useRouter()
 const bytesPerRow = computed(() => (viewportWidth.value < 480 ? 8 : 16))
 
 const leftHex = computed<HexSideRows>(() =>
@@ -128,17 +142,116 @@ function syncHexScroll(source: 'left' | 'right', event: Event): void {
   targetElement.scrollTop = sourceElement.scrollTop
 }
 
-function applyHexResult(result: HexCompareResponse): void {
+function applyHexResult(result: HexCompareResponse, preserveNavigationRanges = false): void {
   leftPath.value = result.left.path
   rightPath.value = result.right.path
   leftCells.value = result.left.cells
   rightCells.value = result.right.cells
   leftTotalLen.value = result.summary.leftBytes
   rightTotalLen.value = result.summary.rightBytes
+  diffRanges.value = result.diffRanges
+  if (!preserveNavigationRanges) {
+    navigationRanges.value = result.diffRanges
+    activeDiffRangeIndex.value = 0
+  } else if (activeDiffRangeIndex.value >= navigationRanges.value.length) {
+    activeDiffRangeIndex.value = 0
+  }
   diffRangeCount.value = result.summary.differentRanges
+  syncHexTabTitle()
 }
 
-async function runHexCompare(): Promise<void> {
+function syncHexTabTitle(): void {
+  if (!leftPath.value || !rightPath.value) {
+    return
+  }
+
+  tabs.setTabTitle('/compare/hex', pathPairTitle(leftPath.value, rightPath.value))
+}
+
+function goHomeFromHex(): void {
+  tabs.openTab({ title: 'Home', titleKey: 'ui.home', route: '/', dirty: false })
+  void router.push('/')
+}
+
+function swapHexPaths(): void {
+  const nextLeftPath = rightPath.value
+
+  rightPath.value = leftPath.value
+  leftPath.value = nextLeftPath
+  const nextLeftCells = rightCells.value
+
+  rightCells.value = leftCells.value
+  leftCells.value = nextLeftCells
+  const nextLeftLen = rightTotalLen.value
+
+  rightTotalLen.value = leftTotalLen.value
+  leftTotalLen.value = nextLeftLen
+  syncHexTabTitle()
+}
+
+function goToHexDiffRange(index: number): void {
+  if (navigationRanges.value.length === 0) {
+    return
+  }
+
+  const nextIndex = (index + navigationRanges.value.length) % navigationRanges.value.length
+
+  activeDiffRangeIndex.value = nextIndex
+  const range = navigationRanges.value[nextIndex]
+
+  hexOffset.value = range.offset
+  jumpOffset.value = range.offset
+  void runHexCompare({ preserveNavigationRanges: true })
+}
+
+const hexSessionToolbar = computed(() =>
+  buildHexCompareToolbar({
+    home: true,
+    all: true,
+    diffs: true,
+    same: false,
+    rules: false,
+    copy: false,
+    'next-diff': navigationRanges.value.length > 0,
+    'prev-diff': navigationRanges.value.length > 0,
+    swap: Boolean(leftPath.value || rightPath.value),
+    reload: Boolean(leftPath.value && rightPath.value),
+  }),
+)
+
+function runHexToolbarCommand(commandId: string): void {
+  switch (commandId) {
+    case 'home':
+      goHomeFromHex()
+      break
+    case 'all':
+      diffOnly.value = false
+      break
+    case 'diffs':
+      diffOnly.value = true
+      break
+    case 'next-diff':
+      goToHexDiffRange(activeDiffRangeIndex.value + 1)
+      break
+    case 'prev-diff':
+      goToHexDiffRange(activeDiffRangeIndex.value - 1)
+      break
+    case 'swap':
+      swapHexPaths()
+      break
+    case 'reload':
+      void runHexCompare()
+      break
+    default:
+      break
+  }
+}
+
+watch([leftPath, rightPath], () => {
+  syncHexTabTitle()
+})
+
+async function runHexCompare(options?: { preserveNavigationRanges?: boolean }): Promise<void> {
   loading.value = true
   error.value = ''
   try {
@@ -149,7 +262,7 @@ async function runHexCompare(): Promise<void> {
       length: hexLength.value,
     })
 
-    applyHexResult(result)
+    applyHexResult(result, options?.preserveNavigationRanges === true)
   } catch (event) {
     error.value = String(event)
   } finally {
@@ -235,6 +348,9 @@ async function runHexSave(): Promise<void> {
     :eyebrow="$t('ui.hex')"
     :subtitle="loadedBytesLabel"
     :inspector-label="$t('ui.hexCompareInspector')"
+    :toolbar-commands="hexSessionToolbar"
+    toolbar-test-id-prefix="hex-session-toolbar"
+    @toolbar-command="runHexToolbarCommand"
   >
     <section class="hex-compare-view">
       <header class="hex-header">
@@ -296,7 +412,7 @@ async function runHexSave(): Promise<void> {
           type="button"
           data-testid="run-hex-compare"
           :disabled="loading"
-          @click="runHexCompare"
+          @click="runHexCompare()"
         >
           {{ $t('ui.runDiff') }}
         </button>

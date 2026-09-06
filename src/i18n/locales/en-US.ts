@@ -751,5 +751,9 @@ export const enUS: LanguagePack = {
     'ui.stop': 'Stop',
     'ui.nextSection': 'Next Section',
     'ui.prevSection': 'Prev Section',
+    'ui.tol': 'Tol',
+    'ui.range': 'Range',
+    'ui.blend': 'Blend',
+    'ui.meta': 'Meta',
   },
 }

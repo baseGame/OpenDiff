@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { compareMediaFiles } from '@/api/diff'
 import type {
   MediaCompareResponse,
@@ -9,7 +10,9 @@ import type {
 } from '@/types/diff'
 import WorkbenchShell from '@/components/workbench/WorkbenchShell.vue'
 import WorkbenchInspector from '@/components/workbench/WorkbenchInspector.vue'
+import { buildMediaCompareToolbar } from '@/app/sessionToolbars'
 import { useSessionLaunchStore } from '@/stores/sessionLaunch'
+import { useTabsStore } from '@/stores/tabs'
 import { useI18n } from '@/i18n'
 
 const mediaStatuses: MediaFieldStatus[] = ['added', 'removed', 'modified', 'unchanged']
@@ -28,6 +31,8 @@ const emptyMediaSide: MediaSideSummary = {
 const leftPath = ref('')
 const rightPath = ref('')
 const sessionLaunch = useSessionLaunchStore()
+const tabs = useTabsStore()
+const router = useRouter()
 const leftMedia = ref<MediaSideSummary>({ ...emptyMediaSide, stream: { ...emptyMediaSide.stream } })
 const rightMedia = ref<MediaSideSummary>({
   ...emptyMediaSide,
@@ -110,6 +115,48 @@ async function runMediaCompare(): Promise<void> {
     loading.value = false
   }
 }
+
+const mediaSessionToolbar = computed(() =>
+  buildMediaCompareToolbar({
+    home: true,
+    all: false,
+    diffs: false,
+    same: false,
+    minor: false,
+    rules: false,
+    swap: Boolean(leftPath.value || rightPath.value),
+    reload: Boolean(leftPath.value && rightPath.value),
+  }),
+)
+
+function runMediaToolbarCommand(commandId: string): void {
+  if (commandId === 'home') {
+    tabs.openTab({ title: 'Home', titleKey: 'ui.home', route: '/', dirty: false })
+    void router.push('/')
+
+    return
+  }
+
+  if (commandId === 'swap') {
+    const nextLeftPath = rightPath.value
+
+    rightPath.value = leftPath.value
+    leftPath.value = nextLeftPath
+    const nextLeft = rightMedia.value
+
+    rightMedia.value = leftMedia.value
+    leftMedia.value = nextLeft
+    if (leftPath.value && rightPath.value) {
+      void runMediaCompare()
+    }
+
+    return
+  }
+
+  if (commandId === 'reload') {
+    void runMediaCompare()
+  }
+}
 </script>
 
 <template>
@@ -118,6 +165,9 @@ async function runMediaCompare(): Promise<void> {
     :eyebrow="$t('ui.media')"
     :subtitle="`${leftMedia.name} -> ${rightMedia.name}`"
     :inspector-label="$t('ui.mediaCompareInspector')"
+    :toolbar-commands="mediaSessionToolbar"
+    toolbar-test-id-prefix="media-session-toolbar"
+    @toolbar-command="runMediaToolbarCommand"
   >
     <section class="media-compare-view">
       <header class="media-header">

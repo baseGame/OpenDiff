@@ -771,5 +771,9 @@ export const deDE: LanguagePack = {
     'ui.stop': 'Stopp',
     'ui.nextSection': 'Nächster Abschnitt',
     'ui.prevSection': 'Vorheriger Abschnitt',
+    'ui.tol': 'Tol',
+    'ui.range': 'Range',
+    'ui.blend': 'Blend',
+    'ui.meta': 'Meta',
   },
 }

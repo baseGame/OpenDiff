@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { compareTable, readTextFile } from '@/api/diff'
 import { extensionOf } from '@/app/fileFormats'
 import type {
@@ -10,7 +11,9 @@ import type {
 import WorkbenchShell from '@/components/workbench/WorkbenchShell.vue'
 import WorkbenchInspector from '@/components/workbench/WorkbenchInspector.vue'
 import StatusSummaryGrid from '@/components/workbench/StatusSummaryGrid.vue'
+import { buildTableCompareToolbar, pathPairTitle } from '@/app/sessionToolbars'
 import { useSessionLaunchStore } from '@/stores/sessionLaunch'
+import { useTabsStore } from '@/stores/tabs'
 import { useI18n } from '@/i18n'
 
 interface TableColumnModel {
@@ -57,6 +60,8 @@ const rightSheet = ref('')
 const keyColumnsInput = ref('0')
 const delimiterInput = ref('')
 const sessionLaunch = useSessionLaunchStore()
+const tabs = useTabsStore()
+const router = useRouter()
 const { t } = useI18n()
 const leftColumns = ref<TableColumnModel[]>([])
 const rightColumns = ref<TableColumnModel[]>([])
@@ -420,6 +425,96 @@ function goToNextTableDifference(): void {
   activeDifferenceIndex.value =
     (activeDifferenceIndex.value + 1) % tableDifferenceCells.value.length
 }
+
+function goToPreviousTableDifference(): void {
+  if (tableSearchQuery.value.trim()) {
+    tableSearchQuery.value = ''
+  }
+
+  if (tableDifferenceCells.value.length === 0) {
+    activeDifferenceIndex.value = 0
+
+    return
+  }
+
+  activeDifferenceIndex.value =
+    (activeDifferenceIndex.value - 1 + tableDifferenceCells.value.length) %
+    tableDifferenceCells.value.length
+}
+
+function syncTableTabTitle(): void {
+  if (!leftPath.value || !rightPath.value) {
+    return
+  }
+
+  tabs.setTabTitle('/compare/table', pathPairTitle(leftPath.value, rightPath.value))
+}
+
+function goHomeFromTable(): void {
+  tabs.openTab({ title: 'Home', titleKey: 'ui.home', route: '/', dirty: false })
+  void router.push('/')
+}
+
+function swapTablePaths(): void {
+  const nextLeftPath = rightPath.value
+
+  rightPath.value = leftPath.value
+  leftPath.value = nextLeftPath
+  const nextLeftCsv = rightCsv.value
+
+  rightCsv.value = leftCsv.value
+  leftCsv.value = nextLeftCsv
+  const nextLeftSheet = rightSheet.value
+
+  rightSheet.value = leftSheet.value
+  leftSheet.value = nextLeftSheet
+  syncTableTabTitle()
+  if ((leftCsv.value && rightCsv.value) || (leftPath.value && rightPath.value)) {
+    void runTableCompare()
+  }
+}
+
+const tableSessionToolbar = computed(() =>
+  buildTableCompareToolbar({
+    home: true,
+    all: false,
+    diffs: false,
+    same: false,
+    minor: false,
+    rules: false,
+    copy: false,
+    'next-diff': tableDifferenceCells.value.length > 0,
+    'prev-diff': tableDifferenceCells.value.length > 0,
+    swap: Boolean(leftPath.value || rightPath.value || leftCsv.value || rightCsv.value),
+    reload: Boolean((leftPath.value && rightPath.value) || (leftCsv.value && rightCsv.value)),
+  }),
+)
+
+function runTableToolbarCommand(commandId: string): void {
+  switch (commandId) {
+    case 'home':
+      goHomeFromTable()
+      break
+    case 'next-diff':
+      goToNextTableDifference()
+      break
+    case 'prev-diff':
+      goToPreviousTableDifference()
+      break
+    case 'swap':
+      swapTablePaths()
+      break
+    case 'reload':
+      void runTableCompare()
+      break
+    default:
+      break
+  }
+}
+
+watch([leftPath, rightPath], () => {
+  syncTableTabTitle()
+})
 </script>
 
 <template>
@@ -428,6 +523,9 @@ function goToNextTableDifference(): void {
     :eyebrow="$t('ui.table')"
     :subtitle="$t('status.rowColumnCount', { rows: visibleRowCount, columns: visibleColumns })"
     :inspector-label="$t('ui.tableCompareInspector')"
+    :toolbar-commands="tableSessionToolbar"
+    toolbar-test-id-prefix="table-session-toolbar"
+    @toolbar-command="runTableToolbarCommand"
   >
     <section class="table-compare-view">
       <header class="table-compare-header">

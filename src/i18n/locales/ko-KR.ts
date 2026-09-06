@@ -746,5 +746,9 @@ export const koKR: LanguagePack = {
     'ui.stop': '중지',
     'ui.nextSection': '다음 섹션',
     'ui.prevSection': '이전 섹션',
+    'ui.tol': 'Tol',
+    'ui.range': 'Range',
+    'ui.blend': 'Blend',
+    'ui.meta': 'Meta',
   },
 }

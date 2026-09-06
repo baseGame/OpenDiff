@@ -731,5 +731,9 @@ export const zhTW: LanguagePack = {
     'ui.stop': '停止',
     'ui.nextSection': '下一節',
     'ui.prevSection': '上一節',
+    'ui.tol': '容差',
+    'ui.range': '範圍',
+    'ui.blend': '混合',
+    'ui.meta': '中繼資料',
   },
 }

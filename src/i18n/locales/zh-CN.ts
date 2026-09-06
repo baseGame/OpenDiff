@@ -730,5 +730,9 @@ export const zhCN: LanguagePack = {
     'ui.stop': '停止',
     'ui.nextSection': '下一节',
     'ui.prevSection': '上一节',
+    'ui.tol': '容差',
+    'ui.range': '范围',
+    'ui.blend': '混合',
+    'ui.meta': '元数据',
   },
 }

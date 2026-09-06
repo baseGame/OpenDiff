@@ -131,6 +131,8 @@ function toolbarForTitle(title: string): LegacyToolbarItem[] {
       item('minor', 'ui.minor', '~'),
       item('rules', 'ui.rules', 'R'),
       item('copy', 'ui.copy', 'C'),
+      item('next-diff', 'ui.nextDifference', 'N'),
+      item('prev-diff', 'ui.previousDifference', 'P'),
       item('swap', 'ui.swap', '<>'),
       item('reload', 'ui.reload', 'R'),
     ]
@@ -144,6 +146,8 @@ function toolbarForTitle(title: string): LegacyToolbarItem[] {
       item('same', 'ui.same', '='),
       item('rules', 'ui.rules', 'R'),
       item('copy', 'ui.copy', 'C'),
+      item('next-diff', 'ui.nextDifference', 'N'),
+      item('prev-diff', 'ui.previousDifference', 'P'),
       item('swap', 'ui.swap', '<>'),
       item('reload', 'ui.reload', 'R'),
     ]
@@ -152,10 +156,14 @@ function toolbarForTitle(title: string): LegacyToolbarItem[] {
   if (normalizedTitle.includes('picture compare') || normalizedTitle.includes('图片比较')) {
     return [
       item('home', 'ui.home', 'H'),
+      item('tol', 'ui.tol', 'T'),
+      item('range', 'ui.range', 'G'),
+      item('blend', 'ui.blend', 'B'),
       item('minor', 'ui.minor', '~'),
       item('rules', 'ui.rules', 'R'),
       item('swap', 'ui.swap', '<>'),
       item('reload', 'ui.reload', 'R'),
+      item('meta', 'ui.meta', 'M'),
     ]
   }
 

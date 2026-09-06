@@ -766,5 +766,9 @@ export const frFR: LanguagePack = {
     'ui.stop': 'Arrêter',
     'ui.nextSection': 'Section suivante',
     'ui.prevSection': 'Section précédente',
+    'ui.tol': 'Tol',
+    'ui.range': 'Range',
+    'ui.blend': 'Blend',
+    'ui.meta': 'Meta',
   },
 }

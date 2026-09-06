@@ -98,6 +98,19 @@ describe('AppLayout command palette', () => {
     expect(wrapper.find('[data-testid="menu-file"]').exists()).toBe(false)
   })
 
+  it('shows Session File Edit View Tools Help on Picture Compare without Search', () => {
+    routePath = '/compare/picture'
+    const wrapper = mountAppLayout()
+
+    expect(wrapper.find('[data-testid="menu-session"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="menu-file"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="menu-edit"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="menu-search"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="menu-view"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="menu-tools"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="menu-help"]').exists()).toBe(true)
+  })
+
   it('shows Session File Edit Search View Tools Help on Text Compare', () => {
     routePath = '/compare/text'
     const wrapper = mountAppLayout()
