@@ -117,6 +117,13 @@ const emit = defineEmits<{
   color: var(--app-text);
 }
 
+.folder-row strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .session-row {
   color: var(--app-text-muted);
 }

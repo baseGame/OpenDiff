@@ -133,6 +133,45 @@ describe('HomeView', () => {
     expect(push).toHaveBeenCalledWith('/merge/text')
   })
 
+  it('auto-opens the suggested view when files are dropped on the HTML drop zone', async () => {
+    const wrapper = mountHomeView()
+    const launchStore = useSessionLaunchStore()
+    const dropZone = wrapper.find('.quick-input-zone')
+
+    const left = { name: 'left.txt', webkitRelativePath: '' }
+    const right = { name: 'right.txt', webkitRelativePath: '' }
+    const fileList = [left, right]
+    const files = {
+      0: left,
+      1: right,
+      length: 2,
+      item: (index: number) => fileList[index] ?? null,
+      *[Symbol.iterator]() {
+        yield left
+        yield right
+      },
+    }
+
+    await dropZone.trigger('drop', {
+      dataTransfer: {
+        files,
+        items: [],
+      },
+    })
+
+    expect(push).toHaveBeenCalledWith('/compare/text')
+    expect(launchStore.pendingLaunch).toMatchObject({
+      source: 'drop',
+      sessionType: 'text-compare',
+      route: '/compare/text',
+      autoRun: true,
+      locations: {
+        left: { uri: 'left.txt', kind: 'file' },
+        right: { uri: 'right.txt', kind: 'file' },
+      },
+    })
+  })
+
   it('opens the suggested view with dropped file paths as a launch payload', async () => {
     const wrapper = mountHomeView()
     const launchStore = useSessionLaunchStore()

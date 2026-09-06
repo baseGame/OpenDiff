@@ -226,6 +226,7 @@ function lineClass(line: string, paneId: MergePaneId): string {
           v-model="leftPath"
           class="output-path-input"
           data-testid="merge-left-path"
+          :title="leftPath"
           type="text"
           :aria-label="$t('ui.leftPath')"
         />
@@ -233,6 +234,7 @@ function lineClass(line: string, paneId: MergePaneId): string {
           v-model="centerPath"
           class="output-path-input"
           data-testid="merge-center-path"
+          :title="centerPath"
           type="text"
           :aria-label="$t('ui.base')"
         />
@@ -240,6 +242,7 @@ function lineClass(line: string, paneId: MergePaneId): string {
           v-model="rightPath"
           class="output-path-input"
           data-testid="merge-right-path"
+          :title="rightPath"
           type="text"
           :aria-label="$t('ui.rightPath')"
         />
@@ -247,6 +250,7 @@ function lineClass(line: string, paneId: MergePaneId): string {
           v-model="outputPath"
           class="output-path-input"
           data-testid="merge-output-path"
+          :title="outputPath"
           type="text"
           :aria-label="$t('ui.mergeOutputPath')"
         />
@@ -431,22 +435,30 @@ function lineClass(line: string, paneId: MergePaneId): string {
 }
 
 .status-chip {
+  max-width: min(280px, 100%);
   padding: 3px 7px;
+  overflow: hidden;
   border: 1px solid var(--app-border);
   border-radius: 6px;
   background: var(--app-surface);
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .output-path-input {
   width: 220px;
+  min-width: 0;
+  max-width: 100%;
   height: 28px;
   padding: 0 8px;
+  overflow: hidden;
   border: 1px solid var(--app-border);
   border-radius: 6px;
   background: var(--app-surface);
   color: var(--app-text);
   font-size: 12px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .toolbar-button {

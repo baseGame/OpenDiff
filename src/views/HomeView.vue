@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   Binary,
@@ -23,7 +23,7 @@ import {
 import { readClipboardTextSource } from '@/app/clipboardSource'
 import { pickNativePath } from '@/app/filePicker'
 import { classifyDropInputs } from '@/app/dropInput'
-import { listenDesktopPathDrop, resolveDropInputsFromPaths } from '@/app/desktopDrop'
+import { createLaunchFromDrop } from '@/app/dropLaunch'
 import { filterSavedSessions } from '@/app/savedSessions'
 import { selectSessionForDrop } from '@/app/sessionAutoSelect'
 import { sessionCatalog } from '@/app/sessionCatalog'
@@ -38,7 +38,7 @@ import { useSavedSessionsStore } from '@/stores/savedSessions'
 import { useSessionLaunchStore } from '@/stores/sessionLaunch'
 import { useTabsStore } from '@/stores/tabs'
 import { useWorkspacesStore } from '@/stores/workspaces'
-import type { ClassifiedDropItem, DropClassification, DropInput } from '@/app/dropInput'
+import type { DropClassification, DropInput } from '@/app/dropInput'
 import type { SessionSelection } from '@/app/sessionAutoSelect'
 import type { SessionCatalogEntry } from '@/app/sessionCatalog'
 import type { SessionDocument, SessionType } from '@/types/session'
@@ -158,26 +158,6 @@ const historyItems = computed(() =>
   })),
 )
 
-let stopDesktopDrop: (() => void) | undefined
-
-onMounted(() => {
-  void listenDesktopPathDrop(async (paths) => {
-    isDragging.value = false
-
-    const inputs = await resolveDropInputsFromPaths(paths)
-
-    setDropInputs(inputs)
-    // ponytail: auto-run when paths ready
-    openSelectedDropSession()
-  }).then((stop) => {
-    stopDesktopDrop = stop
-  })
-})
-
-onUnmounted(() => {
-  stopDesktopDrop?.()
-})
-
 function openSession(entry: SessionCatalogEntry): void {
   if (!entry.implemented || !entry.route) {
     return
@@ -235,6 +215,8 @@ function handleDrop(event: DragEvent): void {
   event.preventDefault()
   isDragging.value = false
   setDropInputs(inputsFromDataTransfer(event.dataTransfer))
+  // ponytail: HTML drop zone also auto-opens when the drop is valid
+  openSelectedDropSession()
 }
 
 function setDropInputs(inputs: DropInput[]): void {
@@ -267,7 +249,7 @@ function openSelectedDropSession(): void {
     return
   }
 
-  sessionLaunch.setPendingLaunch(createLaunchFromDrop(selectedDropSession.value))
+  sessionLaunch.setPendingLaunch(buildDropLaunchPayload(selectedDropSession.value))
   tabs.openTab({
     title: selectedDropSession.value.title,
     titleKey: selectedDropSession.value.titleKey,
@@ -277,26 +259,18 @@ function openSelectedDropSession(): void {
   void router.push(selectedDropSession.value.route)
 }
 
-function createLaunchFromDrop(selection: SessionSelection): SessionLaunchPayload {
+function buildDropLaunchPayload(selection: SessionSelection): SessionLaunchPayload {
   if (dropResult.value.kind === 'invalid' || !selection.route) {
     throw new Error('Cannot create a launch payload from an invalid drop.')
   }
 
-  return {
-    id: crypto.randomUUID(),
-    source: 'drop',
-    sessionType: selection.sessionType,
-    title: `${dropResult.value.left.displayName} vs ${dropResult.value.right.displayName}`,
-    route: selection.route,
-    locations: {
-      left: dropItemToLaunchLocation(dropResult.value.left),
-      right:
-        dropResult.value.kind === 'patch'
-          ? undefined
-          : dropItemToLaunchLocation(dropResult.value.right),
+  return createLaunchFromDrop(
+    dropResult.value,
+    { ...selection, route: selection.route },
+    {
+      autoRun: true,
     },
-    autoRun: true,
-  }
+  )
 }
 
 async function openClipboardText(): Promise<void> {
@@ -340,15 +314,6 @@ function simulateTextDrop(): void {
 
 function simulatePatchDrop(): void {
   setDropInputs([{ path: 'C:/work/change.patch', kind: 'file' }])
-}
-
-function dropItemToLaunchLocation(item: ClassifiedDropItem): SessionLaunchLocation {
-  return {
-    uri: item.path,
-    displayName: item.displayName,
-    kind: item.sourceKind,
-    readOnly: false,
-  }
 }
 
 function sessionLocationToLaunchLocation(
@@ -648,9 +613,15 @@ function openSelectedPreview(): void {
           <div class="bc-selected-title">
             <FolderOpen :size="27" />
             <div>
-              <strong>{{ selectedSessionPreview.name }}</strong>
-              <span>{{ selectedSessionPreview.leftPath }}</span>
-              <span>{{ selectedSessionPreview.rightPath }}</span>
+              <strong :title="selectedSessionPreview.name">{{
+                selectedSessionPreview.name
+              }}</strong>
+              <span :title="selectedSessionPreview.leftPath">{{
+                selectedSessionPreview.leftPath
+              }}</span>
+              <span :title="selectedSessionPreview.rightPath">{{
+                selectedSessionPreview.rightPath
+              }}</span>
             </div>
           </div>
           <div class="bc-selected-actions">
@@ -774,9 +745,14 @@ function openSelectedPreview(): void {
               class="recovery-entry"
               data-testid="recovery-entry"
             >
-              <span>{{
-                $t('ui.recoverSession', { name: savedSessions.recoveryCandidates[0]?.name ?? '' })
-              }}</span>
+              <span
+                :title="
+                  $t('ui.recoverSession', { name: savedSessions.recoveryCandidates[0]?.name ?? '' })
+                "
+                >{{
+                  $t('ui.recoverSession', { name: savedSessions.recoveryCandidates[0]?.name ?? '' })
+                }}</span
+              >
               <button
                 type="button"
                 data-testid="restore-recovery"
@@ -1034,12 +1010,16 @@ function openSelectedPreview(): void {
 .bc-session-tree header {
   display: flex;
   align-items: center;
+  min-width: 0;
   padding: 0 18px;
+  overflow: hidden;
   border-bottom: 1px solid #c6ccd5;
   background: #eef1f5;
   color: #111827;
   font-size: 23px;
   line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .bc-tree-list {
@@ -1110,12 +1090,16 @@ function openSelectedPreview(): void {
 
 .bc-tree-footer input {
   width: 100%;
+  min-width: 0;
   height: 38px;
   padding: 0 10px;
+  overflow: hidden;
   border: 1px solid #c6ccd5;
   border-radius: 3px;
   background: #ffffff;
   color: #111827;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .bc-home-main {
@@ -1137,6 +1121,7 @@ function openSelectedPreview(): void {
   display: flex;
   align-items: flex-start;
   gap: 14px;
+  min-width: 0;
   color: #111827;
   font-size: 25px;
 }
@@ -1144,6 +1129,15 @@ function openSelectedPreview(): void {
 .bc-selected-title div {
   display: grid;
   gap: 12px;
+  min-width: 0;
+}
+
+.bc-selected-title strong,
+.bc-selected-title span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .bc-selected-title strong {
@@ -1163,12 +1157,16 @@ function openSelectedPreview(): void {
 
 .bc-selected-actions button {
   width: 154px;
+  max-width: 100%;
   height: 47px;
+  overflow: hidden;
   border: 1px solid #c7cdd6;
   border-radius: 3px;
   background: #ffffff;
   color: #111827;
   font-size: 22px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   cursor: pointer;
 }
 
@@ -1409,11 +1407,21 @@ tr:hover .row-actions,
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+  min-width: 0;
   padding: 8px 10px;
   border: 1px solid var(--app-primary);
   border-radius: 4px;
   background: var(--app-primary-soft);
   font-size: 12px;
+}
+
+.recovery-entry > span,
+.save-prompt > span,
+.save-prompt > p {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .recovery-entry button,
@@ -1511,14 +1519,18 @@ tr:hover .row-actions,
 
 .home-primary-cta {
   min-width: 140px;
+  max-width: 100%;
   height: 40px;
   padding: 0 16px;
+  overflow: hidden;
   border: 1px solid #4aa3ff;
   border-radius: 4px;
   background: #c8e4ff;
   color: #111827;
   font-size: 16px;
+  white-space: nowrap;
   cursor: pointer;
+  text-overflow: ellipsis;
 }
 
 .home-primary-cta:focus-visible,
@@ -1531,12 +1543,16 @@ tr:hover .row-actions,
 .home-drop-cta {
   display: inline-flex;
   align-items: center;
+  max-width: 100%;
   min-height: 40px;
   padding: 0 14px;
+  overflow: hidden;
   border: 1px dashed #9aa3af;
   border-radius: 4px;
   color: #4b5563;
   font-size: 15px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 @media (width <= 900px) {

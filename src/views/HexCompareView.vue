@@ -255,6 +255,7 @@ async function runHexSave(): Promise<void> {
             v-model="leftPath"
             type="text"
             data-testid="hex-left-path"
+            :title="leftPath"
           />
         </label>
         <label>
@@ -263,6 +264,7 @@ async function runHexSave(): Promise<void> {
             v-model="rightPath"
             type="text"
             data-testid="hex-right-path"
+            :title="rightPath"
           />
         </label>
         <label>
@@ -600,9 +602,10 @@ h2 {
 
 .hex-wrap-controls {
   display: grid;
-  grid-template-columns: minmax(180px, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: end;
   gap: 10px;
+  min-width: 0;
   padding: 10px;
   border: 1px solid var(--app-border);
   border-radius: 8px;
@@ -612,6 +615,7 @@ h2 {
 .hex-wrap-controls label {
   display: grid;
   gap: 5px;
+  min-width: 0;
 }
 
 .hex-wrap-controls span {
@@ -621,16 +625,21 @@ h2 {
 
 .hex-wrap-controls input {
   width: 100%;
+  min-width: 0;
 }
 
 .hex-wrap-controls strong {
-  min-width: 102px;
+  min-width: 0;
+  max-width: 100%;
   padding: 7px 9px;
+  overflow: hidden;
   border: 1px solid var(--app-border);
   border-radius: 6px;
   background: var(--app-bg);
   font-size: 12px;
   text-align: center;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .hex-pane-grid {

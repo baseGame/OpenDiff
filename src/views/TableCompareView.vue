@@ -1020,8 +1020,12 @@ h2 {
 .table-column-rule strong,
 .table-column-rule small {
   grid-column: 2;
+  min-width: 0;
+  overflow: hidden;
   color: var(--app-text-muted);
   line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .table-column-rule small {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter, RouterView } from 'vue-router'
 import {
   ArrowDown,
@@ -34,6 +34,8 @@ import {
 } from '@lucide/vue'
 import { commandRegistry, filterCommands } from '@/app/commandRegistry'
 import { createCommandExecutor, getCommandsForPlacement } from '@/app/commandSystem'
+import { listenDesktopPathDrop } from '@/app/desktopDrop'
+import { resolveDropLaunchFromPaths } from '@/app/dropLaunch'
 import { sessionCatalog } from '@/app/sessionCatalog'
 import { useI18n } from '@/i18n'
 import { usePolicyStore } from '@/stores/policy'
@@ -77,6 +79,8 @@ const tabs = useTabsStore()
 const sessionLaunch = useSessionLaunchStore()
 const savedSessions = useSavedSessionsStore()
 
+let stopDesktopDrop: (() => void) | undefined
+
 onMounted(() => {
   void (async () => {
     try {
@@ -108,6 +112,34 @@ onMounted(() => {
       // ponytail: ignore missing shell launch outside Windows Explorer flow
     }
   })()
+
+  void listenDesktopPathDrop(async (paths) => {
+    const result = await resolveDropLaunchFromPaths(paths, { autoRun: true })
+
+    if (!result.ok) {
+      statusBar.reportStatus({
+        comparisonStatus: result.reason,
+        source: 'drop',
+      })
+
+      return
+    }
+
+    sessionLaunch.setPendingLaunch(result.payload)
+    tabs.openTab({
+      title: result.selection.title,
+      titleKey: result.selection.titleKey,
+      route: result.selection.route,
+      dirty: false,
+    })
+    void router.push(result.selection.route)
+  }).then((stop) => {
+    stopDesktopDrop = stop
+  })
+})
+
+onUnmounted(() => {
+  stopDesktopDrop?.()
 })
 
 const commandPaletteOpen = ref(false)
@@ -855,14 +887,18 @@ const sourceSessionTypes = new Set<SessionType>([
 }
 
 .menu-panel button {
+  min-width: 0;
   min-height: 28px;
   padding: 0 8px;
+  overflow: hidden;
   border: 0;
   border-radius: 4px;
   background: transparent;
   color: var(--app-text);
   font-size: 12px;
   text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   cursor: pointer;
 }
 
@@ -882,13 +918,17 @@ const sourceSessionTypes = new Set<SessionType>([
   align-items: center;
   gap: 7px;
   min-width: 0;
+  max-width: 100%;
   height: 40px;
   padding: 0 12px;
+  overflow: hidden;
   border: 0;
   background: #eef2f8;
   color: #111827;
   font-size: 20px;
   font-weight: 400;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   cursor: pointer;
 }
 
@@ -898,8 +938,10 @@ const sourceSessionTypes = new Set<SessionType>([
   grid-row: 2;
   align-items: center;
   gap: 12px;
+  min-width: 0;
   height: 38px;
   padding: 0 10px;
+  overflow: auto hidden;
   border-top: 1px solid #e7e9ed;
   background: #ffffff;
 }
@@ -1029,8 +1071,11 @@ const sourceSessionTypes = new Set<SessionType>([
 }
 
 .sidebar-head span {
+  overflow: hidden;
   color: var(--app-text-muted);
   font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .session-search {
@@ -1290,7 +1335,7 @@ const sourceSessionTypes = new Set<SessionType>([
 
 .status-bar {
   display: grid;
-  grid-template-columns: 1fr auto auto auto;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
   align-items: center;
   gap: 18px;
   min-width: 0;
@@ -1303,6 +1348,7 @@ const sourceSessionTypes = new Set<SessionType>([
 }
 
 .status-bar span {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1373,6 +1419,10 @@ const sourceSessionTypes = new Set<SessionType>([
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .command-item:hover {
@@ -1385,6 +1435,7 @@ const sourceSessionTypes = new Set<SessionType>([
 }
 
 .command-item small {
+  flex: 0 0 auto;
   color: var(--app-text-muted);
   font-size: 11px;
 }

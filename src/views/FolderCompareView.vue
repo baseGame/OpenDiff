@@ -2111,6 +2111,7 @@ onUnmounted(() => {
 
 .path-pair input {
   width: 100%;
+  min-width: 0;
   height: 32px;
   padding: 0 9px;
   overflow: hidden;
@@ -2119,6 +2120,7 @@ onUnmounted(() => {
   background: var(--app-surface);
   color: var(--app-text);
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .folder-actions {
@@ -2222,17 +2224,27 @@ onUnmounted(() => {
 
 .folder-summary {
   display: grid;
-  grid-template-columns: repeat(3, 110px);
+  grid-template-columns: repeat(3, minmax(0, 110px));
   gap: 8px;
 }
 
 .folder-summary div {
   display: grid;
   gap: 2px;
+  min-width: 0;
   padding: 9px 10px;
+  overflow: hidden;
   border: 1px solid var(--app-border);
   border-radius: 8px;
   background: var(--app-surface);
+}
+
+.folder-summary strong,
+.folder-summary span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .folder-summary strong {
