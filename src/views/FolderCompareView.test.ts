@@ -453,6 +453,64 @@ describe('FolderCompareView', () => {
     expect(launchStore.pendingLaunch).toBeUndefined()
   })
 
+  it('disables export and sync preview until both roots are set', () => {
+    const wrapper = mountFolderCompareView()
+
+    expect(
+      wrapper.find('[data-testid="export-folder-html-report"]').attributes('disabled'),
+    ).toBeDefined()
+    expect(wrapper.find('[data-testid="preview-sync-plan"]').attributes('disabled')).toBeDefined()
+  })
+
+  it('surfaces copy failures instead of leaving a hanging confirmation', async () => {
+    vi.mocked(copyFolderCompareEntry).mockRejectedValueOnce(new Error('disk full'))
+    const wrapper = mountFolderCompareView()
+
+    await runCompare(wrapper)
+    await wrapper.find('[data-row-id="src-main-ts"]').trigger('click')
+    await wrapper.find('[data-testid="copy-selected-to-right"]').trigger('click')
+    await wrapper.find('[data-testid="confirm-folder-copy"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="folder-compare-error"]').text()).toContain('disk full')
+    expect(wrapper.find('[data-testid="folder-copy-confirmation"]').exists()).toBe(true)
+  })
+
+  it('refreshes the tree after touch and enables directory rename/delete/move', async () => {
+    const wrapper = mountFolderCompareView()
+
+    await runCompare(wrapper)
+    vi.mocked(compareFolderPaths).mockClear()
+
+    await wrapper.find('[data-row-id="readme-md"]').trigger('click')
+    await wrapper.find('[data-testid="touch-selected-file"]').trigger('click')
+    await flushPromises()
+
+    expect(touchFolderEntry).toHaveBeenCalled()
+    expect(compareFolderPaths).toHaveBeenCalled()
+
+    await wrapper.find('[data-row-id="src"]').trigger('click')
+    expect(
+      wrapper.find('[data-testid="rename-selected-file"]').attributes('disabled'),
+    ).toBeUndefined()
+    expect(
+      wrapper.find('[data-testid="delete-selected-file"]').attributes('disabled'),
+    ).toBeUndefined()
+    expect(
+      wrapper.find('[data-testid="move-selected-file"]').attributes('disabled'),
+    ).toBeUndefined()
+    expect(
+      wrapper.find('[data-testid="copy-selected-to-right"]').attributes('disabled'),
+    ).toBeDefined()
+
+    await wrapper.find('[data-testid="move-selected-file"]').trigger('click')
+    await flushPromises()
+    expect(moveFolderEntry).toHaveBeenCalledWith({
+      sourcePath: 'D:/left/src',
+      targetPath: 'D:/left/archive/src',
+    })
+  })
+
   it('exposes full path tooltips on path inputs', async () => {
     const wrapper = mountFolderCompareView()
     const longPath = 'D:/very/long/path/to/project/left-root-directory'
