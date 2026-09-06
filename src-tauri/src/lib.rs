@@ -8,12 +8,12 @@ mod sources;
 
 pub fn run() {
     tauri::Builder::default()
-        .setup(|app| {
+        .setup(|_app| {
             #[cfg(target_os = "linux")]
             {
                 use tauri::Manager;
 
-                if let Some(main) = app.get_webview_window("main") {
+                if let Some(main) = _app.get_webview_window("main") {
                     if let Err(error) = linux_dnd::install_linux_desktop_drop_bridge(&main) {
                         eprintln!("[OpenDiff] Linux desktop drop bridge unavailable: {error}");
                     }
