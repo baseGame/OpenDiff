@@ -558,8 +558,10 @@ select {
   grid-auto-flow: row !important;
   grid-auto-rows: auto !important;
   align-items: stretch !important;
+  align-content: start !important;
   gap: 10px !important;
-  min-height: 0 !important;
+  height: auto !important;
+  min-height: min-content !important;
   padding: 8px 10px !important;
   overflow: visible !important;
 }
@@ -573,6 +575,7 @@ select {
   grid-row: auto !important;
   width: 100% !important;
   min-width: 0 !important;
+  min-height: min-content !important;
   margin: 0 !important;
   overflow: visible !important;
 }
@@ -582,7 +585,8 @@ select {
   grid-template-columns: minmax(140px, 1fr) minmax(140px, 1fr) !important;
   grid-auto-rows: auto !important;
   gap: 8px !important;
-  min-height: 0 !important;
+  height: auto !important;
+  min-height: min-content !important;
 }
 
 .folder-toolbar .path-pair > label {
@@ -946,4 +950,11 @@ select {
 .home-primary-cta:focus-visible {
   outline: 2px solid var(--app-primary, #4aa3ff);
   outline-offset: 1px;
+}
+
+/* Keep Folder Compare path/criteria/actions from collapsing under results */
+.folder-compare-view > .folder-toolbar {
+  align-self: start !important;
+  height: auto !important;
+  min-height: min-content !important;
 }

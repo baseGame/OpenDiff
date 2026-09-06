@@ -2252,7 +2252,7 @@ onUnmounted(() => {
 <style scoped>
 .folder-compare-view {
   display: grid;
-  grid-template-rows: auto auto auto auto auto minmax(0, 1fr);
+  grid-template-rows: max-content max-content max-content max-content max-content minmax(0, 1fr);
   gap: 12px;
   height: 100%;
   padding: 16px;
@@ -2262,8 +2262,12 @@ onUnmounted(() => {
 .folder-toolbar {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
+  align-content: start;
   align-items: stretch;
+  align-self: start;
   gap: 10px;
+  height: auto;
+  min-height: min-content;
   overflow: visible;
 }
 
@@ -2275,6 +2279,7 @@ onUnmounted(() => {
   grid-column: 1;
   width: 100%;
   min-width: 0;
+  min-height: min-content;
   margin: 0;
 }
 
@@ -2282,6 +2287,8 @@ onUnmounted(() => {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
+  height: auto;
+  min-height: min-content;
 }
 
 .path-pair label {
