@@ -90,13 +90,14 @@ describe('FolderMergeView', () => {
       rightRoot: 'D:/workspace/merge/right',
       outputRoot: 'D:/workspace/merge/output',
     })
-    expect(summary.text()).toContain('4')
-    expect(summary.text()).toContain('1')
+    expect(summary.text()).toContain('5')
+    expect(summary.text()).toContain('2')
     expect(plan.exists()).toBe(true)
-    expect(wrapper.findAll('[data-testid="folder-merge-row"]')).toHaveLength(4)
+    expect(wrapper.findAll('[data-testid="folder-merge-row"]')).toHaveLength(5)
     expect(plan.text()).toContain('same.txt')
     expect(plan.text()).toContain('left-add.txt')
     expect(plan.text()).toContain('right-add.txt')
+    expect(plan.text()).toContain('notes.txt')
     expect(plan.text()).toContain('config')
     expect(plan.text()).toContain('Mark conflict')
   })
@@ -134,30 +135,32 @@ describe('FolderMergeView', () => {
 
     expect(conflicts.exists()).toBe(true)
     expect(conflicts.text()).toContain('config')
+    expect(conflicts.text()).toContain('notes.txt')
     expect(conflicts.text()).toContain('Base: Directory')
     expect(conflicts.text()).toContain('Left: File')
     expect(conflicts.text()).toContain('Right: Directory')
     expect(conflicts.text()).toContain('Left and right changed the same path differently')
   })
 
-  it('opens a folder conflict in the text merge workspace', async () => {
+  it('opens a file content conflict in the text merge workspace', async () => {
     const wrapper = mountFolderMergeView()
 
     await fillMergePaths(wrapper)
 
     await wrapper.find('[data-testid="folder-merge-build-plan"]').trigger('click')
     await flushPromises()
-    await wrapper.find('[data-testid="open-folder-conflict-config"]').trigger('click')
+    expect(wrapper.find('[data-testid="open-folder-conflict-config"]').exists()).toBe(false)
+    await wrapper.find('[data-testid="open-folder-conflict-notes.txt"]').trigger('click')
 
     expect(push).toHaveBeenCalledWith('/merge/text')
     expect(useSessionLaunchStore().pendingLaunch).toMatchObject({
       route: '/merge/text',
       autoRun: true,
       locations: {
-        left: { uri: 'D:/workspace/merge/left/config' },
-        right: { uri: 'D:/workspace/merge/right/config' },
-        center: { uri: 'D:/workspace/merge/base/config' },
-        output: { uri: 'D:/workspace/merge/output/config' },
+        left: { uri: 'D:/workspace/merge/left/notes.txt' },
+        right: { uri: 'D:/workspace/merge/right/notes.txt' },
+        center: { uri: 'D:/workspace/merge/base/notes.txt' },
+        output: { uri: 'D:/workspace/merge/output/notes.txt' },
       },
     })
     expect(useTabsStore().tabs.some((tab) => tab.route === '/merge/text')).toBe(true)
@@ -226,6 +229,22 @@ function createMergePlanResponse(): FolderMergePlanResponse {
         detail: 'Right added a new file and left has no competing change.',
       },
       {
+        id: 'notes-txt',
+        path: 'notes.txt',
+        base: createSide('Base', 'File', '10 B'),
+        left: createSide('Left', 'File', '11 B'),
+        right: createSide('Right', 'File', '12 B'),
+        action: 'Mark conflict',
+        detail: 'Left and right changed the same path differently.',
+        conflict: {
+          path: 'notes.txt',
+          reason: 'Left and right changed the same path differently',
+          baseContext: 'Base: File',
+          leftContext: 'Left: File',
+          rightContext: 'Right: File',
+        },
+      },
+      {
         id: 'config',
         path: 'config',
         base: createSide('Base', 'Directory'),
@@ -243,9 +262,9 @@ function createMergePlanResponse(): FolderMergePlanResponse {
       },
     ],
     summary: {
-      actions: 4,
+      actions: 5,
       automatic: 3,
-      conflicts: 1,
+      conflicts: 2,
     },
   }
 }

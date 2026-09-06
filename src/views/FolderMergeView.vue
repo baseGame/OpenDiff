@@ -125,7 +125,17 @@ function folderMergeActionLabel(action: FolderMergePlanRow['action']): string {
   return t(keys[action])
 }
 
+function canOpenConflictInTextMerge(conflict: FolderMergeConflict): boolean {
+  return conflict.leftContext.includes('File') && conflict.rightContext.includes('File')
+}
+
 function openConflictInTextMerge(conflict: FolderMergeConflict): void {
+  if (!canOpenConflictInTextMerge(conflict)) {
+    lastOpenedConflictPath.value = ''
+
+    return
+  }
+
   lastOpenedConflictPath.value = conflict.path
   sessionLaunch.setPendingLaunch({
     id: crypto.randomUUID(),
@@ -335,11 +345,17 @@ function joinRoot(root: string, relativePath: string): string {
             <span>{{ conflict.leftContext }}</span>
             <span>{{ conflict.rightContext }}</span>
             <NButton
+              v-if="canOpenConflictInTextMerge(conflict)"
               size="tiny"
               secondary
               :data-testid="`open-folder-conflict-${conflict.path}`"
               @click="openConflictInTextMerge(conflict)"
               >{{ $t('ui.openTextMerge') }}</NButton
+            >
+            <span
+              v-else
+              data-testid="folder-merge-conflict-manual"
+              >{{ $t('ui.conflicts') }}</span
             >
           </li>
         </ul>

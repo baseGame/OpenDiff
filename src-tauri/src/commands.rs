@@ -2753,12 +2753,13 @@ fn execute_local_folder_sync_item(
         sync_core::SyncAction::Conflict {
             left_path,
             right_path,
-            message,
+            ..
         } => (
-            "conflict".to_owned(),
+            "leave".to_owned(),
             Some(left_path.clone()),
             Some(right_path.clone()),
-            Err(message.clone()),
+            // Conflicts stay on disk until the user overrides them.
+            Ok(()),
         ),
     };
     let (status, error) = match result {
@@ -2840,22 +2841,48 @@ fn folder_merge_side(
 ) -> folder_merge_core::FolderMergeSide {
     let mut side = folder_merge_core::FolderMergeSide::new(role, root_path);
 
-    collect_folder_merge_entries(tree, &mut side.entries);
+    collect_folder_merge_entries(tree, Path::new(root_path), &mut side.entries);
 
     side
 }
 
 fn collect_folder_merge_entries(
     node: &FolderScanNode,
+    root: &Path,
     entries: &mut Vec<folder_merge_core::FolderMergeEntry>,
 ) {
     for child in &node.children {
+        let kind = folder_merge_entry_kind(&child.kind);
+        let content_fingerprint = match kind {
+            folder_merge_core::FolderMergeEntryKind::File => {
+                folder_merge_file_fingerprint(&root.join(&child.relative_path))
+            }
+            folder_merge_core::FolderMergeEntryKind::Directory => None,
+        };
+
         entries.push(folder_merge_core::FolderMergeEntry {
             relative_path: child.relative_path.clone(),
-            kind: folder_merge_entry_kind(&child.kind),
+            kind,
+            content_fingerprint,
         });
-        collect_folder_merge_entries(child, entries);
+        collect_folder_merge_entries(child, root, entries);
     }
+}
+
+fn folder_merge_file_fingerprint(path: &Path) -> Option<String> {
+    let bytes = fs::read(path).ok()?;
+    Some(stable_content_fingerprint(&bytes))
+}
+
+fn stable_content_fingerprint(bytes: &[u8]) -> String {
+    let mut checksum: u64 = 0xcbf29ce484222325;
+
+    for &byte in bytes {
+        checksum ^= u64::from(byte);
+        checksum = checksum.wrapping_mul(0x100000001b3);
+    }
+
+    format!("{checksum:016x}:{}", bytes.len())
 }
 
 fn folder_merge_entry_kind(kind: &FolderNodeKind) -> folder_merge_core::FolderMergeEntryKind {
@@ -4646,6 +4673,57 @@ mod tests {
             "right"
         );
         assert!(!output.join("delete.txt").exists());
+    }
+
+    #[test]
+    fn execute_folder_merge_plan_marks_content_conflicts_and_skips_them() {
+        let root = unique_temp_dir("folder-merge-content-conflict");
+        let base = root.join("base");
+        let left = root.join("left");
+        let right = root.join("right");
+        let output = root.join("output");
+
+        fs::create_dir_all(&base).expect("base directory should be created");
+        fs::create_dir_all(&left).expect("left directory should be created");
+        fs::create_dir_all(&right).expect("right directory should be created");
+        fs::create_dir_all(&output).expect("output directory should be created");
+        fs::write(base.join("notes.txt"), "base notes").expect("base notes should be writable");
+        fs::write(left.join("notes.txt"), "left notes").expect("left notes should be writable");
+        fs::write(right.join("notes.txt"), "right notes").expect("right notes should be writable");
+        fs::write(left.join("left-only.txt"), "only left").expect("left-only should be writable");
+
+        let plan = build_folder_merge_plan(
+            left.display().to_string(),
+            base.display().to_string(),
+            right.display().to_string(),
+            output.display().to_string(),
+        )
+        .expect("valid folders should build a merge plan");
+
+        assert!(plan.rows.iter().any(|row| {
+            row.path == "notes.txt" && row.action == "Mark conflict" && row.conflict.is_some()
+        }));
+        assert!(plan
+            .rows
+            .iter()
+            .any(|row| row.path == "left-only.txt" && row.action == "Copy left to output"));
+
+        let response = execute_folder_merge_plan(
+            left.display().to_string(),
+            base.display().to_string(),
+            right.display().to_string(),
+            output.display().to_string(),
+        )
+        .expect("valid folders should execute automatic merge actions");
+
+        assert_eq!(response.summary.conflicts, 1);
+        assert_eq!(response.summary.failed, 0);
+        assert!(!output.join("notes.txt").exists());
+        assert_eq!(
+            fs::read_to_string(output.join("left-only.txt"))
+                .expect("left-only output should be readable"),
+            "only left"
+        );
     }
 
     #[test]
