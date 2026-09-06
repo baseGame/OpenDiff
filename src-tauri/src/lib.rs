@@ -1,11 +1,27 @@
 pub use shell_startup::{prepare_shell_startup, ShellStartupDecision};
 
 mod commands;
+#[cfg(target_os = "linux")]
+mod linux_dnd;
 mod shell_startup;
 mod sources;
 
 pub fn run() {
     tauri::Builder::default()
+        .setup(|_app| {
+            #[cfg(target_os = "linux")]
+            {
+                use tauri::Manager;
+
+                if let Some(main) = _app.get_webview_window("main") {
+                    if let Err(error) = linux_dnd::install_linux_desktop_drop_bridge(&main) {
+                        eprintln!("[OpenDiff] Linux desktop drop bridge unavailable: {error}");
+                    }
+                }
+            }
+
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             commands::apply_text_patch,
             commands::apply_text_patch_to_file,

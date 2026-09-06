@@ -113,27 +113,50 @@ onMounted(() => {
     }
   })()
 
-  void listenDesktopPathDrop(async (paths) => {
-    const result = await resolveDropLaunchFromPaths(paths, { autoRun: true })
+  void listenDesktopPathDrop(
+    async (paths) => {
+      const result = await resolveDropLaunchFromPaths(paths, { autoRun: true })
 
-    if (!result.ok) {
-      statusBar.reportStatus({
-        comparisonStatus: result.reason,
-        source: 'drop',
+      if (!result.ok) {
+        statusBar.reportStatus({
+          comparisonStatus: result.reason,
+          source: 'drop',
+        })
+
+        return
+      }
+
+      sessionLaunch.setPendingLaunch(result.payload)
+      tabs.openTab({
+        title: result.selection.title,
+        titleKey: result.selection.titleKey,
+        route: result.selection.route,
+        dirty: false,
       })
-
-      return
-    }
-
-    sessionLaunch.setPendingLaunch(result.payload)
-    tabs.openTab({
-      title: result.selection.title,
-      titleKey: result.selection.titleKey,
-      route: result.selection.route,
-      dirty: false,
-    })
-    void router.push(result.selection.route)
-  }).then((stop) => {
+      void router.push(result.selection.route)
+    },
+    (phase) => {
+      // Subtle status only for real drag activity (not a permanent "Listening" banner).
+      if (phase === 'enter') {
+        statusBar.reportStatus({
+          comparisonStatus: 'Drop to open compare',
+          source: 'drop',
+        })
+      } else if (phase === 'leave') {
+        statusBar.reportStatus({
+          comparisonStatus: 'Ready',
+          source: 'drop',
+        })
+      } else if (phase === 'drop') {
+        statusBar.reportStatus({
+          comparisonStatus: 'Opening dropped files…',
+          source: 'drop',
+        })
+      } else if (phase === 'unavailable') {
+        console.warn('[OpenDiff] desktop drop listener phase unavailable')
+      }
+    },
+  ).then((stop) => {
     stopDesktopDrop = stop
   })
 })
