@@ -102,10 +102,10 @@
 
 ### Folder Compare 偏差
 
-- 初始列表包含 180 条硬编码 `generatedRows` 演示数据，未运行真实比较前会显示假文件树。
-- Copy、Delete、Rename、属性修改、Touch、Quick Compare、Compare To、Open、Open With、报告、同步预览等很多按钮只更新本地状态文本或打开面板，没有调用真实文件操作。
-- 后端 `folder-core` 虽有复制、移动、删除、重命名等函数，但没有通过 Tauri command 和前端 API 暴露给 Folder Compare UI。
-- 目标截图中的路径栏、列布局、工具栏按钮、文件/文件夹操作菜单和 Beyond Compare 操作语义没有完整复刻。
+- （2026-09-06）初始演示树已移除，未比较前显示空态。
+- Copy / Move / Rename / Delete / Attributes / Touch 已接 Tauri 与前端 API，并在失败时显示错误；目录项也可 Rename / Delete / Move。
+- Open / Compare To / Quick Compare 打开子比较会话；Open With / Associated App 调用外部程序；报告导出与同步预览已接真实命令。
+- Align With / Break Alignment 仍未实现（按钮禁用，无「未实现」文案）。远程/归档一侧、对齐覆盖持久化、完整工具栏语义仍缺。
 
 ### Folder Sync 偏差
 
@@ -132,12 +132,12 @@
 
 ### Hex Compare 偏差
 
-- 默认初始字节是硬编码 A-Z 示例。
+- （2026-09-06）初始不再显示 A–Z 演示字节；未比较前为空态。仍缺完整浏览/跳转与部分工具栏语义。
 - 前端每次只请求 `offset: 0, length: 256`，没有实现完整文件浏览、跳转 offset、差异导航、复制、规则、Reload、Swap 等目标功能。
 
 ### Picture Compare 偏差
 
-- 初始元数据和统计是硬编码示例。
+- （2026-09-06）初始元数据/统计为空，需运行比较后填充。
 - overlay 是前端视觉层，未看到目标软件的 `Tol / Range / Blend / Meta` 规则与容差模型完整实现。
 - 没有目标截图中的专属工具栏语义、差异范围控制、容差规则编辑和报告/保存能力。
 
@@ -145,19 +145,19 @@
 
 - 当前只能比较 `.reg` 文本导出，不支持直接连接/浏览 Windows 注册表 hive 并编辑。
 - 没有 Copy、Next Diff、Prev Diff、Swap、Reload、Expand、Collapse 的完整命令实现。
-- 初始 registry tree 是硬编码示例。
+- （2026-09-06）初始 registry tree 为空，需加载导出后填充。
 
 ### Media Compare 偏差
 
 - 当前聚焦元数据字段比较，没有媒体播放、双侧播放控制、前滚/后滚、流选择、规则/重要性设置等。
 - 目标截图记录 `Play2`、前滚/后滚等工具栏按钮，当前未实现对应行为。
-- 初始媒体信息是硬编码示例。
+- （2026-09-06）初始媒体信息为空，需运行比较后填充。
 
 ### Version Compare 偏差
 
 - 当前仅 Windows 支持版本资源读取，非 Windows 返回 unsupported。
 - 没有目标工具栏的 All/Diffs/Same/Minor/Rules/Next/Prev/Swap/Reload，也没有重要性规则配置。
-- 初始版本字段是硬编码示例。
+- （2026-09-06）初始版本字段为空，需运行比较后填充。
 
 ### Text Edit 偏差
 
@@ -216,9 +216,8 @@
 
 ### Folder Compare
 
-- 未实现真实 Copy / Move / Rename / Delete / Attributes / Touch 等 UI 操作调用。
-- 未实现 Quick Compare、Compare To、Open With、文件比较报告的真实工作流。
-- 未实现 Filters、Peek、Select、Files 菜单、Stop/cancel 作业等目标命令。
+- Copy / Move / Rename / Delete / Attributes / Touch 的 UI→Tauri 调用已接通；Align With / Break Alignment 仍未实现。
+- Quick Compare、Compare To、Open / Open With、文件夹报告导出已有真实工作流；Filters / Peek / Select / Files 菜单仍不完整。
 - 未实现高级对齐覆盖持久化和真正影响后续比较。
 - 未实现名称过滤、其他过滤、处理规则、比较规则、符号链接/权限/时间戳策略等完整设置。
 

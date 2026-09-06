@@ -244,6 +244,18 @@ export function moveFolderEntry(
   })
 }
 
+export function createFolderSnapshot(request: {
+  sourceRoot: string
+  outputPath: string
+  name?: string
+}): Promise<string> {
+  return invoke<string>('create_folder_snapshot', {
+    sourceRoot: request.sourceRoot,
+    outputPath: request.outputPath,
+    name: request.name,
+  })
+}
+
 export function applyTextPatch(request: ApplyTextPatchRequest): Promise<ApplyTextPatchResponse> {
   return invoke<ApplyTextPatchResponse>('apply_text_patch', {
     source: request.source,

@@ -17,6 +17,7 @@ import {
   exportTextCompareReport,
   findHexInFile,
   mergeTextFiles,
+  createFolderSnapshot,
   moveFolderEntry,
   renameFolderEntry,
   saveHexEdits,
@@ -530,6 +531,22 @@ describe('diff api', () => {
       sourcePath: 'C:/work/main.ts',
       patch: 'diff',
       outputPath: 'C:/work/main.patched.ts',
+    })
+  })
+
+  it('creates a folder snapshot through the Tauri command contract', async () => {
+    vi.mocked(invoke).mockResolvedValueOnce('/tmp/snap.json')
+
+    await createFolderSnapshot({
+      sourceRoot: 'D:/left',
+      outputPath: '/tmp/snap.json',
+      name: 'left-snap',
+    })
+
+    expect(invoke).toHaveBeenCalledWith('create_folder_snapshot', {
+      sourceRoot: 'D:/left',
+      outputPath: '/tmp/snap.json',
+      name: 'left-snap',
     })
   })
 })

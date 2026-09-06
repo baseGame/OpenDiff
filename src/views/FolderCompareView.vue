@@ -210,6 +210,15 @@ const selectedFilePath = computed(() => {
 
   return row.leftPath ?? row.rightPath
 })
+const selectedEntryPath = computed(() => {
+  const row = selectedRow.value
+
+  if (!row) {
+    return undefined
+  }
+
+  return row.leftPath ?? row.rightPath
+})
 const alignWithCandidates = computed(() =>
   rows.value.filter(
     (row) =>
@@ -791,36 +800,44 @@ async function confirmFolderCopy(): Promise<void> {
     return
   }
 
-  await copyFolderCompareEntry({
-    leftRoot: leftRoot.value,
-    rightRoot: rightRoot.value,
-    relativePath: row.relativePath,
-    direction: direction === 'Left' ? 'toLeft' : 'toRight',
-  })
-  lastCopyAction.value = t('status.copiedToSide', {
-    side: direction === 'Left' ? t('ui.left') : t('ui.right'),
-    path: confirmation.paths[0],
-  })
-  pendingCopyConfirmation.value = undefined
-  pendingCopyDirection.value = undefined
-  await runFolderCompare()
+  try {
+    await copyFolderCompareEntry({
+      leftRoot: leftRoot.value,
+      rightRoot: rightRoot.value,
+      relativePath: row.relativePath,
+      direction: direction === 'Left' ? 'toLeft' : 'toRight',
+    })
+    lastCopyAction.value = t('status.copiedToSide', {
+      side: direction === 'Left' ? t('ui.left') : t('ui.right'),
+      path: confirmation.paths[0],
+    })
+    pendingCopyConfirmation.value = undefined
+    pendingCopyDirection.value = undefined
+    await runFolderCompare()
+  } catch (error) {
+    folderCompareError.value = formatCompareError(error, t)
+  }
 }
 
 async function confirmRenameFile(): Promise<void> {
-  const path = selectedFilePath.value
+  const path = selectedEntryPath.value
 
   if (!path || !renameTargetName.value) {
     return
   }
 
-  await renameFolderEntry({ path, newName: renameTargetName.value })
-  lastFileOperationAction.value = t('status.renamedPath', { path: renameTargetName.value })
-  renamePanelOpen.value = false
-  await runFolderCompare()
+  try {
+    await renameFolderEntry({ path, newName: renameTargetName.value })
+    lastFileOperationAction.value = t('status.renamedPath', { path: renameTargetName.value })
+    renamePanelOpen.value = false
+    await runFolderCompare()
+  } catch (error) {
+    folderCompareError.value = formatCompareError(error, t)
+  }
 }
 
 async function moveSelectedFile(): Promise<void> {
-  const path = selectedFilePath.value
+  const path = selectedEntryPath.value
 
   if (!path) {
     return
@@ -828,13 +845,17 @@ async function moveSelectedFile(): Promise<void> {
 
   const targetPath = archivePath(path)
 
-  await moveFolderEntry({ sourcePath: path, targetPath })
-  lastFileOperationAction.value = `${t('ui.move')} -> ${targetPath}`
-  await runFolderCompare()
+  try {
+    await moveFolderEntry({ sourcePath: path, targetPath })
+    lastFileOperationAction.value = `${t('ui.move')} -> ${targetPath}`
+    await runFolderCompare()
+  } catch (error) {
+    folderCompareError.value = formatCompareError(error, t)
+  }
 }
 
 function deleteSelectedFile(): void {
-  const path = selectedFilePath.value
+  const path = selectedEntryPath.value
 
   if (!path) {
     return
@@ -852,38 +873,52 @@ async function confirmDangerousFileOperation(): Promise<void> {
     return
   }
 
-  await Promise.all(
-    pendingDangerousOperation.value.paths.map((path) => deleteFolderEntry({ path })),
-  )
-  lastFileOperationAction.value = pendingDangerousOperationLabel.value
-  pendingDangerousOperation.value = undefined
-  pendingDangerousOperationLabel.value = ''
-  await runFolderCompare()
+  try {
+    await Promise.all(
+      pendingDangerousOperation.value.paths.map((path) => deleteFolderEntry({ path })),
+    )
+    lastFileOperationAction.value = pendingDangerousOperationLabel.value
+    pendingDangerousOperation.value = undefined
+    pendingDangerousOperationLabel.value = ''
+    await runFolderCompare()
+  } catch (error) {
+    folderCompareError.value = formatCompareError(error, t)
+  }
 }
 
 async function toggleSelectedReadonly(selected: boolean): Promise<void> {
-  const path = selectedFilePath.value
+  const path = selectedEntryPath.value
 
   if (!path) {
     return
   }
 
-  await changeFolderEntryAttributes({ path, readonly: selected })
-  selectedReadonly.value = selected
-  lastMetadataAction.value = t('status.attributesChanged', {
-    state: selected ? 'readonly' : 'writable',
-  })
+  try {
+    await changeFolderEntryAttributes({ path, readonly: selected })
+    selectedReadonly.value = selected
+    lastMetadataAction.value = t('status.attributesChanged', {
+      state: selected ? 'readonly' : 'writable',
+    })
+    await runFolderCompare()
+  } catch (error) {
+    folderCompareError.value = formatCompareError(error, t)
+  }
 }
 
 async function touchSelectedFile(): Promise<void> {
-  const path = selectedFilePath.value
+  const path = selectedEntryPath.value
 
   if (!path) {
     return
   }
 
-  await touchFolderEntry({ path, modifiedAtMs: Date.now() })
-  lastMetadataAction.value = t('status.touchedPath', { path })
+  try {
+    await touchFolderEntry({ path, modifiedAtMs: Date.now() })
+    lastMetadataAction.value = t('status.touchedPath', { path })
+    await runFolderCompare()
+  } catch (error) {
+    folderCompareError.value = formatCompareError(error, t)
+  }
 }
 
 function excludeSelectedRow(): void {
@@ -1365,6 +1400,7 @@ onUnmounted(() => {
             size="small"
             secondary
             data-testid="export-folder-html-report"
+            :disabled="!leftRoot || !rightRoot"
             @click="exportFolderReport('html')"
             >{{ $t('ui.export') }} {{ $t('ui.html') }}</NButton
           >
@@ -1372,6 +1408,7 @@ onUnmounted(() => {
             size="small"
             secondary
             data-testid="preview-sync-plan"
+            :disabled="!leftRoot || !rightRoot"
             @click="previewSyncPlan"
             >{{ $t('ui.previewSync') }}</NButton
           >
@@ -1446,7 +1483,7 @@ onUnmounted(() => {
             size="small"
             secondary
             data-testid="move-selected-file"
-            :disabled="!selectedFilePath"
+            :disabled="!selectedEntryPath"
             @click="moveSelectedFile"
             >{{ $t('ui.move') }}</NButton
           >
@@ -1454,7 +1491,7 @@ onUnmounted(() => {
             size="small"
             secondary
             data-testid="delete-selected-file"
-            :disabled="!selectedFilePath"
+            :disabled="!selectedEntryPath"
             @click="deleteSelectedFile"
             >{{ $t('ui.delete') }}</NButton
           >
@@ -1462,7 +1499,7 @@ onUnmounted(() => {
             size="small"
             secondary
             data-testid="rename-selected-file"
-            :disabled="!selectedFilePath"
+            :disabled="!selectedEntryPath"
             @click="renameSelectedFile"
             >{{ $t('ui.rename') }}</NButton
           >
@@ -1739,7 +1776,7 @@ onUnmounted(() => {
             data-testid="toggle-selected-readonly"
             type="checkbox"
             :checked="selectedReadonly"
-            :disabled="!selectedFilePath"
+            :disabled="!selectedEntryPath"
             @change="toggleSelectedReadonly(($event.target as HTMLInputElement).checked)"
           />
           <span>{{ $t('ui.readonly') }}</span>
@@ -1748,7 +1785,7 @@ onUnmounted(() => {
           size="small"
           secondary
           data-testid="touch-selected-file"
-          :disabled="!selectedFilePath"
+          :disabled="!selectedEntryPath"
           @click="touchSelectedFile"
           >{{ $t('ui.touch') }}</NButton
         >
