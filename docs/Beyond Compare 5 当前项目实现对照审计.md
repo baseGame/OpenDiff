@@ -15,9 +15,9 @@
 当前项目不是 Beyond Compare 5 UI 的高保真复刻，而是一个自有 Workbench 风格的差异比较应用。路由和会话目录几乎把所有会话类型都标为已实现，但真实完成度分层明显：
 
 - Text Compare、Folder Compare、Table Compare、Hex Compare、Picture Compare、Registry Compare、Media Compare、Version Compare 有真实后端比较调用。
-- Folder Sync 只有预览，没有执行同步。
-- Folder Merge 只有生成合并计划，没有执行输出合并。
-- Text Merge 不是实际三方合并，只是硬编码冲突示例加保存输出。
+- Folder Sync：预览 + 执行已接线（复制/删除按计划落盘；支持逐项覆盖）。
+- Folder Merge：计划 + 输出执行已接线；文件内容冲突可带路径打开 Text Merge。
+- Text Merge：可从路径加载三路文件并做行级自动合并；接受冲突后可保存输出。
 - Home、菜单栏、工具栏、会话树和大量操作按钮与 Beyond Compare 5 截图不一致。
 - 多处 UI 使用硬编码演示数据、状态提示或假操作，容易被误认为已完成。
 
@@ -115,12 +115,12 @@
 ### Folder Merge 偏差
 
 - 当前只调用 `build_folder_merge_plan` 生成计划，没有 `Merge` 或 `To Output` 的真实输出执行。
-- 点击冲突只路由到 `/merge/text`，没有传递真实冲突文件、base/left/right/output 路径，也不会打开对应三方文本合并。
+- 文件内容冲突可打开 `/merge/text` 并传递 left/base/right/output 路径；类型不兼容冲突需手工处理。
 - 目标工具栏中的 `Merge / To Output / Same OK / Rules / Filters / Peek` 等没有对应真实行为。
 
 ### Text Merge 偏差
 
-- 当前冲突、base/left/right/output 内容全部是硬编码示例。
+- 空态启动；通过 Load / 会话启动调用 `merge_text_files` 读取真实文件并做行级三路合并。
 - `acceptConflict` 只是把输出改成固定三行，没有真实 diff3 或三方合并算法。
 - 只实现了保存 output 文本，没有读取三路输入、自动识别冲突、跳转冲突、Favor Left/Favor Right、Left/Center/Right 视图同步等目标功能。
 
@@ -232,7 +232,7 @@
 
 - 未实现真实三方文件夹合并输出。
 - 未实现 Merge、To Output、Same OK 等操作。
-- 未实现冲突文件打开到真实 Text Merge。
+- 文件内容冲突可打开真实 Text Merge（含路径）；类型冲突仍需手工处理。
 - 未实现文件夹合并规则、过滤、输出目录写入、冲突标记持久化。
 
 ### Text Merge
@@ -241,7 +241,7 @@
 - 未实现真实三方 merge 算法和自动冲突检测。
 - 未实现 Favor Left、Favor Right、Conflict、Left、Center、Right、Next Conflict、Prev Conflict。
 - 未实现手动对齐多行选择。
-- 未实现从 Text Compare 或 Folder Merge 传入上下文。
+- 已支持从 Folder Merge 传入路径上下文；Text Compare 联动仍可加强。
 
 ### Table Compare
 

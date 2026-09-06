@@ -68,6 +68,9 @@ const panes = computed<MergePane[]>(() => [
 ])
 const unresolvedConflicts = computed(() => conflicts.value.filter((conflict) => !conflict.resolved))
 const currentConflict = computed<MergeConflict | undefined>(() => unresolvedConflicts.value.at(0))
+const outputHasConflictMarkers = computed(() =>
+  outputLines.value.some((line) => /^(<{7}|={7}|>{7})/u.test(line)),
+)
 const outputText = computed({
   get: () => outputLines.value.join('\n'),
   set: (value: string) => {
@@ -221,7 +224,12 @@ function lineClass(line: string, paneId: MergePaneId): string {
         >
           {{ conflictStatus }}
         </span>
-        <span class="status-chip">{{ $t('ui.outputHasConflictMarkers') }}</span>
+        <span
+          v-if="outputHasConflictMarkers"
+          class="status-chip"
+          data-testid="merge-conflict-markers-chip"
+          >{{ $t('ui.outputHasConflictMarkers') }}</span
+        >
         <input
           v-model="leftPath"
           class="output-path-input"

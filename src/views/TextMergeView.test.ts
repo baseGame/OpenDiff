@@ -75,6 +75,7 @@ describe('TextMergeView', () => {
     })
     expect(wrapper.find('[data-testid="merge-conflict-status"]').text()).toContain('1 conflict')
     expect(wrapper.find('[data-testid="merge-conflict-list"]').text()).toContain('Line 2')
+    expect(wrapper.find('[data-testid="merge-conflict-markers-chip"]').exists()).toBe(false)
   })
 
   it('accepts the left side for the current conflict', async () => {

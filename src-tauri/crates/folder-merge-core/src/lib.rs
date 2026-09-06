@@ -22,6 +22,9 @@ pub enum FolderMergeEntryKind {
 pub struct FolderMergeEntry {
     pub relative_path: String,
     pub kind: FolderMergeEntryKind,
+    /// Stable fingerprint of file bytes when available. Directories leave this unset.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub content_fingerprint: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -94,7 +97,7 @@ pub struct FolderMergeConflict {
     pub right: Option<FolderMergeEntry>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum FolderMergeConflictReason {
     BothSidesChanged,
@@ -183,16 +186,10 @@ fn action_for_row(row: FolderMergeAlignmentRow) -> FolderMergeAction {
     let kind = match (&row.base, &row.left, &row.right) {
         (None, Some(_), None) => FolderMergeActionKind::CopyLeftToOutput,
         (None, None, Some(_)) => FolderMergeActionKind::CopyRightToOutput,
-        (None, Some(left), Some(right)) if left.kind == right.kind => {
-            FolderMergeActionKind::CopyLeftToOutput
-        }
+        (None, Some(left), Some(right)) => both_added_action(left, right),
         (Some(_), None, Some(_)) => FolderMergeActionKind::DeleteOutput,
         (Some(_), Some(_), None) => FolderMergeActionKind::DeleteOutput,
-        (Some(base), Some(left), Some(right))
-            if base.kind == left.kind && base.kind == right.kind =>
-        {
-            FolderMergeActionKind::KeepOutput
-        }
+        (Some(base), Some(left), Some(right)) => three_way_present_action(base, left, right),
         _ => FolderMergeActionKind::MarkConflict,
     };
     let conflict = kind == FolderMergeActionKind::MarkConflict;
@@ -211,8 +208,68 @@ fn action_for_row(row: FolderMergeAlignmentRow) -> FolderMergeAction {
     }
 }
 
+fn both_added_action(left: &FolderMergeEntry, right: &FolderMergeEntry) -> FolderMergeActionKind {
+    if left.kind != right.kind {
+        return FolderMergeActionKind::MarkConflict;
+    }
+
+    if left.kind == FolderMergeEntryKind::Directory || fingerprints_match(left, right) {
+        FolderMergeActionKind::CopyLeftToOutput
+    } else {
+        FolderMergeActionKind::MarkConflict
+    }
+}
+
+fn three_way_present_action(
+    base: &FolderMergeEntry,
+    left: &FolderMergeEntry,
+    right: &FolderMergeEntry,
+) -> FolderMergeActionKind {
+    if base.kind != left.kind || base.kind != right.kind {
+        return FolderMergeActionKind::MarkConflict;
+    }
+
+    if base.kind == FolderMergeEntryKind::Directory {
+        return FolderMergeActionKind::KeepOutput;
+    }
+
+    let left_changed = !fingerprints_match(base, left);
+    let right_changed = !fingerprints_match(base, right);
+
+    match (left_changed, right_changed) {
+        (false, false) => FolderMergeActionKind::KeepOutput,
+        (true, false) => FolderMergeActionKind::CopyLeftToOutput,
+        (false, true) => FolderMergeActionKind::CopyRightToOutput,
+        (true, true) if fingerprints_match(left, right) => FolderMergeActionKind::CopyLeftToOutput,
+        (true, true) => FolderMergeActionKind::MarkConflict,
+    }
+}
+
+fn fingerprints_match(left: &FolderMergeEntry, right: &FolderMergeEntry) -> bool {
+    match (&left.content_fingerprint, &right.content_fingerprint) {
+        (None, None) => true,
+        (Some(left_fp), Some(right_fp)) => left_fp == right_fp,
+        _ => false,
+    }
+}
+
 fn conflict_reason_for_row(row: &FolderMergeAlignmentRow) -> FolderMergeConflictReason {
     match (&row.base, &row.left, &row.right) {
+        (Some(base), Some(left), Some(right))
+            if base.kind == left.kind
+                && base.kind == right.kind
+                && base.kind == FolderMergeEntryKind::File
+                && !fingerprints_match(left, right) =>
+        {
+            FolderMergeConflictReason::BothSidesChanged
+        }
+        (None, Some(left), Some(right))
+            if left.kind == right.kind
+                && left.kind == FolderMergeEntryKind::File
+                && !fingerprints_match(left, right) =>
+        {
+            FolderMergeConflictReason::BothSidesChanged
+        }
         (Some(base), Some(left), Some(right))
             if base.kind != left.kind || base.kind != right.kind =>
         {
@@ -383,6 +440,70 @@ mod tests {
         );
     }
 
+    #[test]
+    fn marks_file_content_conflicts_when_both_sides_change() {
+        let document = FolderMergeDocument {
+            base: side(
+                FolderMergeRole::Base,
+                "D:/base",
+                vec![fingerprinted("notes.txt", "base")],
+            ),
+            left: side(
+                FolderMergeRole::Left,
+                "D:/left",
+                vec![fingerprinted("notes.txt", "left")],
+            ),
+            right: side(
+                FolderMergeRole::Right,
+                "D:/right",
+                vec![fingerprinted("notes.txt", "right")],
+            ),
+            output: FolderMergeSide::new(FolderMergeRole::Output, "D:/out"),
+        };
+
+        let plan = build_folder_merge_plan(&document);
+
+        assert_eq!(plan.conflicts, 1);
+        assert_eq!(plan.actions[0].kind, FolderMergeActionKind::MarkConflict);
+        assert_eq!(
+            plan.actions[0]
+                .conflict_detail
+                .as_ref()
+                .map(|conflict| conflict.reason),
+            Some(FolderMergeConflictReason::BothSidesChanged)
+        );
+    }
+
+    #[test]
+    fn copies_single_side_file_content_change_to_output() {
+        let document = FolderMergeDocument {
+            base: side(
+                FolderMergeRole::Base,
+                "D:/base",
+                vec![fingerprinted("notes.txt", "base")],
+            ),
+            left: side(
+                FolderMergeRole::Left,
+                "D:/left",
+                vec![fingerprinted("notes.txt", "left")],
+            ),
+            right: side(
+                FolderMergeRole::Right,
+                "D:/right",
+                vec![fingerprinted("notes.txt", "base")],
+            ),
+            output: FolderMergeSide::new(FolderMergeRole::Output, "D:/out"),
+        };
+
+        let plan = build_folder_merge_plan(&document);
+
+        assert_eq!(plan.conflicts, 0);
+        assert_eq!(
+            plan.actions[0].kind,
+            FolderMergeActionKind::CopyLeftToOutput
+        );
+    }
+
     fn side(
         role: FolderMergeRole,
         root_path: &str,
@@ -399,6 +520,15 @@ mod tests {
         FolderMergeEntry {
             relative_path: relative_path.to_owned(),
             kind,
+            content_fingerprint: None,
+        }
+    }
+
+    fn fingerprinted(relative_path: &str, fingerprint: &str) -> FolderMergeEntry {
+        FolderMergeEntry {
+            relative_path: relative_path.to_owned(),
+            kind: FolderMergeEntryKind::File,
+            content_fingerprint: Some(fingerprint.to_owned()),
         }
     }
 }

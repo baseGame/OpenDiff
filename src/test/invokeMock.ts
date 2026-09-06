@@ -106,6 +106,9 @@ export function invokeResponse(command: string, args: Record<string, unknown> = 
             conflict: {
               path: 'conflict.txt',
               reason: 'Left and right changed the same path differently',
+              baseContext: 'Base: File',
+              leftContext: 'Left: File',
+              rightContext: 'Right: File',
             },
           },
         ],

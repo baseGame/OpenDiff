@@ -20,9 +20,9 @@ export interface FolderMergeSide {
 export interface FolderMergeConflict {
   path: string
   reason: string
-  baseContext: string
-  leftContext: string
-  rightContext: string
+  baseContext?: string
+  leftContext?: string
+  rightContext?: string
 }
 
 export interface FolderMergePlanRow {
