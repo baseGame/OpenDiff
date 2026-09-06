@@ -19,7 +19,7 @@ export interface PortablePackagePlan {
 export function createWindowsPortablePackagePlan(
   request: PortablePackageRequest,
 ): PortablePackagePlan {
-  const archiveName = `${request.productName}_${request.version}_x64_portable.zip`
+  const archiveName = `${request.productName}_${request.version}_windows_x64_portable.zip`
 
   return {
     archiveName,

@@ -10,7 +10,7 @@ describe('portablePackage', () => {
       outputDir: 'src-tauri/target/release/bundle/portable',
     })
 
-    expect(plan.archiveName).toBe('OpenDiff_1.0.0_x64_portable.zip')
+    expect(plan.archiveName).toBe('OpenDiff_1.0.0_windows_x64_portable.zip')
     expect(plan.files).toEqual([
       {
         source: 'src-tauri/target/release/open-diff-app.exe',
