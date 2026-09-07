@@ -198,6 +198,50 @@ describe('TextPatchView', () => {
     )
   })
 
+  it('shows a dual-pane reconstructed preview for the selected section', async () => {
+    const wrapper = mountTextPatchView()
+
+    wrapper
+      .findComponent(NInputStub)
+      .vm.$emit('update:value', 'diff --git a/src/main.ts b/src/main.ts')
+    await wrapper.vm.$nextTick()
+    await wrapper.find('[data-testid="parse-text-patch"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="patch-section-preview"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="patch-section-preview-left-path"]').text()).toContain(
+      'a/src/main.ts',
+    )
+    expect(wrapper.find('[data-testid="patch-section-preview-right-path"]').text()).toContain(
+      'b/src/main.ts',
+    )
+    const leftRows = wrapper
+      .findAll('[data-testid="patch-section-preview-left-row"]')
+      .map((row) => row.text())
+    const rightRows = wrapper
+      .findAll('[data-testid="patch-section-preview-right-row"]')
+      .map((row) => row.text())
+
+    expect(leftRows.some((text) => text.includes('old'))).toBe(true)
+    expect(rightRows.some((text) => text.includes('new'))).toBe(true)
+
+    await wrapper.find('[data-testid="patch-next-section"]').trigger('click')
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('[data-testid="patch-section-preview-position"]').text()).toContain(
+      '2 of 2',
+    )
+    const nextLeft = wrapper
+      .findAll('[data-testid="patch-section-preview-left-row"]')
+      .map((row) => row.text())
+    const nextRight = wrapper
+      .findAll('[data-testid="patch-section-preview-right-row"]')
+      .map((row) => row.text())
+
+    expect(nextLeft.some((text) => text.includes('gone'))).toBe(true)
+    expect(nextRight.some((text) => text.includes('here'))).toBe(true)
+  })
+
   it('opens reconstructed sides in Text Compare', async () => {
     const wrapper = mountTextPatchView()
     const inputs = wrapper.findAllComponents(NInputStub)

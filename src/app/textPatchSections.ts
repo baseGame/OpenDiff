@@ -79,6 +79,81 @@ export function reconstructSidesFromFile(file: PatchFile): ReconstructedPatchSid
   return reconstructSidesFromLines(lines, file.oldPath, file.newPath)
 }
 
+export type ReconstructedPatchSideKind = 'context' | 'added' | 'removed' | 'empty'
+
+export interface ReconstructedPatchSideCell {
+  text: string
+  kind: ReconstructedPatchSideKind
+  lineNumber: number | null
+}
+
+export interface ReconstructedPatchRow {
+  left: ReconstructedPatchSideCell
+  right: ReconstructedPatchSideCell
+}
+
+function emptySideCell(): ReconstructedPatchSideCell {
+  return { text: '', kind: 'empty', lineNumber: null }
+}
+
+/** Align unified hunk lines into side-by-side rows (pairs remove+add as one row). */
+export function reconstructAlignedRows(lines: PatchLine[]): ReconstructedPatchRow[] {
+  const rows: ReconstructedPatchRow[] = []
+  let index = 0
+
+  while (index < lines.length) {
+    const line = lines[index]
+
+    if (line.kind === 'context') {
+      rows.push({
+        left: { text: line.text, kind: 'context', lineNumber: line.oldNumber },
+        right: { text: line.text, kind: 'context', lineNumber: line.newNumber },
+      })
+      index += 1
+      continue
+    }
+
+    if (line.kind === 'removed' && index + 1 < lines.length && lines[index + 1].kind === 'added') {
+      const next = lines[index + 1]
+
+      rows.push({
+        left: { text: line.text, kind: 'removed', lineNumber: line.oldNumber },
+        right: { text: next.text, kind: 'added', lineNumber: next.newNumber },
+      })
+      index += 2
+      continue
+    }
+
+    if (line.kind === 'removed') {
+      rows.push({
+        left: { text: line.text, kind: 'removed', lineNumber: line.oldNumber },
+        right: emptySideCell(),
+      })
+      index += 1
+      continue
+    }
+
+    rows.push({
+      left: emptySideCell(),
+      right: { text: line.text, kind: 'added', lineNumber: line.newNumber },
+    })
+    index += 1
+  }
+
+  return rows
+}
+
+export function reconstructAlignedRowsFromHunk(
+  file: PatchFile,
+  hunk: PatchHunk,
+): { rows: ReconstructedPatchRow[]; leftSource: string; rightSource: string } {
+  return {
+    rows: reconstructAlignedRows(hunk.lines),
+    leftSource: file.oldPath,
+    rightSource: file.newPath,
+  }
+}
+
 export function clampSectionIndex(index: number, total: number): number {
   if (total <= 0) {
     return 0

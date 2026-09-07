@@ -238,6 +238,27 @@ describe('SettingsView', () => {
     expect(settings.wrapTextDefault).toBe(true)
   })
 
+  it('restores factory defaults from the Tweaks options card', async () => {
+    const wrapper = mountSettingsView()
+    const settings = useSettingsStore()
+
+    settings.setTheme('dark')
+    settings.setFontSize(18)
+    settings.setConfirmBeforeDelete(false)
+    settings.setShowSessionToolbars(false)
+
+    await wrapper.find('[data-testid="options-section-tweaks"]').trigger('click')
+    await wrapper.find('[data-testid="restore-factory-defaults"]').trigger('click')
+
+    expect(settings.theme).toBe('light')
+    expect(settings.fontSize).toBe(14)
+    expect(settings.confirmBeforeDelete).toBe(true)
+    expect(settings.showSessionToolbars).toBe(true)
+    expect(wrapper.find('[data-testid="options-restore-status"]').text()).toContain(
+      'Restore Factory Defaults',
+    )
+  })
+
   it('exposes tree-style options for toolbars, open with, shell, and backup', async () => {
     const wrapper = mountSettingsView()
     const settings = useSettingsStore()

@@ -39,6 +39,7 @@ const gitScope = ref<'global' | 'local'>('global')
 const executablePath = ref('open-diff')
 const svnWrapperPath = ref('')
 const integrationStatus = ref('')
+const optionsStatus = ref('')
 const integrationError = ref('')
 const integrationWriting = ref(false)
 const shortcutSearch = ref('')
@@ -281,6 +282,11 @@ function onShowToolbarLabelsChange(event: Event): void {
   }
 
   settings.setShowToolbarLabels(target.checked)
+}
+
+function restoreFactoryDefaultsFromOptions(): void {
+  settings.restoreFactoryDefaults()
+  optionsStatus.value = t('ui.restoreFactoryDefaults')
 }
 
 function onCreateBackupOnSaveChange(event: Event): void {
@@ -802,6 +808,19 @@ function parseShortcutText(value: string): string[] {
           />
           <span>{{ $t('ui.wrapTextDefault') }}</span>
         </label>
+        <NButton
+          size="small"
+          data-testid="restore-factory-defaults"
+          @click="restoreFactoryDefaultsFromOptions"
+          >{{ $t('ui.restoreFactoryDefaults') }}</NButton
+        >
+        <p
+          v-if="optionsStatus"
+          class="options-hint"
+          data-testid="options-restore-status"
+        >
+          {{ optionsStatus }}
+        </p>
       </NCard>
 
       <NCard
