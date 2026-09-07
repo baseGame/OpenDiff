@@ -1,0 +1,94 @@
+export const pictureCompareOptionsStorageKey = 'open-diff-picture-compare-options'
+
+export interface PictureCompareOptionsState {
+  rgbTolerance: number
+  compareAlpha: boolean
+  ignoreColorFrom: number[] | null
+  ignoreColorTo: number[] | null
+}
+
+export function defaultPictureCompareOptions(): PictureCompareOptionsState {
+  return {
+    rgbTolerance: 0,
+    compareAlpha: true,
+    ignoreColorFrom: null,
+    ignoreColorTo: null,
+  }
+}
+
+function clampChannel(value: unknown, fallback = 0): number {
+  const numeric = typeof value === 'number' ? value : Number(value)
+
+  if (!Number.isFinite(numeric)) {
+    return fallback
+  }
+
+  return Math.min(255, Math.max(0, Math.round(numeric)))
+}
+
+export function normalizeRgba(value: unknown): number[] | null {
+  if (!Array.isArray(value) || value.length < 3) {
+    return null
+  }
+
+  return [
+    clampChannel(value[0]),
+    clampChannel(value[1]),
+    clampChannel(value[2]),
+    clampChannel(value[3], 255),
+  ]
+}
+
+export function loadPictureCompareOptions(
+  storage: Pick<Storage, 'getItem'> = localStorage,
+): PictureCompareOptionsState {
+  try {
+    const raw = storage.getItem(pictureCompareOptionsStorageKey)
+
+    if (!raw) {
+      return defaultPictureCompareOptions()
+    }
+
+    const parsed = JSON.parse(raw) as Partial<PictureCompareOptionsState>
+
+    return {
+      rgbTolerance: clampChannel(parsed.rgbTolerance, 0),
+      compareAlpha: parsed.compareAlpha !== false,
+      ignoreColorFrom: normalizeRgba(parsed.ignoreColorFrom),
+      ignoreColorTo: normalizeRgba(parsed.ignoreColorTo),
+    }
+  } catch {
+    return defaultPictureCompareOptions()
+  }
+}
+
+export function savePictureCompareOptions(
+  state: PictureCompareOptionsState,
+  storage: Pick<Storage, 'setItem'> = localStorage,
+): void {
+  storage.setItem(
+    pictureCompareOptionsStorageKey,
+    JSON.stringify({
+      rgbTolerance: clampChannel(state.rgbTolerance, 0),
+      compareAlpha: state.compareAlpha,
+      ignoreColorFrom: normalizeRgba(state.ignoreColorFrom),
+      ignoreColorTo: normalizeRgba(state.ignoreColorTo),
+    }),
+  )
+}
+
+export function pictureIgnoreColors(
+  state: Pick<PictureCompareOptionsState, 'ignoreColorFrom' | 'ignoreColorTo'>,
+): { ignoreColorFrom?: number[]; ignoreColorTo?: number[] } {
+  const from = normalizeRgba(state.ignoreColorFrom)
+  const to = normalizeRgba(state.ignoreColorTo)
+
+  if (!from || !to) {
+    return {}
+  }
+
+  return {
+    ignoreColorFrom: from,
+    ignoreColorTo: to,
+  }
+}

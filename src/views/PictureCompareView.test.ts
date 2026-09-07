@@ -56,6 +56,7 @@ vi.mock('@/api/diff', () => ({
 describe('PictureCompareView', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
+    localStorage.clear()
     vi.mocked(comparePictureFiles).mockClear()
   })
 
@@ -226,7 +227,7 @@ describe('PictureCompareView', () => {
     expect(wrapper.find('[data-testid="picture-bounding-rect"]').text()).toBe('--')
   })
 
-  it('renders Picture session toolbar with Tol and Range stubs disabled', () => {
+  it('enables Tol and Range on the Picture session toolbar', () => {
     const wrapper = mount(PictureCompareView)
     const ids = ['home', 'tol', 'range', 'blend', 'minor', 'rules', 'swap', 'reload', 'meta']
 
@@ -239,11 +240,60 @@ describe('PictureCompareView', () => {
     ).toEqual(ids)
     expect(
       wrapper.find('[data-testid="picture-session-toolbar-tol"]').attributes('disabled'),
-    ).toBeDefined()
+    ).toBeUndefined()
     expect(
       wrapper.find('[data-testid="picture-session-toolbar-range"]').attributes('disabled'),
-    ).toBeDefined()
+    ).toBeUndefined()
     expect(wrapper.html()).not.toContain('unimplemented')
+  })
+
+  it('forwards RGB tolerance from the Tol panel into picture compare', async () => {
+    const wrapper = mount(PictureCompareView)
+
+    await wrapper.find('[data-testid="picture-left-path"]').setValue('C:/images/left-fixture.png')
+    await wrapper.find('[data-testid="picture-right-path"]').setValue('C:/images/right-fixture.png')
+    await wrapper.find('[data-testid="picture-session-toolbar-tol"]').trigger('click')
+    expect(wrapper.find('[data-testid="picture-tol-panel"]').exists()).toBe(true)
+
+    await wrapper.find('[data-testid="picture-rgb-tolerance"]').setValue(12)
+    await wrapper.find('[data-testid="picture-compare-alpha"]').setValue(false)
+    await wrapper.find('[data-testid="run-picture-compare"]').trigger('click')
+    await wrapper.vm.$nextTick()
+
+    expect(comparePictureFiles).toHaveBeenCalledWith({
+      leftPath: 'C:/images/left-fixture.png',
+      rightPath: 'C:/images/right-fixture.png',
+      rgbTolerance: 12,
+      compareAlpha: false,
+    })
+    expect(wrapper.find('[data-testid="picture-inspector-tolerance"]').text()).toContain('12')
+  })
+
+  it('forwards ignore color replacement from the Range panel', async () => {
+    const wrapper = mount(PictureCompareView)
+
+    await wrapper.find('[data-testid="picture-left-path"]').setValue('C:/images/left-fixture.png')
+    await wrapper.find('[data-testid="picture-right-path"]').setValue('C:/images/right-fixture.png')
+    await wrapper.find('[data-testid="picture-session-toolbar-range"]').trigger('click')
+    expect(wrapper.find('[data-testid="picture-range-panel"]').exists()).toBe(true)
+
+    await wrapper.find('[data-testid="picture-ignore-from-r"]').setValue(255)
+    await wrapper.find('[data-testid="picture-ignore-from-g"]').setValue(0)
+    await wrapper.find('[data-testid="picture-ignore-from-b"]').setValue(0)
+    await wrapper.find('[data-testid="picture-ignore-to-r"]').setValue(0)
+    await wrapper.find('[data-testid="picture-ignore-to-g"]').setValue(255)
+    await wrapper.find('[data-testid="picture-ignore-to-b"]').setValue(0)
+    await wrapper.find('[data-testid="run-picture-compare"]').trigger('click')
+    await wrapper.vm.$nextTick()
+
+    expect(comparePictureFiles).toHaveBeenCalledWith({
+      leftPath: 'C:/images/left-fixture.png',
+      rightPath: 'C:/images/right-fixture.png',
+      rgbTolerance: 0,
+      compareAlpha: true,
+      ignoreColorFrom: [255, 0, 0, 255],
+      ignoreColorTo: [0, 255, 0, 255],
+    })
   })
 
   it('swaps paths from the Picture session toolbar', async () => {

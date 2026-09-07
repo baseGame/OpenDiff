@@ -87,16 +87,18 @@ describe('sessionToolbars', () => {
     expect(toolbar.find((item) => item.id === 'minor')?.enabled).toBe(false)
   })
 
-  it('keeps Picture Compare toolbar stubs disabled without fake labels', () => {
+  it('can enable Picture Tol and Range without fake labels', () => {
     const toolbar = buildPictureCompareToolbar({
       home: true,
+      tol: true,
+      range: true,
       swap: true,
       reload: true,
     })
 
     expect(toolbar.map((item) => item.id)).toEqual([...pictureCompareToolbarOrder])
-    expect(toolbar.find((item) => item.id === 'tol')?.enabled).toBe(false)
-    expect(toolbar.find((item) => item.id === 'range')?.enabled).toBe(false)
+    expect(toolbar.find((item) => item.id === 'tol')?.enabled).toBe(true)
+    expect(toolbar.find((item) => item.id === 'range')?.enabled).toBe(true)
     expect(toolbar.find((item) => item.id === 'blend')?.enabled).toBe(false)
     expect(toolbar.find((item) => item.id === 'meta')?.enabled).toBe(false)
     expect(toolbar.every((item) => !item.labelKey.includes('unimplemented'))).toBe(true)

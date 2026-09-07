@@ -8,6 +8,12 @@ import WorkbenchShell from '@/components/workbench/WorkbenchShell.vue'
 import WorkbenchInspector from '@/components/workbench/WorkbenchInspector.vue'
 import StatusSummaryGrid from '@/components/workbench/StatusSummaryGrid.vue'
 import { buildPictureCompareToolbar, pathPairTitle } from '@/app/sessionToolbars'
+import {
+  loadPictureCompareOptions,
+  pictureIgnoreColors,
+  savePictureCompareOptions,
+  type PictureCompareOptionsState,
+} from '@/app/pictureCompareOptions'
 import { useSessionLaunchStore } from '@/stores/sessionLaunch'
 import { useTabsStore } from '@/stores/tabs'
 import { useI18n } from '@/i18n'
@@ -37,8 +43,13 @@ const leftPictureName = ref('')
 const rightPictureName = ref('')
 const loading = ref(false)
 const error = ref('')
-const rgbTolerance = ref(0)
-const compareAlpha = ref(true)
+const initialPictureOptions = loadPictureCompareOptions()
+const rgbTolerance = ref(initialPictureOptions.rgbTolerance)
+const compareAlpha = ref(initialPictureOptions.compareAlpha)
+const ignoreColorFrom = ref<number[] | null>(initialPictureOptions.ignoreColorFrom)
+const ignoreColorTo = ref<number[] | null>(initialPictureOptions.ignoreColorTo)
+const showTolPanel = ref(false)
+const showRangePanel = ref(false)
 const metadataRows = ref<PictureMetadataRow[]>([])
 const pictureStatistics = ref<PictureCompareResponse['statistics']>({
   totalPixels: 0,
@@ -163,8 +174,8 @@ function swapPicturePaths(): void {
 const pictureSessionToolbar = computed(() =>
   buildPictureCompareToolbar({
     home: true,
-    tol: false,
-    range: false,
+    tol: true,
+    range: true,
     blend: false,
     minor: false,
     rules: false,
@@ -174,10 +185,77 @@ const pictureSessionToolbar = computed(() =>
   }),
 )
 
+function clampByte(value: number, fallback = 0): number {
+  if (!Number.isFinite(value)) {
+    return fallback
+  }
+
+  return Math.min(255, Math.max(0, Math.round(value)))
+}
+
+const pictureOptionsSnapshot = computed<PictureCompareOptionsState>(() => ({
+  rgbTolerance: clampByte(rgbTolerance.value),
+  compareAlpha: compareAlpha.value,
+  ignoreColorFrom: ignoreColorFrom.value,
+  ignoreColorTo: ignoreColorTo.value,
+}))
+
+const ignoreFromChannels = computed(() => ignoreColorFrom.value ?? [0, 0, 0, 255])
+const ignoreToChannels = computed(() => ignoreColorTo.value ?? [0, 0, 0, 255])
+const hasIgnoreColorRule = computed(() => Boolean(ignoreColorFrom.value && ignoreColorTo.value))
+
+function persistPictureOptions(): void {
+  savePictureCompareOptions(pictureOptionsSnapshot.value)
+}
+
+function maybeRerunPictureCompare(): void {
+  if (compared.value && leftPath.value && rightPath.value) {
+    void runPictureCompare()
+  }
+}
+
+function updateIgnoreChannel(side: 'from' | 'to', index: number, event: Event): void {
+  const target = event.target
+
+  if (!(target instanceof HTMLInputElement)) {
+    return
+  }
+
+  const current = side === 'from' ? [...ignoreFromChannels.value] : [...ignoreToChannels.value]
+  const numeric = Number(target.value)
+
+  current[index] = clampByte(numeric)
+
+  if (side === 'from') {
+    ignoreColorFrom.value = current
+    ignoreColorTo.value ??= [...ignoreToChannels.value]
+  } else {
+    ignoreColorTo.value = current
+    ignoreColorFrom.value ??= [...ignoreFromChannels.value]
+  }
+}
+
+function clearIgnoreColors(): void {
+  ignoreColorFrom.value = null
+  ignoreColorTo.value = null
+}
+
 function runPictureToolbarCommand(commandId: string): void {
   switch (commandId) {
     case 'home':
       goHomeFromPicture()
+      break
+    case 'tol':
+      showTolPanel.value = !showTolPanel.value
+      if (showTolPanel.value) {
+        showRangePanel.value = false
+      }
+      break
+    case 'range':
+      showRangePanel.value = !showRangePanel.value
+      if (showRangePanel.value) {
+        showTolPanel.value = false
+      }
       break
     case 'swap':
       swapPicturePaths()
@@ -193,6 +271,15 @@ function runPictureToolbarCommand(commandId: string): void {
 watch([leftPath, rightPath], () => {
   syncPictureTabTitle()
 })
+
+watch(
+  pictureOptionsSnapshot,
+  () => {
+    persistPictureOptions()
+    maybeRerunPictureCompare()
+  },
+  { deep: true },
+)
 
 function rotatePicture(delta: number): void {
   rotationDeg.value = (rotationDeg.value + delta + 360) % 360
@@ -229,8 +316,9 @@ async function runPictureCompare(): Promise<void> {
     const result = await comparePictureFiles({
       leftPath: leftPath.value,
       rightPath: rightPath.value,
-      rgbTolerance: rgbTolerance.value,
-      compareAlpha: compareAlpha.value,
+      rgbTolerance: pictureOptionsSnapshot.value.rgbTolerance,
+      compareAlpha: pictureOptionsSnapshot.value.compareAlpha,
+      ...pictureIgnoreColors(pictureOptionsSnapshot.value),
     })
 
     applyPictureResult(result)
@@ -305,6 +393,134 @@ async function runPictureCompare(): Promise<void> {
       >
         {{ $t('ui.emptyCompareHint') }}
       </p>
+
+      <section
+        v-if="showTolPanel"
+        class="picture-options-panel"
+        data-testid="picture-tol-panel"
+      >
+        <header>
+          <h2>{{ $t('ui.tol') }}</h2>
+          <span>{{ $t('ui.rgbTolerance') }}</span>
+        </header>
+        <label>
+          <span>{{ $t('ui.rgbTolerance') }}</span>
+          <input
+            v-model.number="rgbTolerance"
+            type="number"
+            min="0"
+            max="255"
+            step="1"
+            data-testid="picture-rgb-tolerance"
+          />
+        </label>
+        <label class="picture-toggle picture-options-toggle">
+          <input
+            v-model="compareAlpha"
+            type="checkbox"
+            data-testid="picture-compare-alpha"
+          />
+          <span>{{ $t('ui.compareAlpha') }}</span>
+        </label>
+      </section>
+
+      <section
+        v-if="showRangePanel"
+        class="picture-options-panel"
+        data-testid="picture-range-panel"
+      >
+        <header>
+          <h2>{{ $t('ui.range') }}</h2>
+          <span>{{ $t('ui.ignoreColorReplacement') }}</span>
+        </header>
+        <div class="picture-color-rule">
+          <span>{{ $t('ui.ignoreColorFrom') }}</span>
+          <input
+            :value="ignoreFromChannels[0]"
+            type="number"
+            min="0"
+            max="255"
+            data-testid="picture-ignore-from-r"
+            @input="updateIgnoreChannel('from', 0, $event)"
+          />
+          <input
+            :value="ignoreFromChannels[1]"
+            type="number"
+            min="0"
+            max="255"
+            data-testid="picture-ignore-from-g"
+            @input="updateIgnoreChannel('from', 1, $event)"
+          />
+          <input
+            :value="ignoreFromChannels[2]"
+            type="number"
+            min="0"
+            max="255"
+            data-testid="picture-ignore-from-b"
+            @input="updateIgnoreChannel('from', 2, $event)"
+          />
+          <input
+            :value="ignoreFromChannels[3]"
+            type="number"
+            min="0"
+            max="255"
+            data-testid="picture-ignore-from-a"
+            @input="updateIgnoreChannel('from', 3, $event)"
+          />
+        </div>
+        <div class="picture-color-rule">
+          <span>{{ $t('ui.ignoreColorTo') }}</span>
+          <input
+            :value="ignoreToChannels[0]"
+            type="number"
+            min="0"
+            max="255"
+            data-testid="picture-ignore-to-r"
+            @input="updateIgnoreChannel('to', 0, $event)"
+          />
+          <input
+            :value="ignoreToChannels[1]"
+            type="number"
+            min="0"
+            max="255"
+            data-testid="picture-ignore-to-g"
+            @input="updateIgnoreChannel('to', 1, $event)"
+          />
+          <input
+            :value="ignoreToChannels[2]"
+            type="number"
+            min="0"
+            max="255"
+            data-testid="picture-ignore-to-b"
+            @input="updateIgnoreChannel('to', 2, $event)"
+          />
+          <input
+            :value="ignoreToChannels[3]"
+            type="number"
+            min="0"
+            max="255"
+            data-testid="picture-ignore-to-a"
+            @input="updateIgnoreChannel('to', 3, $event)"
+          />
+        </div>
+        <button
+          type="button"
+          data-testid="picture-clear-ignore-colors"
+          @click="clearIgnoreColors"
+        >
+          {{ $t('ui.clear') }}
+        </button>
+        <p
+          class="picture-options-hint"
+          data-testid="picture-range-status"
+        >
+          {{
+            hasIgnoreColorRule
+              ? $t('ui.ignoreColorReplacementOn')
+              : $t('ui.ignoreColorReplacementOff')
+          }}
+        </p>
+      </section>
 
       <section class="picture-stat-grid">
         <article>
@@ -588,6 +804,26 @@ async function runPictureCompare(): Promise<void> {
               <dd>{{ showOverlay ? $t('ui.on') : $t('ui.off') }}</dd>
             </div>
             <div>
+              <dt>{{ $t('ui.rgbTolerance') }}</dt>
+              <dd data-testid="picture-inspector-tolerance">{{ rgbTolerance }}</dd>
+            </div>
+            <div>
+              <dt>{{ $t('ui.compareAlpha') }}</dt>
+              <dd data-testid="picture-inspector-alpha">
+                {{ compareAlpha ? $t('ui.on') : $t('ui.off') }}
+              </dd>
+            </div>
+            <div>
+              <dt>{{ $t('ui.range') }}</dt>
+              <dd data-testid="picture-inspector-range">
+                {{
+                  hasIgnoreColorRule
+                    ? $t('ui.ignoreColorReplacementOn')
+                    : $t('ui.ignoreColorReplacementOff')
+                }}
+              </dd>
+            </div>
+            <div>
               <dt>{{ $t('ui.field') }}</dt>
               <dd>
                 {{
@@ -774,6 +1010,71 @@ h2 {
 .picture-toggle input {
   width: 16px;
   height: 16px;
+}
+
+.picture-options-panel {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--app-border);
+  border-radius: 10px;
+  background: var(--app-surface);
+}
+
+.picture-options-panel header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.picture-options-panel header span,
+.picture-options-hint {
+  margin: 0;
+  color: var(--app-text-muted);
+  font-size: 12px;
+}
+
+.picture-options-panel label {
+  display: grid;
+  gap: 6px;
+}
+
+.picture-options-toggle {
+  place-content: start;
+}
+
+.picture-color-rule {
+  display: grid;
+  grid-template-columns: minmax(88px, auto) repeat(4, minmax(56px, 72px));
+  align-items: center;
+  gap: 8px;
+}
+
+.picture-options-panel input[type='number'] {
+  width: 100%;
+  min-width: 0;
+  min-height: 32px;
+  padding: 0 8px;
+  border: 1px solid var(--app-border);
+  border-radius: 6px;
+  background: var(--app-bg);
+  color: var(--app-text);
+  font: inherit;
+  font-size: 12px;
+}
+
+.picture-options-panel button {
+  width: fit-content;
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--app-border);
+  border-radius: 6px;
+  background: var(--app-bg);
+  color: var(--app-text);
+  font: inherit;
+  font-size: 12px;
 }
 
 .picture-transform-tools {
