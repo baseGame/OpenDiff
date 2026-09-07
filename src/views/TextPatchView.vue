@@ -740,8 +740,8 @@ function lineNumber(value: number | null): string {
 }
 
 .patch-file > header {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  display: flex;
+  align-items: center;
   gap: 8px;
   padding: 8px 10px;
   border-bottom: 1px solid var(--app-border);
@@ -762,19 +762,13 @@ function lineNumber(value: number | null): string {
   outline: 1px solid color-mix(in srgb, var(--app-accent, #3b82f6) 55%, transparent);
 }
 
-.patch-file > header {
-  display: flex;
-  gap: 0.75rem;
-  align-items: center;
-}
-
 .patch-open-file {
   margin-left: auto;
+  padding: 0.15rem 0.45rem;
   border: 1px solid var(--app-border, #334155);
+  border-radius: 4px;
   background: transparent;
   color: inherit;
-  border-radius: 4px;
-  padding: 0.15rem 0.45rem;
   cursor: pointer;
 }
 
@@ -784,10 +778,10 @@ function lineNumber(value: number | null): string {
 }
 
 .patch-hunk {
-  cursor: pointer;
   display: grid;
   gap: 0;
   padding: 0 8px 8px;
+  cursor: pointer;
 }
 
 .patch-hunk > header {
