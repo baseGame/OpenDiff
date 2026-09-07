@@ -67,6 +67,7 @@ export function saveFolderNameFilters(
   storage: Pick<Storage, 'setItem'> = localStorage,
 ): void {
   const normalized = normalizeFolderNameFilters(state)
+
   storage.setItem(
     folderNameFiltersStorageKey,
     JSON.stringify({

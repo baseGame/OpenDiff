@@ -709,6 +709,7 @@ describe('FolderCompareView', () => {
     const storedFilters = JSON.parse(
       localStorage.getItem('open-diff-folder-name-filters') ?? '{}',
     ) as { include: string[]; exclude: string[] }
+
     expect(storedFilters.include).toEqual(['*.md', '*.txt'])
     expect(storedFilters.exclude).toEqual(['node_modules/**'])
 

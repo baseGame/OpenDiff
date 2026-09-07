@@ -131,6 +131,7 @@ describe('MediaCompareView', () => {
   it('sets path-pair tab titles for media sessions', async () => {
     const wrapper = mount(MediaCompareView)
     const tabs = useTabsStore()
+
     tabs.openTab({
       title: 'Media Compare',
       titleKey: 'ui.mediaCompare',

@@ -167,6 +167,7 @@ describe('VersionCompareView', () => {
   it('sets path-pair tab titles for version sessions', async () => {
     const wrapper = mount(VersionCompareView)
     const tabs = useTabsStore()
+
     tabs.openTab({
       title: 'Version Compare',
       titleKey: 'ui.versionCompare',

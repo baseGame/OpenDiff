@@ -157,6 +157,7 @@ describe('RegistryCompareView', () => {
 
   it('sets path-pair tab titles for registry sessions', async () => {
     const tabs = useTabsStore()
+
     tabs.openTab({
       title: 'Registry Compare',
       titleKey: 'ui.registryCompare',
