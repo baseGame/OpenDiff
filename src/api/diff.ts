@@ -68,6 +68,7 @@ export function saveTextFile(request: SaveTextFileRequest): Promise<SaveTextFile
   return invoke<SaveTextFileResponse>('save_text_file', {
     path: request.path,
     text: request.text,
+    createBackup: request.createBackup ?? true,
   })
 }
 
@@ -232,6 +233,7 @@ export function saveHexEdits(request: HexSaveRequest): Promise<HexSaveResult> {
   return invoke<HexSaveResult>('save_hex_edits', {
     path: request.path,
     edits: request.edits,
+    createBackup: request.createBackup ?? true,
   })
 }
 

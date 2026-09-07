@@ -53,6 +53,7 @@ export interface ReadTextFileResponse {
 export interface SaveTextFileRequest {
   path: string
   text: string
+  createBackup?: boolean
 }
 
 export interface SaveTextFileResponse {
@@ -525,6 +526,7 @@ export interface HexByteEdit {
 export interface HexSaveRequest {
   path: string
   edits: HexByteEdit[]
+  createBackup?: boolean
 }
 
 export interface HexSaveResult {

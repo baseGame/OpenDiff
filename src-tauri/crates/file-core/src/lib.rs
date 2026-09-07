@@ -51,12 +51,20 @@ pub fn save_text_file(
     path: impl AsRef<Path>,
     text: impl AsRef<str>,
 ) -> Result<SaveTextFileResponse, FileReadError> {
+    save_text_file_with_backup(path, text, true)
+}
+
+pub fn save_text_file_with_backup(
+    path: impl AsRef<Path>,
+    text: impl AsRef<str>,
+    create_backup: bool,
+) -> Result<SaveTextFileResponse, FileReadError> {
     let path_ref = path.as_ref();
     let path_text = path_ref.display().to_string();
     let bytes = text.as_ref().as_bytes();
     let mut vfs = LocalVfs::new();
     let backup = vfs
-        .write_with_backup(&VfsPath::new(path_text.clone()), bytes)
+        .write_with_backup_option(&VfsPath::new(path_text.clone()), bytes, create_backup)
         .map_err(|error| FileReadError::Io(format!("{error:?}")))?;
     let file_stamp = file_stamp(path_ref)?;
 
@@ -286,5 +294,24 @@ mod tests {
 
         fs::remove_file(path).expect("fixture should be removable");
         fs::remove_file(backup_path).expect("backup should be removable");
+    }
+
+    #[test]
+    fn saves_text_file_without_backup_when_disabled() {
+        let path = temp_file_path("save-output-no-bak");
+
+        fs::write(&path, "before").expect("fixture should be writable");
+
+        let result =
+            save_text_file_with_backup(&path, "after", false).expect("text file should save");
+
+        assert_eq!(
+            fs::read_to_string(&path).expect("saved text should be readable"),
+            "after"
+        );
+        assert!(result.backup_path.is_none());
+        assert!(!Path::new(&format!("{}.bak", path.display())).exists());
+
+        fs::remove_file(path).expect("fixture should be removable");
     }
 }

@@ -165,6 +165,15 @@ impl LocalVfs {
         path: &VfsPath,
         bytes: &[u8],
     ) -> VfsResult<Option<VfsPath>> {
+        self.write_with_backup_option(path, bytes, true)
+    }
+
+    pub fn write_with_backup_option(
+        &mut self,
+        path: &VfsPath,
+        bytes: &[u8],
+        create_backup: bool,
+    ) -> VfsResult<Option<VfsPath>> {
         let target = path_buf(path);
 
         if let Some(parent) = target.parent() {
@@ -173,7 +182,7 @@ impl LocalVfs {
 
         ensure_writable(path, &target)?;
 
-        let backup = if target.exists() {
+        let backup = if create_backup && target.exists() {
             let backup_path = backup_path_for(&target);
             fs::copy(&target, &backup_path).map_err(|error| fs_error(path, error))?;
             Some(VfsPath::new(backup_path.display().to_string()))
@@ -523,6 +532,29 @@ mod tests {
         assert_eq!(metadata.size, 8);
         assert!(!metadata.readonly);
         assert!(metadata.modified_at_ms.is_some());
+
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn local_vfs_safe_write_skips_backup_when_disabled() {
+        let root = unique_temp_dir("safe-write-no-backup");
+        let mut vfs = LocalVfs::new();
+        let file = VfsPath::new(root.join("document.txt").display().to_string());
+
+        vfs.write(&file, b"old content")
+            .expect("initial write should work");
+
+        let backup = vfs
+            .write_with_backup_option(&file, b"new content", false)
+            .expect("safe write should work");
+
+        assert!(backup.is_none());
+        assert_eq!(
+            vfs.read(&file).expect("target should be readable"),
+            b"new content"
+        );
+        assert!(!root.join("document.txt.bak").exists());
 
         let _ = std::fs::remove_dir_all(root);
     }

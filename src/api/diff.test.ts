@@ -49,6 +49,7 @@ describe('diff api', () => {
     expect(invoke).toHaveBeenCalledWith('save_text_file', {
       path: 'D:/workspace/output.txt',
       text: 'merged text',
+      createBackup: true,
     })
     expect(result.bytesWritten).toBe(12)
   })

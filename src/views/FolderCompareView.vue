@@ -18,7 +18,10 @@ import { loadFolderDisplayFilters, saveFolderDisplayFilters } from '@/app/folder
 import { loadFolderCompareCriteria, saveFolderCompareCriteria } from '@/app/folderCompareCriteria'
 import { loadExternalApplications } from '@/app/externalApplications'
 import {
+  folderCopyTargetsForDirection,
+  folderEntryPaths,
   invertRowIds,
+  resolveOperationRows,
   selectAllRowIds,
   selectFileRowIds,
   selectRowIdsByNameFilter,
@@ -151,6 +154,7 @@ const selectedRowId = ref<string>()
 const lastOpenAction = ref<FileOpenAction>()
 const lastCompareAction = ref<string>()
 const pendingCopyConfirmation = ref<FileOperationConfirmation>()
+const pendingCopyRows = ref<FolderTreeRow[]>([])
 const pendingCopyDirection = ref<'Left' | 'Right'>()
 const lastCopyAction = ref<string>()
 const pendingDangerousOperation = ref<FileOperationConfirmation>()
@@ -1035,27 +1039,28 @@ function openChildCompareForSelected(kind: 'open' | 'quick' | 'compare'): void {
   void router.push(launch.route)
 }
 
+function operationTargetRows(): FolderTreeRow[] {
+  return resolveOperationRows(rows.value, checkedRowIds.value, selectedRowId.value)
+}
+
 function copySelectedTo(direction: 'Left' | 'Right'): void {
-  const row = selectedRow.value
+  const targets = folderCopyTargetsForDirection(operationTargetRows(), direction, (relativePath) =>
+    folderSidePath(direction === 'Left' ? leftRoot.value : rightRoot.value, relativePath),
+  )
 
-  if (row?.kind !== 'file') {
+  if (targets.length === 0) {
     return
   }
 
-  const sourcePath = direction === 'Left' ? row.rightPath : row.leftPath
-  const targetPath =
-    direction === 'Left'
-      ? (row.leftPath ?? folderSidePath(leftRoot.value, row.relativePath))
-      : (row.rightPath ?? folderSidePath(rightRoot.value, row.relativePath))
+  const targetRows = operationTargetRows().filter((row) =>
+    targets.some((target) => target.relativePath === row.relativePath),
+  )
 
-  if (!sourcePath) {
-    return
-  }
-
+  pendingCopyRows.value = targetRows
   pendingCopyDirection.value = direction
   pendingCopyConfirmation.value = createFileOperationConfirmation({
     operation: 'copy',
-    paths: [targetPath],
+    paths: targets.map((target) => target.targetPath),
   })
 }
 
@@ -1096,25 +1101,35 @@ function fileOperationTitle(confirmation: FileOperationConfirmation): string {
 async function confirmFolderCopy(): Promise<void> {
   const confirmation = pendingCopyConfirmation.value
   const direction = pendingCopyDirection.value
-  const row = selectedRow.value
+  const copyRows = pendingCopyRows.value
 
-  if (!confirmation || !direction || !row) {
+  if (!confirmation || !direction || copyRows.length === 0) {
     return
   }
 
   try {
-    await copyFolderCompareEntry({
-      leftRoot: leftRoot.value,
-      rightRoot: rightRoot.value,
-      relativePath: row.relativePath,
-      direction: direction === 'Left' ? 'toLeft' : 'toRight',
-    })
-    lastCopyAction.value = t('status.copiedToSide', {
-      side: direction === 'Left' ? t('ui.left') : t('ui.right'),
-      path: confirmation.paths[0],
-    })
+    for (const row of copyRows) {
+      await copyFolderCompareEntry({
+        leftRoot: leftRoot.value,
+        rightRoot: rightRoot.value,
+        relativePath: row.relativePath,
+        direction: direction === 'Left' ? 'toLeft' : 'toRight',
+      })
+    }
+    lastCopyAction.value =
+      copyRows.length === 1
+        ? t('status.copiedToSide', {
+            side: direction === 'Left' ? t('ui.left') : t('ui.right'),
+            path: confirmation.paths[0],
+          })
+        : t('status.copiedBulkToSide', {
+            side: direction === 'Left' ? t('ui.left') : t('ui.right'),
+            count: copyRows.length,
+          })
     pendingCopyConfirmation.value = undefined
     pendingCopyDirection.value = undefined
+    pendingCopyRows.value = []
+    checkedRowIds.value = new Set()
     await runFolderCompare()
   } catch (error) {
     folderCompareError.value = formatCompareError(error, t)
@@ -1139,17 +1154,26 @@ async function confirmRenameFile(): Promise<void> {
 }
 
 async function moveSelectedFile(): Promise<void> {
-  const path = selectedEntryPath.value
+  const paths = folderEntryPaths(operationTargetRows())
 
-  if (!path) {
+  if (paths.length === 0) {
     return
   }
 
-  const targetPath = archivePath(path)
-
   try {
-    await moveFolderEntry({ sourcePath: path, targetPath })
-    lastFileOperationAction.value = `${t('ui.move')} -> ${targetPath}`
+    const moved: string[] = []
+
+    for (const path of paths) {
+      const targetPath = archivePath(path)
+
+      await moveFolderEntry({ sourcePath: path, targetPath })
+      moved.push(targetPath)
+    }
+    lastFileOperationAction.value =
+      moved.length === 1
+        ? `${t('ui.move')} -> ${moved[0]}`
+        : t('status.movedBulkPaths', { count: moved.length })
+    checkedRowIds.value = new Set()
     await runFolderCompare()
   } catch (error) {
     folderCompareError.value = formatCompareError(error, t)
@@ -1157,16 +1181,19 @@ async function moveSelectedFile(): Promise<void> {
 }
 
 function deleteSelectedFile(): void {
-  const path = selectedEntryPath.value
+  const paths = folderEntryPaths(operationTargetRows())
 
-  if (!path) {
+  if (paths.length === 0) {
     return
   }
 
-  pendingDangerousOperationLabel.value = t('status.deletedArrowPath', { path })
+  pendingDangerousOperationLabel.value =
+    paths.length === 1
+      ? t('status.deletedArrowPath', { path: paths[0] })
+      : t('status.deletedBulkPaths', { count: paths.length })
   pendingDangerousOperation.value = createFileOperationConfirmation({
     operation: 'delete',
-    paths: [path],
+    paths,
   })
 
   if (!settings.confirmBeforeDelete) {
@@ -1186,6 +1213,7 @@ async function confirmDangerousFileOperation(): Promise<void> {
     lastFileOperationAction.value = pendingDangerousOperationLabel.value
     pendingDangerousOperation.value = undefined
     pendingDangerousOperationLabel.value = ''
+    checkedRowIds.value = new Set()
     await runFolderCompare()
   } catch (error) {
     folderCompareError.value = formatCompareError(error, t)

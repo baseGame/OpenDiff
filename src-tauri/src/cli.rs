@@ -1,8 +1,8 @@
 use cli_core::{
     automerge_text_files, build_git_difftool_config, build_git_mergetool_config,
     build_svn_diff_config, cli_exit_code_contract, cli_exit_code_value, compare_folders,
-    compare_text_files, open_named_session, parse_cli_args, write_git_tool_config,
-    write_svn_diff_config, CliCommand, CliExitCode,
+    compare_text_files, describe_open_compare, open_named_session, parse_cli_args,
+    preview_folder_sync_cli, write_git_tool_config, write_svn_diff_config, CliCommand, CliExitCode,
 };
 use shell_core::{ShellCompareOutcome, ShellCompareSessionType, ShellCompareStateStore};
 
@@ -28,6 +28,10 @@ fn main() {
             println!("  svn-diff-config [--write] <executable-path> <wrapper-path>");
             println!("  script <script-path>");
             println!("  open-session <store-root> <name>");
+            println!("  open [--session <type>] [--left <path>] [--right <path>] <left> <right>");
+            println!("      session types: folder-compare, folder-sync, text-compare, text-merge,");
+            println!("                     table-compare, hex-compare, picture-compare, ...");
+            println!("  sync-preview <left> <right>");
             println!("  merge-text --automerge <base> <left> <right> <output>");
             println!("Exit codes:");
             for spec in cli_exit_code_contract() {
@@ -273,6 +277,33 @@ fn main() {
                 println!("output: {output}");
             }
             println!("{}", result.note);
+            std::process::exit(cli_exit_code_value(result.exit_code));
+        }
+        CliCommand::OpenCompare {
+            session_type,
+            left,
+            right,
+            route,
+        } => {
+            let result = describe_open_compare(session_type, left, right, route);
+            println!(
+                "open session: {} | route: {} | left: {} | right: {}",
+                result.session_type, result.route, result.left, result.right
+            );
+            std::process::exit(cli_exit_code_value(result.exit_code));
+        }
+        CliCommand::SyncPreview { left, right } => {
+            let result = match preview_folder_sync_cli(&left, &right) {
+                Ok(result) => result,
+                Err(error) => {
+                    eprintln!("{}", error.message);
+                    std::process::exit(cli_exit_code_value(error.exit_code));
+                }
+            };
+            println!(
+                "sync-preview total: {}, copy: {}, delete: {}, leave: {}, conflict: {}",
+                result.total, result.copy, result.delete, result.leave, result.conflict
+            );
             std::process::exit(cli_exit_code_value(result.exit_code));
         }
         CliCommand::MergeText(args) => {

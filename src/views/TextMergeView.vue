@@ -6,6 +6,7 @@ import WorkbenchInspector from '@/components/workbench/WorkbenchInspector.vue'
 import { pathPairTitle, singlePathTitle } from '@/app/sessionToolbars'
 import { useI18n } from '@/i18n'
 import { useTabsStore } from '@/stores/tabs'
+import { useSettingsStore } from '@/stores/settings'
 import { useSessionLaunchStore } from '@/stores/sessionLaunch'
 
 type MergePaneId = 'left' | 'base' | 'right' | 'output'
@@ -34,6 +35,7 @@ type ConflictPolicy = 'markConflict' | 'favorLeft' | 'favorRight'
 
 const { t } = useI18n()
 const tabs = useTabsStore()
+const settings = useSettingsStore()
 const sessionLaunch = useSessionLaunchStore()
 const leftPath = ref('')
 const rightPath = ref('')
@@ -203,6 +205,7 @@ async function saveOutput(): Promise<void> {
     const result = await saveTextFile({
       path: outputPath.value,
       text: outputText.value,
+      createBackup: settings.createBackupOnSave,
     })
 
     setSaveStatus(result.backupPath ? 'status.savedBytesWithBackup' : 'status.savedBytes', {

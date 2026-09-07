@@ -21,6 +21,7 @@ import {
   parseHexOffset,
 } from '@/app/hexOffset'
 import { useSessionLaunchStore } from '@/stores/sessionLaunch'
+import { useSettingsStore } from '@/stores/settings'
 import { useTabsStore } from '@/stores/tabs'
 import { useViewActionsStore } from '@/stores/viewActions'
 import SessionSettingsDialog from '@/components/session/SessionSettingsDialog.vue'
@@ -78,6 +79,7 @@ const loading = ref(false)
 const error = ref('')
 const sessionLaunch = useSessionLaunchStore()
 const tabs = useTabsStore()
+const settings = useSettingsStore()
 const router = useRouter()
 const bytesPerRow = computed(() => (viewportWidth.value < 480 ? 8 : 16))
 
@@ -439,6 +441,7 @@ async function runHexSave(): Promise<void> {
     const result = await saveHexEdits({
       path: leftPath.value,
       edits: pendingEdits.value,
+      createBackup: settings.createBackupOnSave,
     })
 
     saveStatus.value = String(result.bytesWritten)

@@ -131,6 +131,7 @@ describe('TextMergeView', () => {
     expect(saveTextFile).toHaveBeenCalledWith({
       path: 'out.txt',
       text: 'merged output\nsaved',
+      createBackup: true,
     })
     expect(wrapper.find('[data-testid="merge-save-status"]').text()).toContain('Saved 32 bytes')
   })

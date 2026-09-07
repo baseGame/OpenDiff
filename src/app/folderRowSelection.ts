@@ -48,3 +48,79 @@ export function invertRowIds(rows: FolderSelectableRow[], selectedIds: Iterable<
 
   return rows.filter((row) => !selected.has(row.id)).map((row) => row.id)
 }
+
+export function resolveOperationRows<T extends { id: string }>(
+  rows: T[],
+  checkedIds: Iterable<string>,
+  selectedId: string | undefined,
+): T[] {
+  const checked = new Set(checkedIds)
+
+  if (checked.size > 0) {
+    return rows.filter((row) => checked.has(row.id))
+  }
+
+  if (!selectedId) {
+    return []
+  }
+
+  const selected = rows.find((row) => row.id === selectedId)
+
+  return selected ? [selected] : []
+}
+
+export interface FolderCopySidePaths {
+  relativePath: string
+  sourcePath: string
+  targetPath: string
+}
+
+export interface FolderPathRow {
+  kind?: FolderSelectableKind
+  relativePath?: string
+  leftPath?: string
+  rightPath?: string
+}
+
+export function folderCopyTargetsForDirection(
+  rows: FolderPathRow[],
+  direction: 'Left' | 'Right',
+  resolveMissingTarget: (relativePath: string) => string,
+): FolderCopySidePaths[] {
+  const targets: FolderCopySidePaths[] = []
+
+  for (const row of rows) {
+    if (row.kind !== 'file' || !row.relativePath) {
+      continue
+    }
+
+    const sourcePath = direction === 'Left' ? row.rightPath : row.leftPath
+    const existingTarget = direction === 'Left' ? row.leftPath : row.rightPath
+
+    if (!sourcePath) {
+      continue
+    }
+
+    targets.push({
+      relativePath: row.relativePath,
+      sourcePath,
+      targetPath: existingTarget ?? resolveMissingTarget(row.relativePath),
+    })
+  }
+
+  return targets
+}
+
+export function folderEntryPaths(rows: FolderPathRow[]): string[] {
+  const paths: string[] = []
+
+  for (const row of rows) {
+    const path = row.leftPath ?? row.rightPath
+
+    if (path) {
+      paths.push(path)
+    }
+  }
+
+  return paths
+}

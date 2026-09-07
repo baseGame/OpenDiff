@@ -1133,7 +1133,7 @@ function openSelectedPreview(): void {
 
 .bc-home-workspace {
   display: grid;
-  grid-template-columns: 392px minmax(0, 1fr);
+  grid-template-columns: 380px minmax(0, 1fr);
   background: #ffffff;
 }
 
@@ -1155,7 +1155,7 @@ function openSelectedPreview(): void {
   border-bottom: 1px solid #c6ccd5;
   background: #eef1f5;
   color: #111827;
-  font-size: 23px;
+  font-size: 22px;
   line-height: 1;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1173,13 +1173,13 @@ function openSelectedPreview(): void {
   align-items: center;
   gap: 4px;
   width: 100%;
-  min-height: 27px;
+  min-height: 26px;
   padding: 0 4px;
   border: 0;
   background: transparent;
   color: #111827;
-  font-size: 20px;
-  line-height: 24px;
+  font-size: 19px;
+  line-height: 23px;
   text-align: left;
   cursor: pointer;
 }
@@ -1335,23 +1335,23 @@ function openSelectedPreview(): void {
 .new-session-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(150px, 1fr));
-  gap: 34px 76px;
+  gap: 28px 64px;
   width: min(780px, calc(100% - 64px));
-  margin: 8px auto 12px;
+  margin: 10px auto 14px;
 }
 
 .bc-home-instructions {
   display: grid;
   gap: 6px;
   justify-items: center;
-  margin: 0 0 34px;
+  margin: 0 0 28px;
   color: #111827;
-  font-size: 22px;
-  line-height: 1.1;
+  font-size: 21px;
+  line-height: 1.15;
 }
 
 .bc-home-instructions strong {
-  font-size: 24px;
+  font-size: 23px;
   font-weight: 400;
 }
 
@@ -1361,8 +1361,8 @@ function openSelectedPreview(): void {
   width: 100%;
   min-width: 0;
   max-width: 100%;
-  min-height: 104px;
-  padding: 4px 6px;
+  min-height: 100px;
+  padding: 6px;
   overflow: hidden;
   border: 0;
   border-radius: 2px;
@@ -1391,9 +1391,9 @@ function openSelectedPreview(): void {
   max-width: 100%;
   margin: 0;
   overflow: hidden;
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 400;
-  line-height: 1.2;
+  line-height: 1.25;
   text-align: center;
   white-space: nowrap;
   text-overflow: ellipsis;
