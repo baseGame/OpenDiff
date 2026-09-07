@@ -598,8 +598,12 @@ pub fn compare_table(
     )?;
     let left_sheet_names = workbook_sheet_names(&left_workbook);
     let right_sheet_names = workbook_sheet_names(&right_workbook);
-    let left_sheet = select_table_sheet(&left_workbook, left_sheet.as_deref())?;
-    let right_sheet = select_table_sheet(&right_workbook, right_sheet.as_deref())?;
+    let (left_sheet, right_sheet) = resolve_compared_table_sheets(
+        &left_workbook,
+        &right_workbook,
+        left_sheet.as_deref(),
+        right_sheet.as_deref(),
+    )?;
     let mut column_mappings = table_core::map_columns(
         left_sheet,
         right_sheet,
@@ -4010,6 +4014,59 @@ fn workbook_sheet_names(workbook: &TableWorkbook) -> Vec<String> {
         .collect()
 }
 
+fn resolve_compared_table_sheets<'a>(
+    left_workbook: &'a TableWorkbook,
+    right_workbook: &'a TableWorkbook,
+    left_sheet: Option<&str>,
+    right_sheet: Option<&str>,
+) -> Result<(&'a TableSheet, &'a TableSheet), AppErrorPayload> {
+    let left_name = left_sheet.filter(|value| !value.is_empty());
+    let right_name = right_sheet.filter(|value| !value.is_empty());
+
+    match (left_name, right_name) {
+        (Some(left_name), Some(right_name)) => Ok((
+            select_table_sheet(left_workbook, Some(left_name))?,
+            select_table_sheet(right_workbook, Some(right_name))?,
+        )),
+        (Some(left_name), None) => {
+            let left = select_table_sheet(left_workbook, Some(left_name))?;
+            let right = select_table_sheet(right_workbook, Some(&left.name))
+                .or_else(|_| select_table_sheet(right_workbook, None))?;
+            Ok((left, right))
+        }
+        (None, Some(right_name)) => {
+            let right = select_table_sheet(right_workbook, Some(right_name))?;
+            let left = select_table_sheet(left_workbook, Some(&right.name))
+                .or_else(|_| select_table_sheet(left_workbook, None))?;
+            Ok((left, right))
+        }
+        (None, None) => {
+            let mappings = table_core::map_sheets(
+                left_workbook,
+                right_workbook,
+                &table_core::SheetMappingOptions {
+                    case_sensitive: false,
+                    manual_mappings: Vec::new(),
+                },
+            );
+            if let Some(mapping) = mappings
+                .iter()
+                .find(|mapping| mapping.left_sheet.is_some() && mapping.right_sheet.is_some())
+            {
+                return Ok((
+                    select_table_sheet(left_workbook, mapping.left_sheet.as_deref())?,
+                    select_table_sheet(right_workbook, mapping.right_sheet.as_deref())?,
+                ));
+            }
+
+            Ok((
+                select_table_sheet(left_workbook, None)?,
+                select_table_sheet(right_workbook, None)?,
+            ))
+        }
+    }
+}
+
 fn select_table_sheet<'a>(
     workbook: &'a TableWorkbook,
     name: Option<&str>,
@@ -5329,6 +5386,136 @@ mod tests {
     }
 
     #[test]
+    fn compare_table_pairs_excel_sheets_by_name_and_honors_selection() {
+        let root = unique_temp_dir("excel-sheets-command");
+        fs::create_dir_all(&root).expect("fixture directory should be created");
+        let left = root.join("left.xlsx");
+        let right = root.join("right.xlsx");
+        write_multi_sheet_excel_fixture(
+            &left,
+            &[("Inventory", "1", "alpha"), ("Flags", "yes", "left-flag")],
+        );
+        write_multi_sheet_excel_fixture(
+            &right,
+            &[("Flags", "yes", "right-flag"), ("Inventory", "1", "beta")],
+        );
+
+        let automatic = compare_table(
+            String::new(),
+            String::new(),
+            Some("xlsx".to_owned()),
+            Some(left.display().to_string()),
+            Some(right.display().to_string()),
+            None,
+            None,
+            Some(vec![0]),
+            None,
+            None,
+            None,
+        )
+        .expect("excel sheets should pair by name");
+
+        assert_eq!(automatic.left_sheets, vec!["Inventory", "Flags"]);
+        assert_eq!(automatic.right_sheets, vec!["Flags", "Inventory"]);
+        assert_eq!(automatic.left_sheet, "Inventory");
+        assert_eq!(automatic.right_sheet, "Inventory");
+        assert_eq!(automatic.summary.changed_cell_count, 1);
+        assert_eq!(
+            automatic.changed_cells[0].left_value.as_deref(),
+            Some("alpha")
+        );
+        assert_eq!(
+            automatic.changed_cells[0].right_value.as_deref(),
+            Some("beta")
+        );
+
+        let selected = compare_table(
+            String::new(),
+            String::new(),
+            Some("xlsx".to_owned()),
+            Some(left.display().to_string()),
+            Some(right.display().to_string()),
+            Some("Flags".to_owned()),
+            Some("Flags".to_owned()),
+            Some(vec![0]),
+            None,
+            None,
+            None,
+        )
+        .expect("selected excel sheets should compare");
+
+        assert_eq!(selected.left_sheet, "Flags");
+        assert_eq!(selected.right_sheet, "Flags");
+        assert_eq!(selected.summary.changed_cell_count, 1);
+        assert_eq!(
+            selected.changed_cells[0].left_value.as_deref(),
+            Some("left-flag")
+        );
+        assert_eq!(
+            selected.changed_cells[0].right_value.as_deref(),
+            Some("right-flag")
+        );
+    }
+
+    #[test]
+    fn compare_table_selects_named_html_tables() {
+        let left = r#"
+            <table id="people"><tr><th>id</th><th>name</th></tr><tr><td>1</td><td>alpha</td></tr></table>
+            <table id="pets"><tr><th>id</th><th>name</th></tr><tr><td>9</td><td>dog</td></tr></table>
+        "#;
+        let right = r#"
+            <table id="pets"><tr><th>id</th><th>name</th></tr><tr><td>9</td><td>cat</td></tr></table>
+            <table id="people"><tr><th>id</th><th>name</th></tr><tr><td>1</td><td>beta</td></tr></table>
+        "#;
+
+        let automatic = compare_table(
+            left.to_owned(),
+            right.to_owned(),
+            Some("html".to_owned()),
+            None,
+            None,
+            None,
+            None,
+            Some(vec![0]),
+            None,
+            None,
+            None,
+        )
+        .expect("html tables should pair by name");
+
+        assert_eq!(automatic.left_sheets, vec!["people", "pets"]);
+        assert_eq!(automatic.right_sheets, vec!["pets", "people"]);
+        assert_eq!(automatic.left_sheet, "people");
+        assert_eq!(automatic.right_sheet, "people");
+        assert_eq!(
+            automatic.changed_cells[0].right_value.as_deref(),
+            Some("beta")
+        );
+
+        let selected = compare_table(
+            left.to_owned(),
+            right.to_owned(),
+            Some("html".to_owned()),
+            None,
+            None,
+            Some("pets".to_owned()),
+            Some("pets".to_owned()),
+            Some(vec![0]),
+            None,
+            None,
+            None,
+        )
+        .expect("selected html tables should compare");
+
+        assert_eq!(selected.left_sheet, "pets");
+        assert_eq!(selected.right_sheet, "pets");
+        assert_eq!(
+            selected.changed_cells[0].right_value.as_deref(),
+            Some("cat")
+        );
+    }
+
+    #[test]
     fn compare_hex_files_honors_offset_and_length() {
         let root = unique_temp_dir("hex-offset-command");
         fs::create_dir_all(&root).expect("fixture directory should be created");
@@ -5538,12 +5725,19 @@ mod tests {
     }
 
     fn write_excel_fixture(path: &Path, id: &str, name: &str) {
+        write_multi_sheet_excel_fixture(path, &[("Sheet1", id, name)]);
+    }
+
+    fn write_multi_sheet_excel_fixture(path: &Path, sheets: &[(&str, &str, &str)]) {
         let mut workbook = rust_xlsxwriter::Workbook::new();
-        let sheet = workbook.add_worksheet();
-        sheet.write_string(0, 0, "id").expect("header");
-        sheet.write_string(0, 1, "name").expect("header");
-        sheet.write_string(1, 0, id).expect("id");
-        sheet.write_string(1, 1, name).expect("name");
+        for (sheet_name, id, name) in sheets {
+            let sheet = workbook.add_worksheet();
+            sheet.set_name(*sheet_name).expect("sheet name");
+            sheet.write_string(0, 0, "id").expect("header");
+            sheet.write_string(0, 1, "name").expect("header");
+            sheet.write_string(1, 0, *id).expect("id");
+            sheet.write_string(1, 1, *name).expect("name");
+        }
         workbook.save(path).expect("xlsx should write");
     }
 

@@ -321,7 +321,7 @@ pub fn parse_delimited_table_with_options(
 }
 
 pub fn parse_html_tables(input: &str) -> Result<TableWorkbook, TableParseError> {
-    let sheets = extract_tag_blocks(input, "table")
+    let sheets = extract_full_tag_elements(input, "table")
         .into_iter()
         .enumerate()
         .map(|(index, table_html)| html_table_to_sheet(&table_html, index))
@@ -995,12 +995,10 @@ fn excel_cell_to_string(value: &calamine::Data) -> String {
 }
 
 fn html_table_to_sheet(table_html: &str, table_index: usize) -> TableSheet {
-    let caption = extract_tag_blocks(table_html, "caption")
-        .first()
-        .map(|caption| normalize_html_text(caption))
-        .filter(|caption| !caption.is_empty())
-        .unwrap_or_else(|| format!("Table {}", table_index + 1));
-    let raw_rows = extract_tag_blocks(table_html, "tr")
+    let caption = html_table_name(table_html, table_index);
+    let inner = tag_inner_html(table_html, "table").unwrap_or(table_html);
+    let table_body = strip_nested_tag_blocks(inner, "table");
+    let raw_rows = extract_tag_blocks(&table_body, "tr")
         .into_iter()
         .map(|row_html| html_row_cells(&row_html))
         .filter(|cells| !cells.is_empty())
@@ -1060,6 +1058,118 @@ fn html_row_cells(row_html: &str) -> Vec<String> {
         .collect()
 }
 
+fn html_table_name(table_html: &str, table_index: usize) -> String {
+    let caption = extract_tag_blocks(table_html, "caption")
+        .first()
+        .map(|caption| normalize_html_text(caption))
+        .filter(|caption| !caption.is_empty());
+    if let Some(caption) = caption {
+        return caption;
+    }
+
+    for attribute in ["id", "name", "data-name", "aria-label", "summary"] {
+        if let Some(value) = html_open_tag_attribute(table_html, attribute) {
+            let normalized = normalize_html_text(&value);
+            if !normalized.is_empty() {
+                return normalized;
+            }
+        }
+    }
+
+    format!("Table {}", table_index + 1)
+}
+
+fn html_open_tag_attribute(markup: &str, attribute: &str) -> Option<String> {
+    let lower = markup.to_ascii_lowercase();
+    let open_end = lower.find('>')?;
+    let open_tag = &markup[..open_end];
+    let open_lower = &lower[..open_end];
+    let pattern = format!("{attribute}=");
+    let attr_offset = open_lower.find(&pattern)?;
+    let value_start = attr_offset + pattern.len();
+    if value_start >= open_tag.len() {
+        return None;
+    }
+
+    let quote = open_tag[value_start..].chars().next()?;
+    if quote == '"' || quote == '\'' {
+        let rest = &open_tag[value_start + quote.len_utf8()..];
+        let end = rest.find(quote)?;
+        return Some(rest[..end].to_owned());
+    }
+
+    let rest = &open_tag[value_start..];
+    let end = rest
+        .find(|character: char| character.is_whitespace() || character == '>')
+        .unwrap_or(rest.len());
+    Some(rest[..end].to_owned())
+}
+
+fn strip_nested_tag_blocks(input: &str, tag: &str) -> String {
+    let lower = input.to_ascii_lowercase();
+    let open_pattern = format!("<{tag}");
+    let close_pattern = format!("</{tag}>");
+    let mut output = String::new();
+    let mut cursor = 0;
+
+    while let Some(open_offset) = lower[cursor..].find(&open_pattern) {
+        let open_start = cursor + open_offset;
+        if !is_exact_tag_open(&lower[open_start..], &open_pattern) {
+            output.push_str(&input[cursor..open_start + open_pattern.len()]);
+            cursor = open_start + open_pattern.len();
+            continue;
+        }
+
+        output.push_str(&input[cursor..open_start]);
+        let Some(matched) = match_tag_block(&lower, open_start, &open_pattern, &close_pattern)
+        else {
+            output.push_str(&input[open_start..]);
+            return output;
+        };
+        cursor = matched.close_end;
+    }
+
+    output.push_str(&input[cursor..]);
+    output
+}
+
+fn extract_full_tag_elements(input: &str, tag: &str) -> Vec<String> {
+    let mut blocks = Vec::new();
+    let mut cursor = 0;
+    let lower = input.to_ascii_lowercase();
+    let open_pattern = format!("<{tag}");
+    let close_pattern = format!("</{tag}>");
+
+    while let Some(open_offset) = lower[cursor..].find(&open_pattern) {
+        let open_start = cursor + open_offset;
+        if !is_exact_tag_open(&lower[open_start..], &open_pattern) {
+            cursor = open_start + open_pattern.len();
+            continue;
+        }
+
+        let Some(matched) = match_tag_block(&lower, open_start, &open_pattern, &close_pattern)
+        else {
+            break;
+        };
+
+        blocks.push(input[open_start..matched.close_end].to_owned());
+        cursor = matched.close_end;
+    }
+
+    blocks
+}
+
+fn tag_inner_html<'a>(element: &'a str, tag: &str) -> Option<&'a str> {
+    let lower = element.to_ascii_lowercase();
+    let open_pattern = format!("<{tag}");
+    if !lower.starts_with(&open_pattern) || !is_exact_tag_open(&lower, &open_pattern) {
+        return None;
+    }
+
+    let matched = match_tag_block(&lower, 0, &open_pattern, &format!("</{tag}>"))?;
+    Some(&element[matched.content_start..matched.close_start])
+}
+
 fn extract_tag_blocks(input: &str, tag: &str) -> Vec<String> {
     let mut blocks = Vec::new();
     let mut cursor = 0;
@@ -1069,20 +1179,82 @@ fn extract_tag_blocks(input: &str, tag: &str) -> Vec<String> {
 
     while let Some(open_offset) = lower[cursor..].find(&open_pattern) {
         let open_start = cursor + open_offset;
-        let Some(open_end_offset) = lower[open_start..].find('>') else {
-            break;
-        };
-        let content_start = open_start + open_end_offset + 1;
-        let Some(close_offset) = lower[content_start..].find(&close_pattern) else {
-            break;
-        };
-        let close_start = content_start + close_offset;
+        if !is_exact_tag_open(&lower[open_start..], &open_pattern) {
+            cursor = open_start + open_pattern.len();
+            continue;
+        }
 
-        blocks.push(input[content_start..close_start].to_owned());
-        cursor = close_start + close_pattern.len();
+        let Some(matched) = match_tag_block(&lower, open_start, &open_pattern, &close_pattern)
+        else {
+            break;
+        };
+
+        blocks.push(input[matched.content_start..matched.close_start].to_owned());
+        cursor = matched.close_end;
     }
 
     blocks
+}
+
+struct MatchedTagBlock {
+    content_start: usize,
+    close_start: usize,
+    close_end: usize,
+}
+
+fn is_exact_tag_open(slice: &str, open_pattern: &str) -> bool {
+    let rest = &slice[open_pattern.len()..];
+    match rest.chars().next() {
+        None => false,
+        Some(character) => character == '>' || character.is_whitespace() || character == '/',
+    }
+}
+
+fn match_tag_block(
+    lower: &str,
+    open_start: usize,
+    open_pattern: &str,
+    close_pattern: &str,
+) -> Option<MatchedTagBlock> {
+    let open_end_offset = lower[open_start..].find('>')?;
+    let content_start = open_start + open_end_offset + 1;
+    let mut depth = 1usize;
+    let mut cursor = content_start;
+
+    while depth > 0 {
+        let next_open = lower[cursor..]
+            .find(open_pattern)
+            .map(|offset| cursor + offset);
+        let next_close = lower[cursor..]
+            .find(close_pattern)
+            .map(|offset| cursor + offset);
+
+        match (next_open, next_close) {
+            (Some(open), Some(close)) if open < close => {
+                if !is_exact_tag_open(&lower[open..], open_pattern) {
+                    cursor = open + open_pattern.len();
+                    continue;
+                }
+                let open_end = lower[open..].find('>')? + open + 1;
+                depth += 1;
+                cursor = open_end;
+            }
+            (_, Some(close)) => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(MatchedTagBlock {
+                        content_start,
+                        close_start: close,
+                        close_end: close + close_pattern.len(),
+                    });
+                }
+                cursor = close + close_pattern.len();
+            }
+            _ => return None,
+        }
+    }
+
+    None
 }
 
 fn normalize_html_text(input: &str) -> String {
@@ -1111,6 +1283,7 @@ fn decode_html_entities(input: &str) -> String {
         .replace("&gt;", ">")
         .replace("&quot;", "\"")
         .replace("&#39;", "'")
+        .replace("&nbsp;", " ")
 }
 
 fn parse_delimited_rows(input: &str, delimiter: char) -> Result<Vec<Vec<String>>, TableParseError> {
@@ -1339,7 +1512,7 @@ mod tests {
                 <tr><th>SKU</th><th>Quantity</th></tr>
                 <tr><td>A-001</td><td>12</td></tr>
               </table>
-              <table>
+              <table id="notes">
                 <tr><th>Name</th><th>Note</th></tr>
                 <tr><td>Widget &amp; Gear</td><td><strong>Ready</strong></td></tr>
               </table>
@@ -1355,7 +1528,7 @@ mod tests {
             workbook.sheets[0].rows[0].cells[1].value,
             TableCellValue::Number(12.0)
         );
-        assert_eq!(workbook.sheets[1].name, "Table 2");
+        assert_eq!(workbook.sheets[1].name, "notes");
         assert_eq!(
             workbook.sheets[1].rows[0].cells[0].value,
             TableCellValue::Text("Widget & Gear".to_owned())
@@ -1363,6 +1536,45 @@ mod tests {
         assert_eq!(
             workbook.sheets[1].rows[0].cells[1].value,
             TableCellValue::Text("Ready".to_owned())
+        );
+    }
+
+    #[test]
+    fn parses_nested_html_tables_without_mixing_rows() {
+        let workbook = parse_html_tables(
+            r#"
+            <table data-name="Outer">
+              <tr><th>SKU</th><th>Details</th></tr>
+              <tr>
+                <td>A-001</td>
+                <td>
+                  <table id="inner">
+                    <tr><th>Nested</th></tr>
+                    <tr><td>ignore-me</td></tr>
+                  </table>
+                  Ready&nbsp;Now
+                </td>
+              </tr>
+            </table>
+            <table name="Second">
+              <tr><th>Code</th></tr>
+              <tr><td>B-2</td></tr>
+            </table>
+            "#,
+        )
+        .expect("nested html tables should parse");
+
+        assert_eq!(workbook.sheets.len(), 2);
+        assert_eq!(workbook.sheets[0].name, "Outer");
+        assert_eq!(workbook.sheets[0].rows.len(), 1);
+        assert_eq!(
+            workbook.sheets[0].rows[0].cells[1].value,
+            TableCellValue::Text("Ready Now".to_owned())
+        );
+        assert_eq!(workbook.sheets[1].name, "Second");
+        assert_eq!(
+            workbook.sheets[1].rows[0].cells[0].value,
+            TableCellValue::Text("B-2".to_owned())
         );
     }
 
