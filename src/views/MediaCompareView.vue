@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { compareMediaFiles } from '@/api/diff'
+import { compareMediaFiles, saveTextFile } from '@/api/diff'
+import { buildMediaReportText, defaultMediaReportOutputPath } from '@/app/mediaReport'
 import type {
   MediaCompareResponse,
   MediaFieldRow,
@@ -57,6 +58,7 @@ const mediaSummaryOverride = ref<Record<MediaFieldStatus, number> | null>(null)
 const fieldFilter = ref<MediaFieldFilter>('all')
 const loading = ref(false)
 const error = ref('')
+const reportStatus = ref('')
 const showMediaRules = ref(false)
 const mediaOptions = ref<MediaCompareOptionsState>(loadMediaCompareOptions())
 const leftPlayer = ref<HTMLMediaElement | null>(null)
@@ -120,6 +122,44 @@ function applyMediaResult(result: MediaCompareResponse): void {
   rightMedia.value = result.right
   mediaFields.value = result.fields
   mediaSummaryOverride.value = result.summary
+  reportStatus.value = ''
+}
+
+async function exportMediaReport(): Promise<void> {
+  if (mediaFields.value.length === 0) {
+    return
+  }
+
+  const payload = buildMediaReportText({
+    leftPath: leftPath.value,
+    rightPath: rightPath.value,
+    summary: mediaSummary.value,
+    fields: mediaFields.value.map((row) => ({
+      field: row.field,
+      left: valueText(row.left),
+      right: valueText(row.right),
+      status: row.status,
+      important: fieldIsImportant(row.field),
+    })),
+  })
+  const outputPath = defaultMediaReportOutputPath(leftPath.value)
+
+  try {
+    await navigator.clipboard.writeText(payload)
+  } catch {
+    // Clipboard may be unavailable in headless tests; still try file export.
+  }
+
+  try {
+    await saveTextFile({
+      path: outputPath,
+      text: payload,
+      createBackup: false,
+    })
+    reportStatus.value = outputPath
+  } catch (event) {
+    error.value = String(event)
+  }
 }
 
 async function runMediaCompare(): Promise<void> {
@@ -593,6 +633,19 @@ function runMediaToolbarCommand(commandId: string): void {
         <header>
           <strong>{{ $t('ui.tagFieldReport') }}</strong>
           <span>{{ $t('status.fieldCount', { count: mediaFields.length }) }}</span>
+          <button
+            type="button"
+            data-testid="export-media-report"
+            :disabled="mediaFields.length === 0"
+            @click="exportMediaReport"
+          >
+            {{ $t('ui.export') }}
+          </button>
+          <span
+            v-if="reportStatus"
+            data-testid="media-report-status"
+            >{{ reportStatus }}</span
+          >
         </header>
         <div
           class="media-report-table"
@@ -777,6 +830,10 @@ h1 {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+}
+
+.media-report-panel header button {
+  margin-left: auto;
 }
 
 .media-side dl {

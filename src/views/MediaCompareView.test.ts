@@ -2,15 +2,21 @@ import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import MediaCompareView from './MediaCompareView.vue'
-import { compareMediaFiles } from '@/api/diff'
+import { compareMediaFiles, saveTextFile } from '@/api/diff'
 import { useSessionLaunchStore } from '@/stores/sessionLaunch'
 import { useTabsStore } from '@/stores/tabs'
+
+const clipboardWriteText = vi.fn<(text: string) => Promise<void>>().mockResolvedValue(undefined)
 
 vi.mock('vue-router', () => ({
   useRouter: () => ({ push: vi.fn() }),
 }))
 
 vi.mock('@/api/diff', () => ({
+  saveTextFile: vi.fn().mockResolvedValue({
+    path: 'C:/music/media-compare.txt',
+    bytesWritten: 64,
+  }),
   compareMediaFiles: vi.fn().mockResolvedValue({
     left: {
       name: 'fixture-left.mp3',
@@ -68,6 +74,14 @@ describe('MediaCompareView', () => {
     setActivePinia(createPinia())
     localStorage.clear()
     vi.mocked(compareMediaFiles).mockClear()
+    vi.mocked(saveTextFile).mockClear()
+    clipboardWriteText.mockClear()
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: clipboardWriteText,
+      },
+    })
   })
 
   it('runs a real media comparison request and renders returned metadata', async () => {
@@ -214,5 +228,34 @@ describe('MediaCompareView', () => {
     await wrapper.find('[data-testid="media-session-toolbar-same"]').trigger('click')
     expect(wrapper.find('[data-testid="media-field-Artist"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="media-field-Title"]').exists()).toBe(false)
+  })
+
+  it('exports the media report to clipboard and a sibling text file', async () => {
+    const wrapper = mount(MediaCompareView)
+
+    await wrapper.find('[data-testid="media-left-path"]').setValue('C:/music/fixture-left.mp3')
+    await wrapper.find('[data-testid="media-right-path"]').setValue('C:/music/fixture-right.mp3')
+    await wrapper.find('[data-testid="run-media-compare"]').trigger('click')
+    await wrapper.vm.$nextTick()
+    await Promise.resolve()
+
+    await wrapper.find('[data-testid="export-media-report"]').trigger('click')
+    await wrapper.vm.$nextTick()
+    await Promise.resolve()
+
+    expect(clipboardWriteText).toHaveBeenCalled()
+    const payload = clipboardWriteText.mock.calls[0]?.[0] ?? ''
+
+    expect(payload).toContain('MEDIA-REPORT')
+    expect(payload).toContain('left: C:/music/fixture-left.mp3')
+    expect(payload).toContain('Title')
+    expect(saveTextFile).toHaveBeenCalledWith({
+      path: 'C:/music/media-compare.txt',
+      text: payload,
+      createBackup: false,
+    })
+    expect(wrapper.find('[data-testid="media-report-status"]').text()).toBe(
+      'C:/music/media-compare.txt',
+    )
   })
 })

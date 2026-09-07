@@ -16,7 +16,11 @@ import type {
 } from '@/types/folderMerge'
 import WorkbenchShell from '@/components/workbench/WorkbenchShell.vue'
 import WorkbenchInspector from '@/components/workbench/WorkbenchInspector.vue'
-import { createFolderSnapshot } from '@/api/diff'
+import { createFolderSnapshot, saveTextFile } from '@/api/diff'
+import {
+  buildFolderMergeReportText,
+  defaultFolderMergeReportOutputPath,
+} from '@/app/folderMergeReport'
 import { folderSnapshotOutputPath } from '@/app/snapshotPath'
 import { collectExpandablePrefixes, isPathHiddenByCollapse } from '@/app/folderPathGroups'
 import { buildFolderMergeToolbar, mergeSessionTitle, pathBaseName } from '@/app/sessionToolbars'
@@ -31,6 +35,8 @@ const plan = ref<FolderMergePlanResponse>()
 const execution = ref<FolderMergeExecutionResponse>()
 const mergeExecuting = ref(false)
 const mergeExecutionError = ref<string>()
+const reportStatus = ref('')
+const reportError = ref('')
 const router = useRouter()
 const sessionLaunch = useSessionLaunchStore()
 const tabs = useTabsStore()
@@ -233,6 +239,8 @@ async function buildFolderMergePlan(): Promise<void> {
   })
   execution.value = undefined
   mergeExecutionError.value = undefined
+  reportStatus.value = ''
+  reportError.value = ''
   collapsedPrefixes.value = new Set()
   checkedRowIds.value = new Set()
   lastSelectionAction.value = ''
@@ -340,6 +348,44 @@ function togglePeekPanel(): void {
   }
 }
 
+async function exportFolderMergeReport(): Promise<void> {
+  if (!hasPlan.value) {
+    return
+  }
+
+  const payload = buildFolderMergeReportText({
+    leftPath: leftPath.value,
+    basePath: basePath.value,
+    rightPath: rightPath.value,
+    outputPath: outputPath.value,
+    summary: summary.value,
+    rows: planRows.value.map((row) => ({
+      path: row.path,
+      action: row.action,
+      detail: row.detail,
+    })),
+  })
+  const reportPath = defaultFolderMergeReportOutputPath(leftPath.value)
+
+  try {
+    await navigator.clipboard.writeText(payload)
+  } catch {
+    // Clipboard may be unavailable in headless tests; still try file export.
+  }
+
+  try {
+    await saveTextFile({
+      path: reportPath,
+      text: payload,
+      createBackup: false,
+    })
+    reportStatus.value = reportPath
+    reportError.value = ''
+  } catch (event) {
+    reportError.value = String(event)
+  }
+}
+
 function joinRoot(root: string, relativePath: string): string {
   const normalizedRoot = root.replaceAll('\\', '/').replace(/\/$/u, '')
   const normalizedRelative = relativePath.replaceAll('\\', '/').replace(/^\//u, '')
@@ -386,6 +432,8 @@ watch(
       case 'cut':
       case 'delete':
       case 'export':
+        void exportFolderMergeReport()
+        break
       case 'export-settings':
       case 'filters':
         showMergeFilters.value = !showMergeFilters.value
@@ -501,6 +549,24 @@ watch(
             :disabled="!hasPlan"
             @click="togglePeekPanel"
             >{{ $t('ui.peek') }}</NButton
+          >
+          <NButton
+            size="small"
+            secondary
+            data-testid="export-folder-merge-report"
+            :disabled="!hasPlan"
+            @click="exportFolderMergeReport"
+            >{{ $t('ui.export') }}</NButton
+          >
+          <span
+            v-if="reportStatus"
+            data-testid="folder-merge-report-status"
+            >{{ reportStatus }}</span
+          >
+          <span
+            v-if="reportError"
+            data-testid="folder-merge-report-error"
+            >{{ reportError }}</span
           >
           <NButton
             size="small"

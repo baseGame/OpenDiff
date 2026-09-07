@@ -4,6 +4,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useSessionLaunchStore } from '@/stores/sessionLaunch'
 import { useTabsStore } from '@/stores/tabs'
 import { buildFolderMergePlan, executeFolderMergePlan } from '@/api/folderMerge'
+import { saveTextFile } from '@/api/diff'
+import { useViewActionsStore } from '@/stores/viewActions'
 import FolderMergeView from './FolderMergeView.vue'
 import type {
   FolderMergeEntryKind,
@@ -24,6 +26,16 @@ vi.mock('@/api/folderMerge', () => ({
   buildFolderMergePlan: vi.fn(),
   executeFolderMergePlan: vi.fn(),
 }))
+
+vi.mock('@/api/diff', () => ({
+  createFolderSnapshot: vi.fn(),
+  saveTextFile: vi.fn().mockResolvedValue({
+    path: 'D:/workspace/merge/folder-merge.txt',
+    bytesWritten: 64,
+  }),
+}))
+
+const clipboardWriteText = vi.fn<(text: string) => Promise<void>>().mockResolvedValue(undefined)
 
 function mountFolderMergeView(): VueWrapper {
   return mount(FolderMergeView, {
@@ -54,6 +66,14 @@ describe('FolderMergeView', () => {
     push.mockClear()
     vi.mocked(buildFolderMergePlan).mockReset()
     vi.mocked(executeFolderMergePlan).mockReset()
+    vi.mocked(saveTextFile).mockClear()
+    clipboardWriteText.mockClear()
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: clipboardWriteText,
+      },
+    })
     vi.mocked(buildFolderMergePlan).mockResolvedValue(createMergePlanResponse())
     vi.mocked(executeFolderMergePlan).mockResolvedValue(createMergeExecutionResponse())
   })
@@ -251,6 +271,51 @@ describe('FolderMergeView', () => {
 
     await wrapper.find('[data-testid="folder-merge-session-toolbar-filters"]').trigger('click')
     expect(wrapper.find('[data-testid="folder-merge-filters-panel"]').exists()).toBe(true)
+  })
+
+  it('exports the folder merge report to clipboard and a sibling text file', async () => {
+    const wrapper = mountFolderMergeView()
+
+    await fillMergePaths(wrapper)
+    await wrapper.find('[data-testid="folder-merge-build-plan"]').trigger('click')
+    await flushPromises()
+
+    await wrapper.find('[data-testid="export-folder-merge-report"]').trigger('click')
+    await flushPromises()
+
+    expect(clipboardWriteText).toHaveBeenCalled()
+    const payload = clipboardWriteText.mock.calls[0]?.[0] ?? ''
+
+    expect(payload).toContain('FOLDER-MERGE-REPORT')
+    expect(payload).toContain('left: D:/workspace/merge/left')
+    expect(payload).toContain('same.txt')
+    expect(saveTextFile).toHaveBeenCalledWith({
+      path: 'D:/workspace/merge/folder-merge.txt',
+      text: payload,
+      createBackup: false,
+    })
+    expect(wrapper.find('[data-testid="folder-merge-report-status"]').text()).toBe(
+      'D:/workspace/merge/folder-merge.txt',
+    )
+  })
+
+  it('wires Session Export to the merge report instead of toggling filters', async () => {
+    const wrapper = mountFolderMergeView()
+
+    await fillMergePaths(wrapper)
+    await wrapper.find('[data-testid="folder-merge-build-plan"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="folder-merge-filters-panel"]').exists()).toBe(false)
+
+    useViewActionsStore().dispatch('export')
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="folder-merge-filters-panel"]').exists()).toBe(false)
+    expect(saveTextFile).toHaveBeenCalled()
+    expect(wrapper.find('[data-testid="folder-merge-report-status"]').text()).toBe(
+      'D:/workspace/merge/folder-merge.txt',
+    )
   })
 })
 
