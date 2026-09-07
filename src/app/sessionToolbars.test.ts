@@ -7,6 +7,7 @@ import {
   buildRegistryCompareToolbar,
   buildTableCompareToolbar,
   buildTextCompareToolbar,
+  buildTextPatchToolbar,
   buildVersionCompareToolbar,
   folderCompareToolbarOrder,
   hexCompareToolbarOrder,
@@ -16,6 +17,7 @@ import {
   syncPathPairTitle,
   tableCompareToolbarOrder,
   textCompareToolbarOrder,
+  textPatchToolbarOrder,
   versionCompareToolbarOrder,
 } from './sessionToolbars'
 
@@ -120,5 +122,16 @@ describe('sessionToolbars', () => {
     expect(pathPairTitle('D:/work/left.txt', 'D:/work/right.txt')).toBe('left.txt <--> right.txt')
     expect(syncPathPairTitle('D:/left', 'D:/right')).toBe('Update: left <--> right')
     expect(singlePathTitle('D:/work/out.txt')).toBe('out.txt')
+  })
+
+  it('keeps Text Patch toolbar in Home / Next / Prev section order', () => {
+    const toolbar = buildTextPatchToolbar({
+      home: true,
+      'next-section': true,
+      'prev-section': false,
+    })
+
+    expect(toolbar.map((item) => item.id)).toEqual([...textPatchToolbarOrder])
+    expect(toolbar.find((item) => item.id === 'prev-section')?.enabled).toBe(false)
   })
 })

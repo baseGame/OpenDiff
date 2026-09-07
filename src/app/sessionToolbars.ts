@@ -115,6 +115,8 @@ export const versionCompareToolbarOrder = [
   'reload',
 ] as const
 
+export const textPatchToolbarOrder = ['home', 'next-section', 'prev-section'] as const
+
 interface ToolbarMeta {
   glyph: string
   labelKey: string
@@ -228,6 +230,12 @@ const versionMeta: Record<(typeof versionCompareToolbarOrder)[number], ToolbarMe
   reload: { glyph: 'R', labelKey: 'ui.reload' },
 }
 
+const textPatchMeta: Record<(typeof textPatchToolbarOrder)[number], ToolbarMeta> = {
+  home: { glyph: 'H', labelKey: 'ui.home' },
+  'next-section': { glyph: 'N', labelKey: 'ui.nextSection' },
+  'prev-section': { glyph: 'P', labelKey: 'ui.prevSection' },
+}
+
 function buildToolbar<T extends string>(
   order: readonly T[],
   meta: Record<T, ToolbarMeta>,
@@ -287,6 +295,12 @@ export function buildVersionCompareToolbar(
   enabled: Partial<Record<(typeof versionCompareToolbarOrder)[number], boolean>>,
 ): SessionToolbarCommand[] {
   return buildToolbar(versionCompareToolbarOrder, versionMeta, enabled)
+}
+
+export function buildTextPatchToolbar(
+  enabled: Partial<Record<(typeof textPatchToolbarOrder)[number], boolean>>,
+): SessionToolbarCommand[] {
+  return buildToolbar(textPatchToolbarOrder, textPatchMeta, enabled)
 }
 
 export function pathPairTitle(leftPath: string, rightPath: string): string {

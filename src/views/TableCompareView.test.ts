@@ -79,8 +79,58 @@ function mountTableCompareView(): VueWrapper {
 describe('TableCompareView', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
-    vi.mocked(compareTable).mockClear()
-    vi.mocked(readTextFile).mockClear()
+    localStorage.clear()
+    vi.mocked(compareTable).mockReset()
+    vi.mocked(compareTable).mockResolvedValue({
+      leftColumns: [
+        { side: 'left', name: 'SKU' },
+        { side: 'left', name: 'Quantity' },
+      ],
+      rightColumns: [
+        { side: 'right', name: 'sku' },
+        { side: 'right', name: 'Quantity' },
+      ],
+      columnMappings: [
+        { leftColumn: 'SKU', rightColumn: 'sku', source: 'Automatic' },
+        { leftColumn: 'Quantity', rightColumn: 'Quantity', source: 'Automatic' },
+      ],
+      rows: [
+        {
+          index: 0,
+          leftCells: ['A-1', '12'],
+          rightCells: ['A-1', '14'],
+          status: 'Modified',
+        },
+      ],
+      changedCells: [
+        {
+          rowIndex: 0,
+          columnIndex: 1,
+          leftValue: '12',
+          rightValue: '14',
+          status: 'Modified',
+        },
+      ],
+      summary: {
+        rowCount: 1,
+        changedRowCount: 1,
+        changedCellCount: 1,
+      },
+      leftSheets: ['Sheet1'],
+      rightSheets: ['Sheet1'],
+      leftSheet: 'Sheet1',
+      rightSheet: 'Sheet1',
+    })
+    vi.mocked(readTextFile).mockReset()
+    vi.mocked(readTextFile).mockImplementation((path: string) =>
+      Promise.resolve({
+        path,
+        text: path.includes('left') ? 'SKU,Quantity\nA-1,12' : 'sku,Quantity\nA-1,14',
+        encoding: 'UTF-8',
+        lineEnding: 'LF',
+        fileStamp: { size: 20, modifiedAtMs: 1 },
+      }),
+    )
   })
 
   it('starts empty without a demo grid or sample CSV', () => {
@@ -442,5 +492,25 @@ describe('TableCompareView', () => {
         (wrapper.find('[data-testid="table-left-sheet"]').element as HTMLSelectElement).options,
       ).map((option) => option.value),
     ).toEqual(['people', 'pets'])
+  })
+
+  it('persists key and ignore column choices and sends them on compare', async () => {
+    const wrapper = mountTableCompareView()
+
+    await wrapper.find('[data-testid="run-table-compare"]').trigger('click')
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('[data-testid="ignore-column-quantity"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="key-column-quantity"]').exists()).toBe(true)
+
+    await wrapper.find('[data-testid="table-key-columns"]').setValue('0,1')
+    await wrapper.find('[data-testid="ignore-column-quantity"]').setValue(true)
+    await flushPromises()
+    await wrapper.vm.$nextTick()
+
+    const request = vi.mocked(compareTable).mock.calls.at(-1)?.[0]
+
+    expect(request?.keyColumnIndices).toEqual([0, 1])
+    expect(request?.ignoredColumns).toContain('Quantity')
   })
 })

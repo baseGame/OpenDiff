@@ -42,6 +42,17 @@ vi.mock('@/api/diff', () => ({
               { kind: 'added', oldNumber: null, newNumber: 2, text: 'new' },
             ],
           },
+          {
+            oldStart: 10,
+            oldCount: 1,
+            newStart: 10,
+            newCount: 1,
+            heading: 'later',
+            lines: [
+              { kind: 'removed', oldNumber: 10, newNumber: null, text: 'gone' },
+              { kind: 'added', oldNumber: null, newNumber: 10, text: 'here' },
+            ],
+          },
         ],
       },
     ],
@@ -197,6 +208,48 @@ describe('TextPatchView', () => {
     await wrapper.find('[data-testid="apply-text-patch"]').trigger('click')
     await flushPromises()
     await wrapper.find('[data-testid="open-patched-text-compare"]').trigger('click')
+    await flushPromises()
+
+    expect(push).toHaveBeenCalledWith('/compare/text')
+  })
+
+  it('navigates patch sections and opens the selected hunk in Text Compare', async () => {
+    const wrapper = mountTextPatchView()
+
+    wrapper
+      .findComponent(NInputStub)
+      .vm.$emit('update:value', 'diff --git a/src/main.ts b/src/main.ts')
+    await wrapper.vm.$nextTick()
+    await wrapper.find('[data-testid="parse-text-patch"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="patch-section-position"]').text()).toContain('1 of 2')
+    expect(wrapper.find('[data-testid="patch-session-toolbar-bar"]').exists()).toBe(true)
+
+    await wrapper.find('[data-testid="patch-next-section"]').trigger('click')
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('[data-testid="patch-section-position"]').text()).toContain('2 of 2')
+    expect(wrapper.findAll('[data-testid="text-patch-hunk"]')[1]?.classes()).toContain(
+      'patch-hunk-selected',
+    )
+
+    await wrapper.find('[data-testid="open-selected-text-compare"]').trigger('click')
+    await flushPromises()
+
+    expect(push).toHaveBeenCalledWith('/compare/text')
+  })
+
+  it('opens a reconstructed file pair from the file header action', async () => {
+    const wrapper = mountTextPatchView()
+
+    wrapper
+      .findComponent(NInputStub)
+      .vm.$emit('update:value', 'diff --git a/src/main.ts b/src/main.ts')
+    await wrapper.vm.$nextTick()
+    await wrapper.find('[data-testid="parse-text-patch"]').trigger('click')
+    await flushPromises()
+    await wrapper.find('[data-testid="open-file-text-compare"]').trigger('click')
     await flushPromises()
 
     expect(push).toHaveBeenCalledWith('/compare/text')

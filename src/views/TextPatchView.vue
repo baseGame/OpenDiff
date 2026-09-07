@@ -1,7 +1,14 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watchEffect } from 'vue'
+import { computed, nextTick, onMounted, ref, watch, watchEffect } from 'vue'
 import { useRouter } from 'vue-router'
 import { applyTextPatch, applyTextPatchToFile, parseTextPatch, readTextFile } from '@/api/diff'
+import { buildTextPatchToolbar } from '@/app/sessionToolbars'
+import {
+  clampSectionIndex,
+  flattenPatchSections,
+  reconstructSidesFromFile,
+  reconstructSidesFromHunk,
+} from '@/app/textPatchSections'
 import WorkbenchInspector from '@/components/workbench/WorkbenchInspector.vue'
 import WorkbenchShell from '@/components/workbench/WorkbenchShell.vue'
 import WorkbenchToolbar from '@/components/workbench/WorkbenchToolbar.vue'
@@ -9,7 +16,8 @@ import { useI18n } from '@/i18n'
 import { useLastCompareStore } from '@/stores/lastCompare'
 import { useSessionLaunchStore } from '@/stores/sessionLaunch'
 import { useStatusBarStore } from '@/stores/statusBar'
-import type { PatchLineKind, TextPatchResponse } from '@/types/diff'
+import { useTabsStore } from '@/stores/tabs'
+import type { PatchFile, PatchLineKind, TextPatchResponse } from '@/types/diff'
 
 const patchInput = ref('')
 const result = ref<TextPatchResponse | null>(null)
@@ -25,12 +33,43 @@ const sourceLineEnding = ref('LF')
 const statusBar = useStatusBarStore()
 const sessionLaunch = useSessionLaunchStore()
 const lastCompare = useLastCompareStore()
+const tabs = useTabsStore()
 const router = useRouter()
 const { t } = useI18n()
+const selectedSectionIndex = ref(0)
 
 const fileCount = computed(() => result.value?.files.length ?? 0)
 const hunkCount = computed(
   () => result.value?.files.reduce((total, file) => total + file.hunks.length, 0) ?? 0,
+)
+const patchSections = computed(() => flattenPatchSections(result.value?.files ?? []))
+const currentSection = computed(() => {
+  const sections = patchSections.value
+
+  if (sections.length === 0) {
+    return undefined
+  }
+
+  return sections[clampSectionIndex(selectedSectionIndex.value, sections.length)]
+})
+const sectionPositionLabel = computed(() => {
+  const total = patchSections.value.length
+
+  if (total === 0) {
+    return t('status.sectionPosition', { index: 0, total: 0 })
+  }
+
+  return t('status.sectionPosition', {
+    index: clampSectionIndex(selectedSectionIndex.value, total) + 1,
+    total,
+  })
+})
+const patchSessionToolbar = computed(() =>
+  buildTextPatchToolbar({
+    home: true,
+    'next-section': patchSections.value.length > 0,
+    'prev-section': patchSections.value.length > 0,
+  }),
 )
 const lineStats = computed(() => {
   const stats: Record<PatchLineKind, number> = {
@@ -110,6 +149,7 @@ async function loadAndParsePatchFile(path: string): Promise<void> {
     sourceEncoding.value = file.encoding
     sourceLineEnding.value = file.lineEnding
     result.value = await parseTextPatch(file.text)
+    selectedSectionIndex.value = 0
   } catch (event) {
     error.value = event instanceof Error ? event.message : String(event)
   } finally {
@@ -209,12 +249,162 @@ async function parseCurrentPatch(): Promise<void> {
 
   try {
     result.value = await parseTextPatch(patchInput.value)
+    selectedSectionIndex.value = 0
+    await nextTick()
+    scrollToSelectedSection()
   } catch (event) {
     error.value = event instanceof Error ? event.message : String(event)
   } finally {
     loading.value = false
   }
 }
+
+function goHomeFromPatch(): void {
+  tabs.openTab({ title: t('ui.home'), titleKey: 'ui.home', route: '/', dirty: false })
+  void router.push('/')
+}
+
+function goToSection(delta: number): void {
+  const total = patchSections.value.length
+
+  if (total === 0) {
+    return
+  }
+
+  selectedSectionIndex.value = clampSectionIndex(selectedSectionIndex.value + delta, total)
+  void nextTick().then(() => scrollToSelectedSection())
+}
+
+function selectSection(fileIndex: number, hunkIndex: number): void {
+  const index = patchSections.value.findIndex(
+    (section) => section.fileIndex === fileIndex && section.hunkIndex === hunkIndex,
+  )
+
+  if (index < 0) {
+    return
+  }
+
+  selectedSectionIndex.value = index
+  void nextTick().then(() => scrollToSelectedSection())
+}
+
+function scrollToSelectedSection(): void {
+  const section = currentSection.value
+
+  if (!section) {
+    return
+  }
+
+  const target = document.querySelector(`[data-section-id="${section.id}"]`)
+
+  if (target instanceof HTMLElement && typeof target.scrollIntoView === 'function') {
+    target.scrollIntoView({ block: 'center' })
+  }
+}
+
+function isSelectedHunk(fileIndex: number, hunkIndex: number): boolean {
+  const section = currentSection.value
+
+  return Boolean(section && section.fileIndex === fileIndex && section.hunkIndex === hunkIndex)
+}
+
+function isSelectedFile(fileIndex: number): boolean {
+  const section = currentSection.value
+
+  return Boolean(section && section.fileIndex === fileIndex)
+}
+
+function launchTextCompare(sides: {
+  left: string
+  right: string
+  leftSource: string
+  rightSource: string
+}): void {
+  lastCompare.recordTextCompare({
+    left: sides.left,
+    right: sides.right,
+    leftSource: sides.leftSource,
+    rightSource: sides.rightSource,
+  })
+  sessionLaunch.setPendingLaunch({
+    id: crypto.randomUUID(),
+    source: 'command',
+    sessionType: 'text-compare',
+    title: t('ui.textCompare'),
+    route: '/compare/text',
+    autoRun: false,
+    locations: {
+      left: {
+        uri: sides.leftSource || 'source',
+        displayName: sides.leftSource || t('ui.sourceFile'),
+        kind: 'file',
+        readOnly: false,
+      },
+      right: {
+        uri: sides.rightSource || 'patched',
+        displayName: sides.rightSource || t('ui.patchedOutput'),
+        kind: 'file',
+        readOnly: false,
+      },
+    },
+  })
+  void router.push('/compare/text')
+}
+
+function openSelectedInTextCompare(): void {
+  const section = currentSection.value
+  const files = result.value?.files ?? []
+
+  if (!section) {
+    void openPatchedInTextCompare()
+
+    return
+  }
+
+  const file = files[section.fileIndex]
+
+  if (!file) {
+    return
+  }
+
+  const hunk = file.hunks[section.hunkIndex]
+
+  if (!hunk) {
+    return
+  }
+
+  launchTextCompare(reconstructSidesFromHunk(file, hunk))
+}
+
+function openFileInTextCompare(file: PatchFile): void {
+  launchTextCompare(reconstructSidesFromFile(file))
+}
+
+function runPatchToolbarCommand(commandId: string): void {
+  switch (commandId) {
+    case 'home':
+      goHomeFromPatch()
+      break
+    case 'next-section':
+      goToSection(1)
+      break
+    case 'prev-section':
+      goToSection(-1)
+      break
+    default:
+      break
+  }
+}
+
+watch(patchSections, (sections) => {
+  if (sections.length === 0) {
+    selectedSectionIndex.value = 0
+
+    return
+  }
+
+  selectedSectionIndex.value = clampSectionIndex(selectedSectionIndex.value, sections.length)
+})
 
 function lineClass(kind: PatchLineKind): string {
   return `patch-line-${kind}`
@@ -245,6 +435,9 @@ function lineNumber(value: number | null): string {
     :subtitle="subtitle"
     :inspector-label="$t('ui.textPatchInspector')"
     data-testid="text-patch-workbench"
+    :toolbar-commands="patchSessionToolbar"
+    toolbar-test-id-prefix="patch-session-toolbar"
+    @toolbar-command="runPatchToolbarCommand"
   >
     <template #title-actions>
       <span
@@ -291,6 +484,35 @@ function lineNumber(value: number | null): string {
         >
           {{ $t('ui.openInTextCompare') }}
         </NButton>
+        <NButton
+          size="small"
+          :disabled="patchSections.length === 0"
+          data-testid="patch-prev-section"
+          @click="goToSection(-1)"
+        >
+          {{ $t('ui.prevSection') }}
+        </NButton>
+        <NButton
+          size="small"
+          :disabled="patchSections.length === 0"
+          data-testid="patch-next-section"
+          @click="goToSection(1)"
+        >
+          {{ $t('ui.nextSection') }}
+        </NButton>
+        <NButton
+          size="small"
+          :disabled="!currentSection"
+          data-testid="open-selected-text-compare"
+          @click="openSelectedInTextCompare"
+        >
+          {{ $t('ui.openSelectedInTextCompare') }}
+        </NButton>
+        <span
+          class="status-chip"
+          data-testid="patch-section-position"
+          >{{ sectionPositionLabel }}</span
+        >
         <span class="status-chip">{{ $t('status.fileCount', { count: fileCount }) }}</span>
         <span class="status-chip">{{ $t('status.hunkCount', { count: hunkCount }) }}</span>
       </WorkbenchToolbar>
@@ -361,21 +583,33 @@ function lineNumber(value: number | null): string {
         data-testid="text-patch-result"
       >
         <article
-          v-for="file in result.files"
+          v-for="(file, fileIndex) in result.files"
           :key="`${file.oldPath}->${file.newPath}`"
           class="patch-file"
+          :class="{ 'patch-file-selected': isSelectedFile(fileIndex) }"
           data-testid="text-patch-file"
         >
           <header>
             <strong>{{ file.oldPath }}</strong>
             <span>{{ file.newPath }}</span>
+            <button
+              type="button"
+              class="patch-open-file"
+              data-testid="open-file-text-compare"
+              @click.stop="openFileInTextCompare(file)"
+            >
+              {{ $t('ui.openInTextCompare') }}
+            </button>
           </header>
 
           <section
-            v-for="hunk in file.hunks"
+            v-for="(hunk, hunkIndex) in file.hunks"
             :key="`${hunk.oldStart}-${hunk.newStart}-${hunk.heading}`"
             class="patch-hunk"
+            :class="{ 'patch-hunk-selected': isSelectedHunk(fileIndex, hunkIndex) }"
+            :data-section-id="`${fileIndex}:${hunkIndex}:${hunk.oldStart}:${hunk.newStart}`"
             data-testid="text-patch-hunk"
+            @click="selectSection(fileIndex, hunkIndex)"
           >
             <header>
               @@ -{{ hunk.oldStart }},{{ hunk.oldCount }} +{{ hunk.newStart }},{{
@@ -424,6 +658,10 @@ function lineNumber(value: number | null): string {
             <div>
               <dt>{{ $t('ui.hunks') }}</dt>
               <dd>{{ hunkCount }}</dd>
+            </div>
+            <div>
+              <dt>{{ $t('ui.section') }}</dt>
+              <dd data-testid="patch-inspector-section">{{ sectionPositionLabel }}</dd>
             </div>
             <div>
               <dt>{{ $t('ui.added') }}</dt>
@@ -529,7 +767,33 @@ function lineNumber(value: number | null): string {
   white-space: nowrap;
 }
 
+.patch-file-selected > header {
+  outline: 1px solid color-mix(in srgb, var(--app-accent, #3b82f6) 55%, transparent);
+}
+
+.patch-file > header {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.patch-open-file {
+  margin-left: auto;
+  border: 1px solid var(--app-border, #334155);
+  background: transparent;
+  color: inherit;
+  border-radius: 4px;
+  padding: 0.15rem 0.45rem;
+  cursor: pointer;
+}
+
+.patch-hunk-selected {
+  outline: 2px solid color-mix(in srgb, var(--app-accent, #3b82f6) 70%, transparent);
+  background: color-mix(in srgb, var(--app-accent, #3b82f6) 12%, transparent);
+}
+
 .patch-hunk {
+  cursor: pointer;
   display: grid;
   gap: 0;
   padding: 0 8px 8px;
