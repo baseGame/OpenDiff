@@ -2,7 +2,7 @@ import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import TableCompareView from './TableCompareView.vue'
-import { compareTable, readTextFile } from '@/api/diff'
+import { compareTable, readTextFile, saveTextFile } from '@/api/diff'
 import { useSessionLaunchStore } from '@/stores/sessionLaunch'
 import type { TableCompareRequest } from '@/types/diff'
 
@@ -10,7 +10,13 @@ vi.mock('vue-router', () => ({
   useRouter: () => ({ push: vi.fn() }),
 }))
 
+const clipboardWriteText = vi.fn<(text: string) => Promise<void>>().mockResolvedValue(undefined)
+
 vi.mock('@/api/diff', () => ({
+  saveTextFile: vi.fn().mockResolvedValue({
+    path: 'C:/data/table-compare.txt',
+    bytesWritten: 48,
+  }),
   compareTable: vi.fn().mockResolvedValue({
     leftColumns: [
       { side: 'left', name: 'SKU' },
@@ -131,6 +137,14 @@ describe('TableCompareView', () => {
         fileStamp: { size: 20, modifiedAtMs: 1 },
       }),
     )
+    vi.mocked(saveTextFile).mockClear()
+    clipboardWriteText.mockClear()
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: clipboardWriteText,
+      },
+    })
   })
 
   it('starts empty without a demo grid or sample CSV', () => {
@@ -512,5 +526,31 @@ describe('TableCompareView', () => {
 
     expect(request?.keyColumnIndices).toEqual([0, 1])
     expect(request?.ignoredColumns).toContain('Quantity')
+  })
+
+  it('exports the table report to clipboard and a sibling text file', async () => {
+    const wrapper = mountTableCompareView()
+
+    await wrapper.find('[data-testid="table-left-path"]').setValue('C:/data/left.csv')
+    await wrapper.find('[data-testid="table-right-path"]').setValue('C:/data/right.csv')
+    await wrapper.find('[data-testid="run-table-compare"]').trigger('click')
+    await flushPromises()
+
+    await wrapper.find('[data-testid="export-table-report"]').trigger('click')
+    await flushPromises()
+
+    expect(clipboardWriteText).toHaveBeenCalled()
+    const payload = clipboardWriteText.mock.calls[0]?.[0] ?? ''
+
+    expect(payload).toContain('TABLE-REPORT')
+    expect(payload).toContain('left: C:/data/left.csv')
+    expect(saveTextFile).toHaveBeenCalledWith({
+      path: 'C:/data/table-compare.txt',
+      text: payload,
+      createBackup: false,
+    })
+    expect(wrapper.find('[data-testid="table-report-status"]').text()).toBe(
+      'C:/data/table-compare.txt',
+    )
   })
 })

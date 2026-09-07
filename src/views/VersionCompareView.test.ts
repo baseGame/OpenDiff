@@ -2,15 +2,21 @@ import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import VersionCompareView from './VersionCompareView.vue'
-import { compareVersionFiles } from '@/api/diff'
+import { compareVersionFiles, saveTextFile } from '@/api/diff'
 import { useSessionLaunchStore } from '@/stores/sessionLaunch'
 import { useTabsStore } from '@/stores/tabs'
+
+const clipboardWriteText = vi.fn<(text: string) => Promise<void>>().mockResolvedValue(undefined)
 
 vi.mock('vue-router', () => ({
   useRouter: () => ({ push: vi.fn() }),
 }))
 
 vi.mock('@/api/diff', () => ({
+  saveTextFile: vi.fn().mockResolvedValue({
+    path: 'C:/apps/version-compare.txt',
+    bytesWritten: 64,
+  }),
   compareVersionFiles: vi.fn().mockResolvedValue({
     left: {
       name: 'fixture-left.exe',
@@ -63,6 +69,14 @@ describe('VersionCompareView', () => {
     setActivePinia(createPinia())
     localStorage.clear()
     vi.mocked(compareVersionFiles).mockClear()
+    vi.mocked(saveTextFile).mockClear()
+    clipboardWriteText.mockClear()
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: clipboardWriteText,
+      },
+    })
   })
 
   it('runs a real version comparison request and renders returned fields', async () => {
@@ -215,4 +229,32 @@ it('opens rules catalog before compare', async () => {
   expect(wrapper.find('[data-testid="version-rules-panel"]').exists()).toBe(true)
   expect(wrapper.find('[data-testid="version-rule-FileVersion"]').exists()).toBe(true)
   expect(wrapper.find('[data-testid="version-rule-Comments"]').exists()).toBe(true)
+})
+
+it('exports the version report to clipboard and a sibling text file', async () => {
+  const wrapper = mount(VersionCompareView)
+
+  await wrapper.find('[data-testid="version-left-path"]').setValue('C:/apps/fixture-left.exe')
+  await wrapper.find('[data-testid="version-right-path"]').setValue('C:/apps/fixture-right.exe')
+  await wrapper.find('[data-testid="run-version-compare"]').trigger('click')
+  await wrapper.vm.$nextTick()
+
+  await wrapper.find('[data-testid="export-version-report"]').trigger('click')
+  await wrapper.vm.$nextTick()
+  await Promise.resolve()
+
+  expect(clipboardWriteText).toHaveBeenCalled()
+  const payload = clipboardWriteText.mock.calls[0]?.[0] ?? ''
+
+  expect(payload).toContain('VERSION-REPORT')
+  expect(payload).toContain('left: C:/apps/fixture-left.exe')
+  expect(payload).toContain('FileVersion')
+  expect(saveTextFile).toHaveBeenCalledWith({
+    path: 'C:/apps/version-compare.txt',
+    text: payload,
+    createBackup: false,
+  })
+  expect(wrapper.find('[data-testid="version-report-status"]').text()).toBe(
+    'C:/apps/version-compare.txt',
+  )
 })
