@@ -4,7 +4,10 @@ import type { FolderCompareCriteria } from '@/types/diff'
 import type { TextCompareSessionOptions } from '@/app/textCompareSessionOptions'
 import type { TableCompareSessionOptions } from '@/app/tableCompareSessionOptions'
 import type { HexCompareSessionOptions } from '@/app/hexCompareSessionOptions'
-import type { PictureCompareOptionsState } from '@/app/pictureCompareOptions'
+import {
+  defaultPictureCompareOptions,
+  type PictureCompareOptionsState,
+} from '@/app/pictureCompareOptions'
 
 export type SessionSettingsKind = 'folder' | 'text' | 'table' | 'hex' | 'picture'
 
@@ -41,12 +44,7 @@ const props = withDefaults(
       windowLength: 256,
       diffOnly: false,
     }),
-    pictureOptions: () => ({
-      rgbTolerance: 0,
-      compareAlpha: true,
-      ignoreColorFrom: null,
-      ignoreColorTo: null,
-    }),
+    pictureOptions: () => defaultPictureCompareOptions(),
   },
 )
 

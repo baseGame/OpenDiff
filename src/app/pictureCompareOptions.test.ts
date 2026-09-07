@@ -27,49 +27,43 @@ describe('pictureCompareOptions', () => {
       compareAlpha: true,
       ignoreColorFrom: null,
       ignoreColorTo: null,
+      blendEnabled: false,
+      blendOpacity: 50,
+      showMeta: true,
+      showMinor: false,
     })
   })
-
   it('normalizes RGBA channels and clamps out-of-range values', () => {
     expect(normalizeRgba([300, -1, 12.4, 40])).toEqual([255, 0, 12, 40])
     expect(normalizeRgba([1, 2])).toBeNull()
     expect(normalizeRgba([10, 20, 30])).toEqual([10, 20, 30, 255])
   })
-
-  it('persists and reloads tolerance plus ignore colors', () => {
+  it('persists and reloads tolerance plus display chrome', () => {
     const storage = memoryStorage()
-
-    savePictureCompareOptions(
-      {
-        rgbTolerance: 8,
-        compareAlpha: false,
-        ignoreColorFrom: [255, 0, 0, 255],
-        ignoreColorTo: [0, 255, 0],
-      },
-      storage,
-    )
-
+    savePictureCompareOptions({
+      rgbTolerance: 8,
+      compareAlpha: false,
+      ignoreColorFrom: [255, 0, 0, 255],
+      ignoreColorTo: [0, 255, 0],
+      blendEnabled: true,
+      blendOpacity: 40,
+      showMeta: false,
+      showMinor: true,
+    }, storage)
     expect(loadPictureCompareOptions(storage)).toEqual({
       rgbTolerance: 8,
       compareAlpha: false,
       ignoreColorFrom: [255, 0, 0, 255],
       ignoreColorTo: [0, 255, 0, 255],
+      blendEnabled: true,
+      blendOpacity: 40,
+      showMeta: false,
+      showMinor: true,
     })
   })
-
   it('only emits ignore colors when both ends are set', () => {
-    expect(
-      pictureIgnoreColors({
-        ignoreColorFrom: [255, 0, 0, 255],
-        ignoreColorTo: null,
-      }),
-    ).toEqual({})
-    expect(
-      pictureIgnoreColors({
-        ignoreColorFrom: [255, 0, 0, 255],
-        ignoreColorTo: [0, 255, 0, 255],
-      }),
-    ).toEqual({
+    expect(pictureIgnoreColors({ ignoreColorFrom: [255, 0, 0, 255], ignoreColorTo: null })).toEqual({})
+    expect(pictureIgnoreColors({ ignoreColorFrom: [255, 0, 0, 255], ignoreColorTo: [0, 255, 0, 255] })).toEqual({
       ignoreColorFrom: [255, 0, 0, 255],
       ignoreColorTo: [0, 255, 0, 255],
     })

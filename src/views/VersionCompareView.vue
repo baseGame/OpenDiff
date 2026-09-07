@@ -9,13 +9,20 @@ import type {
   VersionFieldStatus,
   VersionSideSummary,
 } from '@/types/diff'
-import { buildVersionCompareToolbar } from '@/app/sessionToolbars'
+import { buildVersionCompareToolbar, pathPairTitle } from '@/app/sessionToolbars'
+import {
+  isVersionFieldImportant,
+  loadVersionCompareOptions,
+  saveVersionCompareOptions,
+  toggleVersionFieldImportance,
+  type VersionCompareOptionsState,
+} from '@/app/versionCompareOptions'
 import { useSessionLaunchStore } from '@/stores/sessionLaunch'
 import { useTabsStore } from '@/stores/tabs'
 
 const versionStatuses: VersionFieldStatus[] = ['added', 'removed', 'modified', 'unchanged']
 
-type VersionFieldFilter = 'all' | 'diffs' | 'same'
+type VersionFieldFilter = 'all' | 'diffs' | 'same' | 'minor'
 
 const emptyVersionSide: VersionSideSummary = {
   name: '',
@@ -38,6 +45,8 @@ const fieldFilter = ref<VersionFieldFilter>('all')
 const activeFieldIndex = ref(0)
 const loading = ref(false)
 const error = ref('')
+const showVersionRules = ref(false)
+const versionOptions = ref<VersionCompareOptionsState>(loadVersionCompareOptions())
 
 onMounted(() => {
   const launch = sessionLaunch.consumeLaunch('/compare/version')
@@ -72,19 +81,45 @@ const versionSummary = computed<Record<VersionFieldStatus, number>>(() => {
 
   return summary
 })
+function fieldIsImportant(field: string): boolean {
+  return isVersionFieldImportant(field, versionOptions.value)
+}
+
 const visibleVersionFields = computed(() => {
   if (fieldFilter.value === 'diffs') {
-    return versionFields.value.filter((field) => field.status !== 'unchanged')
+    return versionFields.value.filter(
+      (field) => field.status !== 'unchanged' && fieldIsImportant(field.field),
+    )
   }
 
   if (fieldFilter.value === 'same') {
     return versionFields.value.filter((field) => field.status === 'unchanged')
   }
 
+  if (fieldFilter.value === 'minor') {
+    return versionFields.value.filter(
+      (field) => field.status !== 'unchanged' && !fieldIsImportant(field.field),
+    )
+  }
+
   return versionFields.value
 })
 const differenceFields = computed(() =>
-  versionFields.value.filter((field) => field.status !== 'unchanged'),
+  versionFields.value.filter((field) => {
+    if (field.status === 'unchanged') {
+      return false
+    }
+
+    if (fieldFilter.value === 'minor') {
+      return !fieldIsImportant(field.field)
+    }
+
+    if (fieldFilter.value === 'diffs') {
+      return fieldIsImportant(field.field)
+    }
+
+    return true
+  }),
 )
 
 const versionToolbarCommands = computed(() =>
@@ -93,8 +128,8 @@ const versionToolbarCommands = computed(() =>
     all: true,
     diffs: true,
     same: true,
-    minor: false,
-    rules: false,
+    minor: true,
+    rules: true,
     'next-diff': differenceFields.value.length > 0,
     'prev-diff': differenceFields.value.length > 0,
     swap: Boolean(leftPath.value || rightPath.value),
@@ -110,9 +145,15 @@ function runVersionToolbarCommand(commandId: string): void {
     return
   }
 
-  if (commandId === 'all' || commandId === 'diffs' || commandId === 'same') {
+  if (commandId === 'all' || commandId === 'diffs' || commandId === 'same' || commandId === 'minor') {
     fieldFilter.value = commandId
     activeFieldIndex.value = 0
+
+    return
+  }
+
+  if (commandId === 'rules') {
+    showVersionRules.value = !showVersionRules.value
 
     return
   }
@@ -168,6 +209,25 @@ function applyVersionResult(result: VersionCompareResponse): void {
   rightVersion.value = result.right
   versionFields.value = result.fields
   versionSummaryOverride.value = result.summary
+  activeFieldIndex.value = 0
+  syncVersionTabTitle()
+}
+
+function syncVersionTabTitle(): void {
+  if (!leftPath.value || !rightPath.value) {
+    return
+  }
+
+  tabs.setTabTitle('/compare/version', pathPairTitle(leftPath.value, rightPath.value))
+}
+
+function persistVersionOptions(): void {
+  saveVersionCompareOptions(versionOptions.value)
+}
+
+function toggleFieldImportance(field: string): void {
+  versionOptions.value = toggleVersionFieldImportance(field, versionOptions.value)
+  persistVersionOptions()
 }
 
 async function runVersionCompare(): Promise<void> {
@@ -320,20 +380,50 @@ async function runVersionCompare(): Promise<void> {
           <span>{{ $t('ui.left') }}</span>
           <span>{{ $t('ui.right') }}</span>
           <span>{{ $t('ui.status') }}</span>
+          <span>{{ $t('ui.importance') }}</span>
         </div>
         <div
           v-for="row in visibleVersionFields"
           :key="row.field"
           class="version-field-row"
-          :class="`status-${row.status}`"
+          :class="[`status-${row.status}`, { 'version-field-minor': !fieldIsImportant(row.field) }]"
           :data-testid="`version-field-${row.field}`"
+          :data-important="fieldIsImportant(row.field) ? 'true' : 'false'"
         >
           <span>{{ row.group }}</span>
           <strong>{{ row.field }}</strong>
           <code>{{ valueText(row.left) }}</code>
           <code>{{ valueText(row.right) }}</code>
           <em>{{ statusLabel(row.status) }}</em>
+          <span>{{ fieldIsImportant(row.field) ? $t('ui.important') : $t('ui.unimportant') }}</span>
         </div>
+      </div>
+    </section>
+
+    <section
+      v-if="showVersionRules"
+      class="version-rules-panel"
+      data-testid="version-rules-panel"
+    >
+      <header>
+        <strong>{{ $t('ui.importanceRules') }}</strong>
+        <span>{{ $t('ui.versionRulesHint') }}</span>
+      </header>
+      <div class="version-rules-list">
+        <label
+          v-for="row in versionFields"
+          :key="`rule-${row.field}`"
+          class="version-rule-row"
+          :data-testid="`version-rule-${row.field}`"
+        >
+          <input
+            type="checkbox"
+            :checked="fieldIsImportant(row.field)"
+            @change="toggleFieldImportance(row.field)"
+          />
+          <span>{{ row.field }}</span>
+          <em>{{ row.group }}</em>
+        </label>
       </div>
     </section>
   </section>
@@ -536,11 +626,56 @@ h1 {
 .version-field-row {
   display: grid;
   grid-template-columns:
-    120px 150px minmax(180px, 1fr) minmax(180px, 1fr)
-    98px;
-  min-width: 760px;
+    110px 140px minmax(160px, 1fr) minmax(160px, 1fr)
+    98px 98px;
+  min-width: 820px;
   border-bottom: 1px solid var(--app-border);
   font-size: 12px;
+}
+
+.version-field-minor {
+  opacity: 0.78;
+}
+
+.version-rules-panel {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  background: var(--app-surface);
+}
+
+.version-rules-panel header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.version-rules-panel header span {
+  color: var(--app-text-muted);
+  font-size: 12px;
+}
+
+.version-rules-list {
+  display: grid;
+  gap: 6px;
+  max-height: 240px;
+  overflow: auto;
+}
+
+.version-rule-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  font-size: 12px;
+}
+
+.version-rule-row em {
+  color: var(--app-text-muted);
+  font-style: normal;
 }
 
 .version-field-row:last-child {

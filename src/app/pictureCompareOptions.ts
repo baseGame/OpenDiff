@@ -5,6 +5,10 @@ export interface PictureCompareOptionsState {
   compareAlpha: boolean
   ignoreColorFrom: number[] | null
   ignoreColorTo: number[] | null
+  blendEnabled: boolean
+  blendOpacity: number
+  showMeta: boolean
+  showMinor: boolean
 }
 
 export function defaultPictureCompareOptions(): PictureCompareOptionsState {
@@ -13,6 +17,10 @@ export function defaultPictureCompareOptions(): PictureCompareOptionsState {
     compareAlpha: true,
     ignoreColorFrom: null,
     ignoreColorTo: null,
+    blendEnabled: false,
+    blendOpacity: 50,
+    showMeta: true,
+    showMinor: false,
   }
 }
 
@@ -24,6 +32,16 @@ function clampChannel(value: unknown, fallback = 0): number {
   }
 
   return Math.min(255, Math.max(0, Math.round(numeric)))
+}
+
+function clampPercent(value: unknown, fallback = 50): number {
+  const numeric = typeof value === 'number' ? value : Number(value)
+
+  if (!Number.isFinite(numeric)) {
+    return fallback
+  }
+
+  return Math.min(100, Math.max(0, Math.round(numeric)))
 }
 
 export function normalizeRgba(value: unknown): number[] | null {
@@ -50,12 +68,17 @@ export function loadPictureCompareOptions(
     }
 
     const parsed = JSON.parse(raw) as Partial<PictureCompareOptionsState>
+    const defaults = defaultPictureCompareOptions()
 
     return {
       rgbTolerance: clampChannel(parsed.rgbTolerance, 0),
       compareAlpha: parsed.compareAlpha !== false,
       ignoreColorFrom: normalizeRgba(parsed.ignoreColorFrom),
       ignoreColorTo: normalizeRgba(parsed.ignoreColorTo),
+      blendEnabled: parsed.blendEnabled === true,
+      blendOpacity: clampPercent(parsed.blendOpacity, defaults.blendOpacity),
+      showMeta: parsed.showMeta !== false,
+      showMinor: parsed.showMinor === true,
     }
   } catch {
     return defaultPictureCompareOptions()
@@ -73,6 +96,10 @@ export function savePictureCompareOptions(
       compareAlpha: state.compareAlpha,
       ignoreColorFrom: normalizeRgba(state.ignoreColorFrom),
       ignoreColorTo: normalizeRgba(state.ignoreColorTo),
+      blendEnabled: state.blendEnabled,
+      blendOpacity: clampPercent(state.blendOpacity, 50),
+      showMeta: state.showMeta,
+      showMinor: state.showMinor,
     }),
   )
 }

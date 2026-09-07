@@ -32,9 +32,25 @@ const sessionLaunch = useSessionLaunchStore()
 const tabs = useTabsStore()
 const { t } = useI18n()
 const lastOpenedConflictPath = ref('')
+const sameOkOnly = ref(false)
+const showPeek = ref(false)
+const selectedPlanRowId = ref('')
 
 const planRows = computed<FolderMergePlanRow[]>(() => plan.value?.rows ?? [])
 const hasPlan = computed(() => planRows.value.length > 0)
+const visiblePlanRows = computed(() => {
+  if (!sameOkOnly.value) {
+    return planRows.value
+  }
+
+  return planRows.value.filter((row) => row.action === 'Keep output')
+})
+const selectedPlanRow = computed(
+  () => planRows.value.find((row) => row.id === selectedPlanRowId.value) ?? null,
+)
+const sameOkCount = computed(
+  () => planRows.value.filter((row) => row.action === 'Keep output').length,
+)
 const conflicts = computed(() =>
   planRows.value.flatMap((row) => (row.conflict ? [row.conflict] : [])),
 )
@@ -159,6 +175,24 @@ function openConflictInTextMerge(conflict: FolderMergeConflict): void {
   void router.push('/merge/text')
 }
 
+function selectPlanRow(row: FolderMergePlanRow): void {
+  selectedPlanRowId.value = row.id
+  if (showPeek.value === false) {
+    showPeek.value = true
+  }
+}
+
+function toggleSameOkFilter(): void {
+  sameOkOnly.value = !sameOkOnly.value
+}
+
+function togglePeekPanel(): void {
+  showPeek.value = !showPeek.value
+  if (showPeek.value && !selectedPlanRowId.value && visiblePlanRows.value[0]) {
+    selectedPlanRowId.value = visiblePlanRows.value[0].id
+  }
+}
+
 function joinRoot(root: string, relativePath: string): string {
   const normalizedRoot = root.replaceAll('\\', '/').replace(/\/$/u, '')
   const normalizedRelative = relativePath.replaceAll('\\', '/').replace(/^\//u, '')
@@ -249,6 +283,23 @@ watch(
           <NButton
             size="small"
             secondary
+            data-testid="folder-merge-same-ok"
+            :disabled="!hasPlan"
+            :type="sameOkOnly ? 'primary' : 'tertiary'"
+            @click="toggleSameOkFilter"
+            >{{ $t('ui.sameOk') }} ({{ sameOkCount }})</NButton
+          >
+          <NButton
+            size="small"
+            secondary
+            data-testid="folder-merge-peek"
+            :disabled="!hasPlan"
+            @click="togglePeekPanel"
+            >{{ $t('ui.peek') }}</NButton
+          >
+          <NButton
+            size="small"
+            secondary
             data-testid="folder-merge-execute-plan"
             :disabled="!hasPlan || mergeExecuting"
             :loading="mergeExecuting"
@@ -316,11 +367,15 @@ watch(
             <span>{{ $t('ui.detail') }}</span>
           </div>
           <div
-            v-for="row in planRows"
+            v-for="row in visiblePlanRows"
             :key="row.id"
             class="merge-plan-row"
-            :class="{ conflict: row.action === 'Mark conflict' }"
+            :class="{
+              conflict: row.action === 'Mark conflict',
+              selected: row.id === selectedPlanRowId,
+            }"
             data-testid="folder-merge-row"
+            @click="selectPlanRow(row)"
           >
             <strong>{{ row.path }}</strong>
             <span>{{ sideLabel(row.base) }}</span>
@@ -330,6 +385,57 @@ watch(
             <span>{{ row.detail }}</span>
           </div>
         </div>
+      </section>
+
+      <section
+        v-if="showPeek"
+        class="folder-merge-peek-panel"
+        data-testid="folder-merge-peek-panel"
+      >
+        <header>
+          <strong>{{ $t('ui.peekPanel') }}</strong>
+          <button
+            type="button"
+            data-testid="folder-merge-peek-close"
+            @click="showPeek = false"
+          >
+            {{ $t('ui.close') }}
+          </button>
+        </header>
+        <dl v-if="selectedPlanRow">
+          <div>
+            <dt>{{ $t('ui.path') }}</dt>
+            <dd data-testid="folder-merge-peek-path">{{ selectedPlanRow.path }}</dd>
+          </div>
+          <div>
+            <dt>{{ $t('ui.base') }}</dt>
+            <dd>{{ sideLabel(selectedPlanRow.base) }}</dd>
+          </div>
+          <div>
+            <dt>{{ $t('ui.left') }}</dt>
+            <dd>{{ sideLabel(selectedPlanRow.left) }}</dd>
+          </div>
+          <div>
+            <dt>{{ $t('ui.right') }}</dt>
+            <dd>{{ sideLabel(selectedPlanRow.right) }}</dd>
+          </div>
+          <div>
+            <dt>{{ $t('ui.action') }}</dt>
+            <dd data-testid="folder-merge-peek-action">{{
+              folderMergeActionLabel(selectedPlanRow.action)
+            }}</dd>
+          </div>
+          <div>
+            <dt>{{ $t('ui.detail') }}</dt>
+            <dd>{{ selectedPlanRow.detail }}</dd>
+          </div>
+        </dl>
+        <p
+          v-else
+          data-testid="folder-merge-peek-empty"
+        >
+          {{ $t('ui.noSelection') }}
+        </p>
       </section>
 
       <section
@@ -644,5 +750,45 @@ h1 {
   .merge-summary div {
     text-align: left;
   }
+}
+.folder-merge-peek-panel {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  background: var(--app-surface);
+}
+
+.folder-merge-peek-panel header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.folder-merge-peek-panel dl {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.folder-merge-peek-panel dt {
+  color: var(--app-text-muted);
+  font-size: 11px;
+}
+
+.folder-merge-peek-panel dd {
+  margin: 0;
+  font-size: 12px;
+}
+
+.merge-plan-row.selected {
+  outline: 1px solid var(--app-accent);
+  background: color-mix(in srgb, var(--app-accent) 12%, transparent);
+}
+
+.merge-plan-row {
+  cursor: pointer;
 }
 </style>

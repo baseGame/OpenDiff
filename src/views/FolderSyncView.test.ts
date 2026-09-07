@@ -108,7 +108,16 @@ describe('FolderSyncView', () => {
     expect(wrapper.text()).toContain('Copy L→R')
     expect(wrapper.text()).toContain('Delete')
 
+    expect(wrapper.find('[data-testid="folder-sync-title"]').text()).toContain('Update:')
+    expect(wrapper.find('[data-testid="folder-sync-run"]').attributes('disabled')).toBeDefined()
+
+    await wrapper.find('[data-testid="folder-sync-accept"]').trigger('click')
+    expect(wrapper.find('[data-testid="folder-sync-chrome-status"]').text()).toContain('accepted')
+    expect(wrapper.find('[data-testid="folder-sync-run"]').attributes('disabled')).toBeUndefined()
+
     await wrapper.find('[data-testid="sync-override-copy-app"]').setValue('leave')
+    expect(wrapper.find('[data-testid="folder-sync-run"]').attributes('disabled')).toBeDefined()
+    await wrapper.find('[data-testid="folder-sync-accept"]').trigger('click')
     await wrapper.find('[data-testid="folder-sync-run"]').trigger('click')
     await flushPromises()
 
@@ -117,13 +126,46 @@ describe('FolderSyncView', () => {
       rightRoot: 'D:/deploy/prod',
       strategy: 'mirrorRight',
       overrides: [
-        { relativePath: 'package/app.exe', action: 'leave' },
+        { relativePath: 'package/app.exe', action: 'copyLeftToRight' },
         { relativePath: 'prod/old.dll', action: 'delete' },
       ],
     })
     expect(wrapper.text()).toContain('Completed 2 / 2')
     expect(wrapper.text()).toContain('Copied package/app.exe')
     expect(wrapper.text()).toContain('Deleted prod/old.dll')
+  })
+
+  it('cancels overrides to leave and resets a single row', async () => {
+    const wrapper = mount(FolderSyncView, {
+      global: {
+        stubs: {
+          NButton: {
+            props: ['disabled', 'loading'],
+            emits: ['click'],
+            template: '<button :disabled="disabled" @click="$emit(\'click\')"><slot /></button>',
+          },
+        },
+      },
+    })
+
+    await wrapper.find('[data-testid="folder-sync-left-path"]').setValue('D:/deploy/package')
+    await wrapper.find('[data-testid="folder-sync-right-path"]').setValue('D:/deploy/prod')
+    await wrapper.find('[data-testid="folder-sync-strategy"]').setValue('mirrorRight')
+    await wrapper.find('[data-testid="folder-sync-preview"]').trigger('click')
+    await flushPromises()
+
+    await wrapper.find('[data-testid="folder-sync-cancel"]').trigger('click')
+    expect(
+      (wrapper.find('[data-testid="sync-override-copy-app"]').element as HTMLSelectElement).value,
+    ).toBe('leave')
+    expect(
+      (wrapper.find('[data-testid="sync-override-delete-old"]').element as HTMLSelectElement).value,
+    ).toBe('leave')
+
+    await wrapper.find('[data-testid="sync-reset-copy-app"]').trigger('click')
+    expect(
+      (wrapper.find('[data-testid="sync-override-copy-app"]').element as HTMLSelectElement).value,
+    ).toBe('copyLeftToRight')
   })
 
   it('consumes a saved-session launch and auto-previews', async () => {

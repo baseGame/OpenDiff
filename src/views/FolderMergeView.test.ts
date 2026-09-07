@@ -192,6 +192,24 @@ describe('FolderMergeView', () => {
       outputRoot: 'D:/workspace/merge/output',
     })
   })
+
+  it('filters Same OK rows and peeks a selected plan row', async () => {
+    const wrapper = mountFolderMergeView()
+    await fillMergePaths(wrapper)
+    await wrapper.find('[data-testid="folder-merge-build-plan"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.findAll('[data-testid="folder-merge-row"]')).toHaveLength(5)
+    await wrapper.find('[data-testid="folder-merge-same-ok"]').trigger('click')
+    expect(wrapper.findAll('[data-testid="folder-merge-row"]')).toHaveLength(1)
+    expect(wrapper.text()).toContain('same.txt')
+
+    await wrapper.find('[data-testid="folder-merge-same-ok"]').trigger('click')
+    await wrapper.find('[data-testid="folder-merge-peek"]').trigger('click')
+    expect(wrapper.find('[data-testid="folder-merge-peek-panel"]').exists()).toBe(true)
+    await wrapper.findAll('[data-testid="folder-merge-row"]')[1].trigger('click')
+    expect(wrapper.find('[data-testid="folder-merge-peek-path"]').text()).toContain('left-add.txt')
+  })
 })
 
 function createMergePlanResponse(): FolderMergePlanResponse {
