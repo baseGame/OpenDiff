@@ -13,7 +13,7 @@ export const sessionNewWindowCapability = {
 } as const
 
 export function nextSessionWindowLabel(nowMs: number = Date.now()): string {
-  return `session-${nowMs}`
+  return `session-${String(nowMs)}`
 }
 
 /**
@@ -24,10 +24,6 @@ export async function openSessionWindow(
   openBlank: (url: string, target: string) => Window | null = (url, target) =>
     window.open(url, target),
 ): Promise<boolean> {
-  if (!sessionNewWindowCapability.supported) {
-    return false
-  }
-
   if (!isTauriRuntime()) {
     const opened = openBlank(window.location.href, '_blank')
 
@@ -49,7 +45,7 @@ export async function openSessionWindow(
 
     return await new Promise<boolean>((resolve) => {
       let settled = false
-      const finish = (ok: boolean) => {
+      const finish = (ok: boolean): void => {
         if (settled) {
           return
         }
