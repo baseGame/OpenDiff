@@ -2,7 +2,6 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { compareTable, readTextFile } from '@/api/diff'
-import { extensionOf } from '@/app/fileFormats'
 import type {
   TableCompareChangedCell,
   TableCompareRequest,
@@ -12,6 +11,11 @@ import WorkbenchShell from '@/components/workbench/WorkbenchShell.vue'
 import WorkbenchInspector from '@/components/workbench/WorkbenchInspector.vue'
 import StatusSummaryGrid from '@/components/workbench/StatusSummaryGrid.vue'
 import { buildTableCompareToolbar, pathPairTitle } from '@/app/sessionToolbars'
+import {
+  preferredSheetSelection,
+  tableFormatFromPaths,
+  usesWorkbookSheets,
+} from '@/app/tableSheets'
 import { useSessionLaunchStore } from '@/stores/sessionLaunch'
 import { useTabsStore } from '@/stores/tabs'
 import { useI18n } from '@/i18n'
@@ -57,8 +61,11 @@ const rightPath = ref('')
 const tableFormat = ref<NonNullable<TableCompareRequest['format']>>('csv')
 const leftSheet = ref('')
 const rightSheet = ref('')
+const leftSheets = ref<string[]>([])
+const rightSheets = ref<string[]>([])
 const keyColumnsInput = ref('0')
 const delimiterInput = ref('')
+const suppressSheetCompare = ref(false)
 const sessionLaunch = useSessionLaunchStore()
 const tabs = useTabsStore()
 const router = useRouter()
@@ -78,7 +85,6 @@ const activeDifferenceIndex = ref(0)
 const loading = ref(false)
 const error = ref('')
 const tableDifferenceCells = ref<TableCellLocation[]>([])
-const availableSheets = ref<string[]>([])
 
 onMounted(() => {
   const launch = sessionLaunch.consumeLaunch('/compare/table')
@@ -209,27 +215,27 @@ const columnMappings = computed<ColumnMappingModel[]>(() => {
   return mappings
 })
 
-function formatFromPath(path: string): NonNullable<TableCompareRequest['format']> {
-  const extension = extensionOf(path)
+const showSheetSelectors = computed(
+  () =>
+    usesWorkbookSheets(tableFormat.value) ||
+    leftSheets.value.length > 1 ||
+    rightSheets.value.length > 1,
+)
+const sheetSelectionSummary = computed(() => {
+  const leftCount = leftSheets.value.length
+  const rightCount = rightSheets.value.length
 
-  if (extension === 'tsv' || extension === 'tab') {
-    return 'tsv'
+  if (leftCount === 0 && rightCount === 0) {
+    return t('ui.sheetSelectionEmpty')
   }
 
-  if (extension === 'xlsx') {
-    return 'xlsx'
-  }
-
-  if (extension === 'xls') {
-    return 'xls'
-  }
-
-  if (extension === 'html' || extension === 'htm') {
-    return 'html'
-  }
-
-  return 'csv'
-}
+  return t('ui.sheetSelectionSummary', {
+    leftCount,
+    rightCount,
+    leftSheet: leftSheet.value || t('ui.sheetNotSelected'),
+    rightSheet: rightSheet.value || t('ui.sheetNotSelected'),
+  })
+})
 
 function parseKeyColumnIndices(): number[] {
   return keyColumnsInput.value
@@ -345,15 +351,16 @@ async function runTableCompare(): Promise<void> {
 
     leftColumns.value = result.leftColumns
     rightColumns.value = result.rightColumns
-    availableSheets.value = [
-      ...new Set([...(result.leftSheets ?? []), ...(result.rightSheets ?? [])]),
-    ]
-    if (result.leftSheet) {
-      leftSheet.value = result.leftSheet
-    }
-    if (result.rightSheet) {
-      rightSheet.value = result.rightSheet
-    }
+    leftSheets.value = result.leftSheets ?? []
+    rightSheets.value = result.rightSheets ?? []
+    suppressSheetCompare.value = true
+    leftSheet.value = preferredSheetSelection(leftSheets.value, leftSheet.value, result.leftSheet)
+    rightSheet.value = preferredSheetSelection(
+      rightSheets.value,
+      rightSheet.value,
+      result.rightSheet,
+    )
+    suppressSheetCompare.value = false
     virtualGridColumns.value = columns
     comparedRows.value = rowsFromResult(result, columns)
     tableDifferenceCells.value = changedCellsFromResult(result.changedCells, columns)
@@ -370,7 +377,11 @@ async function runTableCompare(): Promise<void> {
 async function loadLaunchTables(nextLeftPath: string, nextRightPath: string): Promise<void> {
   leftPath.value = nextLeftPath
   rightPath.value = nextRightPath
-  tableFormat.value = formatFromPath(nextLeftPath)
+  tableFormat.value = tableFormatFromPaths(nextLeftPath, nextRightPath)
+  leftSheet.value = ''
+  rightSheet.value = ''
+  leftSheets.value = []
+  rightSheets.value = []
 
   if (tableFormat.value === 'xlsx' || tableFormat.value === 'xls') {
     await runTableCompare()
@@ -512,6 +523,16 @@ function runTableToolbarCommand(commandId: string): void {
   }
 }
 
+function onSheetSelectionChange(): void {
+  if (suppressSheetCompare.value) {
+    return
+  }
+
+  if ((leftCsv.value && rightCsv.value) || (leftPath.value && rightPath.value)) {
+    void runTableCompare()
+  }
+}
+
 watch([leftPath, rightPath], () => {
   syncTableTabTitle()
 })
@@ -536,6 +557,13 @@ watch([leftPath, rightPath], () => {
         <div class="table-summary">
           <strong>{{ columnMappings.length }}</strong>
           <span>{{ $t('ui.columnMappings') }}</span>
+        </div>
+        <div
+          v-if="showSheetSelectors"
+          class="table-summary"
+          data-testid="table-sheet-summary"
+        >
+          <span>{{ sheetSelectionSummary }}</span>
         </div>
       </header>
 
@@ -569,22 +597,54 @@ watch([leftPath, rightPath], () => {
             <option value="html">{{ $t('ui.html') }}</option>
           </select>
         </label>
-        <label>
+        <label v-if="showSheetSelectors">
           <span>{{ $t('ui.leftSheet') }}</span>
+          <select
+            v-if="leftSheets.length > 0"
+            v-model="leftSheet"
+            data-testid="table-left-sheet"
+            @change="onSheetSelectionChange"
+          >
+            <option
+              v-for="sheet in leftSheets"
+              :key="`left-${sheet}`"
+              :value="sheet"
+            >
+              {{ sheet }}
+            </option>
+          </select>
           <input
+            v-else
             v-model="leftSheet"
             type="text"
-            list="table-sheet-options"
             data-testid="table-left-sheet"
+            :placeholder="$t('ui.sheetNamePlaceholder')"
+            @change="onSheetSelectionChange"
           />
         </label>
-        <label>
+        <label v-if="showSheetSelectors">
           <span>{{ $t('ui.rightSheet') }}</span>
+          <select
+            v-if="rightSheets.length > 0"
+            v-model="rightSheet"
+            data-testid="table-right-sheet"
+            @change="onSheetSelectionChange"
+          >
+            <option
+              v-for="sheet in rightSheets"
+              :key="`right-${sheet}`"
+              :value="sheet"
+            >
+              {{ sheet }}
+            </option>
+          </select>
           <input
+            v-else
             v-model="rightSheet"
             type="text"
-            list="table-sheet-options"
             data-testid="table-right-sheet"
+            :placeholder="$t('ui.sheetNamePlaceholder')"
+            @change="onSheetSelectionChange"
           />
         </label>
         <label>
@@ -604,13 +664,6 @@ watch([leftPath, rightPath], () => {
             data-testid="table-delimiter"
           />
         </label>
-        <datalist id="table-sheet-options">
-          <option
-            v-for="sheet in availableSheets"
-            :key="sheet"
-            :value="sheet"
-          />
-        </datalist>
       </section>
 
       <section class="column-map-controls">

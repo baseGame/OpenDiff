@@ -458,6 +458,11 @@ export const jaJP: LanguagePack = {
     'ui.filterSessions': 'Filter sessions...',
     'ui.lastOpened': 'Last Opened',
     'ui.leftSheet': 'Left sheet',
+    'ui.sheetNamePlaceholder': 'Sheet or HTML table name',
+    'ui.sheetNotSelected': 'Not selected',
+    'ui.sheetSelectionEmpty': 'Sheets appear after Excel or HTML compare',
+    'ui.sheetSelectionSummary':
+      '{leftCount} left / {rightCount} right · {leftSheet} vs {rightSheet}',
     'ui.leftPath': 'Left Path',
     'ui.lineEndings': 'Line Endings',
     'ui.quickInput': 'Quick Input',

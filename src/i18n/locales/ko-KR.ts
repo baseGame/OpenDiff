@@ -639,6 +639,11 @@ export const koKR: LanguagePack = {
     'ui.applyPatch': 'Apply Patch',
     'ui.patchedOutput': 'Patched output',
     'ui.leftSheet': 'Left sheet',
+    'ui.sheetNamePlaceholder': 'Sheet or HTML table name',
+    'ui.sheetNotSelected': 'Not selected',
+    'ui.sheetSelectionEmpty': 'Sheets appear after Excel or HTML compare',
+    'ui.sheetSelectionSummary':
+      '{leftCount} left / {rightCount} right · {leftSheet} vs {rightSheet}',
     'session.summary.archiveCompare': 'Compare ZIP or TAR contents (7z not available)',
     'session.summary.script': 'Run a simple script to load, compare, and export a report',
     'ui.archiveCompare': '아카이브 비교',

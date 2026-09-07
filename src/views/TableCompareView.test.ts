@@ -1,4 +1,4 @@
-import { mount, type VueWrapper } from '@vue/test-utils'
+import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import TableCompareView from './TableCompareView.vue'
@@ -46,6 +46,10 @@ vi.mock('@/api/diff', () => ({
       changedRowCount: 1,
       changedCellCount: 1,
     },
+    leftSheets: ['Sheet1'],
+    rightSheets: ['Sheet1'],
+    leftSheet: 'Sheet1',
+    rightSheet: 'Sheet1',
   }),
   readTextFile: vi.fn().mockImplementation((path: string) =>
     Promise.resolve({
@@ -248,5 +252,195 @@ describe('TableCompareView', () => {
     await wrapper.find('[data-testid="table-session-toolbar-next-diff"]').trigger('click')
 
     expect(wrapper.find('[data-testid="active-table-cell"]').text()).toContain('12 -> 14')
+  })
+
+  it('launches Excel workbooks by path and surfaces sheet selectors', async () => {
+    vi.mocked(compareTable).mockResolvedValueOnce({
+      leftColumns: [{ side: 'left', name: 'id' }],
+      rightColumns: [{ side: 'right', name: 'id' }],
+      columnMappings: [{ leftColumn: 'id', rightColumn: 'id', source: 'Automatic' }],
+      rows: [{ index: 0, leftCells: ['1'], rightCells: ['1'], status: 'Same' }],
+      changedCells: [],
+      summary: { rowCount: 1, changedRowCount: 0, changedCellCount: 0 },
+      leftSheets: ['Inventory', 'Flags'],
+      rightSheets: ['Flags', 'Inventory'],
+      leftSheet: 'Inventory',
+      rightSheet: 'Inventory',
+    })
+
+    useSessionLaunchStore().setPendingLaunch({
+      id: 'launch-xlsx',
+      source: 'drop',
+      sessionType: 'table-compare',
+      title: 'left.xlsx vs right.xlsx',
+      route: '/compare/table',
+      autoRun: true,
+      locations: {
+        left: { uri: 'C:/drop/left.xlsx', kind: 'file', readOnly: false },
+        right: { uri: 'C:/drop/right.xlsx', kind: 'file', readOnly: false },
+      },
+    })
+
+    const wrapper = mountTableCompareView()
+
+    await flushPromises()
+    await wrapper.vm.$nextTick()
+
+    expect(readTextFile).not.toHaveBeenCalled()
+    expect(compareTable).toHaveBeenCalledWith(
+      expect.objectContaining({
+        format: 'xlsx',
+        leftPath: 'C:/drop/left.xlsx',
+        rightPath: 'C:/drop/right.xlsx',
+      }),
+    )
+    expect(wrapper.find('[data-testid="table-sheet-summary"]').text()).toContain('Inventory')
+    expect(
+      (wrapper.find('[data-testid="table-left-sheet"]').element as HTMLSelectElement).value,
+    ).toBe('Inventory')
+    expect(
+      (wrapper.find('[data-testid="table-right-sheet"]').element as HTMLSelectElement).value,
+    ).toBe('Inventory')
+  })
+
+  it('recompares when the selected Excel sheet changes', async () => {
+    vi.mocked(compareTable).mockImplementation((request) => {
+      const sheet =
+        request.leftSheet === 'Flags' || request.rightSheet === 'Flags' ? 'Flags' : 'Inventory'
+
+      return Promise.resolve({
+        leftColumns: [{ side: 'left', name: sheet === 'Flags' ? 'flag' : 'id' }],
+        rightColumns: [{ side: 'right', name: sheet === 'Flags' ? 'flag' : 'id' }],
+        columnMappings: [
+          {
+            leftColumn: sheet === 'Flags' ? 'flag' : 'id',
+            rightColumn: sheet === 'Flags' ? 'flag' : 'id',
+            source: 'Automatic',
+          },
+        ],
+        rows: [
+          {
+            index: 0,
+            leftCells: [sheet === 'Flags' ? 'yes' : '1'],
+            rightCells: [sheet === 'Flags' ? 'no' : '1'],
+            status: sheet === 'Flags' ? 'Modified' : 'Same',
+          },
+        ],
+        changedCells:
+          sheet === 'Flags'
+            ? [
+                {
+                  rowIndex: 0,
+                  columnIndex: 0,
+                  leftValue: 'yes',
+                  rightValue: 'no',
+                  status: 'Modified',
+                },
+              ]
+            : [],
+        summary: {
+          rowCount: 1,
+          changedRowCount: sheet === 'Flags' ? 1 : 0,
+          changedCellCount: sheet === 'Flags' ? 1 : 0,
+        },
+        leftSheets: ['Inventory', 'Flags'],
+        rightSheets: ['Inventory', 'Flags'],
+        leftSheet: sheet,
+        rightSheet: sheet,
+      })
+    })
+
+    const wrapper = mountTableCompareView()
+
+    await wrapper.find('[data-testid="table-left-path"]').setValue('C:/data/left.xlsx')
+    await wrapper.find('[data-testid="table-right-path"]').setValue('C:/data/right.xlsx')
+    await wrapper.find('[data-testid="table-format"]').setValue('xlsx')
+    await wrapper.find('[data-testid="run-table-compare"]').trigger('click')
+    await Promise.resolve()
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('[data-testid="table-left-sheet"]').exists()).toBe(true)
+
+    await wrapper.find('[data-testid="table-left-sheet"]').setValue('Flags')
+    await wrapper.find('[data-testid="table-right-sheet"]').setValue('Flags')
+    await wrapper.find('[data-testid="table-left-sheet"]').trigger('change')
+    await flushPromises()
+    await wrapper.vm.$nextTick()
+
+    const request = vi.mocked(compareTable).mock.calls.at(-1)?.[0]
+
+    expect(request).toEqual(
+      expect.objectContaining({
+        format: 'xlsx',
+        leftSheet: 'Flags',
+        rightSheet: 'Flags',
+      }),
+    )
+  })
+
+  it('launches HTML tables with format detection and named sheet options', async () => {
+    vi.mocked(compareTable).mockResolvedValue({
+      leftColumns: [{ side: 'left', name: 'id' }],
+      rightColumns: [{ side: 'right', name: 'id' }],
+      columnMappings: [{ leftColumn: 'id', rightColumn: 'id', source: 'Automatic' }],
+      rows: [{ index: 0, leftCells: ['1'], rightCells: ['2'], status: 'Modified' }],
+      changedCells: [
+        {
+          rowIndex: 0,
+          columnIndex: 0,
+          leftValue: '1',
+          rightValue: '2',
+          status: 'Modified',
+        },
+      ],
+      summary: { rowCount: 1, changedRowCount: 1, changedCellCount: 1 },
+      leftSheets: ['people', 'pets'],
+      rightSheets: ['pets', 'people'],
+      leftSheet: 'people',
+      rightSheet: 'people',
+    })
+    vi.mocked(readTextFile).mockImplementation((path: string) =>
+      Promise.resolve({
+        path,
+        text: path.includes('left')
+          ? '<table id="people"><tr><th>id</th></tr><tr><td>1</td></tr></table>'
+          : '<table id="people"><tr><th>id</th></tr><tr><td>2</td></tr></table>',
+        encoding: 'UTF-8',
+        lineEnding: 'LF',
+        fileStamp: { size: 40, modifiedAtMs: 1 },
+      }),
+    )
+
+    useSessionLaunchStore().setPendingLaunch({
+      id: 'launch-html',
+      source: 'drop',
+      sessionType: 'table-compare',
+      title: 'left.html vs right.html',
+      route: '/compare/table',
+      autoRun: true,
+      locations: {
+        left: { uri: 'C:/drop/left.html', kind: 'file', readOnly: false },
+        right: { uri: 'C:/drop/right.html', kind: 'file', readOnly: false },
+      },
+    })
+
+    const wrapper = mountTableCompareView()
+
+    await flushPromises()
+    await wrapper.vm.$nextTick()
+
+    expect(compareTable).toHaveBeenCalledWith(
+      expect.objectContaining({
+        format: 'html',
+        leftPath: 'C:/drop/left.html',
+        rightPath: 'C:/drop/right.html',
+      }),
+    )
+    expect(wrapper.find('[data-testid="table-sheet-summary"]').text()).toContain('people')
+    expect(
+      Array.from(
+        (wrapper.find('[data-testid="table-left-sheet"]').element as HTMLSelectElement).options,
+      ).map((option) => option.value),
+    ).toEqual(['people', 'pets'])
   })
 })
