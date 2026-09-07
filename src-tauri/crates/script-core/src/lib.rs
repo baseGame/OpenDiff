@@ -134,6 +134,15 @@ pub struct ScriptFolderCriteria {
     pub compare_modified_time: bool,
     pub compare_contents: bool,
     pub compare_crc: bool,
+    #[serde(default)]
+    pub timestamp_tolerance_ms: u128,
+    #[serde(default)]
+    pub ignore_daylight_saving_hour_offset: bool,
+    #[serde(default)]
+    pub ignored_timezone_hour_offsets: Vec<i32>,
+    /// When contents are compared, treat whitespace / case / EOL as unimportant.
+    #[serde(default)]
+    pub ignore_unimportant: bool,
 }
 
 impl Default for ScriptFolderCriteria {
@@ -143,6 +152,10 @@ impl Default for ScriptFolderCriteria {
             compare_modified_time: false,
             compare_contents: true,
             compare_crc: false,
+            timestamp_tolerance_ms: 0,
+            ignore_daylight_saving_hour_offset: false,
+            ignored_timezone_hour_offsets: Vec::new(),
+            ignore_unimportant: false,
         }
     }
 }
@@ -155,6 +168,9 @@ impl ScriptFolderCriteria {
             case_sensitive_names: true,
             compare_contents: self.compare_contents,
             compare_crc: self.compare_crc,
+            timestamp_tolerance_ms: self.timestamp_tolerance_ms,
+            ignore_daylight_saving_hour_offset: self.ignore_daylight_saving_hour_offset,
+            ignored_timezone_hour_offsets: self.ignored_timezone_hour_offsets.clone(),
         }
     }
 }
@@ -844,6 +860,8 @@ fn apply_criteria_command(
         ("compare-timestamp", criteria.compare_modified_time),
         ("compare-contents", criteria.compare_contents),
         ("compare-crc", criteria.compare_crc),
+        ("ignore-unimportant", criteria.ignore_unimportant),
+        ("ignore-dst", criteria.ignore_daylight_saving_hour_offset),
     ] {
         state
             .options
@@ -855,6 +873,25 @@ fn apply_criteria_command(
             } else {
                 "false".to_owned()
             },
+        });
+    }
+    if criteria.timestamp_tolerance_ms > 0 {
+        state
+            .options
+            .retain(|option| !option.key.eq_ignore_ascii_case("timestamp-tolerance-ms"));
+        state.options.push(ScriptOption {
+            key: "timestamp-tolerance-ms".to_owned(),
+            value: criteria.timestamp_tolerance_ms.to_string(),
+        });
+    }
+    for hours in &criteria.ignored_timezone_hour_offsets {
+        let key = format!("timezone:{hours}");
+        state
+            .options
+            .retain(|option| !option.key.eq_ignore_ascii_case(&key));
+        state.options.push(ScriptOption {
+            key,
+            value: "true".to_owned(),
         });
     }
     for token in &acknowledged {
@@ -870,7 +907,8 @@ fn apply_criteria_command(
 }
 
 /// Map CRITERIA tokens onto folder Session Settings comparison flags.
-/// Supported: timestamp[:…], size, crc, binary, rules-based.
+/// Supported: timestamp[:seconds], size, crc, binary, rules-based,
+/// ignore-unimportant, IgnoreDST / ignore-dst, timezone:<hours>.
 /// Other legacy script tokens are acknowledged without changing compare results.
 pub fn parse_folder_criteria_tokens(
     tokens: &[String],
@@ -880,6 +918,10 @@ pub fn parse_folder_criteria_tokens(
         compare_modified_time: false,
         compare_contents: false,
         compare_crc: false,
+        timestamp_tolerance_ms: 0,
+        ignore_daylight_saving_hour_offset: false,
+        ignored_timezone_hour_offsets: Vec::new(),
+        ignore_unimportant: false,
     };
     let mut acknowledged = Vec::new();
     let mut saw_content_method = false;
@@ -896,6 +938,14 @@ pub fn parse_folder_criteria_tokens(
         let lower = token.to_ascii_lowercase();
         if lower == "timestamp" || lower.starts_with("timestamp:") {
             criteria.compare_modified_time = true;
+            if let Some(rest) = lower.strip_prefix("timestamp:") {
+                if !rest.is_empty() {
+                    let seconds: u128 = rest
+                        .parse()
+                        .map_err(|_| format!("invalid CRITERIA timestamp tolerance: {token}"))?;
+                    criteria.timestamp_tolerance_ms = seconds.saturating_mul(1_000);
+                }
+            }
             continue;
         }
         if lower == "size" {
@@ -924,11 +974,26 @@ pub fn parse_folder_criteria_tokens(
             criteria.compare_size = true;
             continue;
         }
+        if lower == "ignore-unimportant" {
+            criteria.ignore_unimportant = true;
+            continue;
+        }
+        if lower == "ignoredst" || lower == "ignore-dst" {
+            criteria.compare_modified_time = true;
+            criteria.ignore_daylight_saving_hour_offset = true;
+            continue;
+        }
+        if let Some(rest) = lower.strip_prefix("timezone:") {
+            let hours: i32 = rest
+                .parse()
+                .map_err(|_| format!("invalid CRITERIA timezone offset: {token}"))?;
+            criteria.compare_modified_time = true;
+            criteria.ignored_timezone_hour_offsets.push(hours);
+            continue;
+        }
         if lower.starts_with("attrib:")
             || lower == "version"
-            || lower.starts_with("timezone:")
             || lower == "follow-symlinks"
-            || lower == "ignore-unimportant"
             || lower == "owner"
             || lower == "group"
             || lower == "permissions"
@@ -1281,7 +1346,11 @@ fn classify_script_folder_row(
     row: &folder_core::FolderAlignmentRow,
     criteria: &ScriptFolderCriteria,
 ) -> folder_core::FolderCompareStatus {
-    let options = criteria.to_folder_options();
+    let mut options = criteria.to_folder_options();
+    // Whitespace / EOL ignores can change byte length; don't hard-fail on size first.
+    if criteria.ignore_unimportant && criteria.compare_contents {
+        options.compare_size = false;
+    }
     let metadata_status = folder_core::classify_folder_alignment_with_options(
         row.left.as_ref(),
         row.right.as_ref(),
@@ -1325,6 +1394,22 @@ fn classify_script_folder_row(
     }
 
     if criteria.compare_contents {
+        if criteria.ignore_unimportant {
+            let left_text = String::from_utf8_lossy(&left_bytes);
+            let right_text = String::from_utf8_lossy(&right_bytes);
+            return folder_core::compare_text_content_with_rules(
+                &left_text,
+                &right_text,
+                &folder_core::FolderTextRuleCompareOptions {
+                    ignore_whitespace: true,
+                    ignore_case: true,
+                    ignore_line_endings: true,
+                    ignore_regexes: Vec::new(),
+                    algorithm: None,
+                },
+            )
+            .status;
+        }
         return folder_core::compare_binary_streams(&left_bytes[..], &right_bytes[..], 8192)
             .map(|result| result.status)
             .unwrap_or(folder_core::FolderCompareStatus::Error);
@@ -2014,6 +2099,7 @@ mod tests {
                 compare_modified_time: true,
                 compare_contents: false,
                 compare_crc: false,
+                ..Default::default()
             })
         );
         assert!(result
@@ -2028,6 +2114,7 @@ mod tests {
                 compare_modified_time: true,
                 compare_contents: false,
                 compare_crc: false,
+                ..Default::default()
             })
         );
     }
@@ -2048,10 +2135,25 @@ mod tests {
         let (criteria, acknowledged) = parse_folder_criteria_tokens(&[
             "rules-based".to_owned(),
             "ignore-unimportant".to_owned(),
+            "follow-symlinks".to_owned(),
         ])
-        .expect("ack tokens");
+        .expect("applied + ack tokens");
         assert!(criteria.compare_contents);
-        assert_eq!(acknowledged, vec!["ignore-unimportant".to_owned()]);
+        assert!(criteria.ignore_unimportant);
+        assert_eq!(acknowledged, vec!["follow-symlinks".to_owned()]);
+
+        let (timed, _) = parse_folder_criteria_tokens(&[
+            "timestamp:2".to_owned(),
+            "IgnoreDST".to_owned(),
+            "timezone:8".to_owned(),
+            "size".to_owned(),
+        ])
+        .expect("time tokens");
+        assert!(timed.compare_modified_time);
+        assert_eq!(timed.timestamp_tolerance_ms, 2_000);
+        assert!(timed.ignore_daylight_saving_hour_offset);
+        assert_eq!(timed.ignored_timezone_hour_offsets, vec![8]);
+        assert!(timed.compare_size);
     }
 
     #[test]
@@ -2085,6 +2187,40 @@ mod tests {
         )
         .expect("binary criteria");
         assert_eq!(content.state.last_compare.map(|s| s.different), Some(1));
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn criteria_ignore_unimportant_treats_whitespace_case_as_same() {
+        let root = unique_temp_dir("script-criteria-unimportant");
+        let left = root.join("left");
+        let right = root.join("right");
+        std::fs::create_dir_all(&left).expect("left");
+        std::fs::create_dir_all(&right).expect("right");
+        std::fs::write(left.join("a.txt"), "Hello World").expect("left file");
+        std::fs::write(right.join("a.txt"), "hello   world").expect("right file");
+
+        let ignored = run_script_source(
+            &format!(
+                "LOAD \"{}\" \"{}\"\nCRITERIA rules-based ignore-unimportant\nCOMPARE\n",
+                left.display(),
+                right.display()
+            ),
+            ScriptExecutionContext::default(),
+        )
+        .expect("ignore-unimportant");
+        assert_eq!(ignored.state.last_compare.map(|s| s.different), Some(0));
+
+        let strict = run_script_source(
+            &format!(
+                "LOAD \"{}\" \"{}\"\nCRITERIA binary\nCOMPARE\n",
+                left.display(),
+                right.display()
+            ),
+            ScriptExecutionContext::default(),
+        )
+        .expect("binary strict");
+        assert_eq!(strict.state.last_compare.map(|s| s.different), Some(1));
         let _ = std::fs::remove_dir_all(root);
     }
 

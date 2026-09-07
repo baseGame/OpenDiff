@@ -80,6 +80,14 @@ describe('commandSystem', () => {
     expect(executeCommand('session.exit')).toBe(true)
     expect(context.leaveApp).toHaveBeenCalledTimes(1)
   })
+
+  it('invokes openNewWindow for the session new window command', () => {
+    const context = createExecutionContext()
+    const executeCommand = createCommandExecutor(commandRegistry, context)
+
+    expect(executeCommand('session.newWindow')).toBe(true)
+    expect(context.openNewWindow).toHaveBeenCalledTimes(1)
+  })
 })
 
 function createExecutionContext(): CommandExecutionContext {
@@ -95,5 +103,6 @@ function createExecutionContext(): CommandExecutionContext {
     toggleTheme: vi.fn(),
     dispatchViewAction: vi.fn(),
     leaveApp: vi.fn(),
+    openNewWindow: vi.fn(),
   }
 }

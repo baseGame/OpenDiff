@@ -9,6 +9,7 @@ export interface CommandExecutionContext {
   toggleTheme: () => void
   dispatchViewAction: (name: ViewActionName) => void
   leaveApp: () => void
+  openNewWindow: () => void
 }
 
 export function getCommandsForPlacement(
@@ -49,6 +50,12 @@ export function createCommandExecutor(
 
     if (command.action.type === 'quit') {
       context.leaveApp()
+
+      return true
+    }
+
+    if (command.action.type === 'new-window') {
+      context.openNewWindow()
 
       return true
     }

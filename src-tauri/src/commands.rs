@@ -363,6 +363,7 @@ impl FolderCompareCriteria {
             case_sensitive_names: true,
             compare_contents: self.compare_contents,
             compare_crc: self.compare_crc,
+            ..Default::default()
         }
     }
 }
