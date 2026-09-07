@@ -48,6 +48,16 @@ pub enum CliCommand {
         store_root: String,
         name: String,
     },
+    OpenCompare {
+        session_type: String,
+        left: String,
+        right: String,
+        route: String,
+    },
+    SyncPreview {
+        left: String,
+        right: String,
+    },
     MergeText(CliTextMergeArgs),
     Script {
         path: String,
@@ -141,6 +151,27 @@ pub struct CliOpenSessionResult {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct CliOpenCompareResult {
+    pub exit_code: CliExitCode,
+    pub session_type: String,
+    pub route: String,
+    pub left: String,
+    pub right: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CliSyncPreviewResult {
+    pub exit_code: CliExitCode,
+    pub total: usize,
+    pub copy: usize,
+    pub delete: usize,
+    pub leave: usize,
+    pub conflict: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CliTextMergeResult {
     pub exit_code: CliExitCode,
     pub conflicts: usize,
@@ -194,6 +225,8 @@ where
         "compare" => parse_compare_files(args.collect()),
         "compare-folders" => parse_compare_folders(args.collect()),
         "open-session" => parse_open_session(args.collect()),
+        "open" => parse_open_compare(args.collect()),
+        "sync-preview" => parse_sync_preview(args.collect()),
         "merge-text" => parse_merge_text(args.collect()),
         unknown => Err(usage_error(format!("unknown command: {unknown}"))),
     }
@@ -792,6 +825,194 @@ fn parse_compare_folders(args: Vec<String>) -> Result<CliInvocation, CliParseErr
     })
 }
 
+fn parse_open_compare(args: Vec<String>) -> Result<CliInvocation, CliParseError> {
+    let mut session_type = None;
+    let mut left = None;
+    let mut right = None;
+    let mut positionals = Vec::new();
+    let mut index = 0;
+
+    while index < args.len() {
+        let arg = &args[index];
+        match normalized_switch(arg).as_deref() {
+            Some("session") | Some("type") => {
+                index += 1;
+                let value = args
+                    .get(index)
+                    .ok_or_else(|| usage_error("open --session requires a session type"))?;
+                session_type = Some(value.clone());
+            }
+            Some(switch) if switch.starts_with("session=") || switch.starts_with("type=") => {
+                let value = switch.split_once('=').map(|(_, value)| value).unwrap_or("");
+                session_type = Some(value.to_owned());
+            }
+            Some("left") => {
+                index += 1;
+                let value = args
+                    .get(index)
+                    .ok_or_else(|| usage_error("open --left requires a path"))?;
+                left = Some(value.clone());
+            }
+            Some(switch) if switch.starts_with("left=") => {
+                left = Some(switch[5..].to_owned());
+            }
+            Some("right") => {
+                index += 1;
+                let value = args
+                    .get(index)
+                    .ok_or_else(|| usage_error("open --right requires a path"))?;
+                right = Some(value.clone());
+            }
+            Some(switch) if switch.starts_with("right=") => {
+                right = Some(switch[6..].to_owned());
+            }
+            Some(unknown) => {
+                return Err(usage_error(format!("unknown open switch: {unknown}")));
+            }
+            None => positionals.push(arg.clone()),
+        }
+        index += 1;
+    }
+
+    if left.is_none() && right.is_none() {
+        if positionals.len() != 2 {
+            return Err(usage_error(
+                "open requires LEFT and RIGHT paths (or --left/--right)",
+            ));
+        }
+        left = Some(positionals[0].clone());
+        right = Some(positionals[1].clone());
+    } else if left.is_none() || right.is_none() {
+        return Err(usage_error("open requires both --left and --right"));
+    } else if !positionals.is_empty() {
+        return Err(usage_error(
+            "open does not accept extra positional paths with --left/--right",
+        ));
+    }
+
+    let left = left.expect("left path");
+    let right = right.expect("right path");
+    let (session_type, route) = resolve_open_session_type(session_type.as_deref(), &left, &right)?;
+
+    Ok(CliInvocation {
+        command: CliCommand::OpenCompare {
+            session_type: session_type.to_owned(),
+            left,
+            right,
+            route: route.to_owned(),
+        },
+        exit_code: CliExitCode::Success,
+    })
+}
+
+fn parse_sync_preview(args: Vec<String>) -> Result<CliInvocation, CliParseError> {
+    if args.len() != 2 {
+        return Err(usage_error("sync-preview requires LEFT and RIGHT paths"));
+    }
+
+    Ok(CliInvocation {
+        command: CliCommand::SyncPreview {
+            left: args[0].clone(),
+            right: args[1].clone(),
+        },
+        exit_code: CliExitCode::Success,
+    })
+}
+
+fn resolve_open_session_type(
+    explicit: Option<&str>,
+    left: &str,
+    right: &str,
+) -> Result<(&'static str, &'static str), CliParseError> {
+    let key = explicit
+        .map(str::to_ascii_lowercase)
+        .unwrap_or_else(|| infer_open_session_type(left, right));
+
+    match key.as_str() {
+        "folder" | "folder-compare" | "fc" => Ok(("folder-compare", "/compare/folder")),
+        "folder-sync" | "sync" => Ok(("folder-sync", "/sync/folder")),
+        "folder-merge" => Ok(("folder-merge", "/merge/folder")),
+        "text" | "text-compare" | "tc" => Ok(("text-compare", "/compare/text")),
+        "text-merge" | "merge" => Ok(("text-merge", "/merge/text")),
+        "table" | "table-compare" => Ok(("table-compare", "/compare/table")),
+        "hex" | "hex-compare" => Ok(("hex-compare", "/compare/hex")),
+        "picture" | "picture-compare" | "image" => Ok(("picture-compare", "/compare/picture")),
+        "registry" | "registry-compare" => Ok(("registry-compare", "/compare/registry")),
+        "media" | "media-compare" => Ok(("media-compare", "/compare/media")),
+        "version" | "version-compare" => Ok(("version-compare", "/compare/version")),
+        other => Err(usage_error(format!("unknown session type: {other}"))),
+    }
+}
+
+fn infer_open_session_type(left: &str, right: &str) -> String {
+    let left_dir = Path::new(left).is_dir();
+    let right_dir = Path::new(right).is_dir();
+    if left_dir || right_dir {
+        "folder-compare".to_owned()
+    } else {
+        "text-compare".to_owned()
+    }
+}
+
+pub fn describe_open_compare(
+    session_type: impl Into<String>,
+    left: impl Into<String>,
+    right: impl Into<String>,
+    route: impl Into<String>,
+) -> CliOpenCompareResult {
+    CliOpenCompareResult {
+        exit_code: CliExitCode::Success,
+        session_type: session_type.into(),
+        route: route.into(),
+        left: left.into(),
+        right: right.into(),
+    }
+}
+
+pub fn preview_folder_sync_cli(
+    left: impl AsRef<Path>,
+    right: impl AsRef<Path>,
+) -> Result<CliSyncPreviewResult, CliRuntimeError> {
+    let cancel_token = job_core::CancellationToken::default();
+    let left_path = left.as_ref();
+    let right_path = right.as_ref();
+    let left_tree =
+        folder_core::scan_local_folder(left_path, &cancel_token).map_err(runtime_error)?;
+    let right_tree =
+        folder_core::scan_local_folder(right_path, &cancel_token).map_err(runtime_error)?;
+    let rows = folder_core::align_folder_trees(&left_tree, &right_tree);
+    let plan = sync_core::build_update_right_plan(
+        left_path.display().to_string(),
+        right_path.display().to_string(),
+        &rows,
+    );
+    let mut copy = 0usize;
+    let mut delete = 0usize;
+    let mut leave = 0usize;
+    let mut conflict = 0usize;
+    for item in &plan.items {
+        match &item.action {
+            sync_core::SyncAction::Copy { .. } => copy += 1,
+            sync_core::SyncAction::Delete { .. } => delete += 1,
+            sync_core::SyncAction::Leave => leave += 1,
+            sync_core::SyncAction::Conflict { .. } => conflict += 1,
+        }
+    }
+    let has_work = copy > 0 || delete > 0 || conflict > 0;
+    Ok(CliSyncPreviewResult {
+        exit_code: if has_work {
+            CliExitCode::Different
+        } else {
+            CliExitCode::Success
+        },
+        total: plan.items.len(),
+        copy,
+        delete,
+        leave,
+        conflict,
+    })
+}
+
 fn parse_open_session(args: Vec<String>) -> Result<CliInvocation, CliParseError> {
     if args.len() != 2 {
         return Err(usage_error("open-session requires STORE_ROOT and NAME"));
@@ -974,6 +1195,56 @@ mod tests {
             CliCommand::OpenSession {
                 store_root: ".open-diff".to_owned(),
                 name: "team/demo".to_owned(),
+            }
+        );
+
+        let open = parse_cli_args([
+            "open-diff-cli",
+            "open",
+            "--session",
+            "folder-compare",
+            "--left",
+            "/tmp/a",
+            "--right",
+            "/tmp/b",
+        ])
+        .expect("open should parse");
+        assert_eq!(
+            open.command,
+            CliCommand::OpenCompare {
+                session_type: "folder-compare".to_owned(),
+                left: "/tmp/a".to_owned(),
+                right: "/tmp/b".to_owned(),
+                route: "/compare/folder".to_owned(),
+            }
+        );
+
+        let open_pos = parse_cli_args([
+            "open-diff-cli",
+            "open",
+            "--session",
+            "text",
+            "left.txt",
+            "right.txt",
+        ])
+        .expect("open positional should parse");
+        assert_eq!(
+            open_pos.command,
+            CliCommand::OpenCompare {
+                session_type: "text-compare".to_owned(),
+                left: "left.txt".to_owned(),
+                right: "right.txt".to_owned(),
+                route: "/compare/text".to_owned(),
+            }
+        );
+
+        let sync = parse_cli_args(["open-diff-cli", "sync-preview", "/tmp/a", "/tmp/b"])
+            .expect("sync-preview should parse");
+        assert_eq!(
+            sync.command,
+            CliCommand::SyncPreview {
+                left: "/tmp/a".to_owned(),
+                right: "/tmp/b".to_owned(),
             }
         );
 

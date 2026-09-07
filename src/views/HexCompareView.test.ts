@@ -209,6 +209,7 @@ describe('HexCompareView', () => {
     expect(saveHexEdits).toHaveBeenCalledWith({
       path: 'C:/bin/left.bin',
       edits: [{ offset: 1, value: 88 }],
+      createBackup: true,
     })
   })
 

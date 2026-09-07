@@ -413,6 +413,7 @@ describe('session UI to command linkage', () => {
     expectCommand('save_text_file', {
       path: '/tmp/note.txt',
       text: 'loaded:/tmp/note.txt',
+      createBackup: true,
     })
   })
 

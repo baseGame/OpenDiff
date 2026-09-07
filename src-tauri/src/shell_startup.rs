@@ -27,32 +27,50 @@ pub fn prepare_shell_startup(args: impl IntoIterator<Item = String>) -> ShellSta
         Err(_) => return ShellStartupDecision::Continue,
     };
 
-    let CliCommand::ShellCompare { path, select_left } = invocation.command else {
-        return ShellStartupDecision::Continue;
-    };
+    match invocation.command {
+        CliCommand::ShellCompare { path, select_left } => {
+            let store = ShellCompareStateStore::new(shell_compare_state_path());
+            let outcome = if select_left {
+                store.select_left_only(&path)
+            } else {
+                store.select_path(&path)
+            };
 
-    let store = ShellCompareStateStore::new(shell_compare_state_path());
-    let outcome = if select_left {
-        store.select_left_only(&path)
-    } else {
-        store.select_path(&path)
-    };
-
-    match outcome {
-        Ok(ShellCompareOutcome::PendingLeft { left }) => {
-            let _ = left;
-            ShellStartupDecision::ExitQuiet
+            match outcome {
+                Ok(ShellCompareOutcome::PendingLeft { left }) => {
+                    let _ = left;
+                    ShellStartupDecision::ExitQuiet
+                }
+                Ok(ShellCompareOutcome::Ready(action)) => {
+                    if let Err(error) = write_shell_compare_launch(&action) {
+                        eprintln!("Open Diff: failed to stage shell compare launch: {error}");
+                    }
+                    ShellStartupDecision::Continue
+                }
+                Err(error) => {
+                    eprintln!("Open Diff: shell compare failed: {error:?}");
+                    ShellStartupDecision::ExitQuiet
+                }
+            }
         }
-        Ok(ShellCompareOutcome::Ready(action)) => {
-            if let Err(error) = write_shell_compare_launch(&action) {
-                eprintln!("Open Diff: failed to stage shell compare launch: {error}");
+        CliCommand::OpenCompare {
+            session_type,
+            left,
+            right,
+            route,
+        } => {
+            let payload = ShellCompareLaunchPayload {
+                left,
+                right,
+                route,
+                session_type,
+            };
+            if let Err(error) = write_open_compare_launch(&payload) {
+                eprintln!("Open Diff: failed to stage open compare launch: {error}");
             }
             ShellStartupDecision::Continue
         }
-        Err(error) => {
-            eprintln!("Open Diff: shell compare failed: {error:?}");
-            ShellStartupDecision::ExitQuiet
-        }
+        _ => ShellStartupDecision::Continue,
     }
 }
 
@@ -75,11 +93,15 @@ fn write_shell_compare_launch(action: &ShellCompareAction) -> Result<(), String>
         route: action.route.clone(),
         session_type: session_type_name(action.session_type).to_owned(),
     };
+    write_open_compare_launch(&payload)
+}
+
+fn write_open_compare_launch(payload: &ShellCompareLaunchPayload) -> Result<(), String> {
     let path = shell_compare_launch_path();
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).map_err(|error| error.to_string())?;
     }
-    std::fs::write(path, encode_shell_compare_launch(&payload)).map_err(|error| error.to_string())
+    std::fs::write(path, encode_shell_compare_launch(payload)).map_err(|error| error.to_string())
 }
 
 fn encode_shell_compare_launch(payload: &ShellCompareLaunchPayload) -> String {

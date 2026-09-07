@@ -6,6 +6,7 @@ import { useI18n } from '@/i18n'
 import { useSessionLaunchStore } from '@/stores/sessionLaunch'
 import { useViewActionsStore } from '@/stores/viewActions'
 import { useTabsStore } from '@/stores/tabs'
+import { useSettingsStore } from '@/stores/settings'
 import type { FileStamp } from '@/types/diff'
 
 interface LoadedTextDocument {
@@ -21,6 +22,7 @@ const { t } = useI18n()
 const sessionLaunch = useSessionLaunchStore()
 const viewActions = useViewActionsStore()
 const tabs = useTabsStore()
+const settings = useSettingsStore()
 const router = useRouter()
 const document = ref<LoadedTextDocument | null>(null)
 const editorText = ref('')
@@ -138,6 +140,7 @@ async function saveDocument(): Promise<void> {
     const result = await saveTextFile({
       path: document.value.path,
       text: editorText.value,
+      createBackup: settings.createBackupOnSave,
     })
 
     document.value = {

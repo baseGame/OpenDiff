@@ -240,12 +240,20 @@ pub fn save_hex_byte_edits(
     path: impl AsRef<str>,
     edits: &[HexByteEdit],
 ) -> Result<HexSaveResult, HexEditError> {
+    save_hex_byte_edits_with_backup(path, edits, true)
+}
+
+pub fn save_hex_byte_edits_with_backup(
+    path: impl AsRef<str>,
+    edits: &[HexByteEdit],
+    create_backup: bool,
+) -> Result<HexSaveResult, HexEditError> {
     let path = VfsPath::new(path.as_ref().to_owned());
     let mut vfs = LocalVfs::new();
     let original = vfs.read(&path).map_err(storage_error)?;
     let edited = apply_hex_byte_edits(&original, edits)?;
     let backup = vfs
-        .write_with_backup(&path, &edited)
+        .write_with_backup_option(&path, &edited, create_backup)
         .map_err(storage_error)?;
 
     Ok(HexSaveResult {

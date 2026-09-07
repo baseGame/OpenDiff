@@ -94,6 +94,7 @@ describe('TextEditView', () => {
     expect(saveTextFile).toHaveBeenCalledWith({
       path: 'D:/workspace/notes.txt',
       text: 'release line\nchanged line\nrelease note',
+      createBackup: true,
     })
     expect(wrapper.find('[data-testid="text-edit-dirty"]').text()).toContain('Saved')
     expect(wrapper.find('[data-testid="text-edit-save-status"]').text()).toContain('42 bytes')
