@@ -20,10 +20,7 @@ import {
 import { usePolicyStore } from '@/stores/policy'
 import { useSavedSessionsStore } from '@/stores/savedSessions'
 import { type DiffHighlightColors, useSettingsStore } from '@/stores/settings'
-import {
-  loadExternalApplications,
-  saveExternalApplications,
-} from '@/app/externalApplications'
+import { loadExternalApplications, saveExternalApplications } from '@/app/externalApplications'
 import type { ExternalApplicationConfig } from '@/app/fileOpenActions'
 import WorkbenchShell from '@/components/workbench/WorkbenchShell.vue'
 import WorkbenchInspector from '@/components/workbench/WorkbenchInspector.vue'
@@ -301,9 +298,7 @@ function persistOpenWithApps(): void {
 }
 
 function toggleOpenWithApp(id: string, enabled: boolean): void {
-  openWithApps.value = openWithApps.value.map((app) =>
-    app.id === id ? { ...app, enabled } : app,
-  )
+  openWithApps.value = openWithApps.value.map((app) => (app.id === id ? { ...app, enabled } : app))
   persistOpenWithApps()
 }
 
@@ -653,7 +648,9 @@ function parseShortcutText(value: string): string[] {
                 :checked="app.enabled"
                 @change="toggleOpenWithApp(app.id, ($event.target as HTMLInputElement).checked)"
               />
-              <span>{{ app.name }} <code>{{ app.executable }}</code></span>
+              <span
+                >{{ app.name }} <code>{{ app.executable }}</code></span
+              >
             </label>
             <NButton
               text
