@@ -131,8 +131,73 @@ function applyTextSessionSettings(
 watch(
   () => [viewActions.sequence, viewActions.name] as const,
   ([, actionName]) => {
-    if (actionName === 'session-settings') {
-      openTextSessionSettings()
+    if (!actionName) {
+      return
+    }
+
+    switch (actionName) {
+      case 'session-settings':
+        openTextSessionSettings()
+        break
+      case 'compare':
+        void runDiff()
+        break
+      case 'reload':
+        if (leftPathLabel.value && rightPathLabel.value) {
+          void loadLaunchTextFiles(leftPathLabel.value, rightPathLabel.value)
+        } else {
+          void runDiff()
+        }
+        break
+      case 'swap':
+        swapPaths()
+        break
+      case 'rules':
+        showTextRules.value = !showTextRules.value
+        break
+      case 'filters':
+        textDiffPanelRef.value?.setDisplayMode('differences')
+        break
+      case 'export':
+        void exportCurrentReport('html')
+        break
+      case 'show-all':
+        textDiffPanelRef.value?.setDisplayMode('all')
+        break
+      case 'show-differences':
+        textDiffPanelRef.value?.setDisplayMode('differences')
+        break
+      case 'previous-difference':
+        goToPreviousDiff()
+        break
+      case 'next-difference':
+        goToNextDiff()
+        break
+      case 'copy-left':
+        copyCurrentDiff('rightToLeft')
+        break
+      case 'copy-right':
+        copyCurrentDiff('leftToRight')
+        break
+      case 'about':
+      case 'check-for-updates':
+      case 'close-tab':
+      case 'copy':
+      case 'cut':
+      case 'delete':
+      case 'export-settings':
+      case 'help-contents':
+      case 'help-support':
+      case 'import-settings':
+      case 'paste':
+      case 'redo':
+      case 'restore-factory-defaults':
+      case 'save':
+      case 'save-as':
+      case 'undo':
+      case 'workspace-load':
+      case 'workspace-save':
+        break
     }
   },
 )

@@ -213,4 +213,28 @@ describe('useSettingsStore', () => {
     expect(localStorage.getItem('open-diff-show-toolbar-labels')).toBe('0')
     expect(localStorage.getItem('open-diff-create-backup-on-save')).toBe('0')
   })
+  it('exports, imports, and restores factory settings packages', () => {
+    const store = useSettingsStore()
+
+    store.setTheme('dark')
+    store.setLocale('zh-CN')
+    store.setFontSize(18)
+
+    const exported = store.exportSettingsPackage()
+
+    expect(exported.theme).toBe('dark')
+    expect(exported.locale).toBe('zh-CN')
+    expect(exported.fontSize).toBe(18)
+
+    store.restoreFactoryDefaults()
+    expect(store.theme).toBe('light')
+    expect(store.locale).toBe('en-US')
+    expect(store.fontSize).toBe(14)
+
+    expect(store.importSettingsPackage(exported)).toBe(true)
+    expect(store.theme).toBe('dark')
+    expect(store.locale).toBe('zh-CN')
+    expect(store.fontSize).toBe(18)
+    expect(store.importSettingsPackage('{')).toBe(false)
+  })
 })

@@ -15,6 +15,7 @@ import { syncPathPairTitle } from '@/app/sessionToolbars'
 import { useI18n } from '@/i18n'
 import { useTabsStore } from '@/stores/tabs'
 import { useSessionLaunchStore } from '@/stores/sessionLaunch'
+import { useViewActionsStore } from '@/stores/viewActions'
 
 interface SyncStrategyOption {
   value: FolderSyncStrategy
@@ -49,6 +50,7 @@ const strategyOptions: SyncStrategyOption[] = [
 const { t } = useI18n()
 const tabs = useTabsStore()
 const sessionLaunch = useSessionLaunchStore()
+const viewActions = useViewActionsStore()
 const leftPath = ref('')
 const rightPath = ref('')
 const selectedStrategy = ref<FolderSyncStrategy>('updateBoth')
@@ -257,6 +259,65 @@ watch(
     }
   },
   { immediate: true },
+)
+
+function swapSyncPaths(): void {
+  const nextLeft = rightPath.value
+
+  rightPath.value = leftPath.value
+  leftPath.value = nextLeft
+}
+
+watch(
+  () => [viewActions.sequence, viewActions.name] as const,
+  ([, actionName]) => {
+    if (!actionName) {
+      return
+    }
+
+    switch (actionName) {
+      case 'compare':
+        void previewSync()
+        break
+      case 'reload':
+        void previewSync()
+        break
+      case 'swap':
+        swapSyncPaths()
+        break
+      case 'save':
+        void runSync()
+        break
+      case 'about':
+      case 'check-for-updates':
+      case 'close-tab':
+      case 'copy':
+      case 'copy-left':
+      case 'copy-right':
+      case 'cut':
+      case 'delete':
+      case 'export':
+      case 'export-settings':
+      case 'filters':
+      case 'help-contents':
+      case 'help-support':
+      case 'import-settings':
+      case 'next-difference':
+      case 'paste':
+      case 'previous-difference':
+      case 'redo':
+      case 'restore-factory-defaults':
+      case 'rules':
+      case 'save-as':
+      case 'session-settings':
+      case 'show-all':
+      case 'show-differences':
+      case 'undo':
+      case 'workspace-load':
+      case 'workspace-save':
+        break
+    }
+  },
 )
 </script>
 

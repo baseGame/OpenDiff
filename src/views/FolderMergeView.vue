@@ -18,6 +18,7 @@ import WorkbenchShell from '@/components/workbench/WorkbenchShell.vue'
 import WorkbenchInspector from '@/components/workbench/WorkbenchInspector.vue'
 import { singlePathTitle } from '@/app/sessionToolbars'
 import { useI18n } from '@/i18n'
+import { useViewActionsStore } from '@/stores/viewActions'
 
 const leftPath = ref('')
 const basePath = ref('')
@@ -31,6 +32,7 @@ const router = useRouter()
 const sessionLaunch = useSessionLaunchStore()
 const tabs = useTabsStore()
 const { t } = useI18n()
+const viewActions = useViewActionsStore()
 const lastOpenedConflictPath = ref('')
 const sameOkOnly = ref(false)
 const showPeek = ref(false)
@@ -208,6 +210,54 @@ watch(
     }
   },
   { immediate: true },
+)
+
+watch(
+  () => [viewActions.sequence, viewActions.name] as const,
+  ([, actionName]) => {
+    if (!actionName) {
+      return
+    }
+
+    switch (actionName) {
+      case 'compare':
+      case 'reload':
+        void buildFolderMergePlan()
+        break
+      case 'save':
+        void runFolderMerge()
+        break
+      case 'about':
+      case 'check-for-updates':
+      case 'close-tab':
+      case 'copy':
+      case 'copy-left':
+      case 'copy-right':
+      case 'cut':
+      case 'delete':
+      case 'export':
+      case 'export-settings':
+      case 'filters':
+      case 'help-contents':
+      case 'help-support':
+      case 'import-settings':
+      case 'next-difference':
+      case 'paste':
+      case 'previous-difference':
+      case 'redo':
+      case 'restore-factory-defaults':
+      case 'rules':
+      case 'save-as':
+      case 'session-settings':
+      case 'show-all':
+      case 'show-differences':
+      case 'swap':
+      case 'undo':
+      case 'workspace-load':
+      case 'workspace-save':
+        break
+    }
+  },
 )
 </script>
 

@@ -8,6 +8,13 @@ import {
   type ShortcutScope,
 } from '@/app/commandRegistry'
 import { fallbackLocale, isSupportedLocale, type SupportedLocale } from '@/i18n/core'
+import {
+  isSettingsPackage,
+  parseSettingsPackage,
+  settingsPackageKind,
+  settingsPackageVersion,
+  type SettingsPackage,
+} from '@/app/settingsPackage'
 
 export type ThemeMode = 'light' | 'dark' | 'system'
 export type FontFamilyId = 'system' | 'segoe' | 'inter' | 'noto' | 'mono'
@@ -344,6 +351,74 @@ export const useSettingsStore = defineStore('settings', () => {
     createBackupOnSave.value = value
   }
 
+  function exportSettingsPackage(): SettingsPackage {
+    return {
+      kind: settingsPackageKind,
+      version: settingsPackageVersion,
+      theme: theme.value,
+      locale: locale.value,
+      sharedSessionPaths: [...sharedSessionPaths.value],
+      shortcutOverrides: { ...shortcutOverrides.value },
+      autoSaveLimit: autoSaveLimit.value,
+      fontFamily: fontFamily.value,
+      fontSize: fontSize.value,
+      diffColors: { ...diffColors.value },
+      confirmBeforeDelete: confirmBeforeDelete.value,
+      wrapTextDefault: wrapTextDefault.value,
+      showSessionToolbars: showSessionToolbars.value,
+      showToolbarLabels: showToolbarLabels.value,
+      createBackupOnSave: createBackupOnSave.value,
+    }
+  }
+
+  function importSettingsPackage(raw: string | SettingsPackage): boolean {
+    let packageValue: SettingsPackage | null
+
+    if (typeof raw === 'string') {
+      packageValue = parseSettingsPackage(raw)
+    } else if (isSettingsPackage(raw)) {
+      packageValue = raw
+    } else {
+      packageValue = null
+    }
+
+    if (!packageValue) {
+      return false
+    }
+
+    setTheme(packageValue.theme)
+    setLocale(packageValue.locale)
+    sharedSessionPaths.value = [...packageValue.sharedSessionPaths]
+    shortcutOverrides.value = { ...packageValue.shortcutOverrides }
+    setAutoSaveLimit(packageValue.autoSaveLimit)
+    setFontFamily(packageValue.fontFamily)
+    setFontSize(packageValue.fontSize)
+    diffColors.value = { ...packageValue.diffColors }
+    setConfirmBeforeDelete(packageValue.confirmBeforeDelete)
+    setWrapTextDefault(packageValue.wrapTextDefault)
+    setShowSessionToolbars(packageValue.showSessionToolbars)
+    setShowToolbarLabels(packageValue.showToolbarLabels)
+    setCreateBackupOnSave(packageValue.createBackupOnSave)
+
+    return true
+  }
+
+  function restoreFactoryDefaults(): void {
+    setTheme('light')
+    setLocale(fallbackLocale)
+    sharedSessionPaths.value = []
+    shortcutOverrides.value = {}
+    setAutoSaveLimit(10)
+    setFontFamily('system')
+    setFontSize(14)
+    resetDiffColors()
+    setConfirmBeforeDelete(true)
+    setWrapTextDefault(false)
+    setShowSessionToolbars(true)
+    setShowToolbarLabels(true)
+    setCreateBackupOnSave(false)
+  }
+
   return {
     theme,
     resolvedTheme,
@@ -377,6 +452,9 @@ export const useSettingsStore = defineStore('settings', () => {
     setShowSessionToolbars,
     setShowToolbarLabels,
     setCreateBackupOnSave,
+    exportSettingsPackage,
+    importSettingsPackage,
+    restoreFactoryDefaults,
   }
 })
 
