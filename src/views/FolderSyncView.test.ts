@@ -9,7 +9,17 @@ vi.mock('vue-router', () => ({
   useRouter: () => ({ push }),
 }))
 import { executeFolderSync, previewFolderSync } from '@/api/sync'
+import { saveTextFile } from '@/api/diff'
 import { useSessionLaunchStore } from '@/stores/sessionLaunch'
+import { useViewActionsStore } from '@/stores/viewActions'
+
+vi.mock('@/api/diff', () => ({
+  createFolderSnapshot: vi.fn(),
+  saveTextFile: vi.fn().mockResolvedValue({
+    path: 'D:/deploy/folder-sync.txt',
+    bytesWritten: 64,
+  }),
+}))
 
 vi.mock('@/api/sync', () => ({
   executeFolderSync: vi.fn().mockResolvedValue({
@@ -69,10 +79,16 @@ vi.mock('@/api/sync', () => ({
   }),
 }))
 
+const clipboardWriteText = vi.fn<(text: string) => Promise<void>>().mockResolvedValue(undefined)
+
 describe('FolderSyncView', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.clearAllMocks()
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: clipboardWriteText },
+    })
   })
 
   it('configures folder paths, strategy, preview, and run status', async () => {
@@ -257,5 +273,73 @@ describe('FolderSyncView', () => {
     expect(wrapper.find('[data-testid="folder-sync-peek-path"]').text()).toContain('prod/old.dll')
     await wrapper.find('[data-testid="folder-sync-peek-close"]').trigger('click')
     expect(wrapper.find('[data-testid="folder-sync-peek-panel"]').exists()).toBe(false)
+  })
+
+  it('exports the folder sync report to clipboard and a sibling text file', async () => {
+    const wrapper = mount(FolderSyncView, {
+      global: {
+        stubs: {
+          NButton: {
+            props: ['disabled', 'loading'],
+            emits: ['click'],
+            template: '<button :disabled="disabled" @click="$emit(\'click\')"><slot /></button>',
+          },
+        },
+      },
+    })
+
+    await wrapper.find('[data-testid="folder-sync-left-path"]').setValue('D:/deploy/package')
+    await wrapper.find('[data-testid="folder-sync-right-path"]').setValue('D:/deploy/prod')
+    await wrapper.find('[data-testid="folder-sync-strategy"]').setValue('mirrorRight')
+    await wrapper.find('[data-testid="folder-sync-preview"]').trigger('click')
+    await flushPromises()
+
+    await wrapper.find('[data-testid="export-folder-sync-report"]').trigger('click')
+    await flushPromises()
+
+    expect(clipboardWriteText).toHaveBeenCalled()
+    const payload = clipboardWriteText.mock.calls[0]?.[0] ?? ''
+
+    expect(payload).toContain('FOLDER-SYNC-REPORT')
+    expect(payload).toContain('left: D:/deploy/package')
+    expect(payload).toContain('package/app.exe')
+    expect(saveTextFile).toHaveBeenCalledWith({
+      path: 'D:/deploy/folder-sync.txt',
+      text: payload,
+      createBackup: false,
+    })
+    expect(wrapper.find('[data-testid="folder-sync-report-status"]').text()).toBe(
+      'D:/deploy/folder-sync.txt',
+    )
+  })
+
+  it('wires Session Export to the sync report instead of toggling filters', async () => {
+    const wrapper = mount(FolderSyncView, {
+      global: {
+        stubs: {
+          NButton: {
+            props: ['disabled', 'loading'],
+            emits: ['click'],
+            template: '<button :disabled="disabled" @click="$emit(\'click\')"><slot /></button>',
+          },
+        },
+      },
+    })
+
+    await wrapper.find('[data-testid="folder-sync-left-path"]').setValue('D:/deploy/package')
+    await wrapper.find('[data-testid="folder-sync-right-path"]').setValue('D:/deploy/prod')
+    await wrapper.find('[data-testid="folder-sync-preview"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="folder-sync-filters-panel"]').exists()).toBe(false)
+
+    useViewActionsStore().dispatch('export')
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="folder-sync-filters-panel"]').exists()).toBe(false)
+    expect(saveTextFile).toHaveBeenCalled()
+    expect(wrapper.find('[data-testid="folder-sync-report-status"]').text()).toBe(
+      'D:/deploy/folder-sync.txt',
+    )
   })
 })

@@ -12,7 +12,11 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import WorkbenchShell from '@/components/workbench/WorkbenchShell.vue'
 import WorkbenchInspector from '@/components/workbench/WorkbenchInspector.vue'
-import { createFolderSnapshot } from '@/api/diff'
+import { createFolderSnapshot, saveTextFile } from '@/api/diff'
+import {
+  buildFolderSyncReportText,
+  defaultFolderSyncReportOutputPath,
+} from '@/app/folderSyncReport'
 import { folderSnapshotOutputPath } from '@/app/snapshotPath'
 import { collectExpandablePrefixes, isPathHiddenByCollapse } from '@/app/folderPathGroups'
 import { buildFolderSyncToolbar, pathBaseName, syncPathPairTitle } from '@/app/sessionToolbars'
@@ -79,6 +83,8 @@ const visibleActions = ref<Set<FolderSyncPreviewAction>>(
   new Set(['Copy', 'Delete', 'Leave', 'Conflict']),
 )
 const lastSelectionAction = ref('')
+const reportStatus = ref('')
+const reportError = ref('')
 
 const selectedStrategyLabel = computed(() =>
   t(
@@ -289,6 +295,8 @@ async function previewSync(): Promise<void> {
     selectedPeekRowId.value = ''
     showPeek.value = false
     lastSelectionAction.value = ''
+    reportStatus.value = ''
+    reportError.value = ''
   } catch (error) {
     previewError.value = error instanceof Error ? error.message : String(error)
   } finally {
@@ -437,6 +445,54 @@ function swapSyncPaths(): void {
   leftPath.value = nextLeft
 }
 
+async function exportFolderSyncReport(): Promise<void> {
+  if (previewRows.value.length === 0) {
+    return
+  }
+
+  const summary = {
+    total: previewRows.value.length,
+    copy: previewRows.value.filter((row) => row.action === 'Copy').length,
+    delete: previewRows.value.filter((row) => row.action === 'Delete').length,
+    leave: previewRows.value.filter((row) => row.action === 'Leave').length,
+    conflict: previewRows.value.filter((row) => row.action === 'Conflict').length,
+    overridden: previewRows.value.filter((row) => row.overrideAction !== row.plannedAction).length,
+  }
+  const payload = buildFolderSyncReportText({
+    leftPath: leftPath.value,
+    rightPath: rightPath.value,
+    strategy: selectedStrategy.value,
+    planName: previewName.value,
+    summary,
+    rows: previewRows.value.map((row) => ({
+      path: row.relativePath,
+      action: row.action,
+      planned: row.plannedAction,
+      override: row.overrideAction,
+      detail: row.detail,
+    })),
+  })
+  const reportPath = defaultFolderSyncReportOutputPath(leftPath.value)
+
+  try {
+    await navigator.clipboard.writeText(payload)
+  } catch {
+    // Clipboard may be unavailable in headless tests; still try file export.
+  }
+
+  try {
+    await saveTextFile({
+      path: reportPath,
+      text: payload,
+      createBackup: false,
+    })
+    reportStatus.value = reportPath
+    reportError.value = ''
+  } catch (event) {
+    reportError.value = String(event)
+  }
+}
+
 async function saveSyncFolderSnapshot(): Promise<void> {
   const sourceRoot = leftPath.value.trim()
 
@@ -490,6 +546,8 @@ watch(
       case 'cut':
       case 'delete':
       case 'export':
+        void exportFolderSyncReport()
+        break
       case 'export-settings':
       case 'filters':
         showSyncFilters.value = !showSyncFilters.value
@@ -593,6 +651,24 @@ watch(
             :disabled="previewRows.length === 0 || syncRunning"
             @click="cancelSyncOverrides"
             >{{ $t('ui.cancel') }}</NButton
+          >
+          <NButton
+            size="small"
+            secondary
+            data-testid="export-folder-sync-report"
+            :disabled="previewRows.length === 0 || syncRunning"
+            @click="exportFolderSyncReport"
+            >{{ $t('ui.export') }}</NButton
+          >
+          <span
+            v-if="reportStatus"
+            data-testid="folder-sync-report-status"
+            >{{ reportStatus }}</span
+          >
+          <span
+            v-if="reportError"
+            data-testid="folder-sync-report-error"
+            >{{ reportError }}</span
           >
           <NButton
             size="small"
