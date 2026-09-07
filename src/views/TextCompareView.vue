@@ -870,6 +870,7 @@ const textDiffPanelRef = ref<{
   setDisplayMode: (mode: 'all' | 'differences' | 'same') => void
   setDifferenceContextRowCount: (value: number) => void
 } | null>(null)
+const textDisplayMode = ref<'all' | 'differences' | 'same' | 'context'>('all')
 
 function syncTextTabTitle(): void {
   if (!leftPathLabel.value || !rightPathLabel.value) {
@@ -899,7 +900,16 @@ const textSessionToolbar = computed(() =>
     swap: Boolean(leftPathLabel.value || rightPathLabel.value || left.value || right.value),
     reload:
       Boolean(leftPathLabel.value && rightPathLabel.value) || Boolean(left.value || right.value),
-  }),
+  }).map((item) => ({
+    ...item,
+    active:
+      (item.id === 'all' && textDisplayMode.value === 'all') ||
+      (item.id === 'diffs' && textDisplayMode.value === 'differences') ||
+      (item.id === 'same' && textDisplayMode.value === 'same') ||
+      (item.id === 'context' && textDisplayMode.value === 'context') ||
+      (item.id === 'minor' && ignoreWhitespace.value) ||
+      (item.id === 'rules' && showTextRules.value),
+  })),
 )
 
 function toggleTextMinorRules(): void {
@@ -911,6 +921,7 @@ function toggleTextMinorRules(): void {
 }
 
 function showTextContextMode(): void {
+  textDisplayMode.value = 'context'
   textDiffPanelRef.value?.setDisplayMode('differences')
   textDiffPanelRef.value?.setDifferenceContextRowCount(2)
 }
@@ -921,12 +932,15 @@ function runTextToolbarCommand(commandId: string): void {
       goHomeFromText()
       break
     case 'all':
+      textDisplayMode.value = 'all'
       textDiffPanelRef.value?.setDisplayMode('all')
       break
     case 'diffs':
+      textDisplayMode.value = 'differences'
       textDiffPanelRef.value?.setDisplayMode('differences')
       break
     case 'same':
+      textDisplayMode.value = 'same'
       textDiffPanelRef.value?.setDisplayMode('same')
       break
     case 'context':

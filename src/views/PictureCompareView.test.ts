@@ -272,6 +272,12 @@ describe('PictureCompareView', () => {
     expect(
       wrapper.find('[data-testid="picture-session-toolbar-rules"]').attributes('disabled'),
     ).toBeUndefined()
+    expect(
+      wrapper.find('[data-testid="picture-session-toolbar-meta"]').attributes('data-active'),
+    ).toBe('true')
+    expect(
+      wrapper.find('[data-testid="picture-session-toolbar-tol"]').attributes('data-active'),
+    ).toBe('false')
     expect(wrapper.html()).not.toContain('unimplemented')
   })
 
@@ -353,14 +359,29 @@ describe('PictureCompareView', () => {
     await wrapper.find('[data-testid="picture-session-toolbar-blend"]').trigger('click')
     expect(wrapper.find('[data-testid="picture-blend-panel"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="picture-blend-overlay"]').exists()).toBe(true)
+    expect(
+      wrapper.find('[data-testid="picture-session-toolbar-blend"]').attributes('data-active'),
+    ).toBe('true')
+
+    await wrapper.find('[data-testid="picture-session-toolbar-tol"]').trigger('click')
+    expect(wrapper.find('[data-testid="picture-tol-panel"]').exists()).toBe(true)
+    expect(
+      wrapper.find('[data-testid="picture-session-toolbar-tol"]').attributes('data-active'),
+    ).toBe('true')
 
     await wrapper.find('[data-testid="picture-session-toolbar-meta"]').trigger('click')
     expect(wrapper.find('[data-testid="picture-metadata-panel"]').exists()).toBe(false)
+    expect(
+      wrapper.find('[data-testid="picture-session-toolbar-meta"]').attributes('data-active'),
+    ).toBe('false')
     await wrapper.find('[data-testid="picture-session-toolbar-meta"]').trigger('click')
     expect(wrapper.find('[data-testid="picture-metadata-panel"]').exists()).toBe(true)
 
     await wrapper.find('[data-testid="picture-session-toolbar-minor"]').trigger('click')
     expect(wrapper.find('[data-testid="picture-metadata-dimensions"]').exists()).toBe(false)
+    expect(
+      wrapper.find('[data-testid="picture-session-toolbar-minor"]').attributes('data-active'),
+    ).toBe('true')
   })
 
   it('exports the picture report to clipboard and a sibling text file', async () => {

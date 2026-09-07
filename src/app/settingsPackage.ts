@@ -22,6 +22,7 @@ export interface SettingsPackage {
   wrapTextDefault: boolean
   showSessionToolbars: boolean
   showToolbarLabels: boolean
+  largeToolbarButtons: boolean
   createBackupOnSave: boolean
   showStatusBar?: boolean
   showPathBars?: boolean
@@ -51,6 +52,7 @@ export function isSettingsPackage(value: unknown): value is SettingsPackage {
     typeof candidate.wrapTextDefault === 'boolean' &&
     typeof candidate.showSessionToolbars === 'boolean' &&
     typeof candidate.showToolbarLabels === 'boolean' &&
+    typeof candidate.largeToolbarButtons === 'boolean' &&
     typeof candidate.createBackupOnSave === 'boolean'
   )
 }

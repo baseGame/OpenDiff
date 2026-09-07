@@ -282,6 +282,8 @@ describe('SettingsView', () => {
     expect(wrapper.find('[data-testid="options-toolbars-card"]').isVisible()).toBe(true)
     await wrapper.find('[data-testid="show-session-toolbars"]').setValue(false)
     expect(settings.showSessionToolbars).toBe(false)
+    await wrapper.find('[data-testid="large-toolbar-buttons"]').setValue(false)
+    expect(settings.largeToolbarButtons).toBe(false)
 
     await wrapper.find('[data-testid="options-section-openWith"]').trigger('click')
     expect(wrapper.find('[data-testid="options-open-with-card"]').isVisible()).toBe(true)

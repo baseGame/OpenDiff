@@ -882,6 +882,7 @@ export const zhCN: LanguagePack = {
     'ui.optionsGroupSystem': '系统',
     'ui.showSessionToolbars': '显示会话工具栏',
     'ui.showToolbarLabels': '显示工具栏标签',
+    'ui.largeToolbarButtons': '大工具栏按钮',
     'ui.showStatusBar': '显示状态栏',
     'ui.showPathBars': '显示路径栏',
     'ui.appearanceChromeHint': '可隐藏状态栏和路径栏，不影响比较结果。',
