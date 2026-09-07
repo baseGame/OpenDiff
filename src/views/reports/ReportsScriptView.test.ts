@@ -146,9 +146,7 @@ describe('ReportsScriptView', () => {
     )
     expect(wrapper.find('[data-testid="script-supported-commands"]').text()).toContain('ATTRIB')
     expect(wrapper.find('[data-testid="script-supported-commands"]').text()).toContain('MOVETO')
-    expect(wrapper.find('[data-testid="script-unsupported-commands"]').text()).toContain(
-      'CRITERIA',
-    )
+    expect(wrapper.find('[data-testid="script-unsupported-commands"]').text()).toContain('CRITERIA')
     expect(wrapper.find('[data-testid="script-unsupported-commands"]').text()).not.toContain(
       'MEDIA-REPORT',
     )

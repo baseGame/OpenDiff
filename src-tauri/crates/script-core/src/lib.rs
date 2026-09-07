@@ -1340,10 +1340,7 @@ where
     R: ScriptReportEngine,
 {
     let output = expand_script_variables(output, variables).map_err(|error| {
-        execution_error(
-            command,
-            format!("{} at line {}", error.message, error.line),
-        )
+        execution_error(command, format!("{} at line {}", error.message, error.line))
     })?;
 
     if state.load_paths.len() >= 2 {
@@ -1385,10 +1382,7 @@ where
     Ok(())
 }
 
-fn compare_media_script_paths(
-    left: &str,
-    right: &str,
-) -> Result<ScriptCompareSummary, String> {
+fn compare_media_script_paths(left: &str, right: &str) -> Result<ScriptCompareSummary, String> {
     let left_bytes = std::fs::read(left).map_err(|error| error.to_string())?;
     let right_bytes = std::fs::read(right).map_err(|error| error.to_string())?;
     let left_name = std::path::Path::new(left)
@@ -1404,8 +1398,8 @@ fn compare_media_script_paths(
     let right_doc = media_core::read_media_document(right_name, &right_bytes)
         .map_err(|error| format!("{error:?}"))?;
     let diff = media_core::compare_media_documents(&left_doc, &right_doc);
-    let different = (diff.statistics.added + diff.statistics.removed + diff.statistics.modified)
-        as usize;
+    let different =
+        (diff.statistics.added + diff.statistics.removed + diff.statistics.modified) as usize;
     let compared = diff.fields.len();
 
     Ok(ScriptCompareSummary {
@@ -1439,10 +1433,7 @@ fn apply_expand_collapse(
         }
         Some(raw) => {
             let path = expand_script_variables(raw, variables).map_err(|error| {
-                execution_error(
-                    command,
-                    format!("{} at line {}", error.message, error.line),
-                )
+                execution_error(command, format!("{} at line {}", error.message, error.line))
             })?;
             state.folder_tree_expand_all = false;
             if expand {
@@ -1452,15 +1443,16 @@ fn apply_expand_collapse(
             } else {
                 state.expanded_paths.retain(|entry| entry != &path);
             }
-            state
-                .file_operations
-                .push(format!("{label} {path}"));
+            state.file_operations.push(format!("{label} {path}"));
         }
     }
     Ok(())
 }
 
-fn parse_attrib_command(line: usize, args: &[String]) -> Result<ScriptCommandKind, ScriptParseError> {
+fn parse_attrib_command(
+    line: usize,
+    args: &[String],
+) -> Result<ScriptCommandKind, ScriptParseError> {
     if args.len() != 2 {
         return Err(parse_error(
             line,
@@ -1479,12 +1471,8 @@ fn parse_attrib_command(line: usize, args: &[String]) -> Result<ScriptCommandKin
         ));
     };
 
-    let readonly = parse_attrib_readonly_flag(flag).ok_or_else(|| {
-        parse_error(
-            line,
-            "ATTRIB flag must be +R, -R, readonly, or writable",
-        )
-    })?;
+    let readonly = parse_attrib_readonly_flag(flag)
+        .ok_or_else(|| parse_error(line, "ATTRIB flag must be +R, -R, readonly, or writable"))?;
 
     Ok(ScriptCommandKind::Attrib { path, readonly })
 }
@@ -2360,7 +2348,6 @@ mod tests {
         let _ = std::fs::remove_dir_all(root);
     }
 
-
     #[test]
     fn parses_media_attrib_expand_collapse_and_move_commands() {
         let script = parse_script(
@@ -2376,36 +2363,37 @@ mod tests {
         )
         .expect("commands should parse");
 
-        assert!(script.commands.iter().any(|command| matches!(
-            command.kind,
-            ScriptCommandKind::MediaReport { .. }
-        )));
+        assert!(script
+            .commands
+            .iter()
+            .any(|command| matches!(command.kind, ScriptCommandKind::MediaReport { .. })));
         assert!(script.commands.iter().any(|command| matches!(
             command.kind,
             ScriptCommandKind::Attrib { readonly: true, .. }
         )));
         assert!(script.commands.iter().any(|command| matches!(
             command.kind,
-            ScriptCommandKind::Attrib { readonly: false, .. }
-        )));
-        assert!(script.commands.iter().any(|command| matches!(
-            command.kind,
-            ScriptCommandKind::Expand {
-                path: Some(_)
+            ScriptCommandKind::Attrib {
+                readonly: false,
+                ..
             }
         )));
-        assert!(script.commands.iter().any(|command| matches!(
-            command.kind,
-            ScriptCommandKind::Collapse { path: None }
-        )));
-        assert!(script.commands.iter().any(|command| matches!(
-            command.kind,
-            ScriptCommandKind::Move { .. }
-        )));
-        assert!(script.commands.iter().any(|command| matches!(
-            command.kind,
-            ScriptCommandKind::MoveTo { .. }
-        )));
+        assert!(script
+            .commands
+            .iter()
+            .any(|command| matches!(command.kind, ScriptCommandKind::Expand { path: Some(_) })));
+        assert!(script
+            .commands
+            .iter()
+            .any(|command| matches!(command.kind, ScriptCommandKind::Collapse { path: None })));
+        assert!(script
+            .commands
+            .iter()
+            .any(|command| matches!(command.kind, ScriptCommandKind::Move { .. })));
+        assert!(script
+            .commands
+            .iter()
+            .any(|command| matches!(command.kind, ScriptCommandKind::MoveTo { .. })));
     }
 
     #[test]
@@ -2482,7 +2470,6 @@ mod tests {
 
         let _ = std::fs::remove_dir_all(root);
     }
-
 
     #[test]
     fn media_report_compares_media_tags_when_load_paths_are_media_files() {
