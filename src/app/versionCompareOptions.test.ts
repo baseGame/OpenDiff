@@ -29,9 +29,11 @@ describe('versionCompareOptions', () => {
     expect(isVersionFieldImportant('Comments', base)).toBe(false)
 
     const demoted = toggleVersionFieldImportance('FileVersion', base)
+
     expect(isVersionFieldImportant('FileVersion', demoted)).toBe(false)
 
     const promoted = toggleVersionFieldImportance('Comments', demoted)
+
     expect(isVersionFieldImportant('Comments', promoted)).toBe(true)
   })
 })

@@ -932,7 +932,7 @@ export const frFR: LanguagePack = {
     'ui.override': 'Remplacer',
     'ui.reset': 'Réinitialiser',
     'ui.noSelection': 'Aucune sélection',
-    'ui.importanceRules': 'Règles d\'importance',
+    'ui.importanceRules': "Règles d'importance",
     'ui.versionRulesHint': 'Les champs non cochés sont traités comme des différences mineures.',
     'ui.blendOpacity': 'Opacité du mélange',
     'status.syncPlanAccepted': 'Plan de synchronisation accepté',

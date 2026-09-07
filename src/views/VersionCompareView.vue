@@ -81,6 +81,7 @@ const versionSummary = computed<Record<VersionFieldStatus, number>>(() => {
 
   return summary
 })
+
 function fieldIsImportant(field: string): boolean {
   return isVersionFieldImportant(field, versionOptions.value)
 }
@@ -145,7 +146,12 @@ function runVersionToolbarCommand(commandId: string): void {
     return
   }
 
-  if (commandId === 'all' || commandId === 'diffs' || commandId === 'same' || commandId === 'minor') {
+  if (
+    commandId === 'all' ||
+    commandId === 'diffs' ||
+    commandId === 'same' ||
+    commandId === 'minor'
+  ) {
     fieldFilter.value = commandId
     activeFieldIndex.value = 0
 

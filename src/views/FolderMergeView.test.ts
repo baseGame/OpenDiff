@@ -195,6 +195,7 @@ describe('FolderMergeView', () => {
 
   it('filters Same OK rows and peeks a selected plan row', async () => {
     const wrapper = mountFolderMergeView()
+
     await fillMergePaths(wrapper)
     await wrapper.find('[data-testid="folder-merge-build-plan"]').trigger('click')
     await flushPromises()

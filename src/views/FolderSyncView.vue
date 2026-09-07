@@ -369,7 +369,9 @@ watch(
         data-testid="folder-sync-chrome-status"
       >
         {{ syncChromeMessage }}
-        <span v-if="planAccepted"> · {{ $t('status.overrideCount', { count: overriddenRowCount }) }}</span>
+        <span v-if="planAccepted">
+          · {{ $t('status.overrideCount', { count: overriddenRowCount }) }}</span
+        >
       </section>
 
       <section
@@ -400,7 +402,10 @@ watch(
             :data-testid="`sync-row-${row.id}`"
           >
             <span :data-testid="`sync-planned-${row.id}`">{{
-              $t(overrideOptions.find((option) => option.value === row.plannedAction)?.labelKey ?? 'ui.leave')
+              $t(
+                overrideOptions.find((option) => option.value === row.plannedAction)?.labelKey ??
+                  'ui.leave',
+              )
             }}</span>
             <label class="sync-override-cell">
               <span class="sr-only">{{ folderSyncActionLabel(row.action) }}</span>
@@ -606,7 +611,10 @@ h1 {
 
 .sync-preview-row {
   display: grid;
-  grid-template-columns: 120px minmax(200px, 1fr) minmax(160px, 1.1fr) minmax(160px, 1.1fr) minmax(140px, 0.9fr);
+  grid-template-columns: 120px minmax(200px, 1fr) minmax(160px, 1.1fr) minmax(160px, 1.1fr) minmax(
+      140px,
+      0.9fr
+    );
   min-width: 960px;
   border-bottom: 1px solid var(--app-border);
   font-size: 12px;

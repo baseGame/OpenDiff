@@ -177,7 +177,7 @@ function openConflictInTextMerge(conflict: FolderMergeConflict): void {
 
 function selectPlanRow(row: FolderMergePlanRow): void {
   selectedPlanRowId.value = row.id
-  if (showPeek.value === false) {
+  if (!showPeek.value) {
     showPeek.value = true
   }
 }
@@ -421,9 +421,9 @@ watch(
           </div>
           <div>
             <dt>{{ $t('ui.action') }}</dt>
-            <dd data-testid="folder-merge-peek-action">{{
-              folderMergeActionLabel(selectedPlanRow.action)
-            }}</dd>
+            <dd data-testid="folder-merge-peek-action">
+              {{ folderMergeActionLabel(selectedPlanRow.action) }}
+            </dd>
           </div>
           <div>
             <dt>{{ $t('ui.detail') }}</dt>

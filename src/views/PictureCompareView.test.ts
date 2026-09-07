@@ -331,7 +331,9 @@ describe('PictureCompareView', () => {
     await wrapper.find('[data-testid="run-picture-compare"]').trigger('click')
     await wrapper.vm.$nextTick()
 
-    expect(wrapper.find('[data-testid="picture-session-toolbar-blend"]').attributes('disabled')).toBeUndefined()
+    expect(
+      wrapper.find('[data-testid="picture-session-toolbar-blend"]').attributes('disabled'),
+    ).toBeUndefined()
     await wrapper.find('[data-testid="picture-session-toolbar-blend"]').trigger('click')
     expect(wrapper.find('[data-testid="picture-blend-panel"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="picture-blend-overlay"]').exists()).toBe(true)

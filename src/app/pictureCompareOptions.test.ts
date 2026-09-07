@@ -40,16 +40,20 @@ describe('pictureCompareOptions', () => {
   })
   it('persists and reloads tolerance plus display chrome', () => {
     const storage = memoryStorage()
-    savePictureCompareOptions({
-      rgbTolerance: 8,
-      compareAlpha: false,
-      ignoreColorFrom: [255, 0, 0, 255],
-      ignoreColorTo: [0, 255, 0],
-      blendEnabled: true,
-      blendOpacity: 40,
-      showMeta: false,
-      showMinor: true,
-    }, storage)
+
+    savePictureCompareOptions(
+      {
+        rgbTolerance: 8,
+        compareAlpha: false,
+        ignoreColorFrom: [255, 0, 0, 255],
+        ignoreColorTo: [0, 255, 0],
+        blendEnabled: true,
+        blendOpacity: 40,
+        showMeta: false,
+        showMinor: true,
+      },
+      storage,
+    )
     expect(loadPictureCompareOptions(storage)).toEqual({
       rgbTolerance: 8,
       compareAlpha: false,
@@ -62,8 +66,12 @@ describe('pictureCompareOptions', () => {
     })
   })
   it('only emits ignore colors when both ends are set', () => {
-    expect(pictureIgnoreColors({ ignoreColorFrom: [255, 0, 0, 255], ignoreColorTo: null })).toEqual({})
-    expect(pictureIgnoreColors({ ignoreColorFrom: [255, 0, 0, 255], ignoreColorTo: [0, 255, 0, 255] })).toEqual({
+    expect(pictureIgnoreColors({ ignoreColorFrom: [255, 0, 0, 255], ignoreColorTo: null })).toEqual(
+      {},
+    )
+    expect(
+      pictureIgnoreColors({ ignoreColorFrom: [255, 0, 0, 255], ignoreColorTo: [0, 255, 0, 255] }),
+    ).toEqual({
       ignoreColorFrom: [255, 0, 0, 255],
       ignoreColorTo: [0, 255, 0, 255],
     })
