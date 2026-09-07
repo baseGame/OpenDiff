@@ -244,7 +244,7 @@ where
         "compare-folders" => parse_compare_folders(args.collect()),
         "open-session" => parse_open_session(args.collect()),
         "open" => parse_open_compare(args.collect()),
-        "sync-preview" => parse_sync_preview(args.collect()),
+        "sync-preview" | "sync" => parse_sync_preview(args.collect()),
         "merge-text" => parse_merge_text(args.collect()),
         unknown => Err(usage_error(format!("unknown command: {unknown}"))),
     }
@@ -284,7 +284,7 @@ pub fn cli_help_text() -> String {
         "      --favor-left       prefer left on merge conflicts".to_owned(),
         "      --favor-right      prefer right on merge conflicts".to_owned(),
         "      --edit             open in an editable session when applicable".to_owned(),
-        "  sync-preview [--quiet] <left> <right>".to_owned(),
+        "  sync-preview|sync [--quiet] <left> <right>".to_owned(),
         "  merge-text --automerge [--favor-left|--favor-right] <base> <left> <right> [output]"
             .to_owned(),
         "Switches accept --name, -name, or /name forms.".to_owned(),
@@ -1446,6 +1446,17 @@ mod tests {
             .expect("sync-preview should parse");
         assert_eq!(
             sync.command,
+            CliCommand::SyncPreview {
+                left: "/tmp/a".to_owned(),
+                right: "/tmp/b".to_owned(),
+                quiet: false,
+            }
+        );
+
+        let sync_alias = parse_cli_args(["open-diff-cli", "sync", "/tmp/a", "/tmp/b"])
+            .expect("sync alias should parse as sync-preview");
+        assert_eq!(
+            sync_alias.command,
             CliCommand::SyncPreview {
                 left: "/tmp/a".to_owned(),
                 right: "/tmp/b".to_owned(),
