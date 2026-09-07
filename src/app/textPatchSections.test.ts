@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   clampSectionIndex,
   flattenPatchSections,
+  reconstructAlignedRows,
   reconstructSidesFromFile,
   reconstructSidesFromHunk,
 } from './textPatchSections'
@@ -72,6 +73,32 @@ describe('textPatchSections', () => {
     expect(sides.left).toContain('gone')
     expect(sides.right).toContain('new')
     expect(sides.right).not.toContain('gone')
+  })
+
+  it('aligns remove+add as one side-by-side row', () => {
+    const rows = reconstructAlignedRows(sampleFiles[0].hunks[0].lines)
+
+    expect(rows).toEqual([
+      {
+        left: { text: 'keep', kind: 'context', lineNumber: 1 },
+        right: { text: 'keep', kind: 'context', lineNumber: 1 },
+      },
+      {
+        left: { text: 'old', kind: 'removed', lineNumber: 2 },
+        right: { text: 'new', kind: 'added', lineNumber: 2 },
+      },
+    ])
+  })
+
+  it('keeps unpaired removals and additions on their own rows', () => {
+    const rows = reconstructAlignedRows(sampleFiles[0].hunks[1].lines)
+
+    expect(rows).toEqual([
+      {
+        left: { text: 'gone', kind: 'removed', lineNumber: 10 },
+        right: { text: '', kind: 'empty', lineNumber: null },
+      },
+    ])
   })
 
   it('clamps section indices', () => {

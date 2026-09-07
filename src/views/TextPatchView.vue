@@ -6,6 +6,7 @@ import { buildTextPatchToolbar } from '@/app/sessionToolbars'
 import {
   clampSectionIndex,
   flattenPatchSections,
+  reconstructAlignedRowsFromHunk,
   reconstructSidesFromFile,
   reconstructSidesFromHunk,
 } from '@/app/textPatchSections'
@@ -63,6 +64,19 @@ const sectionPositionLabel = computed(() => {
     index: clampSectionIndex(selectedSectionIndex.value, total) + 1,
     total,
   })
+})
+const currentSectionPreview = computed(() => {
+  const section = currentSection.value
+  const files = result.value?.files ?? []
+
+  if (!section) {
+    return null
+  }
+
+  const file = files[section.fileIndex]
+  const hunk = file.hunks[section.hunkIndex]
+
+  return reconstructAlignedRowsFromHunk(file, hunk)
 })
 const patchSessionToolbar = computed(() =>
   buildTextPatchToolbar({
@@ -569,6 +583,63 @@ function lineNumber(value: number | null): string {
       </NAlert>
 
       <section
+        v-if="currentSectionPreview"
+        class="patch-section-preview"
+        data-testid="patch-section-preview"
+      >
+        <header class="patch-section-preview-header">
+          <strong>{{ $t('ui.section') }} · {{ $t('ui.preview') }}</strong>
+          <span data-testid="patch-section-preview-position">{{ sectionPositionLabel }}</span>
+        </header>
+        <div class="patch-section-panes">
+          <article
+            class="patch-section-pane"
+            data-testid="patch-section-preview-left"
+          >
+            <header data-testid="patch-section-preview-left-path">
+              {{ currentSectionPreview.leftSource }}
+            </header>
+            <div class="patch-section-pane-body">
+              <div
+                v-for="(row, rowIndex) in currentSectionPreview.rows"
+                :key="`left-${rowIndex}`"
+                class="patch-preview-row"
+                :class="`patch-preview-${row.left.kind}`"
+                data-testid="patch-section-preview-left-row"
+              >
+                <span class="patch-preview-line-number">{{
+                  row.left.lineNumber === null ? '' : row.left.lineNumber
+                }}</span>
+                <span class="patch-preview-text">{{ row.left.text }}</span>
+              </div>
+            </div>
+          </article>
+          <article
+            class="patch-section-pane"
+            data-testid="patch-section-preview-right"
+          >
+            <header data-testid="patch-section-preview-right-path">
+              {{ currentSectionPreview.rightSource }}
+            </header>
+            <div class="patch-section-pane-body">
+              <div
+                v-for="(row, rowIndex) in currentSectionPreview.rows"
+                :key="`right-${rowIndex}`"
+                class="patch-preview-row"
+                :class="`patch-preview-${row.right.kind}`"
+                data-testid="patch-section-preview-right-row"
+              >
+                <span class="patch-preview-line-number">{{
+                  row.right.lineNumber === null ? '' : row.right.lineNumber
+                }}</span>
+                <span class="patch-preview-text">{{ row.right.text }}</span>
+              </div>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section
         v-if="result"
         class="patch-result"
         data-testid="text-patch-result"
@@ -685,7 +756,7 @@ function lineNumber(value: number | null): string {
 
 .patch-workbench-main {
   display: grid;
-  grid-template-rows: minmax(112px, 0.34fr) auto minmax(0, 1fr);
+  grid-template-rows: minmax(96px, 0.28fr) auto minmax(140px, 0.42fr) minmax(0, 1fr);
   gap: 10px;
   height: 100%;
   min-height: 0;
@@ -850,5 +921,109 @@ function lineNumber(value: number | null): string {
   border-radius: 4px;
   color: var(--app-text-muted);
   place-items: center;
+}
+
+.patch-section-preview {
+  display: grid;
+  grid-template-rows: 28px minmax(0, 1fr);
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--app-border);
+  background: var(--app-canvas);
+}
+
+.patch-section-preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 10px;
+  border-bottom: 1px solid var(--app-border);
+  background: var(--app-surface-low);
+  color: var(--app-text-muted);
+  font-size: 12px;
+}
+
+.patch-section-preview-header strong {
+  color: var(--app-text);
+}
+
+.patch-section-panes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.patch-section-pane {
+  display: grid;
+  grid-template-rows: 28px minmax(0, 1fr);
+  min-width: 0;
+  min-height: 0;
+  border-right: 1px solid var(--app-border);
+}
+
+.patch-section-pane:last-child {
+  border-right: none;
+}
+
+.patch-section-pane > header {
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  overflow: hidden;
+  border-bottom: 1px solid var(--app-border);
+  background: var(--app-surface-low);
+  color: var(--app-text-muted);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.patch-section-pane-body {
+  min-height: 0;
+  overflow: auto;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.patch-preview-row {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 8px;
+  min-height: 20px;
+  padding: 0 8px;
+}
+
+.patch-preview-line-number {
+  color: var(--app-text-muted);
+  text-align: right;
+  user-select: none;
+}
+
+.patch-preview-text {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.patch-preview-removed {
+  background: color-mix(in srgb, var(--diff-deleted-bg, #fff0f0) 85%, transparent);
+  color: var(--diff-deleted-fg, #b42318);
+}
+
+.patch-preview-added {
+  background: color-mix(in srgb, var(--diff-added-bg, #f0fff4) 85%, transparent);
+  color: var(--diff-added-fg, #027a48);
+}
+
+.patch-preview-empty {
+  background: transparent;
+  color: transparent;
+}
+
+.patch-preview-context {
+  background: transparent;
 }
 </style>
