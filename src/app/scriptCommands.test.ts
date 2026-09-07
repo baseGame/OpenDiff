@@ -13,6 +13,7 @@ describe('scriptCommands', () => {
     expect(supportedScriptCommands).toContain('FILE-REPORT')
     expect(supportedScriptCommands).toContain('REPORT')
     expect(supportedScriptCommands).toContain('MEDIA-REPORT')
+    expect(supportedScriptCommands).toContain('PICTURE-REPORT')
     expect(supportedScriptCommands).toContain('ATTRIB')
     expect(supportedScriptCommands).toContain('EXPAND')
     expect(supportedScriptCommands).toContain('COLLAPSE')

@@ -80,6 +80,7 @@ describe('VersionCompareView', () => {
     expect(wrapper.text()).toContain('fixture-left.exe')
     expect(wrapper.text()).toContain('fixture-right.exe')
     expect(wrapper.find('[data-testid="version-summary-modified"]').text()).toContain('2')
+    expect(wrapper.find('[data-testid="version-summary-minor"]').text()).toContain('1')
     expect(wrapper.find('[data-testid="version-field-FileVersion"]').text()).toContain('1.1.0.0')
   })
 
@@ -186,6 +187,23 @@ describe('VersionCompareView', () => {
     await wrapper.vm.$nextTick()
 
     expect(tabs.activeTab.title).toBe('fixture-left.exe <--> fixture-right.exe')
+  })
+
+  it('updates the minor summary when importance rules change', async () => {
+    const wrapper = mount(VersionCompareView)
+
+    await wrapper.find('[data-testid="version-left-path"]').setValue('C:/apps/fixture-left.exe')
+    await wrapper.find('[data-testid="version-right-path"]').setValue('C:/apps/fixture-right.exe')
+    await wrapper.find('[data-testid="run-version-compare"]').trigger('click')
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('[data-testid="version-summary-minor"]').text()).toContain('1')
+
+    await wrapper.find('[data-testid="version-toolbar-rules"]').trigger('click')
+    await wrapper.find('[data-testid="version-rule-Comments"] input').setValue(true)
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('[data-testid="version-summary-minor"]').text()).toContain('0')
   })
 })
 
