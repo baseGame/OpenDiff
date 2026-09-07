@@ -5788,8 +5788,8 @@ mod tests {
 
     #[test]
     fn run_script_unsupported_command_fails_clearly() {
-        let error = run_script("ATTRIB readme.txt\n".to_owned(), None)
-            .expect_err("ATTRIB should stay unsupported");
+        let error = run_script("CRITERIA name\n".to_owned(), None)
+            .expect_err("CRITERIA should stay unsupported");
 
         assert!(error
             .debug_message
