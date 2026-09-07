@@ -74,6 +74,7 @@ const initialTableOptions = loadTableCompareSessionOptions()
 const keyColumnsInput = ref(initialTableOptions.keyColumns)
 const delimiterInput = ref(initialTableOptions.delimiter)
 const showSessionSettings = ref(false)
+const suppressSessionOptionRecompare = ref(false)
 const viewActions = useViewActionsStore()
 const suppressSheetCompare = ref(false)
 const sessionLaunch = useSessionLaunchStore()
@@ -124,19 +125,31 @@ function applyTableSessionSettings(
     return
   }
 
+  suppressSessionOptionRecompare.value = true
   keyColumnsInput.value = payload.options.keyColumns
   delimiterInput.value = payload.options.delimiter
   ignoredColumnKeys.value = [...payload.options.ignoredColumns]
   persistTableSessionOptions()
+  suppressSessionOptionRecompare.value = false
   showSessionSettings.value = false
-  if (leftCsv.value || rightCsv.value || (leftPath.value && rightPath.value)) {
+  if (
+    comparedRows.value !== null ||
+    leftCsv.value ||
+    rightCsv.value ||
+    (leftPath.value && rightPath.value)
+  ) {
     void runTableCompare()
   }
 }
 
-watch([keyColumnsInput, delimiterInput, ignoredColumnKeys], () => {
-  persistTableSessionOptions()
-})
+watch(
+  [keyColumnsInput, delimiterInput, ignoredColumnKeys],
+  () => {
+    persistTableSessionOptions()
+    maybeRecompareOnSessionOptionsChange()
+  },
+  { deep: true },
+)
 
 watch(
   () => [viewActions.sequence, viewActions.name] as const,
@@ -178,15 +191,26 @@ const virtualGridRows = computed<VirtualGridRow[]>(() => {
     cells: row.cells.filter((cell) => !ignoredColumnKeys.value.includes(cell.columnKey)),
   }))
 })
+const keyColumnIndexSet = computed(() => new Set(parseKeyColumnIndices()))
 const columnRules = computed(() =>
-  virtualGridColumns.value.map((column) => {
+  virtualGridColumns.value.map((column, index) => {
     const ignored = ignoredColumnKeys.value.includes(column.key)
+    const isKey = keyColumnIndexSet.value.has(index)
+    let status = t('status.compared')
+
+    if (ignored) {
+      status = t('ui.ignored')
+    } else if (isKey) {
+      status = t('ui.key')
+    }
 
     return {
       ...column,
+      index,
       ignored,
+      isKey,
       importance: ignored ? t('ui.unimportant') : t('ui.important'),
-      status: ignored ? t('ui.ignored') : t('status.compared'),
+      status,
     }
   }),
 )
@@ -303,6 +327,50 @@ function parseKeyColumnIndices(): number[] {
     .split(',')
     .map((value) => Number.parseInt(value.trim(), 10))
     .filter((value) => Number.isInteger(value) && value >= 0)
+}
+
+function syncKeyColumnsInput(indices: number[]): void {
+  const unique = [
+    ...new Set(indices.filter((value) => Number.isInteger(value) && value >= 0)),
+  ].sort((left, right) => left - right)
+
+  keyColumnsInput.value = unique.length > 0 ? unique.join(',') : '0'
+}
+
+function toggleKeyColumn(columnIndex: number, enabled: boolean): void {
+  const current = new Set(parseKeyColumnIndices())
+
+  if (enabled) {
+    current.add(columnIndex)
+  } else {
+    current.delete(columnIndex)
+  }
+
+  syncKeyColumnsInput([...current])
+}
+
+function onKeyColumnToggle(columnIndex: number, event: Event): void {
+  const target = event.target
+
+  if (!(target instanceof HTMLInputElement)) {
+    return
+  }
+
+  toggleKeyColumn(columnIndex, target.checked)
+}
+
+function maybeRecompareOnSessionOptionsChange(): void {
+  if (suppressSessionOptionRecompare.value || loading.value) {
+    return
+  }
+
+  if (
+    comparedRows.value !== null ||
+    (leftCsv.value && rightCsv.value) ||
+    (leftPath.value && rightPath.value)
+  ) {
+    void runTableCompare()
+  }
 }
 
 function normalizeColumnName(name: string): string {
@@ -714,6 +782,7 @@ watch([leftPath, rightPath], () => {
             v-model="keyColumnsInput"
             type="text"
             data-testid="table-key-columns"
+            :placeholder="$t('ui.keyColumnsHint')"
           />
         </label>
         <label>
@@ -854,6 +923,14 @@ watch([leftPath, rightPath], () => {
               :value="rule.key"
               :data-testid="`ignore-column-${rule.key}`"
             />
+            <span>{{ $t('ui.ignored') }}</span>
+            <input
+              type="checkbox"
+              :checked="rule.isKey"
+              :data-testid="`key-column-${rule.key}`"
+              @change="onKeyColumnToggle(rule.index, $event)"
+            />
+            <span>{{ $t('ui.key') }}</span>
             <span>{{ rule.label }}</span>
             <strong>{{ rule.status }}</strong>
             <small>{{ rule.importance }}</small>

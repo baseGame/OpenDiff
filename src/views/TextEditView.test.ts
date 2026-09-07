@@ -168,4 +168,39 @@ describe('TextEditView', () => {
     expect(readTextFile).toHaveBeenCalledWith('D:/workspace/notes.txt')
     expect(wrapper.find('[data-testid="text-edit-title"]').text()).toContain('notes.txt')
   })
+
+  it('enables undo and clipboard toolbar actions after an edit', async () => {
+    const wrapper = mountTextEditView()
+
+    expect(
+      wrapper.find('[data-testid="text-edit-toolbar-undo"]').attributes('disabled'),
+    ).toBeDefined()
+    expect(
+      wrapper.find('[data-testid="text-edit-toolbar-cut"]').attributes('disabled'),
+    ).toBeDefined()
+
+    await wrapper.find('[data-testid="text-edit-path"]').setValue('D:/workspace/notes.txt')
+    await wrapper.find('[data-testid="text-edit-open"]').trigger('click')
+    await wrapper.vm.$nextTick()
+
+    expect(
+      wrapper.find('[data-testid="text-edit-toolbar-cut"]').attributes('disabled'),
+    ).toBeUndefined()
+    expect(
+      wrapper.find('[data-testid="text-edit-toolbar-paste"]').attributes('disabled'),
+    ).toBeUndefined()
+
+    await wrapper.find('[data-testid="text-edit-editor"]').setValue('changed')
+    await wrapper.vm.$nextTick()
+
+    expect(
+      wrapper.find('[data-testid="text-edit-toolbar-undo"]').attributes('disabled'),
+    ).toBeUndefined()
+
+    await wrapper.find('[data-testid="text-edit-toolbar-copy"]').trigger('click')
+    await wrapper.vm.$nextTick()
+    expect(
+      wrapper.find('[data-testid="text-edit-toolbar-paste"]').attributes('disabled'),
+    ).toBeUndefined()
+  })
 })

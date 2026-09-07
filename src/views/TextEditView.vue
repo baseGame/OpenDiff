@@ -119,6 +119,8 @@ async function openDocument(): Promise<void> {
     document.value = result
     editorText.value = result.text
     savedText.value = result.text
+    undoStack.value = []
+    redoStack.value = []
     setSaveStatus('status.loaded')
     currentFindIndex.value = 0
   } catch (event) {
@@ -348,8 +350,12 @@ function replaceAll(): void {
   }
 
   const expression = new RegExp(escapeRegExp(findQuery.value), 'gi')
+  const next = editorText.value.replace(expression, replaceQuery.value)
 
-  editorText.value = editorText.value.replace(expression, replaceQuery.value)
+  if (next !== editorText.value) {
+    updateEditorText(next)
+  }
+
   currentFindIndex.value = 0
 }
 
@@ -394,16 +400,23 @@ watch(
   },
 )
 
-const textEditToolbarCommands = [
+const hasEditorContent = computed(() => editorText.value.length > 0)
+const canPaste = computed(() => localClipboard.value.length > 0)
+const textEditToolbarCommands = computed(() => [
   { id: 'home', glyph: 'H', labelKey: 'ui.home', enabled: true },
-  { id: 'undo', glyph: 'U', labelKey: 'ui.undo', enabled: true },
-  { id: 'redo', glyph: 'R', labelKey: 'ui.redo', enabled: true },
-  { id: 'cut', glyph: 'X', labelKey: 'ui.cut', enabled: true },
-  { id: 'copy', glyph: 'C', labelKey: 'ui.copy', enabled: true },
-  { id: 'paste', glyph: 'P', labelKey: 'ui.paste', enabled: true },
-  { id: 'delete', glyph: 'D', labelKey: 'ui.delete', enabled: true },
+  { id: 'undo', glyph: 'U', labelKey: 'ui.undo', enabled: undoStack.value.length > 0 },
+  { id: 'redo', glyph: 'R', labelKey: 'ui.redo', enabled: redoStack.value.length > 0 },
+  { id: 'cut', glyph: 'X', labelKey: 'ui.cut', enabled: hasEditorContent.value },
+  { id: 'copy', glyph: 'C', labelKey: 'ui.copy', enabled: hasEditorContent.value },
+  {
+    id: 'paste',
+    glyph: 'P',
+    labelKey: 'ui.paste',
+    enabled: canPaste.value || document.value !== null,
+  },
+  { id: 'delete', glyph: 'D', labelKey: 'ui.delete', enabled: hasEditorContent.value },
   { id: 'syntax', glyph: 'S', labelKey: 'ui.syntax', enabled: false },
-]
+])
 </script>
 
 <template>
