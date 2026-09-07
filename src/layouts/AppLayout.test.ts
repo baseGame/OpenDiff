@@ -82,7 +82,7 @@ describe('AppLayout command palette', () => {
     await wrapper.find('[data-testid="menu-session"]').trigger('click')
     expect(
       wrapper.find('[data-testid="menu-command-session.newWindow"]').attributes('disabled'),
-    ).toBeDefined()
+    ).toBeUndefined()
     expect(wrapper.find('[data-testid="menu-command-session.newTab"]').exists()).toBe(true)
   })
 
@@ -111,7 +111,7 @@ describe('AppLayout command palette', () => {
     ).toBeUndefined()
     expect(
       wrapper.find('[data-testid="menu-command-session.newWindow"]').attributes('disabled'),
-    ).toBeDefined()
+    ).toBeUndefined()
     expect(
       wrapper.find('[data-testid="menu-command-session.exit"]').attributes('disabled'),
     ).toBeUndefined()

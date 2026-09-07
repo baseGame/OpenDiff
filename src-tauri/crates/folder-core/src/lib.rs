@@ -52,6 +52,15 @@ pub struct FolderCompareOptions {
     pub case_sensitive_names: bool,
     pub compare_contents: bool,
     pub compare_crc: bool,
+    /// Allowed absolute difference when comparing modified times (milliseconds).
+    #[serde(default)]
+    pub timestamp_tolerance_ms: u128,
+    /// Treat a one-hour modified-time skew as equal (DST / clock skew).
+    #[serde(default)]
+    pub ignore_daylight_saving_hour_offset: bool,
+    /// Additional whole-hour timezone offsets to treat as equal when comparing times.
+    #[serde(default)]
+    pub ignored_timezone_hour_offsets: Vec<i32>,
 }
 
 impl Default for FolderCompareOptions {
@@ -62,6 +71,9 @@ impl Default for FolderCompareOptions {
             case_sensitive_names: true,
             compare_contents: true,
             compare_crc: false,
+            timestamp_tolerance_ms: 0,
+            ignore_daylight_saving_hour_offset: false,
+            ignored_timezone_hour_offsets: Vec::new(),
         }
     }
 }
@@ -941,7 +953,51 @@ fn folder_metadata_matches(
     left.kind == right.kind
         && (!options.compare_size || left.metadata.size == right.metadata.size)
         && (!options.compare_modified_time
-            || left.metadata.modified_at_ms == right.metadata.modified_at_ms)
+            || modified_times_match(
+                left.metadata.modified_at_ms,
+                right.metadata.modified_at_ms,
+                options,
+            ))
+}
+
+fn modified_times_match(
+    left: Option<u128>,
+    right: Option<u128>,
+    options: &FolderCompareOptions,
+) -> bool {
+    let (Some(left), Some(right)) = (left, right) else {
+        return left == right;
+    };
+    let difference = left.abs_diff(right);
+    if difference <= options.timestamp_tolerance_ms {
+        return true;
+    }
+    ignored_hour_offsets_ms(options)
+        .into_iter()
+        .any(|offset_ms| offset_matches_difference(difference, offset_ms, options))
+}
+
+fn ignored_hour_offsets_ms(options: &FolderCompareOptions) -> Vec<u128> {
+    let mut offsets = options
+        .ignored_timezone_hour_offsets
+        .iter()
+        .map(|hours| u128::from(hours.unsigned_abs()) * 3_600_000)
+        .collect::<Vec<_>>();
+    if options.ignore_daylight_saving_hour_offset {
+        offsets.push(3_600_000);
+    }
+    offsets
+}
+
+fn offset_matches_difference(
+    difference: u128,
+    offset_ms: u128,
+    options: &FolderCompareOptions,
+) -> bool {
+    if offset_ms == 0 {
+        return false;
+    }
+    difference.abs_diff(offset_ms) <= options.timestamp_tolerance_ms
 }
 
 fn with_status(mut node: FolderScanNode, status: FolderCompareStatus) -> FolderScanNode {
@@ -1291,6 +1347,7 @@ mod tests {
                     case_sensitive_names: true,
                     compare_contents: false,
                     compare_crc: false,
+                    ..Default::default()
                 },
             ),
             FolderCompareStatus::Different
@@ -1305,9 +1362,83 @@ mod tests {
                     case_sensitive_names: true,
                     compare_contents: false,
                     compare_crc: false,
+                    ..Default::default()
                 },
             ),
             FolderCompareStatus::Same
+        );
+    }
+
+    #[test]
+    fn honors_timestamp_tolerance_and_ignore_dst_hour_offset() {
+        let left = FolderScanNode::new_file(
+            "same.txt",
+            "same.txt",
+            metadata_with_modified_at(VfsEntryKind::File, "same.txt", Some("txt"), 20, Some(1_000)),
+        );
+        let near = FolderScanNode::new_file(
+            "same.txt",
+            "same.txt",
+            metadata_with_modified_at(VfsEntryKind::File, "same.txt", Some("txt"), 20, Some(1_500)),
+        );
+        let dst = FolderScanNode::new_file(
+            "same.txt",
+            "same.txt",
+            metadata_with_modified_at(
+                VfsEntryKind::File,
+                "same.txt",
+                Some("txt"),
+                20,
+                Some(1_000 + 3_600_000),
+            ),
+        );
+
+        assert_eq!(
+            classify_folder_alignment_with_options(
+                Some(&left),
+                Some(&near),
+                &FolderCompareOptions {
+                    compare_size: true,
+                    compare_modified_time: true,
+                    case_sensitive_names: true,
+                    compare_contents: false,
+                    compare_crc: false,
+                    timestamp_tolerance_ms: 1_000,
+                    ..Default::default()
+                },
+            ),
+            FolderCompareStatus::Same
+        );
+        assert_eq!(
+            classify_folder_alignment_with_options(
+                Some(&left),
+                Some(&dst),
+                &FolderCompareOptions {
+                    compare_size: true,
+                    compare_modified_time: true,
+                    case_sensitive_names: true,
+                    compare_contents: false,
+                    compare_crc: false,
+                    ignore_daylight_saving_hour_offset: true,
+                    ..Default::default()
+                },
+            ),
+            FolderCompareStatus::Same
+        );
+        assert_eq!(
+            classify_folder_alignment_with_options(
+                Some(&left),
+                Some(&dst),
+                &FolderCompareOptions {
+                    compare_size: true,
+                    compare_modified_time: true,
+                    case_sensitive_names: true,
+                    compare_contents: false,
+                    compare_crc: false,
+                    ..Default::default()
+                },
+            ),
+            FolderCompareStatus::Different
         );
     }
 
@@ -1343,6 +1474,7 @@ mod tests {
                 case_sensitive_names: false,
                 compare_contents: false,
                 compare_crc: false,
+                ..Default::default()
             },
         );
         let sensitive = align_folder_trees_with_options(
@@ -1354,6 +1486,7 @@ mod tests {
                 case_sensitive_names: true,
                 compare_contents: false,
                 compare_crc: false,
+                ..Default::default()
             },
         );
 

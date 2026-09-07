@@ -35,6 +35,7 @@ import {
 import { commandRegistry, filterCommands } from '@/app/commandRegistry'
 import { createCommandExecutor, getCommandsForPlacement } from '@/app/commandSystem'
 import { listenDesktopPathDrop } from '@/app/desktopDrop'
+import { openSessionWindow } from '@/app/sessionWindow'
 import { resolveDropLaunchFromPaths } from '@/app/dropLaunch'
 import { sessionCatalog } from '@/app/sessionCatalog'
 import { useI18n } from '@/i18n'
@@ -432,6 +433,17 @@ async function closeMainWindow(): Promise<void> {
   }
 }
 
+async function openSessionWindowFromMenu(): Promise<void> {
+  const opened = await openSessionWindow()
+
+  if (!opened) {
+    statusBar.reportStatus({
+      comparisonStatus: t('ui.newWindow'),
+      source: 'session',
+    })
+  }
+}
+
 async function saveSnapshotFromMenu(): Promise<void> {
   let sourceRoot = lastCompare.folder?.leftRoot ?? ''
 
@@ -481,6 +493,9 @@ const executeRegisteredCommand = createCommandExecutor(commandRegistry, {
   toggleTheme: settings.toggleTheme,
   leaveApp: () => {
     void closeMainWindow()
+  },
+  openNewWindow: () => {
+    void openSessionWindowFromMenu()
   },
   dispatchViewAction: (name) => {
     lastViewAction.value = name

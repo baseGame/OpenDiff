@@ -39,8 +39,11 @@ describe('commandRegistry', () => {
       ]),
     )
     expect(commandRegistry.find((command) => command.id === 'session.newWindow')?.enabled).toBe(
-      false,
+      true,
     )
+    expect(commandRegistry.find((command) => command.id === 'session.newWindow')?.action).toEqual({
+      type: 'new-window',
+    })
     expect(commandRegistry.find((command) => command.id === 'session.exit')?.enabled).toBe(true)
     expect(commandRegistry.find((command) => command.id === 'tools.saveSnapshot')?.enabled).toBe(
       true,

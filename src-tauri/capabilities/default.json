@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Default capability for the main OpenDiff window (core events needed for desktop drag-drop).",
-  "windows": ["main"],
-  "permissions": ["core:default"]
+  "description": "Default capability for OpenDiff main and session-* windows (core events for desktop drag-drop; create for New Window).",
+  "windows": ["main", "session-*"],
+  "permissions": ["core:default", "core:webview:allow-create-webview-window"]
 }
