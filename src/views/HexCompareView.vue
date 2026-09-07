@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { compareHexFiles, findHexInFile, saveHexEdits } from '@/api/diff'
+import { compareHexFiles, findHexInFile, saveHexEdits, saveTextFile } from '@/api/diff'
 import type {
   HexByteEdit,
   HexCompareResponse,
@@ -30,6 +30,12 @@ import {
   saveHexCompareSessionOptions,
   type HexCompareSessionOptions,
 } from '@/app/hexCompareSessionOptions'
+import {
+  buildHexReportText,
+  defaultHexReportOutputPath,
+  hexReportRowsFromDiffRanges,
+} from '@/app/hexReport'
+import { useI18n } from '@/i18n'
 
 interface HexRow {
   offset: string
@@ -75,6 +81,10 @@ const findStatus = ref('')
 const pendingEdits = ref<HexByteEdit[]>([])
 const editOffset = ref(0)
 const editValue = ref('00')
+const selectedByteOffset = ref<number | null>(null)
+const selectedByteSide = ref<'left' | 'right'>('left')
+const copyStatus = ref('')
+const reportStatus = ref('')
 const saveStatus = ref('')
 const loading = ref(false)
 const error = ref('')
@@ -82,6 +92,7 @@ const sessionLaunch = useSessionLaunchStore()
 const tabs = useTabsStore()
 const settings = useSettingsStore()
 const router = useRouter()
+const { t } = useI18n()
 const bytesPerRow = computed(() => (viewportWidth.value < 480 ? 8 : 16))
 
 const leftHex = computed<HexSideRows>(() =>
@@ -181,15 +192,19 @@ watch(
       case 'save':
         void runHexSave()
         break
+      case 'copy':
+        void copySelectedHexByte()
+        break
+      case 'export':
+        void exportHexReport()
+        break
       case 'about':
       case 'check-for-updates':
       case 'close-tab':
-      case 'copy':
       case 'copy-left':
       case 'copy-right':
       case 'cut':
       case 'delete':
-      case 'export':
       case 'export-settings':
       case 'help-contents':
       case 'help-support':
@@ -341,7 +356,7 @@ const hexSessionToolbar = computed(() =>
     diffs: true,
     same: false,
     rules: true,
-    copy: false,
+    copy: selectedByteOffset.value !== null,
     'next-diff': navigationRanges.value.length > 0,
     'prev-diff': navigationRanges.value.length > 0,
     swap: Boolean(leftPath.value || rightPath.value),
@@ -362,6 +377,9 @@ function runHexToolbarCommand(commandId: string): void {
       break
     case 'rules':
       openHexSessionSettings()
+      break
+    case 'copy':
+      void copySelectedHexByte()
       break
     case 'next-diff':
       goToHexDiffRange(activeDiffRangeIndex.value + 1)
@@ -513,6 +531,80 @@ function goToFindMatch(delta: number): void {
   const next = (current + delta + findMatches.value.length) % findMatches.value.length
 
   void jumpToFindMatch(next)
+}
+
+function selectHexByte(side: 'left' | 'right', cell: HexViewCell): void {
+  const offset = numericOffset(cell.offset)
+
+  selectedByteOffset.value = offset
+  selectedByteSide.value = side
+  editOffset.value = offset
+  editValue.value = cell.hex
+  copyStatus.value = ''
+}
+
+function selectedHexCell(): HexViewCell | undefined {
+  if (selectedByteOffset.value === null) {
+    return undefined
+  }
+
+  const cells = selectedByteSide.value === 'left' ? leftCells.value : rightCells.value
+
+  return cells.find((cell) => numericOffset(cell.offset) === selectedByteOffset.value)
+}
+
+function formatSelectedHexClipboardPayload(cell: HexViewCell): string {
+  return `${formatOffset(cell.offset)}\t${cell.hex}\t${cell.ascii}`
+}
+
+async function copySelectedHexByte(): Promise<void> {
+  const cell = selectedHexCell()
+
+  if (!cell) {
+    return
+  }
+
+  const payload = formatSelectedHexClipboardPayload(cell)
+
+  try {
+    await navigator.clipboard.writeText(payload)
+    copyStatus.value = t('status.copiedPath', { path: payload })
+  } catch (event) {
+    error.value = String(event)
+  }
+}
+
+async function exportHexReport(): Promise<void> {
+  if (!leftPath.value || !rightPath.value) {
+    return
+  }
+
+  const rows = hexReportRowsFromDiffRanges(diffRanges.value)
+  const payload = buildHexReportText({
+    leftPath: leftPath.value,
+    rightPath: rightPath.value,
+    originalLen: leftTotalLen.value,
+    modifiedLen: rightTotalLen.value,
+    rows,
+  })
+  const outputPath = defaultHexReportOutputPath(leftPath.value)
+
+  try {
+    await navigator.clipboard.writeText(payload)
+  } catch {
+    // Clipboard may be unavailable in headless tests; still try file export.
+  }
+
+  try {
+    await saveTextFile({
+      path: outputPath,
+      text: payload,
+      createBackup: false,
+    })
+    reportStatus.value = outputPath
+  } catch (event) {
+    error.value = String(event)
+  }
 }
 
 function queueHexEdit(): void {
@@ -789,6 +881,35 @@ async function runHexSave(): Promise<void> {
         {{ $t('ui.emptyCompareHint') }}
       </p>
 
+      <section
+        v-if="leftPath && rightPath"
+        class="hex-report-panel"
+        data-testid="hex-report-panel"
+      >
+        <header>
+          <strong>{{ $t('ui.hexReport') }}</strong>
+          <span>{{ $t('status.fieldCount', { count: diffRanges.length }) }}</span>
+          <button
+            type="button"
+            data-testid="export-hex-report"
+            :disabled="!leftPath || !rightPath"
+            @click="exportHexReport"
+          >
+            {{ $t('ui.export') }}
+          </button>
+          <span
+            v-if="reportStatus"
+            data-testid="hex-report-status"
+            >{{ reportStatus }}</span
+          >
+          <span
+            v-if="copyStatus"
+            data-testid="hex-copy-status"
+            >{{ copyStatus }}</span
+          >
+        </header>
+      </section>
+
       <section class="hex-pane-grid">
         <section class="hex-side">
           <h2>{{ $t('ui.left') }} · {{ leftHex.path }}</h2>
@@ -814,17 +935,26 @@ async function runHexSave(): Promise<void> {
                 class="hex-bytes"
                 data-testid="hex-byte-pane"
               >
-                <span
+                <button
                   v-for="cell in pair.left?.cells ?? []"
                   :key="cell.offset"
+                  type="button"
                   class="hex-byte"
-                  :class="{ 'hex-byte-different': cell.different }"
+                  :class="{
+                    'hex-byte-different': cell.different,
+                    'hex-byte-selected':
+                      selectedByteOffset === numericOffset(cell.offset) &&
+                      selectedByteSide === 'left',
+                  }"
                   :data-testid="
-                    cell.different ? `left-hex-byte-diff-${formatOffset(cell.offset)}` : undefined
+                    cell.different
+                      ? `left-hex-byte-diff-${formatOffset(cell.offset)}`
+                      : `left-hex-byte-${formatOffset(cell.offset)}`
                   "
+                  @click="selectHexByte('left', cell)"
                 >
                   {{ cell.hex }}
-                </span>
+                </button>
               </span>
               <span
                 class="hex-ascii"
@@ -851,17 +981,26 @@ async function runHexSave(): Promise<void> {
             >
               <span class="hex-offset">{{ pair.right?.offset ?? pair.left?.offset }}</span>
               <span class="hex-bytes">
-                <span
+                <button
                   v-for="cell in pair.right?.cells ?? []"
                   :key="cell.offset"
+                  type="button"
                   class="hex-byte"
-                  :class="{ 'hex-byte-different': cell.different }"
+                  :class="{
+                    'hex-byte-different': cell.different,
+                    'hex-byte-selected':
+                      selectedByteOffset === numericOffset(cell.offset) &&
+                      selectedByteSide === 'right',
+                  }"
                   :data-testid="
-                    cell.different ? `right-hex-byte-diff-${formatOffset(cell.offset)}` : undefined
+                    cell.different
+                      ? `right-hex-byte-diff-${formatOffset(cell.offset)}`
+                      : `right-hex-byte-${formatOffset(cell.offset)}`
                   "
+                  @click="selectHexByte('right', cell)"
                 >
                   {{ cell.hex }}
-                </span>
+                </button>
               </span>
               <span class="hex-ascii">{{ pair.right?.ascii ?? '' }}</span>
             </div>
@@ -1146,8 +1285,35 @@ h2 {
   display: inline-flex;
   justify-content: center;
   width: 22px;
-  margin-right: 6px;
+  padding: 0 0.15rem;
+  border: 1px solid transparent;
   border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  margin-right: 6px;
+}
+
+.hex-byte-selected {
+  border-color: var(--accent, #3b82f6);
+  background: color-mix(in srgb, var(--accent, #3b82f6) 22%, transparent);
+}
+
+.hex-report-panel {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0.75rem 0;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--border, #d0d7de);
+  border-radius: 0.4rem;
+}
+
+.hex-report-panel header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
 }
 
 .hex-byte-different {

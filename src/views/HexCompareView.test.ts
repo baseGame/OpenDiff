@@ -2,10 +2,11 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import HexCompareView from './HexCompareView.vue'
-import { compareHexFiles, findHexInFile, saveHexEdits } from '@/api/diff'
+import { compareHexFiles, findHexInFile, saveHexEdits, saveTextFile } from '@/api/diff'
 import { useSessionLaunchStore } from '@/stores/sessionLaunch'
 
 const push = vi.fn()
+const clipboardWriteText = vi.fn<(text: string) => Promise<void>>().mockResolvedValue(undefined)
 
 vi.mock('vue-router', () => ({
   useRouter: () => ({ push }),
@@ -45,6 +46,7 @@ vi.mock('@/api/diff', () => ({
     { offset: 512, length: 2 },
   ]),
   saveHexEdits: vi.fn().mockResolvedValue({ bytesWritten: 1 }),
+  saveTextFile: vi.fn().mockResolvedValue({ bytesWritten: 12 }),
 }))
 
 async function runCompare(wrapper: ReturnType<typeof mount>): Promise<void> {
@@ -60,6 +62,14 @@ describe('HexCompareView', () => {
     vi.mocked(compareHexFiles).mockClear()
     vi.mocked(findHexInFile).mockClear()
     vi.mocked(saveHexEdits).mockClear()
+    vi.mocked(saveTextFile).mockClear()
+    clipboardWriteText.mockClear()
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: clipboardWriteText,
+      },
+    })
   })
 
   it('starts empty without a demo hex dump', () => {
@@ -287,5 +297,55 @@ describe('HexCompareView', () => {
 
     expect(wrapper.findAll('[data-testid="hex-row"]')).toHaveLength(1)
     expect(wrapper.find('[data-testid="left-hex-byte-diff-00000001"]').text()).toBe('42')
+  })
+
+  it('selects a byte and copies it from the session toolbar', async () => {
+    const wrapper = mount(HexCompareView)
+
+    await runCompare(wrapper)
+    expect(
+      wrapper.find('[data-testid="hex-session-toolbar-copy"]').attributes('disabled'),
+    ).toBeDefined()
+
+    await wrapper.find('[data-testid="left-hex-byte-diff-00000001"]').trigger('click')
+    await wrapper.vm.$nextTick()
+
+    expect(
+      (wrapper.find('[data-testid="hex-edit-offset"]').element as HTMLInputElement).value,
+    ).toBe('1')
+    expect((wrapper.find('[data-testid="hex-edit-value"]').element as HTMLInputElement).value).toBe(
+      '42',
+    )
+    expect(
+      wrapper.find('[data-testid="hex-session-toolbar-copy"]').attributes('disabled'),
+    ).toBeUndefined()
+
+    await wrapper.find('[data-testid="hex-session-toolbar-copy"]').trigger('click')
+    await flushPromises()
+
+    expect(clipboardWriteText).toHaveBeenCalledWith(expect.stringContaining('42'))
+    expect(wrapper.find('[data-testid="hex-copy-status"]').exists()).toBe(true)
+  })
+
+  it('exports a hex report to clipboard and disk', async () => {
+    const wrapper = mount(HexCompareView)
+
+    await runCompare(wrapper)
+    expect(wrapper.find('[data-testid="hex-report-panel"]').exists()).toBe(true)
+
+    await wrapper.find('[data-testid="export-hex-report"]').trigger('click')
+    await flushPromises()
+
+    expect(clipboardWriteText).toHaveBeenCalled()
+    const payload = clipboardWriteText.mock.calls[0]?.[0] ?? ''
+
+    expect(payload).toContain('HEX-REPORT')
+    expect(payload).toContain('00000001\t42\t58')
+    expect(saveTextFile).toHaveBeenCalledWith({
+      path: 'C:/bin/hex-compare.txt',
+      text: payload,
+      createBackup: false,
+    })
+    expect(wrapper.find('[data-testid="hex-report-status"]').text()).toBe('C:/bin/hex-compare.txt')
   })
 })
