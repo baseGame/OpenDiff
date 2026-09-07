@@ -684,7 +684,8 @@ export const enUS: LanguagePack = {
     'session.summary.textMerge': 'Combine left, right, and a base file into one result',
     'session.summary.textPatch': 'Review and apply a patch file',
     'session.summary.versionCompare': 'Compare version info inside program files',
-    'session.summary.archiveCompare': 'Compare ZIP or TAR contents (7z not available)',
+    'session.summary.archiveCompare':
+      'Compare ZIP/TAR sides and copy files out into a folder (7z not available)',
     'session.summary.script': 'Run a simple script to load, compare, and export a report',
     'ui.archiveCompare': 'Archive Compare',
     'ui.archivePathHint':

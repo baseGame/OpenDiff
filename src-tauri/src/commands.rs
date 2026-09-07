@@ -824,12 +824,143 @@ pub fn copy_folder_compare_entry(
     let left_path = side_path(&left_root, &relative_path);
     let right_path = side_path(&right_root, &relative_path);
 
-    folder_core::copy_between_sides(folder_core::CopySideRequest {
+    let left_source = crate::sources::load_compare_source(&left_root).map_err(|error| {
+        AppErrorPayload::new(AppErrorCode::Unknown, "error.app.unknown.title", error)
+            .with_param("path", &left_root)
+    })?;
+    let right_source = crate::sources::load_compare_source(&right_root).map_err(|error| {
+        AppErrorPayload::new(AppErrorCode::Unknown, "error.app.unknown.title", error)
+            .with_param("path", &right_root)
+    })?;
+
+    let (source, target, source_path, target_path) = match direction {
+        folder_core::CopyDirection::ToLeft => (
+            &right_source,
+            &left_source,
+            right_path.clone(),
+            left_path.clone(),
+        ),
+        folder_core::CopyDirection::ToRight => (
+            &left_source,
+            &right_source,
+            left_path.clone(),
+            right_path.clone(),
+        ),
+    };
+
+    match (source, target) {
+        (crate::sources::CompareSource::Local(_), crate::sources::CompareSource::Local(_)) => {
+            folder_core::copy_between_sides(folder_core::CopySideRequest {
+                direction,
+                left_path,
+                right_path,
+            })
+            .map_err(|error| folder_scan_error(&relative_path, error))
+        }
+        (
+            crate::sources::CompareSource::Archive(_),
+            crate::sources::CompareSource::Local(target_root),
+        ) => extract_archive_entry_to_folder(
+            source,
+            target_root.as_path(),
+            &relative_path,
+            direction,
+            source_path,
+            target_path,
+        ),
+        (_, crate::sources::CompareSource::Archive(_))
+        | (_, crate::sources::CompareSource::Snapshot(_)) => Err(AppErrorPayload::new(
+            AppErrorCode::Unknown,
+            "error.app.unknown.title",
+            format!("cannot copy into archive or snapshot side: {target_path}"),
+        )
+        .with_param("path", &target_path)),
+        (crate::sources::CompareSource::Snapshot(_), _) => Err(AppErrorPayload::new(
+            AppErrorCode::Unknown,
+            "error.app.unknown.title",
+            format!("cannot copy from snapshot side: {source_path}"),
+        )
+        .with_param("path", &source_path)),
+    }
+}
+
+fn extract_archive_entry_to_folder(
+    source: &crate::sources::CompareSource,
+    target_root: &Path,
+    relative_path: &str,
+    direction: folder_core::CopyDirection,
+    source_path: String,
+    target_path: String,
+) -> Result<folder_core::CopySideResult, AppErrorPayload> {
+    let bytes = crate::sources::read_compare_file(source, relative_path).map_err(|error| {
+        AppErrorPayload::new(AppErrorCode::Unknown, "error.app.unknown.title", error)
+            .with_param("path", &source_path)
+    })?;
+
+    let destination = if relative_path.is_empty() {
+        target_root.to_path_buf()
+    } else {
+        target_root.join(relative_path)
+    };
+
+    if let Some(parent) = destination.parent() {
+        fs::create_dir_all(parent).map_err(|error| {
+            AppErrorPayload::new(
+                AppErrorCode::FileWriteFailed,
+                "error.app.unknown.title",
+                error.to_string(),
+            )
+            .with_param("path", &destination.display().to_string())
+        })?;
+    }
+
+    fs::write(&destination, &bytes).map_err(|error| {
+        AppErrorPayload::new(
+            AppErrorCode::FileWriteFailed,
+            "error.app.unknown.title",
+            error.to_string(),
+        )
+        .with_param("path", &destination.display().to_string())
+    })?;
+
+    let written = fs::read(&destination).map_err(|error| {
+        AppErrorPayload::new(
+            AppErrorCode::Unknown,
+            "error.app.unknown.title",
+            error.to_string(),
+        )
+        .with_param("path", &destination.display().to_string())
+    })?;
+    let refreshed_status = if written == bytes {
+        folder_core::FolderCompareStatus::Same
+    } else {
+        folder_core::FolderCompareStatus::Different
+    };
+
+    let name = destination
+        .file_name()
+        .map(|value| value.to_string_lossy().into_owned())
+        .unwrap_or_else(|| relative_path.to_owned());
+    let extension = destination
+        .extension()
+        .map(|value| value.to_string_lossy().into_owned());
+
+    Ok(folder_core::CopySideResult {
         direction,
-        left_path,
-        right_path,
+        source_path,
+        target_path,
+        target_metadata: vfs_core::VfsMetadata {
+            kind: vfs_core::VfsEntryKind::File,
+            name,
+            extension,
+            size: written.len() as u64,
+            readonly: false,
+            created_at_ms: None,
+            modified_at_ms: None,
+            accessed_at_ms: None,
+        },
+        refreshed_status,
     })
-    .map_err(|error| folder_scan_error(&relative_path, error))
 }
 
 #[tauri::command]
@@ -5311,6 +5442,50 @@ mod tests {
             .rows
             .iter()
             .any(|row| row.relative_path == "same.txt" && row.status == "Same"));
+    }
+
+    #[test]
+    fn copy_folder_compare_entry_extracts_from_zip_into_folder() {
+        let root = unique_temp_dir("zip-extract-copy-command");
+        fs::create_dir_all(&root).expect("fixture directory should be created");
+        let archive_doc = archive_core::ArchiveDocument::new("bundle.zip")
+            .with_file("/nested/readme.txt", b"from-archive".to_vec())
+            .with_file("/solo.txt", b"solo".to_vec());
+        let archive = root.join("bundle.zip");
+        let folder = root.join("out");
+        fs::create_dir_all(&folder).expect("output folder should be created");
+        fs::write(
+            &archive,
+            archive_core::write_zip_bytes(&archive_doc).unwrap(),
+        )
+        .unwrap();
+
+        let copy = copy_folder_compare_entry(
+            archive.display().to_string(),
+            folder.display().to_string(),
+            "nested/readme.txt".to_owned(),
+            folder_core::CopyDirection::ToRight,
+        )
+        .expect("archive file should extract into the folder side");
+
+        assert_eq!(
+            copy.refreshed_status,
+            folder_core::FolderCompareStatus::Same
+        );
+        assert_eq!(
+            fs::read_to_string(folder.join("nested").join("readme.txt"))
+                .expect("extracted file should be readable"),
+            "from-archive"
+        );
+
+        let rejected = copy_folder_compare_entry(
+            folder.display().to_string(),
+            archive.display().to_string(),
+            "solo.txt".to_owned(),
+            folder_core::CopyDirection::ToRight,
+        )
+        .expect_err("copy into an archive side should stay rejected");
+        assert!(rejected.debug_message.contains("cannot copy into archive"));
     }
 
     #[test]

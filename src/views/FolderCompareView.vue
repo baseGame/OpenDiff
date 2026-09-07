@@ -701,7 +701,7 @@ const folderSessionToolbar = computed(() =>
     same: true,
     minor: false,
     rules: true,
-    copy: Boolean(selectedFilePath.value),
+    copy: canCopyToRight.value,
     expand: true,
     collapse: true,
     select: true,
@@ -729,7 +729,7 @@ function runFolderToolbarCommand(commandId: string): void {
       showFolderRules.value = !showFolderRules.value
       break
     case 'copy':
-      if (selectedFilePath.value) {
+      if (canCopyToRight.value) {
         copySelectedTo('Right')
       }
       break
@@ -1150,6 +1150,13 @@ const leftSideIsArchive = computed(() => isArchivePath(leftRoot.value))
 const rightSideIsArchive = computed(() => isArchivePath(rightRoot.value))
 const leftSideIsSnapshot = computed(() => isSnapshotPath(leftRoot.value))
 const rightSideIsSnapshot = computed(() => isSnapshotPath(rightRoot.value))
+/** Archives/snapshots are read-only targets; copy from archive into a folder is supported. */
+const canCopyToLeft = computed(
+  () => Boolean(selectedFilePath.value) && !leftSideIsArchive.value && !leftSideIsSnapshot.value,
+)
+const canCopyToRight = computed(
+  () => Boolean(selectedFilePath.value) && !rightSideIsArchive.value && !rightSideIsSnapshot.value,
+)
 
 async function browseArchive(side: 'left' | 'right'): Promise<void> {
   const selected = await pickNativePath({ directory: false })
@@ -2108,7 +2115,7 @@ onUnmounted(() => {
             size="small"
             secondary
             data-testid="copy-selected-to-left"
-            :disabled="!selectedFilePath"
+            :disabled="!canCopyToLeft"
             @click="copySelectedTo('Left')"
             >{{ $t('ui.copyLeft') }}</NButton
           >
@@ -2116,7 +2123,7 @@ onUnmounted(() => {
             size="small"
             secondary
             data-testid="copy-selected-to-right"
-            :disabled="!selectedFilePath"
+            :disabled="!canCopyToRight"
             @click="copySelectedTo('Right')"
             >{{ $t('ui.copyRight') }}</NButton
           >
@@ -2876,7 +2883,7 @@ onUnmounted(() => {
       <button
         type="button"
         data-testid="folder-ctx-copy-left"
-        :disabled="!selectedFilePath"
+        :disabled="!canCopyToLeft"
         @click="contextCopySelectedTo('Left')"
       >
         {{ $t('ui.copyLeft') }}
@@ -2884,7 +2891,7 @@ onUnmounted(() => {
       <button
         type="button"
         data-testid="folder-ctx-copy-right"
-        :disabled="!selectedFilePath"
+        :disabled="!canCopyToRight"
         @click="contextCopySelectedTo('Right')"
       >
         {{ $t('ui.copyRight') }}

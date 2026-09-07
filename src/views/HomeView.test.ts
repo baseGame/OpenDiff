@@ -269,6 +269,51 @@ describe('HomeView', () => {
     expect(recentSessions.text()).not.toContain('Compare sample text')
   })
 
+  it('filters Auto-saved and Today tree rows by the same search box', async () => {
+    seedSampleSessions()
+    const store = useSavedSessionsStore()
+    const baseSession = store.sessions.at(0)
+
+    if (!baseSession) {
+      throw new Error('Expected the sample session list to contain at least one session.')
+    }
+
+    const today = new Date().toISOString()
+
+    store.saveSession({
+      ...baseSession,
+      id: 'today-release',
+      name: 'Today release check',
+      metadata: {
+        ...baseSession.metadata,
+        lastOpenedAt: today,
+        autoSaved: false,
+        locked: false,
+      },
+    })
+    store.autoSaveSession(
+      {
+        ...baseSession,
+        id: 'auto-other',
+        name: 'Auto other draft',
+        metadata: {
+          ...baseSession.metadata,
+          lastOpenedAt: today,
+        },
+      },
+      10,
+    )
+    const wrapper = mountHomeView()
+
+    expect(wrapper.find('[data-testid="home-tree-today-today-release"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="home-tree-autosaved-auto-other"]').exists()).toBe(true)
+
+    await wrapper.find('[data-testid="session-search"]').setValue('release')
+
+    expect(wrapper.find('[data-testid="home-tree-today-today-release"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="home-tree-autosaved-auto-other"]').exists()).toBe(false)
+  })
+
   it('applies saved session management actions from the tree', async () => {
     seedSampleSessions()
     const wrapper = mountHomeView()

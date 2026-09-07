@@ -178,11 +178,12 @@ export const sessionCatalog: SessionCatalogEntry[] = [
     type: 'archive-compare',
     title: 'Archive Compare',
     titleKey: 'ui.archiveCompare',
-    summary: 'Opens Folder Compare for ZIP/TAR-style paths (not a separate archive engine)',
+    summary:
+      'Opens Folder Compare for ZIP/TAR sides with extract-on-copy into a folder (7z still unavailable)',
     summaryKey: 'session.summary.archiveCompare',
     priority: 'P2',
     implemented: true,
-    maturity: 'limited',
+    maturity: 'partial',
     route: '/compare/folder',
   },
   {

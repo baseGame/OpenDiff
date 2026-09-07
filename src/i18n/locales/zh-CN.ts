@@ -667,7 +667,7 @@ export const zhCN: LanguagePack = {
     'ui.sheetNotSelected': '未选择',
     'ui.sheetSelectionEmpty': 'Excel 或 HTML 比较后显示工作表',
     'ui.sheetSelectionSummary': '左 {leftCount} / 右 {rightCount} · {leftSheet} vs {rightSheet}',
-    'session.summary.archiveCompare': '对比 ZIP/TAR 压缩包内容（7z 未实现）',
+    'session.summary.archiveCompare': '对比 ZIP/TAR 压缩包并支持复制到文件夹（7z 未实现）',
     'session.summary.script': '运行简单脚本：加载、比较、导出报告',
     'ui.archiveCompare': '压缩包比较',
     'ui.archivePathHint':

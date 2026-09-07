@@ -731,6 +731,25 @@ describe('FolderCompareView', () => {
     expect(wrapper.find('[data-testid="folder-browse-archive-left"]').exists()).toBe(true)
   })
 
+  it('disables copy into archive sides while leaving extract-to-folder enabled', async () => {
+    const wrapper = mountFolderCompareView()
+
+    await runCompare(wrapper)
+    await wrapper.find('[data-row-id="src-main-ts"]').trigger('click')
+
+    await wrapper.find('[data-testid="folder-left-root"]').setValue('/tmp/out-folder')
+    await wrapper.find('[data-testid="folder-right-root"]').setValue('/tmp/right.zip')
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('[data-testid="folder-right-archive-chip"]').exists()).toBe(true)
+    expect(
+      wrapper.find('[data-testid="copy-selected-to-right"]').attributes('disabled'),
+    ).toBeDefined()
+    expect(
+      wrapper.find('[data-testid="copy-selected-to-left"]').attributes('disabled'),
+    ).toBeUndefined()
+  })
+
   it('shows snapshot side chips when roots are snapshot JSON paths', async () => {
     const wrapper = mountFolderCompareView()
 
