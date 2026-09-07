@@ -47,6 +47,7 @@ const replaceQuery = ref('')
 const currentFindIndex = ref(0)
 const syntaxMenuOpen = ref(false)
 const syntaxLanguageId = ref('auto')
+const wordWrap = ref(settings.wrapTextDefault)
 
 const fileTitle = computed(() => {
   if (!document.value) {
@@ -313,6 +314,12 @@ function runTextEditCommand(commandId: string): void {
 
   if (commandId === 'syntax') {
     syntaxMenuOpen.value = !syntaxMenuOpen.value
+
+    return
+  }
+
+  if (commandId === 'wrap') {
+    wordWrap.value = !wordWrap.value
   }
 }
 
@@ -440,6 +447,7 @@ const textEditToolbarCommands = computed(() => [
   },
   { id: 'delete', glyph: 'D', labelKey: 'ui.delete', enabled: hasEditorContent.value },
   { id: 'syntax', glyph: 'S', labelKey: 'ui.syntax', enabled: true },
+  { id: 'wrap', glyph: 'W', labelKey: 'ui.wrap', enabled: true },
 ])
 </script>
 
@@ -450,7 +458,9 @@ const textEditToolbarCommands = computed(() => [
       :key="command.id"
       class="bc-toolbar-command"
       type="button"
+      :class="{ 'bc-toolbar-command-active': command.id === 'wrap' && wordWrap }"
       :disabled="!command.enabled"
+      :aria-pressed="command.id === 'wrap' ? wordWrap : undefined"
       :data-testid="`text-edit-toolbar-${command.id}`"
       @click="runTextEditCommand(command.id)"
     >
@@ -590,6 +600,7 @@ const textEditToolbarCommands = computed(() => [
       :value="editorText"
       type="textarea"
       class="editor-input"
+      :class="{ 'editor-input-wrap': wordWrap, 'editor-input-nowrap': !wordWrap }"
       :placeholder="$t('ui.openATextFileToBeginEditing')"
       @update:value="updateEditorText"
     />
@@ -756,6 +767,22 @@ h1 {
 
 .editor-input {
   min-height: 0;
+}
+
+.bc-toolbar-command-active {
+  background: color-mix(in srgb, var(--od-accent, #3b82f6) 28%, transparent);
+}
+
+:deep(.editor-input-wrap textarea),
+.editor-input-wrap :deep(textarea) {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+:deep(.editor-input-nowrap textarea),
+.editor-input-nowrap :deep(textarea) {
+  overflow-x: auto;
+  white-space: pre;
 }
 
 :deep(textarea) {

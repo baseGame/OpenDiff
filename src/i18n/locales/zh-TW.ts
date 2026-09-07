@@ -780,6 +780,7 @@ export const zhTW: LanguagePack = {
     'status.conflictPosition': '衝突 {index}/{total}',
     'ui.browseArchive': '壓縮檔…',
     'ui.archiveSide': '壓縮檔',
+    'ui.snapshotSide': '快照',
     'status.notAnArchivePath': '不是 ZIP/TAR 壓縮檔：{path}',
     'status.attributesChangedBulk': '已變更 {count} 項屬性 -> {state}',
     'status.renamedBulkPaths': '已重新命名 {count} 項 -> {path}',

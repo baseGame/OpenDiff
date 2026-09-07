@@ -13,6 +13,7 @@ import { useRouter } from 'vue-router'
 import WorkbenchShell from '@/components/workbench/WorkbenchShell.vue'
 import WorkbenchInspector from '@/components/workbench/WorkbenchInspector.vue'
 import { createFolderSnapshot } from '@/api/diff'
+import { folderSnapshotOutputPath } from '@/app/snapshotPath'
 import { collectExpandablePrefixes, isPathHiddenByCollapse } from '@/app/folderPathGroups'
 import { buildFolderSyncToolbar, pathBaseName, syncPathPairTitle } from '@/app/sessionToolbars'
 import { useI18n } from '@/i18n'
@@ -419,7 +420,7 @@ async function saveSyncFolderSnapshot(): Promise<void> {
   }
 
   const normalizedRoot = sourceRoot.replace(/[/\\]+$/u, '')
-  const outputPath = `${normalizedRoot}/open-diff-snapshot.json`
+  const outputPath = folderSnapshotOutputPath(normalizedRoot)
 
   try {
     await createFolderSnapshot({

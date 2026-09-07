@@ -49,6 +49,7 @@ import { useViewActionsStore } from '@/stores/viewActions'
 import { useLastCompareStore } from '@/stores/lastCompare'
 import { useWorkspacesStore } from '@/stores/workspaces'
 import { createFolderSnapshot } from '@/api/diff'
+import { folderSnapshotOutputPath } from '@/app/snapshotPath'
 import { openPathExternal, takeShellCompareLaunch } from '@/api/integration'
 import { pickNativePath } from '@/app/filePicker'
 import { pathBaseName } from '@/app/sessionToolbars'
@@ -461,7 +462,7 @@ async function saveSnapshotFromMenu(): Promise<void> {
   }
 
   const normalizedRoot = sourceRoot.replace(/[/\\]+$/u, '')
-  const outputPath = `${normalizedRoot}/open-diff-snapshot.json`
+  const outputPath = folderSnapshotOutputPath(normalizedRoot)
 
   try {
     const written = await createFolderSnapshot({

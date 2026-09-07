@@ -779,6 +779,7 @@ export const zhCN: LanguagePack = {
     'status.conflictPosition': '冲突 {index}/{total}',
     'ui.browseArchive': '压缩包…',
     'ui.archiveSide': '压缩包',
+    'ui.snapshotSide': '快照',
     'status.notAnArchivePath': '不是 ZIP/TAR 压缩包：{path}',
     'status.attributesChangedBulk': '已更改 {count} 项属性 -> {state}',
     'status.renamedBulkPaths': '已重命名 {count} 项 -> {path}',

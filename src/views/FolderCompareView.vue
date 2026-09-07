@@ -13,6 +13,7 @@ import {
 } from '@/app/fileOperationConfirmation'
 import { createChildCompareLaunch } from '@/app/childSession'
 import { isArchivePath } from '@/app/archivePath'
+import { folderSnapshotOutputPath, isSnapshotPath } from '@/app/snapshotPath'
 import { pickNativePath } from '@/app/filePicker'
 import { formatCompareError } from '@/app/compareError'
 import { loadFolderDisplayFilters, saveFolderDisplayFilters } from '@/app/folderDisplayFilters'
@@ -509,7 +510,7 @@ async function saveFolderSnapshot(): Promise<void> {
   }
 
   const normalizedRoot = sourceRoot.replace(/[/\\]+$/u, '')
-  const outputPath = `${normalizedRoot}/open-diff-snapshot.json`
+  const outputPath = folderSnapshotOutputPath(normalizedRoot)
 
   try {
     await createFolderSnapshot({
@@ -1147,6 +1148,8 @@ function operationEntryPaths(): string[] {
 
 const leftSideIsArchive = computed(() => isArchivePath(leftRoot.value))
 const rightSideIsArchive = computed(() => isArchivePath(rightRoot.value))
+const leftSideIsSnapshot = computed(() => isSnapshotPath(leftRoot.value))
+const rightSideIsSnapshot = computed(() => isSnapshotPath(rightRoot.value))
 
 async function browseArchive(side: 'left' | 'right'): Promise<void> {
   const selected = await pickNativePath({ directory: false })
@@ -1854,6 +1857,12 @@ onUnmounted(() => {
                 data-testid="folder-left-archive-chip"
                 >{{ $t('ui.archiveSide') }}</span
               >
+              <span
+                v-if="leftSideIsSnapshot"
+                class="archive-side-chip"
+                data-testid="folder-left-snapshot-chip"
+                >{{ $t('ui.snapshotSide') }}</span
+              >
             </div>
           </label>
           <label>
@@ -1890,6 +1899,12 @@ onUnmounted(() => {
                 class="archive-side-chip"
                 data-testid="folder-right-archive-chip"
                 >{{ $t('ui.archiveSide') }}</span
+              >
+              <span
+                v-if="rightSideIsSnapshot"
+                class="archive-side-chip"
+                data-testid="folder-right-snapshot-chip"
+                >{{ $t('ui.snapshotSide') }}</span
               >
             </div>
           </label>

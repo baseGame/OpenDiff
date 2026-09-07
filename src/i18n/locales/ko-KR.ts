@@ -798,6 +798,7 @@ export const koKR: LanguagePack = {
     'status.conflictPosition': 'Conflict {index} of {total}',
     'ui.browseArchive': 'Archive…',
     'ui.archiveSide': 'Archive',
+    'ui.snapshotSide': '스냅샷',
     'status.notAnArchivePath': 'Not a ZIP/TAR archive: {path}',
     'status.attributesChangedBulk': 'Attributes changed on {count} items -> {state}',
     'status.renamedBulkPaths': 'Renamed {count} items -> {path}',

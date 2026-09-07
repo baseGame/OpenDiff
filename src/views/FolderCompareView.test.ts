@@ -731,6 +731,18 @@ describe('FolderCompareView', () => {
     expect(wrapper.find('[data-testid="folder-browse-archive-left"]').exists()).toBe(true)
   })
 
+  it('shows snapshot side chips when roots are snapshot JSON paths', async () => {
+    const wrapper = mountFolderCompareView()
+
+    await wrapper.find('[data-testid="folder-left-root"]').setValue('/tmp/docs/docs.snapshot.json')
+    await wrapper.find('[data-testid="folder-right-root"]').setValue('/tmp/open-diff-snapshot.json')
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('[data-testid="folder-left-snapshot-chip"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="folder-right-snapshot-chip"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="folder-left-archive-chip"]').exists()).toBe(false)
+  })
+
   it('applies readonly attributes across the checked set', async () => {
     vi.mocked(changeFolderEntryAttributes).mockClear()
     const wrapper = mountFolderCompareView()
