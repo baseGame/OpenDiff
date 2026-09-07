@@ -26,6 +26,11 @@ vi.mock('vue-router', () => ({
 
 const desktopDropHandlers: ((paths: string[]) => void | Promise<void>)[] = []
 
+vi.mock('@/api/integration', () => ({
+  takeShellCompareLaunch: vi.fn().mockResolvedValue(null),
+  openPathExternal: vi.fn().mockResolvedValue({ path: 'https://example.com', launched: true }),
+}))
+
 vi.mock('@/app/desktopDrop', () => ({
   listenDesktopPathDrop: vi.fn(
     (onPaths: (paths: string[]) => void | Promise<void>, _onPhase?: unknown) => {
@@ -69,7 +74,8 @@ describe('AppLayout command palette', () => {
     expect(wrapper.find('[data-testid="menu-command-help.checkForUpdates"]').exists()).toBe(true)
     expect(
       wrapper.find('[data-testid="menu-command-help.contents"]').attributes('disabled'),
-    ).toBeDefined()
+    ).toBeUndefined()
+    expect(wrapper.find('[data-testid="menu-command-help.support"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="menu-panel"]').text()).not.toContain('unimplemented')
     expect(wrapper.find('[data-testid="menu-panel"]').text()).not.toContain('未实现')
 
@@ -78,6 +84,18 @@ describe('AppLayout command palette', () => {
       wrapper.find('[data-testid="menu-command-session.newWindow"]').attributes('disabled'),
     ).toBeDefined()
     expect(wrapper.find('[data-testid="menu-command-session.newTab"]').exists()).toBe(true)
+  })
+
+  it('opens the About dialog from Help', async () => {
+    routePath = '/'
+    const wrapper = mountAppLayout()
+
+    await wrapper.find('[data-testid="menu-help"]').trigger('click')
+    await wrapper.find('[data-testid="menu-command-help.about"]').trigger('click')
+
+    expect(wrapper.find('[data-testid="about-dialog"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="about-dialog"]').text()).toContain('About Open Diff')
+    expect(wrapper.find('[data-testid="about-dialog"]').text()).toContain('1.1.2')
   })
 
   it('shows Session Actions Edit Search View Tools Help on Folder Compare', () => {
@@ -143,6 +161,7 @@ describe('AppLayout command palette', () => {
     await wrapper.vm.$nextTick()
 
     expect(wrapper.find('.brand').text()).toContain('left.txt <--> right.txt - Text Compare')
+    expect(document.title).toContain('left.txt <--> right.txt - Text Compare')
   })
 
   it('does not show hardcoded fake session counts in the chrome', () => {

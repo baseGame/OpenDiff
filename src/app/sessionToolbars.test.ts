@@ -12,6 +12,8 @@ import {
   hexCompareToolbarOrder,
   pathPairTitle,
   pictureCompareToolbarOrder,
+  singlePathTitle,
+  syncPathPairTitle,
   tableCompareToolbarOrder,
   textCompareToolbarOrder,
   versionCompareToolbarOrder,
@@ -116,5 +118,7 @@ describe('sessionToolbars', () => {
 
   it('formats path pair titles', () => {
     expect(pathPairTitle('D:/work/left.txt', 'D:/work/right.txt')).toBe('left.txt <--> right.txt')
+    expect(syncPathPairTitle('D:/left', 'D:/right')).toBe('Update: left <--> right')
+    expect(singlePathTitle('D:/work/out.txt')).toBe('out.txt')
   })
 })

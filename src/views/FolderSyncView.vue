@@ -8,10 +8,12 @@ import type {
   FolderSyncPreviewRow,
   FolderSyncStrategy,
 } from '@/types/sync'
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import WorkbenchShell from '@/components/workbench/WorkbenchShell.vue'
 import WorkbenchInspector from '@/components/workbench/WorkbenchInspector.vue'
+import { syncPathPairTitle } from '@/app/sessionToolbars'
 import { useI18n } from '@/i18n'
+import { useTabsStore } from '@/stores/tabs'
 import { useSessionLaunchStore } from '@/stores/sessionLaunch'
 
 interface SyncStrategyOption {
@@ -44,6 +46,7 @@ const strategyOptions: SyncStrategyOption[] = [
   { value: 'mirrorLeft', labelKey: 'sync.strategy.mirrorLeft' },
 ]
 const { t } = useI18n()
+const tabs = useTabsStore()
 const sessionLaunch = useSessionLaunchStore()
 const leftPath = ref('')
 const rightPath = ref('')
@@ -205,6 +208,16 @@ function folderSyncExecutionLogLabel(log: FolderSyncExecutionLog): string {
 
   return t('status.copiedPath', { path: log.relativePath })
 }
+
+watch(
+  [leftPath, rightPath],
+  ([left, right]) => {
+    if (left && right) {
+      tabs.setTabTitle('/sync/folder', syncPathPairTitle(left, right))
+    }
+  },
+  { immediate: true },
+)
 </script>
 
 <template>

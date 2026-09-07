@@ -55,6 +55,8 @@ export type CommandAction =
         | 'close-tab'
         | 'about'
         | 'check-for-updates'
+        | 'help-contents'
+        | 'help-support'
     }
 
 export interface CommandShortcut {
@@ -374,11 +376,11 @@ export const commandRegistry: AppCommand[] = [
     id: 'help.contents',
     titleKey: 'ui.helpContents',
     keywords: ['help', 'contents'],
-    enabled: false,
+    enabled: true,
     visibility: 'global',
     defaultShortcut: { keys: ['F1'], scope: 'global' },
     placements: ['command-palette', 'menu'],
-    action: { type: 'noop' },
+    action: { type: 'view-action', name: 'help-contents' },
   },
   {
     id: 'help.about',
@@ -404,11 +406,11 @@ export const commandRegistry: AppCommand[] = [
     id: 'help.support',
     titleKey: 'ui.support',
     keywords: ['help', 'support'],
-    enabled: false,
+    enabled: true,
     visibility: 'global',
     defaultShortcut: { keys: ['Ctrl', 'Shift', 'H'], scope: 'global' },
     placements: ['command-palette', 'menu'],
-    action: { type: 'noop' },
+    action: { type: 'view-action', name: 'help-support' },
   },
 ]
 

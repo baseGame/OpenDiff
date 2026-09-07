@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { mergeTextFiles, saveTextFile } from '@/api/diff'
 import WorkbenchShell from '@/components/workbench/WorkbenchShell.vue'
 import WorkbenchInspector from '@/components/workbench/WorkbenchInspector.vue'
+import { pathPairTitle, singlePathTitle } from '@/app/sessionToolbars'
 import { useI18n } from '@/i18n'
+import { useTabsStore } from '@/stores/tabs'
 import { useSessionLaunchStore } from '@/stores/sessionLaunch'
 
 type MergePaneId = 'left' | 'base' | 'right' | 'output'
@@ -31,6 +33,7 @@ interface MergeConflict {
 type ConflictPolicy = 'markConflict' | 'favorLeft' | 'favorRight'
 
 const { t } = useI18n()
+const tabs = useTabsStore()
 const sessionLaunch = useSessionLaunchStore()
 const leftPath = ref('')
 const rightPath = ref('')
@@ -228,6 +231,18 @@ function lineClass(line: string, paneId: MergePaneId): string {
 
   return 'normal'
 }
+
+watch(
+  [leftPath, rightPath, outputPath],
+  ([left, right, output]) => {
+    if (output) {
+      tabs.setTabTitle('/merge/text', singlePathTitle(output))
+    } else if (left && right) {
+      tabs.setTabTitle('/merge/text', pathPairTitle(left, right))
+    }
+  },
+  { immediate: true },
+)
 </script>
 
 <template>

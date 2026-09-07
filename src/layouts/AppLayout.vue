@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter, RouterView } from 'vue-router'
 import {
   ArrowDown,
@@ -44,7 +44,8 @@ import { useStatusBarStore } from '@/stores/statusBar'
 import { useSavedSessionsStore } from '@/stores/savedSessions'
 import { useSessionLaunchStore } from '@/stores/sessionLaunch'
 import { useTabsStore } from '@/stores/tabs'
-import { takeShellCompareLaunch } from '@/api/integration'
+import { openPathExternal, takeShellCompareLaunch } from '@/api/integration'
+import { APP_VERSION, DOCS_URL, RELEASES_URL, SUPPORT_URL } from '@/app/appMeta'
 import type { SessionType } from '@/types/session'
 import type { AppCommand, CommandId } from '@/app/commandRegistry'
 import type { ViewActionName } from '@/app/commandSystem'
@@ -173,6 +174,8 @@ const commandQuery = ref('')
 const languageMenuOpen = ref(false)
 const activeMenu = ref<AppMenuId>()
 const lastViewAction = ref<ViewActionName>()
+const aboutDialogOpen = ref(false)
+const helpStatusMessage = ref('')
 const pendingCloseTab = ref<{ id: string; title: string }>()
 const tabContextMenu = ref<{ x: number; y: number; tabId: string }>()
 const visibleCommands = computed(() => filterCommands(commandRegistry, commandQuery.value))
@@ -265,6 +268,29 @@ const visibleAppMenus = computed(() => {
 const menuCommandLookup = computed(
   () => new Map(commandRegistry.map((command) => [command.id, command])),
 )
+
+async function openHelpLink(url: string, kind: 'updates' | 'docs' | 'support'): Promise<void> {
+  if (kind === 'updates' && !policy.updateChecks) {
+    helpStatusMessage.value = t('ui.updatesCheckDisabled')
+
+    return
+  }
+
+  try {
+    await openPathExternal(url)
+  } catch {
+    window.open(url, '_blank', 'noopener,noreferrer')
+  }
+
+  if (kind === 'updates') {
+    helpStatusMessage.value = t('ui.updatesCheckOpened')
+  }
+}
+
+function closeAboutDialog(): void {
+  aboutDialogOpen.value = false
+}
+
 const executeRegisteredCommand = createCommandExecutor(commandRegistry, {
   navigate: (nextRoute) => {
     void router.push(nextRoute)
@@ -276,6 +302,19 @@ const executeRegisteredCommand = createCommandExecutor(commandRegistry, {
   toggleTheme: settings.toggleTheme,
   dispatchViewAction: (name) => {
     lastViewAction.value = name
+    if (name === 'about') {
+      aboutDialogOpen.value = true
+      helpStatusMessage.value = ''
+    }
+    if (name === 'check-for-updates') {
+      void openHelpLink(RELEASES_URL, 'updates')
+    }
+    if (name === 'help-contents') {
+      void openHelpLink(DOCS_URL, 'docs')
+    }
+    if (name === 'help-support') {
+      void openHelpLink(SUPPORT_URL, 'support')
+    }
     if (name === 'save' && tabs.activeTab.id !== 'home') {
       tabs.setTabDirty(tabs.activeTab.id, true)
     }
@@ -331,6 +370,16 @@ const windowTitle = computed(() => {
 
   return `${sessionName} - OpenDiff`
 })
+
+watch(
+  windowTitle,
+  (title) => {
+    if (typeof document !== 'undefined') {
+      document.title = title
+    }
+  },
+  { immediate: true },
+)
 
 function navigate(nextRoute: string, title: string, titleKey?: string): void {
   tabs.openTab({ route: nextRoute, title, titleKey, dirty: false })
@@ -889,6 +938,51 @@ const sourceSessionTypes = new Set<SessionType>([
       <span>{{ localizedStatusSegments[2] }}</span>
       <span>{{ localizedStatusSegments[3] }}</span>
     </footer>
+
+    <div
+      v-if="aboutDialogOpen"
+      class="about-backdrop"
+      data-testid="about-dialog"
+      @click.self="closeAboutDialog"
+    >
+      <section
+        class="about-dialog"
+        role="dialog"
+        aria-modal="true"
+        :aria-label="t('ui.aboutTitle')"
+      >
+        <header>
+          <strong>{{ t('ui.aboutTitle') }}</strong>
+        </header>
+        <p>{{ t('ui.aboutVersion', { version: APP_VERSION }) }}</p>
+        <p>{{ t('ui.aboutLicense') }}</p>
+        <p>
+          <button
+            type="button"
+            data-testid="about-open-homepage"
+            @click="openHelpLink(DOCS_URL, 'docs')"
+          >
+            {{ t('ui.aboutHomepage') }}
+          </button>
+        </p>
+        <footer>
+          <button
+            type="button"
+            data-testid="about-close"
+            @click="closeAboutDialog"
+          >
+            {{ t('ui.aboutClose') }}
+          </button>
+        </footer>
+      </section>
+    </div>
+    <p
+      v-if="helpStatusMessage"
+      class="help-status"
+      data-testid="help-status-message"
+    >
+      {{ helpStatusMessage }}
+    </p>
 
     <div
       v-if="commandPaletteOpen"
@@ -1530,5 +1624,45 @@ const sourceSessionTypes = new Set<SessionType>([
   .desktop {
     grid-template-columns: minmax(0, 1fr);
   }
+}
+
+.about-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  background: rgb(15 23 42 / 0.45);
+}
+
+.about-dialog {
+  min-width: min(420px, 92vw);
+  padding: 1rem 1.25rem;
+  border-radius: 10px;
+  background: var(--panel, #ffffff);
+  color: var(--text, #0f172a);
+  box-shadow: 0 18px 50px rgb(15 23 42 / 0.25);
+}
+
+.about-dialog header {
+  margin-bottom: 0.75rem;
+}
+
+.about-dialog footer {
+  margin-top: 1rem;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.help-status {
+  position: fixed;
+  right: 1rem;
+  bottom: 2.5rem;
+  z-index: 70;
+  max-width: min(420px, 90vw);
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  background: var(--panel, #ffffff);
+  box-shadow: 0 8px 24px rgb(15 23 42 / 0.18);
 }
 </style>

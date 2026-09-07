@@ -76,6 +76,7 @@ interface FolderTreeRow {
   rightPath?: string
   status: FolderStatus
   kind: 'file' | 'directory'
+  manualAlignment?: boolean
 }
 
 interface SyncPreviewItem {
@@ -160,6 +161,7 @@ const selectedReadonly = ref(false)
 const lastMetadataAction = ref<string>()
 const excludedRowIds = ref<Set<string>>(new Set())
 const lastSelectionAction = ref<string>()
+const lastAlignmentAction = ref<string>()
 const currentDifferenceIndex = ref(-1)
 const lastDifferenceNavigation = ref<string>()
 const syncPreviewItems = ref<SyncPreviewItem[]>([])
@@ -289,6 +291,31 @@ const alignWithCandidates = computed(() =>
       (row.status === 'Left only' || row.status === 'Right only'),
   ),
 )
+const canAlignWith = computed(() => {
+  const selected = selectedRow.value
+  const target = rows.value.find((row) => row.id === alignWithTargetId.value)
+
+  if (!selected || !target || selected.kind !== 'file' || target.kind !== 'file') {
+    return false
+  }
+
+  return (
+    (selected.status === 'Left only' && target.status === 'Right only') ||
+    (selected.status === 'Right only' && target.status === 'Left only')
+  )
+})
+const canBreakAlignment = computed(() => {
+  const selected = selectedRow.value
+
+  return Boolean(
+    selected?.kind === 'file' &&
+    selected.leftPath &&
+    selected.rightPath &&
+    (selected.manualAlignment === true ||
+      selected.status === 'Different' ||
+      selected.status === 'Same'),
+  )
+})
 const enabledExternalApplications = computed(() =>
   listEnabledExternalApplications(externalApplicationConfigs.value),
 )
@@ -648,6 +675,7 @@ function applyFolderCompareResponse(response: FolderCompareResponse): void {
   selectedRowId.value = undefined
   excludedRowIds.value = new Set()
   alignWithTargetId.value = ''
+  lastAlignmentAction.value = undefined
   currentDifferenceIndex.value = -1
   lastDifferenceNavigation.value = undefined
   scrollTop.value = 0
@@ -734,6 +762,95 @@ function formatFolderModified(modifiedAtMs: number | undefined): string {
   const minutes = String(date.getMinutes()).padStart(2, '0')
 
   return `${year}-${month}-${day} ${hours}:${minutes}`
+}
+
+function alignSelectedWithTarget(): void {
+  const selected = selectedRow.value
+  const target = rows.value.find((row) => row.id === alignWithTargetId.value)
+
+  if (!selected || !target || !canAlignWith.value) {
+    lastAlignmentAction.value = t('status.alignWithNeedsOrphans')
+
+    return
+  }
+
+  const leftSide = selected.status === 'Left only' ? selected : target
+  const rightSide = selected.status === 'Right only' ? selected : target
+  const mergedId = `align-${leftSide.id}-with-${rightSide.id}`
+  const merged: FolderTreeRow = {
+    id: mergedId,
+    relativePath: `${leftSide.relativePath} <--> ${rightSide.relativePath}`,
+    parentId: leftSide.parentId ?? rightSide.parentId,
+    depth: Math.min(leftSide.depth, rightSide.depth),
+    leftName: leftSide.leftName,
+    rightName: rightSide.rightName,
+    leftSize: leftSide.leftSize,
+    rightSize: rightSide.rightSize,
+    leftModified: leftSide.leftModified,
+    rightModified: rightSide.rightModified,
+    leftPath: leftSide.leftPath,
+    rightPath: rightSide.rightPath,
+    status: 'Different',
+    kind: 'file',
+    manualAlignment: true,
+  }
+
+  rows.value = rows.value
+    .filter((row) => row.id !== leftSide.id && row.id !== rightSide.id)
+    .concat(merged)
+  selectedRowId.value = merged.id
+  alignWithTargetId.value = ''
+  lastAlignmentAction.value = t('status.alignWithApplied', {
+    source: displayName(leftSide),
+    target: displayName(rightSide),
+  })
+}
+
+function breakSelectedAlignment(): void {
+  const selected = selectedRow.value
+
+  if (!selected || !canBreakAlignment.value || !selected.leftPath || !selected.rightPath) {
+    return
+  }
+
+  const leftOnly: FolderTreeRow = {
+    id: `${selected.id}-left`,
+    relativePath: selected.leftName ?? pathBaseFromPath(selected.leftPath),
+    parentId: selected.parentId,
+    depth: selected.depth,
+    leftName: selected.leftName ?? pathBaseFromPath(selected.leftPath),
+    leftSize: selected.leftSize,
+    leftModified: selected.leftModified,
+    leftPath: selected.leftPath,
+    status: 'Left only',
+    kind: 'file',
+  }
+  const rightOnly: FolderTreeRow = {
+    id: `${selected.id}-right`,
+    relativePath: selected.rightName ?? pathBaseFromPath(selected.rightPath),
+    parentId: selected.parentId,
+    depth: selected.depth,
+    rightName: selected.rightName ?? pathBaseFromPath(selected.rightPath),
+    rightSize: selected.rightSize,
+    rightModified: selected.rightModified,
+    rightPath: selected.rightPath,
+    status: 'Right only',
+    kind: 'file',
+  }
+
+  rows.value = rows.value.filter((row) => row.id !== selected.id).concat(leftOnly, rightOnly)
+  selectedRowId.value = leftOnly.id
+  alignWithTargetId.value = ''
+  lastAlignmentAction.value = t('status.breakAlignmentApplied', {
+    name: displayName(selected),
+  })
+}
+
+function pathBaseFromPath(path: string): string {
+  const normalized = path.replaceAll('\\', '/').replace(/\/+$/u, '')
+  const parts = normalized.split('/').filter(Boolean)
+
+  return parts.at(-1) ?? path
 }
 
 function selectRow(row: FolderTreeRow): void {
@@ -2032,16 +2149,26 @@ onUnmounted(() => {
           size="small"
           secondary
           data-testid="align-with-selected-file"
-          disabled
+          :disabled="!canAlignWith"
+          @click="alignSelectedWithTarget"
           >{{ $t('ui.alignWith') }}</NButton
         >
         <NButton
           size="small"
           secondary
           data-testid="break-selected-alignment"
-          disabled
+          :disabled="!canBreakAlignment"
+          @click="breakSelectedAlignment"
           >{{ $t('ui.breakAlignment') }}</NButton
         >
+      </section>
+
+      <section
+        v-if="lastAlignmentAction"
+        class="folder-action-status"
+        data-testid="folder-alignment-action-status"
+      >
+        {{ lastAlignmentAction }}
       </section>
 
       <section

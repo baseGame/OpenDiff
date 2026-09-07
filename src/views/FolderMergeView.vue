@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useTabsStore } from '@/stores/tabs'
 import {
@@ -16,6 +16,7 @@ import type {
 } from '@/types/folderMerge'
 import WorkbenchShell from '@/components/workbench/WorkbenchShell.vue'
 import WorkbenchInspector from '@/components/workbench/WorkbenchInspector.vue'
+import { singlePathTitle } from '@/app/sessionToolbars'
 import { useI18n } from '@/i18n'
 
 const leftPath = ref('')
@@ -164,6 +165,16 @@ function joinRoot(root: string, relativePath: string): string {
 
   return normalizedRelative ? `${normalizedRoot}/${normalizedRelative}` : normalizedRoot
 }
+
+watch(
+  outputPath,
+  (output) => {
+    if (output) {
+      tabs.setTabTitle('/merge/folder', singlePathTitle(output))
+    }
+  },
+  { immediate: true },
+)
 </script>
 
 <template>

@@ -2,6 +2,9 @@ import type { SessionType } from '@/types/session'
 
 export type SessionPriority = 'P0' | 'P1' | 'P2' | 'P3'
 
+/** Launchable UI exists when implemented; maturity is honesty about depth. */
+export type SessionMaturity = 'ready' | 'partial' | 'limited'
+
 export interface SessionCatalogEntry {
   type: SessionType
   title: string
@@ -9,7 +12,10 @@ export interface SessionCatalogEntry {
   summary: string
   summaryKey: string
   priority: SessionPriority
+  /** Has a routable session UI users can open. */
   implemented: boolean
+  /** ready = solid core; partial = real ops with visible gaps; limited = thin/shell. */
+  maturity: SessionMaturity
   route?: string
 }
 
@@ -22,6 +28,7 @@ export const sessionCatalog: SessionCatalogEntry[] = [
     summaryKey: 'session.summary.textCompare',
     priority: 'P0',
     implemented: true,
+    maturity: 'ready',
     route: '/compare/text',
   },
   {
@@ -32,6 +39,7 @@ export const sessionCatalog: SessionCatalogEntry[] = [
     summaryKey: 'session.summary.folderCompare',
     priority: 'P0',
     implemented: true,
+    maturity: 'ready',
     route: '/compare/folder',
   },
   {
@@ -42,6 +50,7 @@ export const sessionCatalog: SessionCatalogEntry[] = [
     summaryKey: 'session.summary.folderSync',
     priority: 'P1',
     implemented: true,
+    maturity: 'partial',
     route: '/sync/folder',
   },
   {
@@ -52,6 +61,7 @@ export const sessionCatalog: SessionCatalogEntry[] = [
     summaryKey: 'session.summary.textMerge',
     priority: 'P1',
     implemented: true,
+    maturity: 'partial',
     route: '/merge/text',
   },
   {
@@ -62,6 +72,7 @@ export const sessionCatalog: SessionCatalogEntry[] = [
     summaryKey: 'session.summary.tableCompare',
     priority: 'P1',
     implemented: true,
+    maturity: 'partial',
     route: '/compare/table',
   },
   {
@@ -72,6 +83,7 @@ export const sessionCatalog: SessionCatalogEntry[] = [
     summaryKey: 'session.summary.hexCompare',
     priority: 'P1',
     implemented: true,
+    maturity: 'partial',
     route: '/compare/hex',
   },
   {
@@ -82,6 +94,7 @@ export const sessionCatalog: SessionCatalogEntry[] = [
     summaryKey: 'session.summary.pictureCompare',
     priority: 'P1',
     implemented: true,
+    maturity: 'partial',
     route: '/compare/picture',
   },
   {
@@ -92,6 +105,7 @@ export const sessionCatalog: SessionCatalogEntry[] = [
     summaryKey: 'session.summary.folderMerge',
     priority: 'P2',
     implemented: true,
+    maturity: 'partial',
     route: '/merge/folder',
   },
   {
@@ -102,6 +116,7 @@ export const sessionCatalog: SessionCatalogEntry[] = [
     summaryKey: 'session.summary.textEdit',
     priority: 'P2',
     implemented: true,
+    maturity: 'ready',
     route: '/edit/text',
   },
   {
@@ -112,6 +127,7 @@ export const sessionCatalog: SessionCatalogEntry[] = [
     summaryKey: 'session.summary.textPatch',
     priority: 'P2',
     implemented: true,
+    maturity: 'partial',
     route: '/patch/text',
   },
   {
@@ -122,6 +138,7 @@ export const sessionCatalog: SessionCatalogEntry[] = [
     summaryKey: 'session.summary.clipboardCompare',
     priority: 'P2',
     implemented: true,
+    maturity: 'partial',
     route: '/compare/clipboard',
   },
   {
@@ -132,6 +149,7 @@ export const sessionCatalog: SessionCatalogEntry[] = [
     summaryKey: 'session.summary.registryCompare',
     priority: 'P3',
     implemented: true,
+    maturity: 'partial',
     route: '/compare/registry',
   },
   {
@@ -142,6 +160,7 @@ export const sessionCatalog: SessionCatalogEntry[] = [
     summaryKey: 'session.summary.mediaCompare',
     priority: 'P3',
     implemented: true,
+    maturity: 'limited',
     route: '/compare/media',
   },
   {
@@ -152,26 +171,29 @@ export const sessionCatalog: SessionCatalogEntry[] = [
     summaryKey: 'session.summary.versionCompare',
     priority: 'P3',
     implemented: true,
+    maturity: 'partial',
     route: '/compare/version',
   },
   {
     type: 'archive-compare',
     title: 'Archive Compare',
     titleKey: 'ui.archiveCompare',
-    summary: 'Compare ZIP or TAR contents (7z not available)',
+    summary: 'Opens Folder Compare for ZIP/TAR-style paths (not a separate archive engine)',
     summaryKey: 'session.summary.archiveCompare',
     priority: 'P2',
     implemented: true,
+    maturity: 'limited',
     route: '/compare/folder',
   },
   {
     type: 'script',
     title: 'Script',
     titleKey: 'ui.script',
-    summary: 'Run a simple script to load, compare, and export a report',
+    summary: 'Run a limited script subset to load, compare, and export a report',
     summaryKey: 'session.summary.script',
     priority: 'P2',
     implemented: true,
+    maturity: 'limited',
     route: '/reports/scripts',
   },
 ]

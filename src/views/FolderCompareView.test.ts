@@ -110,8 +110,14 @@ vi.mock('@/api/diff', () => ({
         status: 'Left only',
         left: { name: 'notes.md', kind: 'file', size: 4, path: 'D:/left/notes.md' },
       },
+      {
+        relativePath: 'extra-right.md',
+        depth: 0,
+        status: 'Right only',
+        right: { name: 'extra-right.md', kind: 'file', size: 3, path: 'D:/right/extra-right.md' },
+      },
     ],
-    summary: { total: 4, same: 2, different: 1, leftOnly: 1, rightOnly: 0 },
+    summary: { total: 5, same: 2, different: 1, leftOnly: 1, rightOnly: 1 },
   }),
   copyFolderCompareEntry: vi.fn().mockResolvedValue({
     direction: 'toRight',
@@ -400,21 +406,36 @@ describe('FolderCompareView', () => {
     expect(wrapper.text()).toContain('Open With Visual Studio Code')
   })
 
-  it('keeps unfinished align-with actions disabled without unimplemented labels', async () => {
+  it('aligns orphan files and can break the manual alignment', async () => {
     const wrapper = mountFolderCompareView()
 
     await runCompare(wrapper)
-    await wrapper.find('[data-row-id="src-main-ts"]').trigger('click')
+    await wrapper.find('[data-row-id="notes-md"]').trigger('click')
+    await wrapper.find('[data-testid="align-with-target"]').setValue('extra-right-md')
 
     const alignWith = wrapper.find('[data-testid="align-with-selected-file"]')
+
+    expect(alignWith.attributes('disabled')).toBeUndefined()
+    await alignWith.trigger('click')
+
+    expect(wrapper.find('[data-testid="folder-alignment-action-status"]').text()).toContain(
+      'Aligned',
+    )
+    expect(wrapper.find('[data-row-id="align-notes-md-with-extra-right-md"]').exists()).toBe(true)
+
+    await wrapper.find('[data-row-id="align-notes-md-with-extra-right-md"]').trigger('click')
     const breakAlignment = wrapper.find('[data-testid="break-selected-alignment"]')
 
-    expect(alignWith.attributes('disabled')).toBeDefined()
-    expect(breakAlignment.attributes('disabled')).toBeDefined()
-    expect(alignWith.text()).toBe('Align With')
-    expect(breakAlignment.text()).toBe('Break Alignment')
+    expect(breakAlignment.attributes('disabled')).toBeUndefined()
+    await breakAlignment.trigger('click')
+
+    expect(wrapper.find('[data-testid="folder-alignment-action-status"]').text()).toContain(
+      'Broke alignment',
+    )
+    expect(wrapper.find('[data-row-id="align-notes-md-with-extra-right-md-left"]').exists()).toBe(
+      true,
+    )
     expect(alignWith.text()).not.toContain('unimplemented')
-    expect(wrapper.find('[data-testid="folder-alignment-action-status"]').exists()).toBe(false)
   })
 
   it('moves the selected file through the Tauri command', async () => {
