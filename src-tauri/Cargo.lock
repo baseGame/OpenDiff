@@ -3391,6 +3391,7 @@ dependencies = [
  "diff-core",
  "file-core",
  "folder-core",
+ "image-core",
  "job-core",
  "logging-core",
  "media-core",
