@@ -17,6 +17,7 @@ import type {
 import WorkbenchShell from '@/components/workbench/WorkbenchShell.vue'
 import WorkbenchInspector from '@/components/workbench/WorkbenchInspector.vue'
 import { createFolderSnapshot } from '@/api/diff'
+import { folderSnapshotOutputPath } from '@/app/snapshotPath'
 import { collectExpandablePrefixes, isPathHiddenByCollapse } from '@/app/folderPathGroups'
 import { buildFolderMergeToolbar, mergeSessionTitle, pathBaseName } from '@/app/sessionToolbars'
 import { useI18n } from '@/i18n'
@@ -210,7 +211,7 @@ async function saveMergeFolderSnapshot(): Promise<void> {
   }
 
   const normalizedRoot = sourceRoot.replace(/[/\\]+$/u, '')
-  const outputPath = `${normalizedRoot}/open-diff-snapshot.json`
+  const outputPath = folderSnapshotOutputPath(normalizedRoot)
 
   try {
     await createFolderSnapshot({

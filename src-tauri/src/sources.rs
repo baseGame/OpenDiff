@@ -39,11 +39,7 @@ pub fn load_compare_source(path: &str) -> Result<CompareSource, String> {
         ));
     }
 
-    if path.to_ascii_lowercase().ends_with(".snapshot.json")
-        || path
-            .to_ascii_lowercase()
-            .ends_with(".opendiff-snapshot.json")
-    {
+    if is_snapshot_compare_path(path) {
         return Ok(CompareSource::Snapshot(
             load_snapshot_file(&path_buf).map_err(|error| format!("{error:?}"))?,
         ));
@@ -304,4 +300,30 @@ fn collect_remote_files(
     }
 
     Ok(())
+}
+
+fn is_snapshot_compare_path(path: &str) -> bool {
+    let lower = path.replace('\\', "/").to_ascii_lowercase();
+    if lower.ends_with(".snapshot.json") || lower.ends_with(".opendiff-snapshot.json") {
+        return true;
+    }
+    let base = lower.rsplit('/').next().unwrap_or("");
+    base == "open-diff-snapshot.json"
+}
+
+#[cfg(test)]
+mod snapshot_path_tests {
+    use super::is_snapshot_compare_path;
+
+    #[test]
+    fn recognizes_reloadable_and_legacy_snapshot_names() {
+        assert!(is_snapshot_compare_path("/tmp/tree.snapshot.json"));
+        assert!(is_snapshot_compare_path(
+            r"C:\data\workspace.opendiff-snapshot.json"
+        ));
+        assert!(is_snapshot_compare_path("/tmp/open-diff-snapshot.json"));
+        assert!(is_snapshot_compare_path("/tmp/OPEN-DIFF-SNAPSHOT.JSON"));
+        assert!(!is_snapshot_compare_path("/tmp/folder"));
+        assert!(!is_snapshot_compare_path("/tmp/notes.json"));
+    }
 }

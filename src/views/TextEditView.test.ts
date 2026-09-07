@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import TextEditView from './TextEditView.vue'
 import { readTextFile, saveTextFile } from '@/api/diff'
 import { useSessionLaunchStore } from '@/stores/sessionLaunch'
+import { useSettingsStore } from '@/stores/settings'
 
 vi.mock('@/api/diff', () => ({
   readTextFile: vi.fn().mockResolvedValue({
@@ -44,9 +45,7 @@ function mountTextEditView(): VueWrapper {
           emits: ['click'],
           template: '<button :disabled="disabled" @click="$emit(\'click\')"><slot /></button>',
         },
-        NInput: {
-          ...NInputStub,
-        },
+        NInput: NInputStub,
         NAlert: { template: '<div><slot /></div>' },
       },
     },
@@ -55,6 +54,7 @@ function mountTextEditView(): VueWrapper {
 
 describe('TextEditView', () => {
   beforeEach(() => {
+    localStorage.clear()
     setActivePinia(createPinia())
     vi.mocked(readTextFile).mockClear()
     vi.mocked(saveTextFile).mockClear()
@@ -222,5 +222,22 @@ describe('TextEditView', () => {
     expect(wrapper.find('[data-testid="text-edit-syntax-preview"]').html()).toContain(
       'syntax-keyword',
     )
+  })
+
+  it('starts wrap from Options default and toggles from the toolbar', async () => {
+    localStorage.setItem('open-diff-wrap-text-default', '1')
+    setActivePinia(createPinia())
+    expect(useSettingsStore().wrapTextDefault).toBe(true)
+
+    const wrapper = mountTextEditView()
+    const wrapButton = wrapper.find('[data-testid="text-edit-toolbar-wrap"]')
+
+    expect(wrapButton.exists()).toBe(true)
+    expect(wrapButton.attributes('aria-pressed')).toBe('true')
+
+    await wrapButton.trigger('click')
+    await wrapper.vm.$nextTick()
+
+    expect(wrapButton.attributes('aria-pressed')).toBe('false')
   })
 })
