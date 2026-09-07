@@ -516,6 +516,6 @@ function fillFromLastCompare(): void {
   color: var(--app-text-muted);
   font-size: 12px;
   line-height: 1.45;
-  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 </style>
