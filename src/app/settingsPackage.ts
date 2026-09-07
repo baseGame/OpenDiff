@@ -23,6 +23,8 @@ export interface SettingsPackage {
   showSessionToolbars: boolean
   showToolbarLabels: boolean
   createBackupOnSave: boolean
+  showStatusBar?: boolean
+  showPathBars?: boolean
 }
 
 export function isSettingsPackage(value: unknown): value is SettingsPackage {

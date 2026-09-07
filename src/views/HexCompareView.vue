@@ -13,6 +13,7 @@ import WorkbenchShell from '@/components/workbench/WorkbenchShell.vue'
 import WorkbenchInspector from '@/components/workbench/WorkbenchInspector.vue'
 import StatusSummaryGrid from '@/components/workbench/StatusSummaryGrid.vue'
 import { buildHexCompareToolbar, pathPairTitle } from '@/app/sessionToolbars'
+import { filterHexRows, type HexRowFilter } from '@/app/hexRowFilter'
 import {
   clampHexOffset,
   formatHexOffset,
@@ -64,7 +65,13 @@ const navigationRanges = ref<HexDiffRange[]>([])
 const activeDiffRangeIndex = ref(0)
 const viewportWidth = ref(640)
 const initialHexOptions = loadHexCompareSessionOptions()
-const diffOnly = ref(initialHexOptions.diffOnly)
+const rowFilter = ref<HexRowFilter>(initialHexOptions.diffOnly ? 'diffs' : 'all')
+const diffOnly = computed({
+  get: () => rowFilter.value === 'diffs',
+  set: (value: boolean) => {
+    rowFilter.value = value ? 'diffs' : 'all'
+  },
+})
 const hexOffset = ref(0)
 const hexLength = ref(initialHexOptions.windowLength)
 const showSessionSettings = ref(false)
@@ -259,11 +266,7 @@ function buildHexRows(
 }
 
 function visibleRows(rows: HexRow[]): HexRow[] {
-  if (!diffOnly.value) {
-    return rows
-  }
-
-  return rows.filter((row) => row.cells.some((cell) => cell.different))
+  return filterHexRows(rows, rowFilter.value)
 }
 
 function formatOffset(offset: number | string): string {
@@ -354,7 +357,7 @@ const hexSessionToolbar = computed(() =>
     home: true,
     all: true,
     diffs: true,
-    same: false,
+    same: leftCells.value.length > 0 || rightCells.value.length > 0,
     rules: true,
     copy: selectedByteOffset.value !== null,
     'next-diff': navigationRanges.value.length > 0,
@@ -370,10 +373,13 @@ function runHexToolbarCommand(commandId: string): void {
       goHomeFromHex()
       break
     case 'all':
-      diffOnly.value = false
+      rowFilter.value = 'all'
       break
     case 'diffs':
-      diffOnly.value = true
+      rowFilter.value = 'diffs'
+      break
+    case 'same':
+      rowFilter.value = 'same'
       break
     case 'rules':
       openHexSessionSettings()

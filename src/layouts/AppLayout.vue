@@ -1156,6 +1156,7 @@ const sourceSessionTypes = new Set<SessionType>([
     </main>
 
     <footer
+      v-if="settings.showStatusBar"
       class="status-bar"
       data-testid="status-bar"
     >

@@ -259,6 +259,21 @@ describe('SettingsView', () => {
     )
   })
 
+  it('toggles status bar and path bars from appearance options', async () => {
+    const wrapper = mountSettingsView()
+    const settings = useSettingsStore()
+
+    await wrapper.find('[data-testid="options-section-appearance"]').trigger('click')
+    expect(wrapper.find('[data-testid="options-appearance-card"]').isVisible()).toBe(true)
+
+    await wrapper.find('[data-testid="show-status-bar"]').setValue(false)
+    expect(settings.showStatusBar).toBe(false)
+
+    await wrapper.find('[data-testid="show-path-bars"]').setValue(false)
+    expect(settings.showPathBars).toBe(false)
+    expect(document.documentElement.dataset.showPathBars).toBe('0')
+  })
+
   it('exposes tree-style options for toolbars, open with, shell, and backup', async () => {
     const wrapper = mountSettingsView()
     const settings = useSettingsStore()

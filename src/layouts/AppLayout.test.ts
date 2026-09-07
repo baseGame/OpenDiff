@@ -256,6 +256,16 @@ describe('AppLayout command palette', () => {
     expect(wrapper.find('.inspector').exists()).toBe(false)
   })
 
+  it('hides the status bar when Appearance disables it', () => {
+    const settings = useSettingsStore()
+
+    settings.setShowStatusBar(false)
+
+    const wrapper = mountAppLayout()
+
+    expect(wrapper.find('[data-testid="status-bar"]').exists()).toBe(false)
+  })
+
   it('opens folder compare from the side navigation', async () => {
     const wrapper = mountAppLayout()
 

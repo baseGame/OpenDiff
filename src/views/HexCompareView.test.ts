@@ -112,6 +112,84 @@ describe('HexCompareView', () => {
     ).toBeUndefined()
   })
 
+  it('filters equal-only rows from the Same toolbar command', async () => {
+    vi.mocked(compareHexFiles).mockResolvedValueOnce({
+      left: {
+        path: 'C:/bin/left.bin',
+        totalLen: 16,
+        cells: [
+          ...Array.from({ length: 8 }, (_, offset) => ({
+            offset,
+            byte: 65,
+            hex: '41',
+            ascii: 'A',
+            different: false,
+          })),
+          ...Array.from({ length: 8 }, (_, index) => ({
+            offset: index + 8,
+            byte: index === 0 ? 66 : 65,
+            hex: index === 0 ? '42' : '41',
+            ascii: index === 0 ? 'B' : 'A',
+            different: index === 0,
+          })),
+        ],
+      },
+      right: {
+        path: 'C:/bin/right.bin',
+        totalLen: 16,
+        cells: [
+          ...Array.from({ length: 8 }, (_, offset) => ({
+            offset,
+            byte: 65,
+            hex: '41',
+            ascii: 'A',
+            different: false,
+          })),
+          ...Array.from({ length: 8 }, (_, index) => ({
+            offset: index + 8,
+            byte: index === 0 ? 88 : 65,
+            hex: index === 0 ? '58' : '41',
+            ascii: index === 0 ? 'X' : 'A',
+            different: index === 0,
+          })),
+        ],
+      },
+      diffRanges: [{ offset: 8, leftBytes: [66], rightBytes: [88] }],
+      summary: {
+        leftBytes: 16,
+        rightBytes: 16,
+        differentRanges: 1,
+      },
+    })
+
+    const wrapper = mount(HexCompareView)
+
+    await wrapper.find('[data-testid="hex-width-control"]').setValue(320)
+    await runCompare(wrapper)
+
+    expect(
+      wrapper.find('[data-testid="hex-session-toolbar-same"]').attributes('disabled'),
+    ).toBeUndefined()
+    expect(
+      wrapper.findAll('[data-testid="left-hex-viewport"] [data-testid="hex-row"]'),
+    ).toHaveLength(2)
+
+    await wrapper.find('[data-testid="hex-session-toolbar-same"]').trigger('click')
+    expect(
+      wrapper.findAll('[data-testid="left-hex-viewport"] [data-testid="hex-row"]'),
+    ).toHaveLength(1)
+
+    await wrapper.find('[data-testid="hex-session-toolbar-diffs"]').trigger('click')
+    expect(
+      wrapper.findAll('[data-testid="left-hex-viewport"] [data-testid="hex-row"]'),
+    ).toHaveLength(1)
+
+    await wrapper.find('[data-testid="hex-session-toolbar-all"]').trigger('click')
+    expect(
+      wrapper.findAll('[data-testid="left-hex-viewport"] [data-testid="hex-row"]'),
+    ).toHaveLength(2)
+  })
+
   it('swaps paths and reloads from the session toolbar', async () => {
     const wrapper = mount(HexCompareView)
 

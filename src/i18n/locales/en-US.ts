@@ -908,6 +908,10 @@ export const enUS: LanguagePack = {
     'ui.optionsGroupSystem': 'System',
     'ui.showSessionToolbars': 'Show session toolbars',
     'ui.showToolbarLabels': 'Show toolbar labels',
+    'ui.showStatusBar': 'Show status bar',
+    'ui.showPathBars': 'Show path bars',
+    'ui.appearanceChromeHint':
+      'Status and path bars can be hidden without changing compare behavior.',
     'ui.toolbarsHint': 'Session toolbars appear under the title bar in compare views.',
     'ui.textEditingHint': 'Default wrap applies when opening new text compare and edit sessions.',
     'ui.openWithHint': 'Enabled applications appear in Folder Compare Open With actions.',

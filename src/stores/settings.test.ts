@@ -213,6 +213,21 @@ describe('useSettingsStore', () => {
     expect(localStorage.getItem('open-diff-show-toolbar-labels')).toBe('0')
     expect(localStorage.getItem('open-diff-create-backup-on-save')).toBe('0')
   })
+
+  it('persists status bar and path bar appearance chrome', () => {
+    const store = useSettingsStore()
+
+    expect(store.showStatusBar).toBe(true)
+    expect(store.showPathBars).toBe(true)
+    expect(document.documentElement.dataset.showPathBars).toBe('1')
+
+    store.setShowStatusBar(false)
+    store.setShowPathBars(false)
+
+    expect(localStorage.getItem('open-diff-show-status-bar')).toBe('0')
+    expect(localStorage.getItem('open-diff-show-path-bars')).toBe('0')
+    expect(document.documentElement.dataset.showPathBars).toBe('0')
+  })
   it('exports, imports, and restores factory settings packages', () => {
     const store = useSettingsStore()
 

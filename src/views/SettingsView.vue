@@ -284,6 +284,26 @@ function onShowToolbarLabelsChange(event: Event): void {
   settings.setShowToolbarLabels(target.checked)
 }
 
+function onShowStatusBarChange(event: Event): void {
+  const target = event.target
+
+  if (!(target instanceof HTMLInputElement)) {
+    return
+  }
+
+  settings.setShowStatusBar(target.checked)
+}
+
+function onShowPathBarsChange(event: Event): void {
+  const target = event.target
+
+  if (!(target instanceof HTMLInputElement)) {
+    return
+  }
+
+  settings.setShowPathBars(target.checked)
+}
+
 function restoreFactoryDefaultsFromOptions(): void {
   settings.restoreFactoryDefaults()
   optionsStatus.value = t('ui.restoreFactoryDefaults')
@@ -539,6 +559,25 @@ function parseShortcutText(value: string): string[] {
             @input="onFontSizeInput"
           />
         </label>
+        <label class="tweak-row">
+          <input
+            data-testid="show-status-bar"
+            type="checkbox"
+            :checked="settings.showStatusBar"
+            @change="onShowStatusBarChange"
+          />
+          <span>{{ $t('ui.showStatusBar') }}</span>
+        </label>
+        <label class="tweak-row">
+          <input
+            data-testid="show-path-bars"
+            type="checkbox"
+            :checked="settings.showPathBars"
+            @change="onShowPathBarsChange"
+          />
+          <span>{{ $t('ui.showPathBars') }}</span>
+        </label>
+        <p class="options-hint">{{ $t('ui.appearanceChromeHint') }}</p>
       </NCard>
 
       <NCard
