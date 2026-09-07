@@ -4526,11 +4526,11 @@ mod tests {
         fs::write(right.join("README.md"), "same").expect("right readme should be writable");
 
         let response = compare_folder_paths(
-        left.display().to_string(),
-        right.display().to_string(),
-        None,
-        None,
-    )
+            left.display().to_string(),
+            right.display().to_string(),
+            None,
+            None,
+        )
         .expect("valid folders should compare");
 
         assert_eq!(response.left_root, left.display().to_string());
@@ -5283,11 +5283,11 @@ mod tests {
         fs::write(&right, archive_core::write_zip_bytes(&right_doc).unwrap()).unwrap();
 
         let response = compare_folder_paths(
-        left.display().to_string(),
-        right.display().to_string(),
-        None,
-        None,
-    )
+            left.display().to_string(),
+            right.display().to_string(),
+            None,
+            None,
+        )
         .expect("zip archives should compare as folders");
 
         assert!(response

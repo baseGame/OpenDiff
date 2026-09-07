@@ -255,11 +255,7 @@ impl Default for FileFilters {
 impl FileFilters {
     pub fn allows(&self, relative_path: &str) -> bool {
         let path = filter_path(relative_path, self.case_sensitive);
-        let name = path
-            .rsplit('/')
-            .next()
-            .unwrap_or(path.as_str())
-            .to_owned();
+        let name = path.rsplit('/').next().unwrap_or(path.as_str()).to_owned();
         let included = self.include.is_empty()
             || self.include.iter().any(|pattern| {
                 let normalized = filter_path(pattern, self.case_sensitive);
@@ -297,8 +293,7 @@ pub fn filter_alignment_rows(
         }
     }
 
-    rows
-        .into_iter()
+    rows.into_iter()
         .filter(|row| keep.contains(&row.relative_path))
         .collect()
 }
