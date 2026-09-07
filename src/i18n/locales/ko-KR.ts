@@ -370,6 +370,10 @@ export const koKR: LanguagePack = {
     'ui.textPatchInspector': '텍스트 패치 관리자',
     'ui.theme': '주제',
     'ui.threeWayMergeWorkspace': '3방향 병합 작업공간',
+    'ui.fourWayMergeWorkspace': '4방향 병합 작업공간',
+    'ui.mergeTo': '병합 대상',
+    'ui.other': '기타',
+    'ui.center': '가운데',
     'ui.touch': '만지다',
     'ui.totalPixels': '총 픽셀',
     'ui.tools': '도구',
@@ -707,8 +711,8 @@ export const koKR: LanguagePack = {
     'ui.scriptingNotImplemented':
       '전체 레거시 스크립트 언어는 구현되지 않았습니다. 지원 명령은 실행되고, 알려진 공백은 unsupported를 반환합니다.',
     'ui.scriptingSupported':
-      '지원: LOAD, FILTER, COMPARE, REPORT, FILE-REPORT, HEX-REPORT, TABLE-REPORT, PICTURE-REPORT, VERSION-REPORT, REGISTRY-REPORT, MEDIA-REPORT, LOG, BEEP, OPTION, SELECT, COPY, COPYTO, MOVE, MOVETO, DELETE, RENAME, TOUCH, ATTRIB, EXPAND, COLLAPSE, SNAPSHOT, SYNC, TEXT-REPORT, FOLDER-REPORT.',
-    'ui.scriptingUnsupported': '미지원: CRITERIA.',
+      '지원: LOAD, FILTER, COMPARE, REPORT, FILE-REPORT, HEX-REPORT, TABLE-REPORT, PICTURE-REPORT, VERSION-REPORT, REGISTRY-REPORT, MEDIA-REPORT, LOG, BEEP, OPTION, SELECT, COPY, COPYTO, MOVE, MOVETO, DELETE, RENAME, TOUCH, ATTRIB, EXPAND, COLLAPSE, SNAPSHOT, SYNC, CRITERIA, TEXT-REPORT, FOLDER-REPORT.',
+    'ui.scriptingUnsupported': '없음.',
     'ui.scriptingUnsupportedCommands': '미지원 명령',
     'ui.scriptingSupportedCommands': '지원 명령',
     'ui.secretsHint':
@@ -788,6 +792,7 @@ export const koKR: LanguagePack = {
     'ui.previousConflict': 'Previous Conflict',
     'ui.acceptLeftThenNext': 'Accept Left → Next',
     'ui.acceptRightThenNext': 'Accept Right → Next',
+    'ui.acceptBaseThenNext': '가운데 적용 → 다음',
     'ui.syncPanes': 'Sync Panes',
     'status.conflictPosition': 'Conflict {index} of {total}',
     'ui.browseArchive': 'Archive…',

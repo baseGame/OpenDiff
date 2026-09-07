@@ -458,6 +458,10 @@ export const enUS: LanguagePack = {
     'ui.textPatchInspector': 'Text patch inspector',
     'ui.theme': 'Theme',
     'ui.threeWayMergeWorkspace': 'Three-way merge workspace',
+    'ui.fourWayMergeWorkspace': 'Four-way merge workspace',
+    'ui.mergeTo': 'Merge to',
+    'ui.other': 'Other',
+    'ui.center': 'Center',
     'ui.today': 'Today',
     'ui.touch': 'Touch',
     'ui.totalPixels': 'Total Pixels',
@@ -711,8 +715,8 @@ export const enUS: LanguagePack = {
     'ui.scriptingNotImplemented':
       'Full legacy scripting is not implemented. Supported commands run; known gaps fail as unsupported.',
     'ui.scriptingSupported':
-      'Supported commands: LOAD, FILTER, COMPARE, REPORT, FILE-REPORT, HEX-REPORT, TABLE-REPORT, PICTURE-REPORT, VERSION-REPORT, REGISTRY-REPORT, MEDIA-REPORT, LOG, BEEP, OPTION, SELECT, COPY, COPYTO, MOVE, MOVETO, DELETE, RENAME, TOUCH, ATTRIB, EXPAND, COLLAPSE, SNAPSHOT, SYNC, TEXT-REPORT, FOLDER-REPORT.',
-    'ui.scriptingUnsupported': 'Unsupported: CRITERIA.',
+      'Supported commands: LOAD, FILTER, COMPARE, REPORT, FILE-REPORT, HEX-REPORT, TABLE-REPORT, PICTURE-REPORT, VERSION-REPORT, REGISTRY-REPORT, MEDIA-REPORT, LOG, BEEP, OPTION, SELECT, COPY, COPYTO, MOVE, MOVETO, DELETE, RENAME, TOUCH, ATTRIB, EXPAND, COLLAPSE, SNAPSHOT, SYNC, CRITERIA, TEXT-REPORT, FOLDER-REPORT.',
+    'ui.scriptingUnsupported': 'None.',
     'ui.scriptingUnsupportedCommands': 'Unsupported commands',
     'ui.scriptingSupportedCommands': 'Supported commands',
     'ui.secretsHint':
@@ -793,6 +797,7 @@ export const enUS: LanguagePack = {
     'ui.previousConflict': 'Previous Conflict',
     'ui.acceptLeftThenNext': 'Accept Left → Next',
     'ui.acceptRightThenNext': 'Accept Right → Next',
+    'ui.acceptBaseThenNext': 'Accept Center → Next',
     'ui.syncPanes': 'Sync Panes',
     'status.conflictPosition': 'Conflict {index} of {total}',
     'ui.browseArchive': 'Archive…',

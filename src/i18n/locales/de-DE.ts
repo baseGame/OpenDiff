@@ -384,6 +384,10 @@ export const deDE: LanguagePack = {
     'ui.textPatchInspector': 'Text-Patch-Inspektor',
     'ui.theme': 'Thema',
     'ui.threeWayMergeWorkspace': 'Drei-Wege-Zusammenführungsarbeitsbereich',
+    'ui.fourWayMergeWorkspace': 'Vier-Wege-Zusammenführungsarbeitsbereich',
+    'ui.mergeTo': 'Zusammenführen nach',
+    'ui.other': 'Andere',
+    'ui.center': 'Mitte',
     'ui.touch': 'Berühren',
     'ui.totalPixels': 'Gesamtpixel',
     'ui.tools': 'Werkzeuge',
@@ -729,8 +733,8 @@ export const deDE: LanguagePack = {
     'ui.scriptingNotImplemented':
       'Die vollständige Legacy-Skriptsprache ist nicht implementiert. Unterstützte Befehle laufen; bekannte Lücken liefern unsupported.',
     'ui.scriptingSupported':
-      'Unterstützt: LOAD, FILTER, COMPARE, REPORT, FILE-REPORT, HEX-REPORT, TABLE-REPORT, PICTURE-REPORT, VERSION-REPORT, REGISTRY-REPORT, MEDIA-REPORT, LOG, BEEP, OPTION, SELECT, COPY, COPYTO, MOVE, MOVETO, DELETE, RENAME, TOUCH, ATTRIB, EXPAND, COLLAPSE, SNAPSHOT, SYNC, TEXT-REPORT, FOLDER-REPORT.',
-    'ui.scriptingUnsupported': 'Nicht unterstützt: CRITERIA.',
+      'Unterstützt: LOAD, FILTER, COMPARE, REPORT, FILE-REPORT, HEX-REPORT, TABLE-REPORT, PICTURE-REPORT, VERSION-REPORT, REGISTRY-REPORT, MEDIA-REPORT, LOG, BEEP, OPTION, SELECT, COPY, COPYTO, MOVE, MOVETO, DELETE, RENAME, TOUCH, ATTRIB, EXPAND, COLLAPSE, SNAPSHOT, SYNC, CRITERIA, TEXT-REPORT, FOLDER-REPORT.',
+    'ui.scriptingUnsupported': 'Keine.',
     'ui.scriptingUnsupportedCommands': 'Nicht unterstützte Befehle',
     'ui.scriptingSupportedCommands': 'Unterstützte Befehle',
     'ui.secretsHint':
@@ -814,6 +818,7 @@ export const deDE: LanguagePack = {
     'ui.previousConflict': 'Previous Conflict',
     'ui.acceptLeftThenNext': 'Accept Left → Next',
     'ui.acceptRightThenNext': 'Accept Right → Next',
+    'ui.acceptBaseThenNext': 'Mitte übernehmen → Weiter',
     'ui.syncPanes': 'Sync Panes',
     'status.conflictPosition': 'Conflict {index} of {total}',
     'ui.browseArchive': 'Archive…',

@@ -790,12 +790,39 @@ fn parse_table_date_time_seconds(value: &str) -> Option<i64> {
 }
 
 fn parse_table_date(value: &str) -> Option<(i32, u32, u32)> {
-    let mut parts = value.split('-');
-    let year = parts.next()?.parse::<i32>().ok()?;
-    let month = parts.next()?.parse::<u32>().ok()?;
-    let day = parts.next()?.parse::<u32>().ok()?;
+    let separator = if value.contains('-') {
+        '-'
+    } else if value.contains('/') {
+        '/'
+    } else {
+        return None;
+    };
+    let parts: Vec<&str> = value.split(separator).collect();
+    if parts.len() != 3 {
+        return None;
+    }
 
-    if parts.next().is_some() || !date_parts_are_valid(year, month, day) {
+    let (year, month, day) = if parts[0].len() == 4 {
+        (
+            parts[0].parse::<i32>().ok()?,
+            parts[1].parse::<u32>().ok()?,
+            parts[2].parse::<u32>().ok()?,
+        )
+    } else if parts[2].len() == 4 {
+        // Common locale forms: M/D/YYYY or D/M/YYYY (day-first when first > 12).
+        let first = parts[0].parse::<u32>().ok()?;
+        let second = parts[1].parse::<u32>().ok()?;
+        let year = parts[2].parse::<i32>().ok()?;
+        if first > 12 {
+            (year, second, first)
+        } else {
+            (year, first, second)
+        }
+    } else {
+        return None;
+    };
+
+    if !date_parts_are_valid(year, month, day) {
         return None;
     }
 
@@ -1864,6 +1891,45 @@ mod tests {
     fn marks_date_time_differences_within_tolerance_as_unimportant() {
         let left = date_time_sheet(vec![("A-001", "2026-06-27T12:00:00Z")]);
         let right = date_time_sheet(vec![("A-001", "2026-06-27T12:00:30Z")]);
+        let alignments = vec![RowAlignment {
+            key: vec!["a-001".to_owned()],
+            left_row_index: Some(0),
+            right_row_index: Some(0),
+            status: RowAlignmentStatus::Matched,
+        }];
+
+        let diff = compare_aligned_rows_with_options(
+            &left,
+            &right,
+            &alignments,
+            &TableComparisonOptions {
+                numeric_tolerance: None,
+                date_time_tolerance_seconds: Some(60),
+            },
+        );
+
+        assert_eq!(diff[0].status, TableDiffStatus::Modified);
+        assert_eq!(diff[0].cells[1].status, TableDiffStatus::Modified);
+        assert!(!diff[0].cells[1].important);
+    }
+
+    #[test]
+    fn parses_slash_and_locale_date_forms_for_tolerance() {
+        assert_eq!(
+            parse_table_date_time_seconds("2026/06/27 12:00:00"),
+            parse_table_date_time_seconds("2026-06-27T12:00:00Z")
+        );
+        assert_eq!(
+            parse_table_date_time_seconds("06/27/2026 12:00:00"),
+            parse_table_date_time_seconds("2026-06-27 12:00:00")
+        );
+        assert_eq!(
+            parse_table_date_time_seconds("27/06/2026 12:00:00"),
+            parse_table_date_time_seconds("2026-06-27 12:00:00")
+        );
+
+        let left = date_time_sheet(vec![("A-001", "2026/06/27 12:00:00")]);
+        let right = date_time_sheet(vec![("A-001", "06/27/2026 12:00:30")]);
         let alignments = vec![RowAlignment {
             key: vec!["a-001".to_owned()],
             left_row_index: Some(0),
