@@ -729,7 +729,8 @@ export const deDE: LanguagePack = {
       'Die vollständige Legacy-Skriptsprache ist nicht implementiert. Unterstützte Befehle laufen; bekannte Lücken liefern unsupported.',
     'ui.scriptingSupported':
       'Unterstützt: LOAD, FILTER, COMPARE, REPORT, FILE-REPORT, HEX-REPORT, TABLE-REPORT, PICTURE-REPORT, VERSION-REPORT, REGISTRY-REPORT, LOG, BEEP, OPTION, SELECT, COPY, COPYTO, DELETE, RENAME, TOUCH, SNAPSHOT, SYNC, TEXT-REPORT, FOLDER-REPORT.',
-    'ui.scriptingUnsupported': 'Nicht unterstützt: ATTRIB, COLLAPSE, CRITERIA, EXPAND, MEDIA-REPORT, MOVE, MOVETO.',
+    'ui.scriptingUnsupported':
+      'Nicht unterstützt: ATTRIB, COLLAPSE, CRITERIA, EXPAND, MEDIA-REPORT, MOVE, MOVETO.',
     'ui.scriptingUnsupportedCommands': 'Nicht unterstützte Befehle',
     'ui.scriptingSupportedCommands': 'Unterstützte Befehle',
     'ui.secretsHint':

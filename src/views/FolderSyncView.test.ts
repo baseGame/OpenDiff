@@ -228,8 +228,12 @@ describe('FolderSyncView', () => {
 
     expect(wrapper.find('[data-testid="folder-sync-session-toolbar-bar"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="folder-sync-session-toolbar-home"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="folder-sync-session-toolbar-expand"]').attributes('disabled')).toBeUndefined()
-    expect(wrapper.find('[data-testid="folder-sync-session-toolbar-collapse"]').attributes('disabled')).toBeUndefined()
+    expect(
+      wrapper.find('[data-testid="folder-sync-session-toolbar-expand"]').attributes('disabled'),
+    ).toBeUndefined()
+    expect(
+      wrapper.find('[data-testid="folder-sync-session-toolbar-collapse"]').attributes('disabled'),
+    ).toBeUndefined()
 
     await wrapper.find('[data-testid="folder-sync-session-toolbar-filters"]').trigger('click')
     expect(wrapper.find('[data-testid="folder-sync-filters-panel"]').exists()).toBe(true)

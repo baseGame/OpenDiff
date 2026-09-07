@@ -237,19 +237,22 @@ describe('FolderMergeView', () => {
 
     expect(wrapper.find('[data-testid="folder-merge-session-toolbar-bar"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="folder-merge-session-toolbar-expand"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="folder-merge-session-toolbar-collapse"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="folder-merge-session-toolbar-collapse"]').exists()).toBe(
+      true,
+    )
     expect(wrapper.find('[data-testid="folder-merge-session-toolbar-select"]').exists()).toBe(true)
 
     await wrapper.find('[data-testid="folder-merge-session-toolbar-select"]').trigger('click')
     expect(wrapper.find('[data-testid="folder-merge-select-panel"]').exists()).toBe(true)
     await wrapper.find('[data-testid="folder-merge-select-all"]').trigger('click')
-    expect(wrapper.find('[data-testid="folder-merge-selection-status"]').text().length).toBeGreaterThan(0)
+    expect(
+      wrapper.find('[data-testid="folder-merge-selection-status"]').text().length,
+    ).toBeGreaterThan(0)
 
     await wrapper.find('[data-testid="folder-merge-session-toolbar-filters"]').trigger('click')
     expect(wrapper.find('[data-testid="folder-merge-filters-panel"]').exists()).toBe(true)
   })
 })
-
 
 function createMergePlanResponse(): FolderMergePlanResponse {
   return {

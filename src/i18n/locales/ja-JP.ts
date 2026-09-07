@@ -710,7 +710,8 @@ export const jaJP: LanguagePack = {
       '完全なレガシースクリプト言語は未実装です。対応コマンドは実行され、既知の欠落は unsupported を返します。',
     'ui.scriptingSupported':
       '対応: LOAD、FILTER、COMPARE、REPORT、FILE-REPORT、HEX-REPORT、TABLE-REPORT、PICTURE-REPORT、VERSION-REPORT、REGISTRY-REPORT、LOG、BEEP、OPTION、SELECT、COPY、COPYTO、DELETE、RENAME、TOUCH、SNAPSHOT、SYNC、TEXT-REPORT、FOLDER-REPORT。',
-    'ui.scriptingUnsupported': '未対応: ATTRIB、COLLAPSE、CRITERIA、EXPAND、MEDIA-REPORT、MOVE、MOVETO。',
+    'ui.scriptingUnsupported':
+      '未対応: ATTRIB、COLLAPSE、CRITERIA、EXPAND、MEDIA-REPORT、MOVE、MOVETO。',
     'ui.scriptingUnsupportedCommands': '未対応コマンド',
     'ui.scriptingSupportedCommands': '対応コマンド',
     'ui.secretsHint':

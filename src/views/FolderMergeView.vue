@@ -17,10 +17,7 @@ import type {
 import WorkbenchShell from '@/components/workbench/WorkbenchShell.vue'
 import WorkbenchInspector from '@/components/workbench/WorkbenchInspector.vue'
 import { createFolderSnapshot } from '@/api/diff'
-import {
-  collectExpandablePrefixes,
-  isPathHiddenByCollapse,
-} from '@/app/folderPathGroups'
+import { collectExpandablePrefixes, isPathHiddenByCollapse } from '@/app/folderPathGroups'
 import { buildFolderMergeToolbar, mergeSessionTitle, pathBaseName } from '@/app/sessionToolbars'
 import { useI18n } from '@/i18n'
 import { useViewActionsStore } from '@/stores/viewActions'

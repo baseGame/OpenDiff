@@ -13,10 +13,7 @@ import { useRouter } from 'vue-router'
 import WorkbenchShell from '@/components/workbench/WorkbenchShell.vue'
 import WorkbenchInspector from '@/components/workbench/WorkbenchInspector.vue'
 import { createFolderSnapshot } from '@/api/diff'
-import {
-  collectExpandablePrefixes,
-  isPathHiddenByCollapse,
-} from '@/app/folderPathGroups'
+import { collectExpandablePrefixes, isPathHiddenByCollapse } from '@/app/folderPathGroups'
 import { buildFolderSyncToolbar, pathBaseName, syncPathPairTitle } from '@/app/sessionToolbars'
 import { useI18n } from '@/i18n'
 import { useTabsStore } from '@/stores/tabs'
@@ -617,7 +614,7 @@ watch(
       >
         <strong>{{ $t('ui.filters') }}</strong>
         <label
-          v-for="action in (['Copy', 'Delete', 'Leave', 'Conflict'] as const)"
+          v-for="action in ['Copy', 'Delete', 'Leave', 'Conflict'] as const"
           :key="action"
         >
           <input
@@ -913,10 +910,9 @@ h1 {
 
 .sync-preview-row {
   display: grid;
-  grid-template-columns: 44px 120px minmax(200px, 1fr) minmax(160px, 1.1fr) minmax(160px, 1.1fr) minmax(
-      140px,
-      0.9fr
-    );
+  grid-template-columns:
+    44px 120px minmax(200px, 1fr) minmax(160px, 1.1fr) minmax(160px, 1.1fr)
+    minmax(140px, 0.9fr);
   min-width: 960px;
   border-bottom: 1px solid var(--app-border);
   font-size: 12px;

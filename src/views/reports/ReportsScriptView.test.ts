@@ -138,9 +138,13 @@ describe('ReportsScriptView', () => {
 
     expect(wrapper.find('[data-testid="script-command-lists"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="script-supported-commands"]').text()).toContain('HEX-REPORT')
-    expect(wrapper.find('[data-testid="script-supported-commands"]').text()).toContain('TABLE-REPORT')
+    expect(wrapper.find('[data-testid="script-supported-commands"]').text()).toContain(
+      'TABLE-REPORT',
+    )
     expect(wrapper.find('[data-testid="script-unsupported-commands"]').text()).toContain('ATTRIB')
-    expect(wrapper.find('[data-testid="script-unsupported-commands"]').text()).toContain('MEDIA-REPORT')
+    expect(wrapper.find('[data-testid="script-unsupported-commands"]').text()).toContain(
+      'MEDIA-REPORT',
+    )
     expect(wrapper.text()).not.toMatch(/Beyond Compare|\bBC5?\b|Scooter/i)
   })
 })
