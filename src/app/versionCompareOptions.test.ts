@@ -51,6 +51,7 @@ it('builds a rules catalog with known fields and extras', () => {
 it('resets importance rules to defaults', () => {
   saveVersionCompareOptions({ unimportantFields: ['FileVersion'] })
   const reset = resetVersionCompareOptions()
+
   saveVersionCompareOptions(reset)
 
   expect(loadVersionCompareOptions().unimportantFields).toEqual(

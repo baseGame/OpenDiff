@@ -36,7 +36,7 @@ export function versionRuleFieldGroup(field: string): string {
 
 export function buildVersionRulesCatalog(
   extraFields: string[] = [],
-): Array<{ field: string; group: string }> {
+): { field: string; group: string }[] {
   const names = [
     ...new Set([
       ...knownVersionRuleFields,
