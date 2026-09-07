@@ -134,6 +134,7 @@ export const folderSyncToolbarOrder = [
   'refresh',
   'swap',
   'stop',
+  'peek',
 ] as const
 
 export const folderMergeToolbarOrder = [
@@ -283,6 +284,7 @@ const folderSyncMeta: Record<(typeof folderSyncToolbarOrder)[number], ToolbarMet
   refresh: { glyph: 'R', labelKey: 'ui.refresh' },
   swap: { glyph: '<>', labelKey: 'ui.swap' },
   stop: { glyph: 'X', labelKey: 'ui.stop' },
+  peek: { glyph: 'P', labelKey: 'ui.peek' },
 }
 
 const folderMergeMeta: Record<(typeof folderMergeToolbarOrder)[number], ToolbarMeta> = {

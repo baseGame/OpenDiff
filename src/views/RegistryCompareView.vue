@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { compareRegistryExports, readTextFile } from '@/api/diff'
+import { compareRegistryExports, readTextFile, saveTextFile } from '@/api/diff'
 import { queryLiveWindowsRegistry } from '@/api/policy'
 import type {
   RegistryCompareResponse,
@@ -18,9 +18,11 @@ import {
   registryValueMatchesFilter,
   type RegistryValueFilter,
 } from '@/app/registryWorkspace'
+import { buildRegistryReportText, defaultRegistryReportOutputPath } from '@/app/registryReport'
 import { buildRegistryCompareToolbar, pathPairTitle } from '@/app/sessionToolbars'
 import { useSessionLaunchStore } from '@/stores/sessionLaunch'
 import { useTabsStore } from '@/stores/tabs'
+import { useViewActionsStore } from '@/stores/viewActions'
 import { useI18n } from '@/i18n'
 
 interface FlatRegistryKeyNode extends RegistryKeyNode {
@@ -48,6 +50,10 @@ const liveQueryKey = ref('')
 const liveQueryResult = ref('')
 const liveQueryError = ref('')
 const liveQueryLoading = ref(false)
+const leftSourcePath = ref('')
+const rightSourcePath = ref('')
+const reportStatus = ref('')
+const viewActions = useViewActionsStore()
 
 onMounted(() => {
   const launch = sessionLaunch.consumeLaunch('/compare/registry')
@@ -199,6 +205,8 @@ async function loadLaunchRegistryExports(leftPath: string, rightPath: string): P
 
     leftExport.value = leftFile.text
     rightExport.value = rightFile.text
+    leftSourcePath.value = leftFile.path
+    rightSourcePath.value = rightFile.path
     leftName.value = fileNameFromPath(leftFile.path)
     rightName.value = fileNameFromPath(rightFile.path)
     await runRegistryCompare()
@@ -299,6 +307,109 @@ async function runLiveRegistryQuery(): Promise<void> {
     liveQueryLoading.value = false
   }
 }
+
+async function exportRegistryReport(): Promise<void> {
+  if (allRegistryValues.value.length === 0) {
+    return
+  }
+
+  const leftPath = leftSourcePath.value || leftName.value
+  const rightPath = rightSourcePath.value || rightName.value
+  const payload = buildRegistryReportText({
+    leftPath,
+    rightPath,
+    summary: {
+      added: registrySummary.value.added,
+      removed: registrySummary.value.removed,
+      modified: registrySummary.value.modified,
+      unchanged: registrySummary.value.unchanged,
+    },
+    values: allRegistryValues.value.map((value) => ({
+      keyPath: value.keyPath,
+      name: value.name,
+      left: registryValueText(value.left),
+      right: registryValueText(value.right),
+      status: value.status,
+    })),
+  })
+  const outputPath = defaultRegistryReportOutputPath(leftPath)
+
+  try {
+    await navigator.clipboard.writeText(payload)
+  } catch {
+    // Clipboard may be unavailable in headless tests; still try file export.
+  }
+
+  try {
+    await saveTextFile({
+      path: outputPath,
+      text: payload,
+      createBackup: false,
+    })
+    reportStatus.value = outputPath
+  } catch (event) {
+    error.value = String(event)
+  }
+}
+
+watch(
+  () => [viewActions.sequence, viewActions.name] as const,
+  ([, actionName]) => {
+    if (!actionName) {
+      return
+    }
+
+    switch (actionName) {
+      case 'compare':
+      case 'reload':
+        void runRegistryCompare()
+        break
+      case 'swap':
+        runRegistryToolbarCommand('swap')
+        break
+      case 'export':
+      case 'save':
+      case 'save-as':
+        void exportRegistryReport()
+        break
+      case 'show-all':
+        valueFilter.value = 'all'
+        break
+      case 'show-differences':
+      case 'filters':
+        valueFilter.value = 'diffs'
+        break
+      case 'copy':
+      case 'copy-right':
+        applySelectedValue('right')
+        break
+      case 'copy-left':
+        applySelectedValue('left')
+        break
+      case 'about':
+      case 'check-for-updates':
+      case 'close-tab':
+      case 'cut':
+      case 'delete':
+      case 'export-settings':
+      case 'help-contents':
+      case 'help-support':
+      case 'import-settings':
+      case 'next-difference':
+      case 'paste':
+      case 'previous-difference':
+      case 'redo':
+      case 'restore-factory-defaults':
+      case 'rules':
+      case 'save-snapshot':
+      case 'session-settings':
+      case 'undo':
+      case 'workspace-load':
+      case 'workspace-save':
+        break
+    }
+  },
+)
 
 const registrySessionToolbar = computed(() =>
   buildRegistryCompareToolbar({
@@ -459,6 +570,29 @@ function runRegistryToolbarCommand(commandId: string): void {
           </strong>
           <span>{{ statusLabel(status) }}</span>
         </article>
+      </section>
+
+      <section
+        v-if="allRegistryValues.length > 0"
+        class="registry-report-panel"
+        data-testid="registry-report-panel"
+      >
+        <header>
+          <strong>{{ $t('ui.registryReport') }}</strong>
+          <span>{{ $t('status.fieldCount', { count: allRegistryValues.length }) }}</span>
+          <button
+            type="button"
+            data-testid="export-registry-report"
+            @click="exportRegistryReport"
+          >
+            {{ $t('ui.export') }}
+          </button>
+          <span
+            v-if="reportStatus"
+            data-testid="registry-report-status"
+            >{{ reportStatus }}</span
+          >
+        </header>
       </section>
 
       <section
@@ -786,6 +920,32 @@ h1 {
 .registry-key-row.selected,
 .registry-value-row.selected {
   outline: 1px solid var(--app-accent);
+}
+
+.registry-report-panel {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  background: var(--app-surface);
+}
+
+.registry-report-panel header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.registry-report-panel header button {
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--app-border);
+  border-radius: 6px;
+  background: var(--app-bg);
+  color: var(--app-text);
+  cursor: pointer;
 }
 
 .registry-summary-grid {
