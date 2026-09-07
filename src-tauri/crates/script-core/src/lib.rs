@@ -900,9 +900,7 @@ pub fn parse_folder_criteria_tokens(
         }
         if lower == "size" {
             if saw_content_method {
-                return Err(
-                    "CRITERIA accepts only one of size|CRC|binary|rules-based".to_owned(),
-                );
+                return Err("CRITERIA accepts only one of size|CRC|binary|rules-based".to_owned());
             }
             saw_content_method = true;
             criteria.compare_size = true;
@@ -910,9 +908,7 @@ pub fn parse_folder_criteria_tokens(
         }
         if lower == "crc" {
             if saw_content_method {
-                return Err(
-                    "CRITERIA accepts only one of size|CRC|binary|rules-based".to_owned(),
-                );
+                return Err("CRITERIA accepts only one of size|CRC|binary|rules-based".to_owned());
             }
             saw_content_method = true;
             criteria.compare_crc = true;
@@ -921,9 +917,7 @@ pub fn parse_folder_criteria_tokens(
         }
         if lower == "binary" || lower == "rules-based" || lower == "rulesbased" {
             if saw_content_method {
-                return Err(
-                    "CRITERIA accepts only one of size|CRC|binary|rules-based".to_owned(),
-                );
+                return Err("CRITERIA accepts only one of size|CRC|binary|rules-based".to_owned());
             }
             saw_content_method = true;
             criteria.compare_contents = true;
@@ -1280,7 +1274,6 @@ fn compare_script_paths(
         "LOAD paths must be two files or two folders: {left} / {right}"
     ))
 }
-
 
 fn classify_script_folder_row(
     left_root: &std::path::Path,
@@ -2003,10 +1996,8 @@ mod tests {
             }
         }
 
-        let script = parse_script(
-            "LOAD left right\nCRITERIA timestamp size\nCOMPARE\n",
-        )
-        .expect("criteria script parses");
+        let script = parse_script("LOAD left right\nCRITERIA timestamp size\nCOMPARE\n")
+            .expect("criteria script parses");
         let mut engine = RecordingCompareEngine::default();
         let result = execute_automation_script(
             &script,
