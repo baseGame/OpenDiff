@@ -1416,8 +1416,8 @@ h2 {
 .picture-report-row {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
   align-items: center;
+  gap: 8px;
 }
 
 .picture-report-head {
