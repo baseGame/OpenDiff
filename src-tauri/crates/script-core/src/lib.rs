@@ -883,12 +883,14 @@ fn compare_script_paths(
             .and_then(|value| value.to_str())
             .unwrap_or_default()
             .to_ascii_lowercase();
-        let looks_tabular = [left_name.as_str(), right_name.as_str()].iter().any(|name| {
-            name.ends_with(".csv")
-                || name.ends_with(".tsv")
-                || name.ends_with(".xlsx")
-                || name.ends_with(".xls")
-        });
+        let looks_tabular = [left_name.as_str(), right_name.as_str()]
+            .iter()
+            .any(|name| {
+                name.ends_with(".csv")
+                    || name.ends_with(".tsv")
+                    || name.ends_with(".xlsx")
+                    || name.ends_with(".xls")
+            });
 
         match (
             file_core::read_text_file(left),
@@ -1389,18 +1391,18 @@ mod tests {
         )
         .expect("extended reports should parse");
 
-        assert!(script.commands.iter().any(|command| matches!(
-            command.kind,
-            ScriptCommandKind::HexReport { .. }
-        )));
-        assert!(script.commands.iter().any(|command| matches!(
-            command.kind,
-            ScriptCommandKind::TableReport { .. }
-        )));
-        assert!(script.commands.iter().any(|command| matches!(
-            command.kind,
-            ScriptCommandKind::FileReport { .. }
-        )));
+        assert!(script
+            .commands
+            .iter()
+            .any(|command| matches!(command.kind, ScriptCommandKind::HexReport { .. })));
+        assert!(script
+            .commands
+            .iter()
+            .any(|command| matches!(command.kind, ScriptCommandKind::TableReport { .. })));
+        assert!(script
+            .commands
+            .iter()
+            .any(|command| matches!(command.kind, ScriptCommandKind::FileReport { .. })));
         assert_eq!(
             script
                 .commands
@@ -1412,7 +1414,7 @@ mod tests {
     }
 
     #[test]
-        fn rejects_unknown_script_commands_with_line_number() {
+    fn rejects_unknown_script_commands_with_line_number() {
         let error = parse_script("LOAD left right\nNOPE").expect_err("unknown command should fail");
 
         assert_eq!(error.line, 2);
