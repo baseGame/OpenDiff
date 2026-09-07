@@ -4562,6 +4562,7 @@ mod tests {
                 compare_contents: false,
                 compare_crc: false,
             }),
+            None,
         )
         .expect("size-only compare");
         let contents = compare_folder_paths(
@@ -4573,6 +4574,7 @@ mod tests {
                 compare_contents: true,
                 compare_crc: false,
             }),
+            None,
         )
         .expect("contents compare");
         let crc = compare_folder_paths(
@@ -4584,6 +4586,7 @@ mod tests {
                 compare_contents: false,
                 compare_crc: true,
             }),
+            None,
         )
         .expect("crc compare");
 
