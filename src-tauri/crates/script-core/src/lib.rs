@@ -455,11 +455,10 @@ where
                 )?;
             }
             ScriptCommandKind::HexReport { output } => {
-                run_report_command(
+                run_hex_report_command(
                     command,
                     &mut state,
                     report_engine,
-                    ScriptReportType::Hex,
                     output,
                     &execution.variables,
                 )?;
@@ -1658,6 +1657,92 @@ fn delete_path(path: &str) -> Result<(), String> {
     } else {
         std::fs::remove_file(path).map_err(|error| error.to_string())
     }
+}
+
+fn run_hex_report_command<R>(
+    command: &ScriptCommand,
+    state: &mut ScriptRuntimeState,
+    report_engine: &mut R,
+    output: &str,
+    variables: &ScriptVariables,
+) -> Result<(), ScriptExecutionError>
+where
+    R: ScriptReportEngine,
+{
+    let output = expand_script_variables(output, variables).map_err(|error| {
+        execution_error(command, format!("{} at line {}", error.message, error.line))
+    })?;
+
+    if state.load_paths.len() >= 2 {
+        let left = &state.load_paths[0];
+        let right = &state.load_paths[1];
+        let left_path = std::path::Path::new(left);
+        let right_path = std::path::Path::new(right);
+        if left_path.is_file() && right_path.is_file() {
+            if let Ok((summary, report_text)) = compare_hex_script_paths(left, right) {
+                state.last_compare = Some(summary.clone());
+                write_script_report_file(&output, &report_text)
+                    .map_err(|reason| execution_error(command, reason))?;
+                state.reports_written += 1;
+                return Ok(());
+            }
+        }
+    }
+
+    let Some(compare_summary) = state.last_compare.clone() else {
+        return Err(execution_error(
+            command,
+            "HEX-REPORT requires binary LOAD paths or COMPARE first",
+        ));
+    };
+
+    report_engine
+        .write_report(ScriptReportRequest {
+            report_type: ScriptReportType::Hex,
+            output,
+            compare_summary,
+        })
+        .map_err(|reason| execution_error(command, reason))?;
+    state.reports_written += 1;
+    Ok(())
+}
+
+fn compare_hex_script_paths(
+    left: &str,
+    right: &str,
+) -> Result<(ScriptCompareSummary, String), String> {
+    let left_bytes = std::fs::read(left).map_err(|error| error.to_string())?;
+    let right_bytes = std::fs::read(right).map_err(|error| error.to_string())?;
+    let report = hex_core::build_hex_report(&left_bytes, &right_bytes);
+    let row_lines = report
+        .rows
+        .iter()
+        .map(|row| {
+            format!(
+                "{:08X}\t{}\t{}",
+                row.offset,
+                row.original_hex.as_deref().unwrap_or("--"),
+                row.modified_hex.as_deref().unwrap_or("--"),
+            )
+        })
+        .collect::<Vec<_>>();
+    let report_text = format!(
+        "HEX-REPORT\nleft: {left}\nright: {right}\noriginalLen: {}\nmodifiedLen: {}\nchangedRows: {}\n\nrows:\n{}\n",
+        report.summary.original_len,
+        report.summary.modified_len,
+        report.summary.changed_rows,
+        row_lines.join("\n"),
+    );
+    let summary = ScriptCompareSummary {
+        compared: report
+            .summary
+            .original_len
+            .max(report.summary.modified_len)
+            .max(1) as usize,
+        different: report.summary.changed_rows as usize,
+    };
+
+    Ok((summary, report_text))
 }
 
 fn run_picture_report_command<R>(
@@ -3096,6 +3181,73 @@ mod tests {
         let content = std::fs::read_to_string(&report).expect("report");
         assert!(content.contains("MEDIA-REPORT"));
         assert!(content.contains("different: 1"));
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn hex_report_compares_binaries_when_load_paths_are_files() {
+        let root = unique_temp_dir("script-hex-report");
+        let left = root.join("left.bin");
+        let right = root.join("right.bin");
+        let report = root.join("out.txt");
+
+        std::fs::write(&left, b"ABCD").expect("left binary");
+        std::fs::write(&right, b"AxCD").expect("right binary");
+
+        let result = run_script_source(
+            &format!(
+                "LOAD \"{}\" \"{}\"\nHEX-REPORT \"{}\"\n",
+                left.display(),
+                right.display(),
+                report.display()
+            ),
+            ScriptExecutionContext::default(),
+        )
+        .expect("hex report runs");
+
+        assert_eq!(result.state.reports_written, 1);
+        assert_eq!(
+            result.state.last_compare,
+            Some(ScriptCompareSummary {
+                compared: 4,
+                different: 1,
+            })
+        );
+        let content = std::fs::read_to_string(&report).expect("report");
+        assert!(content.contains("HEX-REPORT"));
+        assert!(content.contains("changedRows: 1"));
+        assert!(content.contains("00000001\t42\t78"));
+        assert!(content.contains(&format!("left: {}", left.display())));
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn hex_report_falls_back_to_compare_summary_after_folder_compare() {
+        let root = unique_temp_dir("script-hex-fallback");
+        let left_dir = root.join("left");
+        let right_dir = root.join("right");
+        let report = root.join("hex.txt");
+        std::fs::create_dir_all(&left_dir).expect("left dir");
+        std::fs::create_dir_all(&right_dir).expect("right dir");
+        std::fs::write(left_dir.join("a.txt"), "a").expect("left file");
+        std::fs::write(right_dir.join("a.txt"), "b").expect("right file");
+
+        let result = run_script_source(
+            &format!(
+                "LOAD \"{}\" \"{}\"\nCOMPARE\nHEX-REPORT \"{}\"\n",
+                left_dir.display(),
+                right_dir.display(),
+                report.display()
+            ),
+            ScriptExecutionContext::default(),
+        )
+        .expect("hex report after folder compare");
+
+        assert_eq!(result.state.reports_written, 1);
+        let content = std::fs::read_to_string(&report).expect("report");
+        assert!(content.contains("HEX-REPORT"));
+        assert!(content.contains("compared:"));
+        assert!(!content.contains("rows:"));
         let _ = std::fs::remove_dir_all(root);
     }
 

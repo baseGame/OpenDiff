@@ -328,6 +328,7 @@ export const jaJP: LanguagePack = {
     'ui.picture': 'Picture',
     'ui.pictureCompare': 'Picture Compare',
     'ui.pictureReport': 'ピクチャレポート',
+    'ui.hexReport': 'Hex レポート',
     'ui.pictureCompareInspector': 'Picture compare inspector',
     'ui.policy': 'Policy',
     'ui.port': 'Port',

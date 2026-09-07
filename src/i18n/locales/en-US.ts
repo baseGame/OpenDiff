@@ -329,6 +329,7 @@ export const enUS: LanguagePack = {
     'ui.picture': 'Picture',
     'ui.pictureCompare': 'Picture Compare',
     'ui.pictureReport': 'Picture Report',
+    'ui.hexReport': 'Hex Report',
     'ui.pictureCompareInspector': 'Picture compare inspector',
     'ui.policy': 'Policy',
     'ui.port': 'Port',

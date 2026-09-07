@@ -12,6 +12,7 @@ folder-core = { path = "../folder-core" }
 job-core = { path = "../job-core" }
 logging-core = { path = "../logging-core" }
 media-core = { path = "../media-core" }
+hex-core = { path = "../hex-core" }
 image-core = { path = "../image-core" }
 report-core = { path = "../report-core" }
 serde.workspace = true

@@ -263,6 +263,7 @@ export const zhTW: LanguagePack = {
     'ui.picture': '圖片',
     'ui.pictureCompare': '圖片比較',
     'ui.pictureReport': '圖片報告',
+    'ui.hexReport': '十六進位報告',
     'ui.port': '連接埠',
     'ui.preview': '預覽',
     'ui.previewSync': '預覽同步',

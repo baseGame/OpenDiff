@@ -280,6 +280,7 @@ export const esES: LanguagePack = {
     'ui.picture': 'Imagen',
     'ui.pictureCompare': 'Comparar imágenes',
     'ui.pictureReport': 'Informe de imagen',
+    'ui.hexReport': 'Informe hexadecimal',
     'ui.port': 'Puerto',
     'ui.preview': 'Avance',
     'ui.previewSync': 'Vista previa de sincronización',
