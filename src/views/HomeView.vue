@@ -1803,8 +1803,8 @@ tr:hover .row-actions,
 }
 
 .home-view :deep(.workbench-main) {
-  background: #ffffff;
   padding: 0;
+  background: #ffffff;
 }
 
 .home-view :deep(.workbench-shell-compact) {
