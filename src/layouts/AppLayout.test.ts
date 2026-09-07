@@ -129,9 +129,9 @@ describe('AppLayout command palette', () => {
       wrapper.find('[data-testid="menu-command-tools.importSettings"]').attributes('disabled'),
     ).toBeUndefined()
     expect(
-      wrapper.find('[data-testid="menu-command-tools.restoreFactoryDefaults"]').attributes(
-        'disabled',
-      ),
+      wrapper
+        .find('[data-testid="menu-command-tools.restoreFactoryDefaults"]')
+        .attributes('disabled'),
     ).toBeUndefined()
     expect(
       wrapper.find('[data-testid="menu-command-tools.saveSnapshot"]').attributes('disabled'),
