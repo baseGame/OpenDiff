@@ -189,12 +189,12 @@ describe('VersionCompareView', () => {
   })
 })
 
-  it('opens rules catalog before compare', async () => {
-    const wrapper = mount(VersionCompareView)
+it('opens rules catalog before compare', async () => {
+  const wrapper = mount(VersionCompareView)
 
-    await wrapper.find('[data-testid="version-toolbar-rules"]').trigger('click')
+  await wrapper.find('[data-testid="version-toolbar-rules"]').trigger('click')
 
-    expect(wrapper.find('[data-testid="version-rules-panel"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="version-rule-FileVersion"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="version-rule-Comments"]').exists()).toBe(true)
-  })
+  expect(wrapper.find('[data-testid="version-rules-panel"]').exists()).toBe(true)
+  expect(wrapper.find('[data-testid="version-rule-FileVersion"]').exists()).toBe(true)
+  expect(wrapper.find('[data-testid="version-rule-Comments"]').exists()).toBe(true)
+})

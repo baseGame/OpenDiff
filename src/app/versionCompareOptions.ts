@@ -34,8 +34,15 @@ export function versionRuleFieldGroup(field: string): string {
   return 'String Info'
 }
 
-export function buildVersionRulesCatalog(extraFields: string[] = []): Array<{ field: string; group: string }> {
-  const names = [...new Set([...knownVersionRuleFields, ...extraFields.map((field) => field.trim()).filter(Boolean)])]
+export function buildVersionRulesCatalog(
+  extraFields: string[] = [],
+): Array<{ field: string; group: string }> {
+  const names = [
+    ...new Set([
+      ...knownVersionRuleFields,
+      ...extraFields.map((field) => field.trim()).filter(Boolean),
+    ]),
+  ]
 
   return names.map((field) => ({
     field,
