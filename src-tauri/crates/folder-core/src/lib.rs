@@ -255,18 +255,52 @@ impl Default for FileFilters {
 impl FileFilters {
     pub fn allows(&self, relative_path: &str) -> bool {
         let path = filter_path(relative_path, self.case_sensitive);
+        let name = path
+            .rsplit('/')
+            .next()
+            .unwrap_or(path.as_str())
+            .to_owned();
         let included = self.include.is_empty()
-            || self
-                .include
-                .iter()
-                .any(|pattern| wildcard_matches(&filter_path(pattern, self.case_sensitive), &path));
-        let excluded = self
-            .exclude
-            .iter()
-            .any(|pattern| wildcard_matches(&filter_path(pattern, self.case_sensitive), &path));
+            || self.include.iter().any(|pattern| {
+                let normalized = filter_path(pattern, self.case_sensitive);
+                wildcard_matches(&normalized, &path) || wildcard_matches(&normalized, &name)
+            });
+        let excluded = self.exclude.iter().any(|pattern| {
+            let normalized = filter_path(pattern, self.case_sensitive);
+            wildcard_matches(&normalized, &path) || wildcard_matches(&normalized, &name)
+        });
 
         included && !excluded
     }
+}
+
+pub fn filter_alignment_rows(
+    rows: Vec<FolderAlignmentRow>,
+    filters: &FileFilters,
+) -> Vec<FolderAlignmentRow> {
+    if filters.include.is_empty() && filters.exclude.is_empty() {
+        return rows;
+    }
+
+    let matched: std::collections::HashSet<String> = rows
+        .iter()
+        .filter(|row| filters.allows(&row.relative_path))
+        .map(|row| row.relative_path.clone())
+        .collect();
+
+    let mut keep = matched.clone();
+    for path in &matched {
+        let mut end = path.len();
+        while let Some(slash) = path[..end].rfind('/') {
+            keep.insert(path[..slash].to_owned());
+            end = slash;
+        }
+    }
+
+    rows
+        .into_iter()
+        .filter(|row| keep.contains(&row.relative_path))
+        .collect()
 }
 
 impl FolderScanNode {
@@ -1710,6 +1744,50 @@ mod tests {
         assert!(!filters.allows("src/main.ts"));
         assert!(!filters.allows("target/debug/app.rs"));
         assert!(!filters.allows("notes.tmp"));
+        assert!(!filters.allows("build/notes.tmp"));
+    }
+
+    #[test]
+    fn filter_alignment_rows_keeps_matches_and_ancestors() {
+        let filters = FileFilters {
+            include: vec!["*.rs".to_owned()],
+            exclude: Vec::new(),
+            case_sensitive: true,
+        };
+        let rows = vec![
+            FolderAlignmentRow {
+                relative_path: "src".to_owned(),
+                depth: 0,
+                left: None,
+                right: None,
+            },
+            FolderAlignmentRow {
+                relative_path: "src/main.rs".to_owned(),
+                depth: 1,
+                left: None,
+                right: None,
+            },
+            FolderAlignmentRow {
+                relative_path: "src/main.ts".to_owned(),
+                depth: 1,
+                left: None,
+                right: None,
+            },
+            FolderAlignmentRow {
+                relative_path: "README.md".to_owned(),
+                depth: 0,
+                left: None,
+                right: None,
+            },
+        ];
+
+        let filtered = filter_alignment_rows(rows, &filters);
+        let paths: Vec<_> = filtered
+            .iter()
+            .map(|row| row.relative_path.as_str())
+            .collect();
+
+        assert_eq!(paths, vec!["src", "src/main.rs"]);
     }
 
     fn metadata(kind: VfsEntryKind, name: &str, extension: Option<&str>, size: u64) -> VfsMetadata {

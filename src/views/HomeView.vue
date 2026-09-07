@@ -661,7 +661,7 @@ function openSelectedPreview(): void {
             class="bc-tree-row expanded"
           >
             <span>▾</span>
-            <FolderOpen :size="17" />
+            <FolderOpen :size="14" />
             <strong>{{ $t('ui.new') }}</strong>
           </button>
           <button
@@ -675,7 +675,7 @@ function openSelectedPreview(): void {
             <span></span>
             <component
               :is="entry.icon"
-              :size="17"
+              :size="14"
             />
             <strong>{{ $t(entry.titleKey) }}</strong>
           </button>
@@ -685,7 +685,7 @@ function openSelectedPreview(): void {
             data-testid="home-tree-auto-saved"
           >
             <span>▾</span>
-            <FolderOpen :size="17" />
+            <FolderOpen :size="14" />
             <strong>{{ $t('ui.autoSaved') }}</strong>
           </button>
           <button
@@ -699,7 +699,7 @@ function openSelectedPreview(): void {
             @dblclick="openSavedSession(session)"
           >
             <span></span>
-            <FolderOpen :size="16" />
+            <FolderOpen :size="13" />
             <strong>{{ session.name }}</strong>
           </button>
           <button
@@ -708,7 +708,7 @@ function openSelectedPreview(): void {
             data-testid="home-tree-today"
           >
             <span>▾</span>
-            <FolderOpen :size="17" />
+            <FolderOpen :size="14" />
             <strong>{{ $t('ui.today') }}</strong>
           </button>
           <button
@@ -722,7 +722,7 @@ function openSelectedPreview(): void {
             @dblclick="openSavedSession(session)"
           >
             <span></span>
-            <FolderOpen :size="16" />
+            <FolderOpen :size="13" />
             <strong>{{ session.name }}</strong>
           </button>
         </section>
@@ -867,7 +867,7 @@ function openSelectedPreview(): void {
               <span class="session-card-icon">
                 <component
                   :is="entry.icon"
-                  :size="54"
+                  :size="40"
                 />
               </span>
               <h3>{{ $t(entry.titleKey) }}</h3>
@@ -1180,13 +1180,13 @@ function openSelectedPreview(): void {
 
 .bc-home-workspace {
   display: grid;
-  grid-template-columns: 380px minmax(0, 1fr);
+  grid-template-columns: 300px minmax(0, 1fr);
   background: #ffffff;
 }
 
 .bc-session-tree {
   display: grid;
-  grid-template-rows: 52px minmax(0, 1fr) 56px;
+  grid-template-rows: 34px minmax(0, 1fr) 44px;
   min-width: 0;
   min-height: 0;
   border-right: 1px solid #b9bec7;
@@ -1197,12 +1197,13 @@ function openSelectedPreview(): void {
   display: flex;
   align-items: center;
   min-width: 0;
-  padding: 0 18px;
+  padding: 0 12px;
   overflow: hidden;
   border-bottom: 1px solid #c6ccd5;
   background: #eef1f5;
   color: #111827;
-  font-size: 22px;
+  font-size: 14px;
+  font-weight: 600;
   line-height: 1;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1210,35 +1211,35 @@ function openSelectedPreview(): void {
 
 .bc-tree-list {
   min-height: 0;
-  padding: 4px 10px;
+  padding: 2px 6px;
   overflow: auto;
 }
 
 .bc-tree-row {
   display: grid;
-  grid-template-columns: 18px 22px minmax(0, 1fr);
+  grid-template-columns: 14px 18px minmax(0, 1fr);
   align-items: center;
-  gap: 4px;
+  gap: 2px;
   width: 100%;
-  min-height: 26px;
-  padding: 0 4px;
+  min-height: 22px;
+  padding: 0 2px;
   border: 0;
   background: transparent;
   color: #111827;
-  font-size: 19px;
-  line-height: 23px;
+  font-size: 13px;
+  line-height: 18px;
   text-align: left;
   cursor: pointer;
 }
 
 .bc-tree-row.child {
-  padding-left: 34px;
-  font-size: 19px;
+  padding-left: 22px;
+  font-size: 13px;
 }
 
 .bc-tree-row.saved {
-  padding-left: 64px;
-  font-size: 18px;
+  padding-left: 40px;
+  font-size: 12px;
 }
 
 .bc-tree-row:hover,
@@ -1256,34 +1257,35 @@ function openSelectedPreview(): void {
 
 .bc-tree-footer {
   display: grid;
-  grid-template-columns: 48px 48px minmax(0, 1fr);
+  grid-template-columns: 36px 36px minmax(0, 1fr);
   align-items: center;
   gap: 4px;
-  padding: 8px 8px 10px;
+  padding: 4px 6px 6px;
   border-top: 1px solid #c6ccd5;
   background: #eef1f5;
 }
 
 .bc-tree-footer button {
-  height: 38px;
+  height: 30px;
   border: 1px solid #d1d5db;
-  border-radius: 4px;
+  border-radius: 3px;
   background: #ffffff;
   color: #2f343a;
-  font-size: 24px;
+  font-size: 16px;
   line-height: 1;
 }
 
 .bc-tree-footer input {
   width: 100%;
   min-width: 0;
-  height: 38px;
-  padding: 0 10px;
+  height: 30px;
+  padding: 0 8px;
   overflow: hidden;
   border: 1px solid #c6ccd5;
   border-radius: 3px;
   background: #ffffff;
   color: #111827;
+  font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1381,35 +1383,35 @@ function openSelectedPreview(): void {
 
 .new-session-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(150px, 1fr));
-  gap: 28px 64px;
-  width: min(780px, calc(100% - 64px));
-  margin: 10px auto 14px;
+  grid-template-columns: repeat(3, minmax(120px, 1fr));
+  gap: 14px 28px;
+  width: min(720px, calc(100% - 40px));
+  margin: 6px auto 10px;
 }
 
 .bc-home-instructions {
   display: grid;
-  gap: 6px;
+  gap: 4px;
   justify-items: center;
-  margin: 0 0 28px;
+  margin: 0 0 14px;
   color: #111827;
-  font-size: 21px;
-  line-height: 1.15;
+  font-size: 13px;
+  line-height: 1.2;
 }
 
 .bc-home-instructions strong {
-  font-size: 23px;
-  font-weight: 400;
+  font-size: 14px;
+  font-weight: 500;
 }
 
 .new-session-card {
   display: grid;
-  gap: 6px;
+  gap: 4px;
   width: 100%;
   min-width: 0;
   max-width: 100%;
-  min-height: 100px;
-  padding: 6px;
+  min-height: 84px;
+  padding: 4px;
   overflow: hidden;
   border: 0;
   border-radius: 2px;
@@ -1428,8 +1430,8 @@ function openSelectedPreview(): void {
 
 .session-card-icon {
   display: inline-grid;
-  width: 74px;
-  height: 62px;
+  width: 56px;
+  height: 48px;
   color: #4b5563;
   place-items: center;
 }
@@ -1802,5 +1804,14 @@ tr:hover .row-actions,
 
 .home-view :deep(.workbench-main) {
   background: #ffffff;
+  padding: 0;
+}
+
+.home-view :deep(.workbench-shell-compact) {
+  background: #ffffff;
+}
+
+.home-view :deep(.workbench-grid-compact) {
+  gap: 0;
 }
 </style>

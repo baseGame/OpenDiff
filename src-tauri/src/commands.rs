@@ -367,6 +367,31 @@ impl FolderCompareCriteria {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct FolderNameFilters {
+    #[serde(default)]
+    pub include: Vec<String>,
+    #[serde(default)]
+    pub exclude: Vec<String>,
+    #[serde(default)]
+    pub case_sensitive: bool,
+}
+
+impl FolderNameFilters {
+    fn to_file_filters(&self) -> folder_core::FileFilters {
+        folder_core::FileFilters {
+            include: self.include.clone(),
+            exclude: self.exclude.clone(),
+            case_sensitive: self.case_sensitive,
+        }
+    }
+
+    fn is_active(&self) -> bool {
+        !self.include.is_empty() || !self.exclude.is_empty()
+    }
+}
+
 #[derive(Debug, Clone, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct FolderCompareRow {
@@ -731,9 +756,11 @@ pub fn compare_folder_paths(
     left_root: String,
     right_root: String,
     criteria: Option<FolderCompareCriteria>,
+    filters: Option<FolderNameFilters>,
 ) -> Result<FolderCompareResponse, AppErrorPayload> {
     let criteria = criteria.unwrap_or_default();
     let options = criteria.to_options();
+    let name_filters = filters.unwrap_or_default();
     let left_source = crate::sources::load_compare_source(&left_root)
         .map_err(|error| compare_source_error(&left_root, error))?;
     let right_source = crate::sources::load_compare_source(&right_root)
@@ -744,6 +771,11 @@ pub fn compare_folder_paths(
         .map_err(|error| compare_source_error(&right_root, error))?;
     let alignment_rows =
         folder_core::align_folder_trees_with_options(&left_tree, &right_tree, &options);
+    let alignment_rows = if name_filters.is_active() {
+        folder_core::filter_alignment_rows(alignment_rows, &name_filters.to_file_filters())
+    } else {
+        alignment_rows
+    };
     let rows = alignment_rows
         .iter()
         .map(|row| {
@@ -4494,10 +4526,11 @@ mod tests {
         fs::write(right.join("README.md"), "same").expect("right readme should be writable");
 
         let response = compare_folder_paths(
-            left.display().to_string(),
-            right.display().to_string(),
-            None,
-        )
+        left.display().to_string(),
+        right.display().to_string(),
+        None,
+        None,
+    )
         .expect("valid folders should compare");
 
         assert_eq!(response.left_root, left.display().to_string());
@@ -5250,10 +5283,11 @@ mod tests {
         fs::write(&right, archive_core::write_zip_bytes(&right_doc).unwrap()).unwrap();
 
         let response = compare_folder_paths(
-            left.display().to_string(),
-            right.display().to_string(),
-            None,
-        )
+        left.display().to_string(),
+        right.display().to_string(),
+        None,
+        None,
+    )
         .expect("zip archives should compare as folders");
 
         assert!(response

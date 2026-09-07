@@ -878,8 +878,11 @@ export const frFR: LanguagePack = {
     'ui.alignment': 'Alignement',
     'ui.replacements': 'Remplacements',
     'ui.apply': 'Appliquer',
+    'ui.includePatterns': 'Inclure les noms',
+    'ui.excludePatterns': 'Exclure les noms',
+    'ui.caseSensitiveNames': 'Noms sensibles à la casse',
     'ui.sessionSettingsFiltersHint':
-      'Les filtres d’affichage restent dans le panneau Filtres et persistent après rescan.',
+      'Les motifs d’inclusion/exclusion de noms s’appliquent au prochain scan/comparaison et sont conservés sur ce poste. Les filtres d’état d’affichage restent dans le panneau Filtres de la barre d’outils.',
     'ui.goTo': 'Aller à',
     'ui.goToOffset': 'Aller à l’offset',
     'ui.hexOffsetHint': 'Décimal ou hex (0x…) ; valeurs au-delà de 0x7FFFFFFF prises en charge',

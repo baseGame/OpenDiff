@@ -12,7 +12,7 @@ import WorkbenchShell from '@/components/workbench/WorkbenchShell.vue'
 import WorkbenchInspector from '@/components/workbench/WorkbenchInspector.vue'
 import { localFileSrc } from '@/app/localFileSrc'
 import { prefersVideoElement } from '@/app/mediaPlayback'
-import { buildMediaCompareToolbar } from '@/app/sessionToolbars'
+import { buildMediaCompareToolbar, pathPairTitle } from '@/app/sessionToolbars'
 import { useSessionLaunchStore } from '@/stores/sessionLaunch'
 import { useTabsStore } from '@/stores/tabs'
 import { useI18n } from '@/i18n'
@@ -142,10 +142,19 @@ const rightMediaSrc = computed(() => (rightPath.value ? localFileSrc(rightPath.v
 const useVideoPlayers = computed(() => prefersVideoElement(leftPath.value, rightPath.value))
 const canPreviewMedia = computed(() => Boolean(leftMediaSrc.value || rightMediaSrc.value))
 
+function syncMediaTabTitle(): void {
+  if (!leftPath.value || !rightPath.value) {
+    return
+  }
+
+  tabs.setTabTitle('/compare/media', pathPairTitle(leftPath.value, rightPath.value))
+}
+
 watch([leftPath, rightPath], () => {
   playbackPosition.value = 0
   playbackDuration.value = 0
   isPlaying.value = false
+  syncMediaTabTitle()
 })
 
 function onMediaMeta(side: 'left' | 'right'): void {

@@ -861,8 +861,11 @@ export const jaJP: LanguagePack = {
     'ui.alignment': '整列',
     'ui.replacements': '置換',
     'ui.apply': '適用',
+    'ui.includePatterns': '名前を含める',
+    'ui.excludePatterns': '名前を除外',
+    'ui.caseSensitiveNames': '名前の大文字小文字を区別',
     'ui.sessionSettingsFiltersHint':
-      '表示フィルターはフィルターツールバーパネルにあり、再スキャン後も保持されます。',
+      '名前の含め/除外パターンは次回のスキャン/比較で適用され、この端末に保持されます。表示ステータスフィルタはフィルタツールバーパネルに残ります。',
     'ui.goTo': '移動',
     'ui.goToOffset': 'オフセットへ移動',
     'ui.hexOffsetHint': '10 進または 16 進 (0x…)；0x7FFFFFFF を超える値に対応',

@@ -17,6 +17,11 @@ import { pickNativePath } from '@/app/filePicker'
 import { formatCompareError } from '@/app/compareError'
 import { loadFolderDisplayFilters, saveFolderDisplayFilters } from '@/app/folderDisplayFilters'
 import { loadFolderCompareCriteria, saveFolderCompareCriteria } from '@/app/folderCompareCriteria'
+import {
+  loadFolderNameFilters,
+  saveFolderNameFilters,
+  type FolderNameFilters,
+} from '@/app/folderNameFilters'
 import { loadExternalApplications } from '@/app/externalApplications'
 import {
   folderCopyTargetsForDirection,
@@ -123,6 +128,7 @@ const expandedDirectoryIds = ref<Set<string>>(new Set())
 const leftRoot = ref('')
 const rightRoot = ref('')
 const folderCriteria = ref<FolderCompareCriteria>(loadFolderCompareCriteria())
+const folderNameFilters = ref<FolderNameFilters>(loadFolderNameFilters())
 const showSessionSettings = ref(false)
 const showPeekPanel = ref(false)
 const viewActions = useViewActionsStore()
@@ -468,9 +474,13 @@ function openFolderSessionSettings(): void {
   showSessionSettings.value = true
 }
 
+function persistFolderNameFilters(): void {
+  saveFolderNameFilters({ ...folderNameFilters.value })
+}
+
 function applyFolderSessionSettings(
   payload:
-    | { kind: 'folder'; criteria: FolderCompareCriteria }
+    | { kind: 'folder'; criteria: FolderCompareCriteria; filters: FolderNameFilters }
     | { kind: 'text'; options: typeof textSettingsPlaceholder }
     | { kind: 'table'; options: unknown }
     | { kind: 'hex'; options: unknown }
@@ -481,7 +491,9 @@ function applyFolderSessionSettings(
   }
 
   folderCriteria.value = { ...payload.criteria }
+  folderNameFilters.value = { ...payload.filters }
   persistFolderCriteria()
+  persistFolderNameFilters()
   showSessionSettings.value = false
   if (leftRoot.value && rightRoot.value) {
     void runFolderCompare()
@@ -792,6 +804,7 @@ async function runFolderCompare(): Promise<void> {
       leftRoot: leftRoot.value,
       rightRoot: rightRoot.value,
       criteria: { ...folderCriteria.value },
+      filters: { ...folderNameFilters.value },
     })
 
     if (generation !== folderCompareGeneration) {
@@ -2912,6 +2925,7 @@ onUnmounted(() => {
       :open="showSessionSettings"
       kind="folder"
       :folder-criteria="folderCriteria"
+      :folder-filters="folderNameFilters"
       :text-options="textSettingsPlaceholder"
       @close="showSessionSettings = false"
       @apply="applyFolderSessionSettings"

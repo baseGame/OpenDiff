@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { compareVersionFiles } from '@/api/diff'
 import { useI18n } from '@/i18n'
@@ -138,6 +138,18 @@ const versionToolbarCommands = computed(() =>
   }),
 )
 
+function syncVersionTabTitle(): void {
+  if (!leftPath.value || !rightPath.value) {
+    return
+  }
+
+  tabs.setTabTitle('/compare/version', pathPairTitle(leftPath.value, rightPath.value))
+}
+
+watch([leftPath, rightPath], () => {
+  syncVersionTabTitle()
+})
+
 function runVersionToolbarCommand(commandId: string): void {
   if (commandId === 'home') {
     tabs.openTab({ title: 'Home', titleKey: 'ui.home', route: '/', dirty: false })
@@ -173,6 +185,7 @@ function runVersionToolbarCommand(commandId: string): void {
 
     rightVersion.value = leftVersion.value
     leftVersion.value = nextLeft
+    syncVersionTabTitle()
 
     return
   }
@@ -217,14 +230,6 @@ function applyVersionResult(result: VersionCompareResponse): void {
   versionSummaryOverride.value = result.summary
   activeFieldIndex.value = 0
   syncVersionTabTitle()
-}
-
-function syncVersionTabTitle(): void {
-  if (!leftPath.value || !rightPath.value) {
-    return
-  }
-
-  tabs.setTabTitle('/compare/version', pathPairTitle(leftPath.value, rightPath.value))
 }
 
 function persistVersionOptions(): void {

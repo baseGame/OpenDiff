@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import MediaCompareView from './MediaCompareView.vue'
 import { compareMediaFiles } from '@/api/diff'
 import { useSessionLaunchStore } from '@/stores/sessionLaunch'
+import { useTabsStore } from '@/stores/tabs'
 
 vi.mock('vue-router', () => ({
   useRouter: () => ({ push: vi.fn() }),
@@ -125,5 +126,22 @@ describe('MediaCompareView', () => {
     expect(wrapper.find('[data-testid="media-right-audio"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="media-scrub"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="media-play-toggle"]').exists()).toBe(true)
+  })
+
+  it('sets path-pair tab titles for media sessions', async () => {
+    const wrapper = mount(MediaCompareView)
+    const tabs = useTabsStore()
+    tabs.openTab({
+      title: 'Media Compare',
+      titleKey: 'ui.mediaCompare',
+      route: '/compare/media',
+      dirty: false,
+    })
+
+    await wrapper.find('[data-testid="media-left-path"]').setValue('C:/music/fixture-left.mp3')
+    await wrapper.find('[data-testid="media-right-path"]').setValue('C:/music/fixture-right.mp3')
+    await wrapper.vm.$nextTick()
+
+    expect(tabs.activeTab.title).toBe('fixture-left.mp3 <--> fixture-right.mp3')
   })
 })

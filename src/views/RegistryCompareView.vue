@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { compareRegistryExports, readTextFile } from '@/api/diff'
 import { queryLiveWindowsRegistry } from '@/api/policy'
@@ -18,7 +18,7 @@ import {
   registryValueMatchesFilter,
   type RegistryValueFilter,
 } from '@/app/registryWorkspace'
-import { buildRegistryCompareToolbar } from '@/app/sessionToolbars'
+import { buildRegistryCompareToolbar, pathPairTitle } from '@/app/sessionToolbars'
 import { useSessionLaunchStore } from '@/stores/sessionLaunch'
 import { useTabsStore } from '@/stores/tabs'
 import { useI18n } from '@/i18n'
@@ -68,6 +68,22 @@ onMounted(() => {
     void loadLaunchRegistryExports(launch.locations.left.uri, launch.locations.right.uri)
   }
 })
+
+function syncRegistryTabTitle(): void {
+  if (!leftName.value || !rightName.value) {
+    return
+  }
+
+  tabs.setTabTitle('/compare/registry', pathPairTitle(leftName.value, rightName.value))
+}
+
+watch(
+  [leftName, rightName],
+  () => {
+    syncRegistryTabTitle()
+  },
+  { immediate: true },
+)
 
 const flatRegistryKeys = computed<FlatRegistryKeyNode[]>(() =>
   flattenRegistryKeys(registryTree.value),

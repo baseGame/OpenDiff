@@ -165,10 +165,17 @@ export interface FolderCompareCriteria {
   compareCrc: boolean
 }
 
+export interface FolderNameFilters {
+  include: string[]
+  exclude: string[]
+  caseSensitive?: boolean
+}
+
 export interface FolderCompareRequest {
   leftRoot: string
   rightRoot: string
   criteria?: FolderCompareCriteria
+  filters?: FolderNameFilters
 }
 
 export type FolderCompareStatus = 'Same' | 'Different' | 'Left only' | 'Right only'

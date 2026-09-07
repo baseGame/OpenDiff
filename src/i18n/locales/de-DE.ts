@@ -881,8 +881,11 @@ export const deDE: LanguagePack = {
     'ui.alignment': 'Ausrichtung',
     'ui.replacements': 'Ersetzungen',
     'ui.apply': 'Übernehmen',
+    'ui.includePatterns': 'Namen einschließen',
+    'ui.excludePatterns': 'Namen ausschließen',
+    'ui.caseSensitiveNames': 'Groß-/Kleinschreibung beachten',
     'ui.sessionSettingsFiltersHint':
-      'Anzeigefilter bleiben im Filter-Werkzeugleistenpanel und bleiben über erneute Scans hinweg erhalten.',
+      'Einschluss-/Ausschlussmuster für Namen gelten beim nächsten Scan/Vergleich und bleiben auf diesem Gerät erhalten. Anzeigestatusfilter bleiben im Filter-Werkzeugleistenbereich.',
     'ui.goTo': 'Gehe zu',
     'ui.goToOffset': 'Zu Offset gehen',
     'ui.hexOffsetHint': 'Dezimal oder Hex (0x…); Werte über 0x7FFFFFFF werden unterstützt',
