@@ -2,6 +2,12 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import FolderSyncView from './FolderSyncView.vue'
+
+const push = vi.fn()
+
+vi.mock('vue-router', () => ({
+  useRouter: () => ({ push }),
+}))
 import { executeFolderSync, previewFolderSync } from '@/api/sync'
 import { useSessionLaunchStore } from '@/stores/sessionLaunch'
 
@@ -200,5 +206,46 @@ describe('FolderSyncView', () => {
       rightRoot: 'D:/deploy/prod',
       strategy: 'updateBoth',
     })
+  })
+
+  it('exposes Expand/Collapse/Select/Filters/Home session toolbar chrome', async () => {
+    const wrapper = mount(FolderSyncView, {
+      global: {
+        stubs: {
+          NButton: {
+            props: ['disabled', 'loading'],
+            emits: ['click'],
+            template: '<button :disabled="disabled" @click="$emit(\'click\')"><slot /></button>',
+          },
+        },
+      },
+    })
+
+    await wrapper.find('[data-testid="folder-sync-left-path"]').setValue('D:/deploy/package')
+    await wrapper.find('[data-testid="folder-sync-right-path"]').setValue('D:/deploy/prod')
+    await wrapper.find('[data-testid="folder-sync-preview"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="folder-sync-session-toolbar-bar"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="folder-sync-session-toolbar-home"]').exists()).toBe(true)
+    expect(
+      wrapper.find('[data-testid="folder-sync-session-toolbar-expand"]').attributes('disabled'),
+    ).toBeUndefined()
+    expect(
+      wrapper.find('[data-testid="folder-sync-session-toolbar-collapse"]').attributes('disabled'),
+    ).toBeUndefined()
+
+    await wrapper.find('[data-testid="folder-sync-session-toolbar-filters"]').trigger('click')
+    expect(wrapper.find('[data-testid="folder-sync-filters-panel"]').exists()).toBe(true)
+
+    await wrapper.find('[data-testid="folder-sync-session-toolbar-select"]').trigger('click')
+    expect(wrapper.find('[data-testid="folder-sync-select-panel"]').exists()).toBe(true)
+    await wrapper.find('[data-testid="folder-sync-select-all"]').trigger('click')
+    expect(wrapper.find('[data-testid="folder-sync-selection-status"]').text()).toContain('2')
+
+    await wrapper.find('[data-testid="folder-sync-session-toolbar-collapse"]').trigger('click')
+    expect(wrapper.find('[data-testid="sync-row-copy-app"]').exists()).toBe(false)
+    await wrapper.find('[data-testid="folder-sync-session-toolbar-expand"]').trigger('click')
+    expect(wrapper.find('[data-testid="sync-row-copy-app"]').exists()).toBe(true)
   })
 })

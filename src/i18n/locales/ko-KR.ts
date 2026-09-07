@@ -704,9 +704,13 @@ export const koKR: LanguagePack = {
     'ui.scriptPath': '스크립트 파일',
     'ui.scriptSource': '스크립트 소스',
     'ui.scriptingNotImplemented':
-      '전체 BC 스크립트 언어는 구현되지 않았습니다. 지원 명령은 실행되고 나머지는 unsupported를 반환합니다.',
+      '전체 레거시 스크립트 언어는 구현되지 않았습니다. 지원 명령은 실행되고, 알려진 공백은 unsupported를 반환합니다.',
     'ui.scriptingSupported':
-      '지원: LOAD, FILTER, COMPARE, REPORT, LOG, BEEP, OPTION, SELECT, COPY, COPYTO, DELETE, RENAME, TOUCH, SNAPSHOT, SYNC, TEXT-REPORT, FOLDER-REPORT. 다른 BC 명령은 unsupported를 반환합니다.',
+      '지원: LOAD, FILTER, COMPARE, REPORT, FILE-REPORT, HEX-REPORT, TABLE-REPORT, PICTURE-REPORT, VERSION-REPORT, REGISTRY-REPORT, LOG, BEEP, OPTION, SELECT, COPY, COPYTO, DELETE, RENAME, TOUCH, SNAPSHOT, SYNC, TEXT-REPORT, FOLDER-REPORT.',
+    'ui.scriptingUnsupported':
+      '미지원: ATTRIB, COLLAPSE, CRITERIA, EXPAND, MEDIA-REPORT, MOVE, MOVETO.',
+    'ui.scriptingUnsupportedCommands': '미지원 명령',
+    'ui.scriptingSupportedCommands': '지원 명령',
     'ui.secretsHint':
       '비밀번호는 로컬 비밀 파일(모드 0600)에만 저장되며 프로필 목록이나 로그에는 기록되지 않습니다.',
     'ui.sourceFile': 'Source file',

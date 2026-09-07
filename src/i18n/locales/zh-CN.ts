@@ -691,9 +691,13 @@ export const zhCN: LanguagePack = {
     'ui.scriptPath': '脚本文件',
     'ui.scriptSource': '脚本源',
     'ui.scriptingNotImplemented':
-      '完整 BC 脚本语言尚未实现。已支持的命令会真正执行；其余命令返回 unsupported。',
+      '完整遗留脚本语言尚未实现。已支持的命令会真正执行；已知缺口以 unsupported 返回。',
     'ui.scriptingSupported':
-      '已支持：LOAD、FILTER、COMPARE、REPORT、LOG、BEEP、OPTION、SELECT、COPY、COPYTO、DELETE、RENAME、TOUCH、SNAPSHOT、SYNC、TEXT-REPORT、FOLDER-REPORT。其他 BC 命令返回 unsupported。',
+      '已支持：LOAD、FILTER、COMPARE、REPORT、FILE-REPORT、HEX-REPORT、TABLE-REPORT、PICTURE-REPORT、VERSION-REPORT、REGISTRY-REPORT、LOG、BEEP、OPTION、SELECT、COPY、COPYTO、DELETE、RENAME、TOUCH、SNAPSHOT、SYNC、TEXT-REPORT、FOLDER-REPORT。',
+    'ui.scriptingUnsupported':
+      '未支持：ATTRIB、COLLAPSE、CRITERIA、EXPAND、MEDIA-REPORT、MOVE、MOVETO。',
+    'ui.scriptingUnsupportedCommands': '未支持命令',
+    'ui.scriptingSupportedCommands': '已支持命令',
     'ui.secretsHint': '密码只保存在本地密钥文件（Unix 权限 0600），不会写入配置列表或日志。',
     'ui.sourceFile': '源文件',
     'ui.svnIntegration': 'SVN 集成',

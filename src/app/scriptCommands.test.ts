@@ -1,0 +1,39 @@
+import { describe, expect, it } from 'vitest'
+import {
+  formatCommandList,
+  supportedScriptCommands,
+  unsupportedScriptCommands,
+} from './scriptCommands'
+
+describe('scriptCommands', () => {
+  it('lists supported compare/report commands without trademarked product names', () => {
+    expect(supportedScriptCommands).toContain('COMPARE')
+    expect(supportedScriptCommands).toContain('HEX-REPORT')
+    expect(supportedScriptCommands).toContain('TABLE-REPORT')
+    expect(supportedScriptCommands).toContain('FILE-REPORT')
+    expect(supportedScriptCommands).toContain('REPORT')
+    expect(formatCommandList(supportedScriptCommands)).not.toMatch(/Beyond|BC5?|Scooter/i)
+  })
+
+  it('keeps an honest unsupported list for known legacy gaps', () => {
+    expect(unsupportedScriptCommands).toEqual([
+      'ATTRIB',
+      'COLLAPSE',
+      'CRITERIA',
+      'EXPAND',
+      'MEDIA-REPORT',
+      'MOVE',
+      'MOVETO',
+    ])
+    expect(unsupportedScriptCommands).not.toContain('HEX-REPORT')
+    expect(unsupportedScriptCommands).not.toContain('FILE-REPORT')
+  })
+
+  it('keeps supported and unsupported catalogs disjoint', () => {
+    const overlap = supportedScriptCommands.filter((command) =>
+      (unsupportedScriptCommands as readonly string[]).includes(command),
+    )
+
+    expect(overlap).toEqual([])
+  })
+})

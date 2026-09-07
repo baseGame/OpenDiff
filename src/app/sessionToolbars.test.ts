@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   buildClipboardCompareToolbar,
   buildFolderCompareToolbar,
+  buildFolderMergeToolbar,
+  buildFolderSyncToolbar,
   buildHexCompareToolbar,
   buildMediaCompareToolbar,
   buildPictureCompareToolbar,
@@ -12,6 +14,8 @@ import {
   buildVersionCompareToolbar,
   clipboardCompareToolbarOrder,
   folderCompareToolbarOrder,
+  folderMergeToolbarOrder,
+  folderSyncToolbarOrder,
   hexCompareToolbarOrder,
   mergeSessionTitle,
   pathPairTitle,
@@ -157,5 +161,40 @@ describe('sessionToolbars', () => {
 
     expect(toolbar.map((item) => item.id)).toEqual([...textPatchToolbarOrder])
     expect(toolbar.find((item) => item.id === 'prev-section')?.enabled).toBe(false)
+  })
+
+  it('keeps Folder Sync toolbar chrome for expand/collapse/select/filters/home', () => {
+    const toolbar = buildFolderSyncToolbar({
+      home: true,
+      expand: true,
+      collapse: true,
+      select: true,
+      filters: true,
+      refresh: true,
+      swap: true,
+      stop: false,
+    })
+
+    expect(toolbar.map((item) => item.id)).toEqual([...folderSyncToolbarOrder])
+    expect(toolbar.find((item) => item.id === 'home')?.enabled).toBe(true)
+    expect(toolbar.find((item) => item.id === 'select')?.enabled).toBe(true)
+    expect(toolbar.find((item) => item.id === 'stop')?.enabled).toBe(false)
+  })
+
+  it('keeps Folder Merge toolbar chrome for expand/collapse/select', () => {
+    const toolbar = buildFolderMergeToolbar({
+      home: true,
+      expand: true,
+      collapse: true,
+      select: true,
+      same: true,
+      filters: true,
+      refresh: true,
+      peek: true,
+    })
+
+    expect(toolbar.map((item) => item.id)).toEqual([...folderMergeToolbarOrder])
+    expect(toolbar.find((item) => item.id === 'expand')?.enabled).toBe(true)
+    expect(toolbar.find((item) => item.id === 'peek')?.enabled).toBe(true)
   })
 })

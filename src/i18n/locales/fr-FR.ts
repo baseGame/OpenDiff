@@ -721,9 +721,13 @@ export const frFR: LanguagePack = {
     'ui.scriptPath': 'Fichier de script',
     'ui.scriptSource': 'Source du script',
     'ui.scriptingNotImplemented':
-      'Le langage de script BC complet n’est pas implémenté. Les commandes prises en charge s’exécutent ; les autres renvoient unsupported.',
+      'Le langage de script hérité complet n’est pas implémenté. Les commandes prises en charge s’exécutent ; les lacunes connues renvoient unsupported.',
     'ui.scriptingSupported':
-      'Commandes prises en charge : LOAD, FILTER, COMPARE, REPORT, LOG, BEEP, OPTION, SELECT, COPY, COPYTO, DELETE, RENAME, TOUCH, SNAPSHOT, SYNC, TEXT-REPORT, FOLDER-REPORT. Les autres commandes BC renvoient unsupported.',
+      'Commandes prises en charge : LOAD, FILTER, COMPARE, REPORT, FILE-REPORT, HEX-REPORT, TABLE-REPORT, PICTURE-REPORT, VERSION-REPORT, REGISTRY-REPORT, LOG, BEEP, OPTION, SELECT, COPY, COPYTO, DELETE, RENAME, TOUCH, SNAPSHOT, SYNC, TEXT-REPORT, FOLDER-REPORT.',
+    'ui.scriptingUnsupported':
+      'Non prises en charge : ATTRIB, COLLAPSE, CRITERIA, EXPAND, MEDIA-REPORT, MOVE, MOVETO.',
+    'ui.scriptingUnsupportedCommands': 'Commandes non prises en charge',
+    'ui.scriptingSupportedCommands': 'Commandes prises en charge',
     'ui.secretsHint':
       'Les mots de passe sont stockés uniquement dans un fichier local (mode 0600), jamais dans la liste des profils ni dans les journaux.',
     'ui.sourceFile': 'Source file',
