@@ -3,6 +3,7 @@ import {
   nextSessionWindowLabel,
   openSessionWindow,
   sessionNewWindowCapability,
+  sessionWindowEntryUrl,
 } from './sessionWindow'
 
 describe('sessionWindow', () => {
@@ -19,11 +20,24 @@ describe('sessionWindow', () => {
     expect(nextSessionWindowLabel(1_700_000_000_000)).toBe('session-1700000000000')
   })
 
-  it('opens a same-origin window outside Tauri', async () => {
+  it('builds same-origin entry URLs for named session routes', () => {
+    expect(sessionWindowEntryUrl('/compare/picture', 'https://app.local')).toBe(
+      'https://app.local/compare/picture',
+    )
+    expect(sessionWindowEntryUrl('compare/folder', 'https://app.local')).toBe(
+      'https://app.local/compare/folder',
+    )
+    expect(sessionWindowEntryUrl('', 'https://app.local')).toBe('https://app.local/')
+  })
+
+  it('opens a same-origin window outside Tauri on the requested route', async () => {
     const openBlank = vi.fn().mockReturnValue({})
 
-    await expect(openSessionWindow(openBlank)).resolves.toBe(true)
-    expect(openBlank).toHaveBeenCalledWith(window.location.href, '_blank')
+    await expect(openSessionWindow(openBlank, '/compare/picture')).resolves.toBe(true)
+    expect(openBlank).toHaveBeenCalledWith(
+      sessionWindowEntryUrl('/compare/picture', window.location.origin),
+      '_blank',
+    )
   })
 
   it('reports failure when the browser blocks window.open', async () => {

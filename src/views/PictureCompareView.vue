@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { comparePictureFiles } from '@/api/diff'
+import { comparePictureFiles, saveTextFile } from '@/api/diff'
+import { buildPictureReportText, defaultPictureReportOutputPath } from '@/app/pictureReport'
 import { localFileSrc } from '@/app/localFileSrc'
 import type { PictureCompareResponse, PictureMetadataRow } from '@/types/diff'
 import WorkbenchShell from '@/components/workbench/WorkbenchShell.vue'
@@ -66,6 +67,7 @@ const pictureStatistics = ref<PictureCompareResponse['statistics']>({
   differenceRatio: 0,
 })
 const compared = ref(false)
+const reportStatus = ref('')
 const leftImageSrc = computed(() => (compared.value ? localFileSrc(leftPath.value) : ''))
 const rightImageSrc = computed(() => (compared.value ? localFileSrc(rightPath.value) : ''))
 const overlayStyle = computed(() => {
@@ -143,6 +145,8 @@ watch(
         swapPicturePaths()
         break
       case 'export':
+      case 'save':
+      case 'save-as':
         void exportPictureReport()
         break
       case 'about':
@@ -164,8 +168,6 @@ watch(
       case 'redo':
       case 'save-snapshot':
       case 'restore-factory-defaults':
-      case 'save':
-      case 'save-as':
       case 'show-all':
       case 'show-differences':
       case 'undo':
@@ -454,26 +456,30 @@ async function exportPictureReport(): Promise<void> {
     return
   }
 
-  const lines = [
-    'PICTURE-REPORT',
-    `left: ${leftPath.value}`,
-    `right: ${rightPath.value}`,
-    `totalPixels: ${String(pictureStatistics.value.totalPixels)}`,
-    `differentPixels: ${String(pictureStatistics.value.differentPixels)}`,
-    `differenceRatio: ${String(pictureStatistics.value.differenceRatio)}`,
-    `boundingRect: ${pictureBoundingRectText.value}`,
-    '',
-    'metadata:',
-    ...visibleMetadataRows.value.map(
-      (row) => `${row.key}\t${row.left}\t${row.right}\t${row.status}`,
-    ),
-  ]
-  const payload = lines.join('\n')
+  const payload = buildPictureReportText({
+    leftPath: leftPath.value,
+    rightPath: rightPath.value,
+    statistics: pictureStatistics.value,
+    metadataRows: visibleMetadataRows.value,
+    boundingRectText: pictureBoundingRectText.value,
+  })
+  const outputPath = defaultPictureReportOutputPath(leftPath.value)
 
   try {
     await navigator.clipboard.writeText(payload)
   } catch {
-    // Clipboard may be unavailable in headless tests; still mark compared report ready.
+    // Clipboard may be unavailable in headless tests; still try file export.
+  }
+
+  try {
+    await saveTextFile({
+      path: outputPath,
+      text: payload,
+      createBackup: false,
+    })
+    reportStatus.value = outputPath
+  } catch (event) {
+    error.value = String(event)
   }
 }
 
@@ -975,6 +981,18 @@ async function runPictureCompare(): Promise<void> {
         <header>
           <strong>{{ $t('ui.pictureReport') }}</strong>
           <span>{{ $t('status.fieldCount', { count: visibleMetadataRows.length }) }}</span>
+          <button
+            type="button"
+            data-testid="export-picture-report"
+            @click="exportPictureReport"
+          >
+            {{ $t('ui.export') }}
+          </button>
+          <span
+            v-if="reportStatus"
+            data-testid="picture-report-status"
+            >{{ reportStatus }}</span
+          >
         </header>
         <div
           class="picture-report-table"
@@ -1403,9 +1421,13 @@ h2 {
 
 .picture-report-panel header {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 12px;
+}
+
+.picture-report-panel header button {
+  margin-left: auto;
 }
 
 .picture-report-table {

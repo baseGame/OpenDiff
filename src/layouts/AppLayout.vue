@@ -434,7 +434,7 @@ async function closeMainWindow(): Promise<void> {
 }
 
 async function openSessionWindowFromMenu(): Promise<void> {
-  const opened = await openSessionWindow()
+  const opened = await openSessionWindow(undefined, route.fullPath || '/')
 
   if (!opened) {
     statusBar.reportStatus({

@@ -2,14 +2,20 @@ import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import PictureCompareView from './PictureCompareView.vue'
-import { comparePictureFiles } from '@/api/diff'
+import { comparePictureFiles, saveTextFile } from '@/api/diff'
 import { useSessionLaunchStore } from '@/stores/sessionLaunch'
+
+const clipboardWriteText = vi.fn<(text: string) => Promise<void>>().mockResolvedValue(undefined)
 
 vi.mock('vue-router', () => ({
   useRouter: () => ({ push: vi.fn() }),
 }))
 
 vi.mock('@/api/diff', () => ({
+  saveTextFile: vi.fn().mockResolvedValue({
+    path: 'C:/images/picture-compare.txt',
+    bytesWritten: 32,
+  }),
   comparePictureFiles: vi.fn().mockResolvedValue({
     left: {
       name: 'left-fixture.png',
@@ -58,6 +64,14 @@ describe('PictureCompareView', () => {
     setActivePinia(createPinia())
     localStorage.clear()
     vi.mocked(comparePictureFiles).mockClear()
+    vi.mocked(saveTextFile).mockClear()
+    clipboardWriteText.mockClear()
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: clipboardWriteText,
+      },
+    })
   })
 
   it('runs a real picture comparison request and renders returned pixel statistics', async () => {
@@ -347,5 +361,32 @@ describe('PictureCompareView', () => {
 
     await wrapper.find('[data-testid="picture-session-toolbar-minor"]').trigger('click')
     expect(wrapper.find('[data-testid="picture-metadata-dimensions"]').exists()).toBe(false)
+  })
+
+  it('exports the picture report to clipboard and a sibling text file', async () => {
+    const wrapper = mount(PictureCompareView)
+
+    await wrapper.find('[data-testid="picture-left-path"]').setValue('C:/images/left-fixture.png')
+    await wrapper.find('[data-testid="picture-right-path"]').setValue('C:/images/right-fixture.png')
+    await wrapper.find('[data-testid="run-picture-compare"]').trigger('click')
+    await wrapper.vm.$nextTick()
+
+    await wrapper.find('[data-testid="export-picture-report"]').trigger('click')
+    await wrapper.vm.$nextTick()
+    await Promise.resolve()
+
+    expect(clipboardWriteText).toHaveBeenCalled()
+    const payload = clipboardWriteText.mock.calls[0]?.[0] ?? ''
+
+    expect(payload).toContain('PICTURE-REPORT')
+    expect(payload).toContain('left: C:/images/left-fixture.png')
+    expect(saveTextFile).toHaveBeenCalledWith({
+      path: 'C:/images/picture-compare.txt',
+      text: payload,
+      createBackup: false,
+    })
+    expect(wrapper.find('[data-testid="picture-report-status"]').text()).toBe(
+      'C:/images/picture-compare.txt',
+    )
   })
 })
