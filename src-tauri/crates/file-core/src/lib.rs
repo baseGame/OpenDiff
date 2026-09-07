@@ -148,13 +148,15 @@ fn decode_utf16(
     encoding: &str,
     convert: fn([u8; 2]) -> u16,
 ) -> Result<(String, String), FileReadError> {
-    if bytes.len() % 2 != 0 {
+    let (chunks, remainder) = bytes.as_chunks::<2>();
+
+    if !remainder.is_empty() {
         return Err(FileReadError::UnsupportedEncoding);
     }
 
-    let units = bytes
-        .chunks_exact(2)
-        .map(|chunk| convert([chunk[0], chunk[1]]))
+    let units = chunks
+        .iter()
+        .map(|chunk| convert(*chunk))
         .collect::<Vec<_>>();
 
     String::from_utf16(&units)
