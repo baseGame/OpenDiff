@@ -10,6 +10,8 @@ export interface SessionLaunchLocation {
   readOnly: boolean
 }
 
+export type SessionLaunchFavor = 'left' | 'right'
+
 export interface SessionLaunchPayload {
   id: string
   source: SessionLaunchSource
@@ -23,5 +25,6 @@ export interface SessionLaunchPayload {
     output?: SessionLaunchLocation
   }
   autoRun: boolean
+  favor?: SessionLaunchFavor
   session?: SessionDocument
 }

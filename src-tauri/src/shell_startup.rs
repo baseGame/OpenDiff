@@ -1,4 +1,4 @@
-use cli_core::{parse_cli_args, CliCommand};
+use cli_core::{parse_cli_args, CliCommand, CliTextMergeFavor};
 use serde::{Deserialize, Serialize};
 use shell_core::{
     ShellCompareAction, ShellCompareOutcome, ShellCompareSessionType, ShellCompareStateStore,
@@ -19,6 +19,16 @@ pub struct ShellCompareLaunchPayload {
     pub right: String,
     pub route: String,
     pub session_type: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub center: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub output: Option<String>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub left_read_only: bool,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub right_read_only: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub favor: Option<String>,
 }
 
 pub fn prepare_shell_startup(args: impl IntoIterator<Item = String>) -> ShellStartupDecision {
@@ -58,13 +68,23 @@ pub fn prepare_shell_startup(args: impl IntoIterator<Item = String>) -> ShellSta
             left,
             right,
             route,
-            options: _,
+            options,
         } => {
+            let favor = match options.favor {
+                Some(CliTextMergeFavor::Left) => Some("left".to_owned()),
+                Some(CliTextMergeFavor::Right) => Some("right".to_owned()),
+                None => None,
+            };
             let payload = ShellCompareLaunchPayload {
                 left,
                 right,
                 route,
                 session_type,
+                center: options.center,
+                output: options.output,
+                left_read_only: options.left_readonly || options.readonly,
+                right_read_only: options.right_readonly || options.readonly,
+                favor,
             };
             if let Err(error) = write_open_compare_launch(&payload) {
                 eprintln!("Open Diff: failed to stage open compare launch: {error}");
@@ -93,6 +113,11 @@ fn write_shell_compare_launch(action: &ShellCompareAction) -> Result<(), String>
         right: action.right.clone(),
         route: action.route.clone(),
         session_type: session_type_name(action.session_type).to_owned(),
+        center: None,
+        output: None,
+        left_read_only: false,
+        right_read_only: false,
+        favor: None,
     };
     write_open_compare_launch(&payload)
 }
@@ -106,14 +131,27 @@ fn write_open_compare_launch(payload: &ShellCompareLaunchPayload) -> Result<(), 
 }
 
 fn encode_shell_compare_launch(payload: &ShellCompareLaunchPayload) -> String {
-    // Four-line payload avoids a direct serde_json dependency in the app crate.
-    format!(
-        "{}\n{}\n{}\n{}\n",
+    // Line payload avoids a direct serde_json dependency in the app crate.
+    // Lines 1-4 are required; optional fields follow when present.
+    let mut lines = vec![
         escape_launch_line(&payload.left),
         escape_launch_line(&payload.right),
         escape_launch_line(&payload.route),
-        escape_launch_line(&payload.session_type)
-    )
+        escape_launch_line(&payload.session_type),
+    ];
+    if payload.center.is_some()
+        || payload.output.is_some()
+        || payload.left_read_only
+        || payload.right_read_only
+        || payload.favor.is_some()
+    {
+        lines.push(escape_launch_line(payload.center.as_deref().unwrap_or("")));
+        lines.push(escape_launch_line(payload.output.as_deref().unwrap_or("")));
+        lines.push(if payload.left_read_only { "1" } else { "0" }.to_owned());
+        lines.push(if payload.right_read_only { "1" } else { "0" }.to_owned());
+        lines.push(escape_launch_line(payload.favor.as_deref().unwrap_or("")));
+    }
+    format!("{}\n", lines.join("\n"))
 }
 
 fn parse_shell_compare_launch(raw: &str) -> Result<ShellCompareLaunchPayload, String> {
@@ -122,12 +160,28 @@ fn parse_shell_compare_launch(raw: &str) -> Result<ShellCompareLaunchPayload, St
     let right = unescape_launch_line(lines.next().ok_or("missing right path")?);
     let route = unescape_launch_line(lines.next().ok_or("missing route")?);
     let session_type = unescape_launch_line(lines.next().ok_or("missing session type")?);
+    let center_raw = lines.next().map(unescape_launch_line);
+    let output_raw = lines.next().map(unescape_launch_line);
+    let left_read_only = lines
+        .next()
+        .map(|value| value.trim() == "1")
+        .unwrap_or(false);
+    let right_read_only = lines
+        .next()
+        .map(|value| value.trim() == "1")
+        .unwrap_or(false);
+    let favor_raw = lines.next().map(unescape_launch_line);
 
     Ok(ShellCompareLaunchPayload {
         left,
         right,
         route,
         session_type,
+        center: center_raw.filter(|value| !value.is_empty()),
+        output: output_raw.filter(|value| !value.is_empty()),
+        left_read_only,
+        right_read_only,
+        favor: favor_raw.filter(|value| !value.is_empty()),
     })
 }
 

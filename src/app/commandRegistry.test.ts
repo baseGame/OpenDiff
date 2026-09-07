@@ -43,7 +43,7 @@ describe('commandRegistry', () => {
     )
     expect(commandRegistry.find((command) => command.id === 'session.exit')?.enabled).toBe(true)
     expect(commandRegistry.find((command) => command.id === 'tools.saveSnapshot')?.enabled).toBe(
-      false,
+      true,
     )
     expect(commandRegistry.find((command) => command.id === 'session.loadWorkspace')?.enabled).toBe(
       true,

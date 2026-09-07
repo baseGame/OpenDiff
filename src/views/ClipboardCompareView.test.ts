@@ -1,9 +1,10 @@
 import { mount, type VueWrapper } from '@vue/test-utils'
-import { defineComponent } from 'vue'
+import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import ClipboardCompareView from './ClipboardCompareView.vue'
 import { diffText } from '@/api/diff'
 import { readClipboardTextSource } from '@/app/clipboardSource'
+import { useTabsStore } from '@/stores/tabs'
 
 vi.mock('@/app/clipboardSource', () => ({
   readClipboardTextSource: vi.fn(),
@@ -16,16 +17,9 @@ vi.mock('@/api/diff', () => ({
   }),
 }))
 
-const TextDiffPanelStub = defineComponent({
-  name: 'TextDiffPanel',
-  props: {
-    lines: {
-      type: Array,
-      default: () => [],
-    },
-  },
-  template: '<section data-testid="clipboard-diff-panel" />',
-})
+vi.mock('vue-router', () => ({
+  useRouter: () => ({ push: vi.fn() }),
+}))
 
 function mountClipboardCompareView(): VueWrapper {
   return mount(ClipboardCompareView, {
@@ -37,7 +31,26 @@ function mountClipboardCompareView(): VueWrapper {
           template: '<button :disabled="disabled" @click="$emit(\'click\')"><slot /></button>',
         },
         NAlert: { template: '<div><slot /></div>' },
-        TextDiffPanel: TextDiffPanelStub,
+        TextDiffPanel: {
+          props: {
+            lines: {
+              type: Array,
+              default: () => [],
+            },
+          },
+          template: '<section data-testid="clipboard-diff-panel" />',
+        },
+        WorkbenchShell: {
+          props: {
+            title: { type: String, default: '' },
+            eyebrow: { type: String, default: '' },
+            subtitle: { type: String, default: '' },
+            toolbarCommands: { type: Array, default: () => [] },
+            toolbarTestIdPrefix: { type: String, default: '' },
+          },
+          emits: ['toolbar-command'],
+          template: '<section><slot /></section>',
+        },
       },
     },
   })
@@ -45,6 +58,13 @@ function mountClipboardCompareView(): VueWrapper {
 
 describe('ClipboardCompareView', () => {
   beforeEach(() => {
+    setActivePinia(createPinia())
+    useTabsStore().openTab({
+      title: 'Clipboard Compare',
+      titleKey: 'ui.clipboardCompare',
+      route: '/compare/clipboard',
+      dirty: false,
+    })
     vi.mocked(readClipboardTextSource).mockReset()
     vi.mocked(diffText).mockClear()
   })
@@ -91,5 +111,23 @@ describe('ClipboardCompareView', () => {
     )
     expect(wrapper.find('[data-testid="clipboard-diff-panel"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="clipboard-diff-stats"]').text()).toContain('1 modified')
+  })
+
+  it('sets a path-pair style tab title for the selected entries', async () => {
+    vi.mocked(readClipboardTextSource)
+      .mockResolvedValueOnce({ kind: 'clipboard-text', title: 'Clipboard Text', text: 'left text' })
+      .mockResolvedValueOnce({
+        kind: 'clipboard-text',
+        title: 'Clipboard Text',
+        text: 'right text',
+      })
+
+    const wrapper = mountClipboardCompareView()
+    const tabs = useTabsStore()
+
+    await wrapper.find('[data-testid="clipboard-capture"]').trigger('click')
+    await wrapper.find('[data-testid="clipboard-capture"]').trigger('click')
+
+    expect(tabs.activeTab.title).toBe('Clipboard 1 <--> Clipboard 2')
   })
 })

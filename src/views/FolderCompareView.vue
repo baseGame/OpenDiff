@@ -36,11 +36,12 @@ import {
 import SessionSettingsDialog from '@/components/session/SessionSettingsDialog.vue'
 import { useViewActionsStore } from '@/stores/viewActions'
 import { defaultTextCompareSessionOptions } from '@/app/textCompareSessionOptions'
-import { buildFolderCompareToolbar, pathPairTitle } from '@/app/sessionToolbars'
+import { buildFolderCompareToolbar, pathBaseName, pathPairTitle } from '@/app/sessionToolbars'
 import {
   changeFolderEntryAttributes,
   compareFolderPaths,
   copyFolderCompareEntry,
+  createFolderSnapshot,
   deleteFolderEntry,
   exportFolderCompareReport,
   moveFolderEntry,
@@ -500,6 +501,28 @@ function applyFolderSessionSettings(
   }
 }
 
+async function saveFolderSnapshot(): Promise<void> {
+  const sourceRoot = leftRoot.value.trim()
+
+  if (!sourceRoot) {
+    return
+  }
+
+  const normalizedRoot = sourceRoot.replace(/[/\\]+$/u, '')
+  const outputPath = `${normalizedRoot}/open-diff-snapshot.json`
+
+  try {
+    await createFolderSnapshot({
+      sourceRoot: normalizedRoot,
+      outputPath,
+      name: pathBaseName(normalizedRoot),
+    })
+    lastCompareAction.value = `Snapshot saved: ${outputPath}`
+  } catch (error) {
+    lastCompareAction.value = error instanceof Error ? error.message : String(error)
+  }
+}
+
 watch(
   () => [viewActions.sequence, viewActions.name] as const,
   ([, actionName]) => {
@@ -510,6 +533,9 @@ watch(
     switch (actionName) {
       case 'session-settings':
         openFolderSessionSettings()
+        break
+      case 'save-snapshot':
+        void saveFolderSnapshot()
         break
       case 'compare':
       case 'reload':

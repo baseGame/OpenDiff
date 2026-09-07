@@ -45,8 +45,12 @@ import { useSavedSessionsStore } from '@/stores/savedSessions'
 import { useSessionLaunchStore } from '@/stores/sessionLaunch'
 import { useTabsStore } from '@/stores/tabs'
 import { useViewActionsStore } from '@/stores/viewActions'
+import { useLastCompareStore } from '@/stores/lastCompare'
 import { useWorkspacesStore } from '@/stores/workspaces'
+import { createFolderSnapshot } from '@/api/diff'
 import { openPathExternal, takeShellCompareLaunch } from '@/api/integration'
+import { pickNativePath } from '@/app/filePicker'
+import { pathBaseName } from '@/app/sessionToolbars'
 import { APP_VERSION, DOCS_URL, RELEASES_URL, SUPPORT_URL } from '@/app/appMeta'
 import type { SessionType } from '@/types/session'
 import type { AppCommand, CommandId } from '@/app/commandRegistry'
@@ -83,6 +87,7 @@ const viewActions = useViewActionsStore()
 const sessionLaunch = useSessionLaunchStore()
 const savedSessions = useSavedSessionsStore()
 const workspaces = useWorkspacesStore()
+const lastCompare = useLastCompareStore()
 
 let stopDesktopDrop: (() => void) | undefined
 
@@ -96,8 +101,15 @@ onMounted(() => {
       }
 
       const sessionType = launch.sessionType as SessionType
-      const kind = sessionType === 'folder-compare' ? 'directory' : 'file'
+      const folderish =
+        sessionType === 'folder-compare' ||
+        sessionType === 'folder-sync' ||
+        sessionType === 'folder-merge'
+      const kind = folderish ? 'directory' : 'file'
+      const leftReadOnly = Boolean(launch.leftReadOnly)
+      const rightReadOnly = Boolean(launch.rightReadOnly)
       const title = `${launch.left.split(/[/\\]/).pop() ?? launch.left} <--> ${launch.right.split(/[/\\]/).pop() ?? launch.right}`
+      const favor = launch.favor === 'left' || launch.favor === 'right' ? launch.favor : undefined
 
       sessionLaunch.setPendingLaunch({
         id: crypto.randomUUID(),
@@ -106,10 +118,13 @@ onMounted(() => {
         title,
         route: launch.route,
         locations: {
-          left: { uri: launch.left, kind, readOnly: false },
-          right: { uri: launch.right, kind, readOnly: false },
+          left: { uri: launch.left, kind, readOnly: leftReadOnly },
+          right: { uri: launch.right, kind, readOnly: rightReadOnly },
+          center: launch.center ? { uri: launch.center, kind, readOnly: false } : undefined,
+          output: launch.output ? { uri: launch.output, kind, readOnly: false } : undefined,
         },
         autoRun: true,
+        favor,
       })
       tabs.openTab({ title, route: launch.route, dirty: false })
       void router.push(launch.route)
@@ -417,6 +432,44 @@ async function closeMainWindow(): Promise<void> {
   }
 }
 
+async function saveSnapshotFromMenu(): Promise<void> {
+  let sourceRoot = lastCompare.folder?.leftRoot ?? ''
+
+  if (!sourceRoot) {
+    sourceRoot = (await pickNativePath({ directory: true })) ?? ''
+  }
+
+  if (!sourceRoot) {
+    statusBar.reportStatus({
+      comparisonStatus: t('status.snapshotNeedsFolder'),
+      source: 'tools',
+    })
+
+    return
+  }
+
+  const normalizedRoot = sourceRoot.replace(/[/\\]+$/u, '')
+  const outputPath = `${normalizedRoot}/open-diff-snapshot.json`
+
+  try {
+    const written = await createFolderSnapshot({
+      sourceRoot: normalizedRoot,
+      outputPath,
+      name: pathBaseName(normalizedRoot),
+    })
+
+    statusBar.reportStatus({
+      comparisonStatus: t('status.snapshotSaved', { path: written }),
+      source: 'tools',
+    })
+  } catch (error) {
+    statusBar.reportStatus({
+      comparisonStatus: error instanceof Error ? error.message : String(error),
+      source: 'tools',
+    })
+  }
+}
+
 const executeRegisteredCommand = createCommandExecutor(commandRegistry, {
   navigate: (nextRoute) => {
     void router.push(nextRoute)
@@ -470,6 +523,16 @@ const executeRegisteredCommand = createCommandExecutor(commandRegistry, {
     if (name === 'restore-factory-defaults') {
       restoreFactoryDefaultsFromMenu()
     }
+    if (name === 'save-snapshot') {
+      const folderish =
+        route.path.includes('/folder') ||
+        route.path.includes('/sync') ||
+        route.path.includes('/merge')
+
+      if (!folderish) {
+        void saveSnapshotFromMenu()
+      }
+    }
   },
 })
 
@@ -504,13 +567,15 @@ const windowTitle = computed(() => {
   const entry = sessionCatalog.find((item) => item.route === route.path)
   const sessionName = entry ? t(entry.titleKey) : t('app.brand')
   const active = tabs.activeTab
-  const pathPairTitle =
-    active.route === route.path && !active.titleKey && active.title.includes('<-->')
+  const pathAwareTitle =
+    active.route === route.path &&
+    !active.titleKey &&
+    (active.title.includes('<-->') || active.title.includes('→'))
       ? active.title
       : undefined
 
-  if (pathPairTitle) {
-    return `${pathPairTitle} - ${sessionName} - OpenDiff`
+  if (pathAwareTitle) {
+    return `${pathAwareTitle} - ${sessionName} - OpenDiff`
   }
 
   return `${sessionName} - OpenDiff`

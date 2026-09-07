@@ -160,6 +160,7 @@ watch(
       case 'paste':
       case 'previous-difference':
       case 'redo':
+      case 'save-snapshot':
       case 'restore-factory-defaults':
       case 'save':
       case 'save-as':

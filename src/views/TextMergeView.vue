@@ -136,6 +136,12 @@ onMounted(() => {
   centerPath.value = launch.locations.center?.uri ?? ''
   outputPath.value = launch.locations.output?.uri ?? outputPath.value
 
+  if (launch.favor === 'left') {
+    conflictPolicy.value = 'favorLeft'
+  } else if (launch.favor === 'right') {
+    conflictPolicy.value = 'favorRight'
+  }
+
   if (launch.autoRun && leftPath.value && rightPath.value) {
     void loadMerge()
   }
@@ -408,6 +414,7 @@ watch(
       case 'paste':
       case 'previous-difference':
       case 'redo':
+      case 'save-snapshot':
       case 'restore-factory-defaults':
       case 'rules':
       case 'save-as':

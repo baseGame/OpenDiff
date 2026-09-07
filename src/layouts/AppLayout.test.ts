@@ -135,7 +135,7 @@ describe('AppLayout command palette', () => {
     ).toBeUndefined()
     expect(
       wrapper.find('[data-testid="menu-command-tools.saveSnapshot"]').attributes('disabled'),
-    ).toBeDefined()
+    ).toBeUndefined()
   })
 
   it('dispatches Session swap from the Actions menu on Folder Compare', async () => {

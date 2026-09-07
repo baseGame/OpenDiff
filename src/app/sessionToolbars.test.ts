@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  buildClipboardCompareToolbar,
   buildFolderCompareToolbar,
   buildHexCompareToolbar,
   buildMediaCompareToolbar,
@@ -9,8 +10,10 @@ import {
   buildTextCompareToolbar,
   buildTextPatchToolbar,
   buildVersionCompareToolbar,
+  clipboardCompareToolbarOrder,
   folderCompareToolbarOrder,
   hexCompareToolbarOrder,
+  mergeSessionTitle,
   pathPairTitle,
   pictureCompareToolbarOrder,
   singlePathTitle,
@@ -122,6 +125,27 @@ describe('sessionToolbars', () => {
     expect(pathPairTitle('D:/work/left.txt', 'D:/work/right.txt')).toBe('left.txt <--> right.txt')
     expect(syncPathPairTitle('D:/left', 'D:/right')).toBe('Update: left <--> right')
     expect(singlePathTitle('D:/work/out.txt')).toBe('out.txt')
+  })
+
+  it('formats merge session titles with output', () => {
+    expect(mergeSessionTitle('D:/left', 'D:/right', 'D:/out/merged')).toBe(
+      'left <--> right → merged',
+    )
+    expect(mergeSessionTitle('', '', 'D:/out/merged')).toBe('merged')
+    expect(mergeSessionTitle('D:/left', 'D:/right')).toBe('left <--> right')
+  })
+
+  it('keeps Clipboard Compare toolbar ordered', () => {
+    const toolbar = buildClipboardCompareToolbar({
+      home: true,
+      capture: true,
+      compare: false,
+      swap: true,
+      reload: true,
+    })
+
+    expect(toolbar.map((item) => item.id)).toEqual([...clipboardCompareToolbarOrder])
+    expect(toolbar.find((item) => item.id === 'compare')?.enabled).toBe(false)
   })
 
   it('keeps Text Patch toolbar in Home / Next / Prev section order', () => {
