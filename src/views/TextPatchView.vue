@@ -305,13 +305,13 @@ function scrollToSelectedSection(): void {
 function isSelectedHunk(fileIndex: number, hunkIndex: number): boolean {
   const section = currentSection.value
 
-  return Boolean(section && section.fileIndex === fileIndex && section.hunkIndex === hunkIndex)
+  return section?.fileIndex === fileIndex && section.hunkIndex === hunkIndex
 }
 
 function isSelectedFile(fileIndex: number): boolean {
   const section = currentSection.value
 
-  return Boolean(section && section.fileIndex === fileIndex)
+  return section?.fileIndex === fileIndex
 }
 
 function launchTextCompare(sides: {
@@ -362,16 +362,7 @@ function openSelectedInTextCompare(): void {
   }
 
   const file = files[section.fileIndex]
-
-  if (!file) {
-    return
-  }
-
   const hunk = file.hunks[section.hunkIndex]
-
-  if (!hunk) {
-    return
-  }
 
   launchTextCompare(reconstructSidesFromHunk(file, hunk))
 }

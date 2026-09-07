@@ -24,7 +24,7 @@ export function flattenPatchSections(files: PatchFile[]): PatchSection[] {
   files.forEach((file, fileIndex) => {
     file.hunks.forEach((hunk, hunkIndex) => {
       sections.push({
-        id: `${fileIndex}:${hunkIndex}:${hunk.oldStart}:${hunk.newStart}`,
+        id: `${String(fileIndex)}:${String(hunkIndex)}:${String(hunk.oldStart)}:${String(hunk.newStart)}`,
         fileIndex,
         hunkIndex,
         oldPath: file.oldPath,
@@ -53,7 +53,7 @@ export function reconstructSidesFromLines(
       rightLines.push(line.text)
     } else if (line.kind === 'removed') {
       leftLines.push(line.text)
-    } else if (line.kind === 'added') {
+    } else {
       rightLines.push(line.text)
     }
   }

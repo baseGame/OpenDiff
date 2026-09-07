@@ -54,8 +54,8 @@ describe('textPatchSections', () => {
   })
 
   it('reconstructs left and right sides from a hunk', () => {
-    const file = sampleFiles[0]!
-    const sides = reconstructSidesFromHunk(file, file.hunks[0]!)
+    const file = sampleFiles[0]
+    const sides = reconstructSidesFromHunk(file, file.hunks[0])
 
     expect(sides).toEqual({
       left: 'keep\nold',
@@ -66,7 +66,7 @@ describe('textPatchSections', () => {
   })
 
   it('reconstructs all hunks in a file', () => {
-    const sides = reconstructSidesFromFile(sampleFiles[0]!)
+    const sides = reconstructSidesFromFile(sampleFiles[0])
 
     expect(sides.left).toContain('old')
     expect(sides.left).toContain('gone')

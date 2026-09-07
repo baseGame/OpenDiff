@@ -196,6 +196,13 @@ const columnRules = computed(() =>
   virtualGridColumns.value.map((column, index) => {
     const ignored = ignoredColumnKeys.value.includes(column.key)
     const isKey = keyColumnIndexSet.value.has(index)
+    let status = t('status.compared')
+
+    if (ignored) {
+      status = t('ui.ignored')
+    } else if (isKey) {
+      status = t('ui.key')
+    }
 
     return {
       ...column,
@@ -203,7 +210,7 @@ const columnRules = computed(() =>
       ignored,
       isKey,
       importance: ignored ? t('ui.unimportant') : t('ui.important'),
-      status: ignored ? t('ui.ignored') : isKey ? t('ui.key') : t('status.compared'),
+      status,
     }
   }),
 )
