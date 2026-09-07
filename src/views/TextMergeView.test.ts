@@ -19,14 +19,16 @@ vi.mock('@/api/diff', () => ({
     leftText: 'export const mode = "fast"\ntimeout = 45\nretry = true',
     rightText: 'export const mode = "fast"\ntimeout = 60\nretry = true',
     centerText: 'export const mode = "fast"\ntimeout = 30\nretry = true',
-    outputText: 'export const mode = "fast"\ntimeout = 30\nretry = true',
+    outputText:
+      'export const mode = "fast"\n<<<<<<< Left\ntimeout = 45\n||||||| Base\ntimeout = 30\n=======\ntimeout = 60\n>>>>>>> Right\nretry = true',
     conflicts: [
       {
         lineIndex: 1,
-        title: 'Line 2',
+        title: 'Lines 2-8',
         base: 'timeout = 30',
         left: 'timeout = 45',
         right: 'timeout = 60',
+        outputSpan: 7,
       },
     ],
   }),
@@ -72,10 +74,11 @@ describe('TextMergeView', () => {
       rightPath: 'right.txt',
       centerPath: 'base.txt',
       outputPath: 'out.txt',
+      conflictPolicy: 'markConflict',
     })
     expect(wrapper.find('[data-testid="merge-conflict-status"]').text()).toContain('1 conflict')
-    expect(wrapper.find('[data-testid="merge-conflict-list"]').text()).toContain('Line 2')
-    expect(wrapper.find('[data-testid="merge-conflict-markers-chip"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="merge-conflict-list"]').text()).toContain('Lines 2-8')
+    expect(wrapper.find('[data-testid="merge-conflict-markers-chip"]').exists()).toBe(true)
   })
 
   it('accepts the left side for the current conflict', async () => {
@@ -103,6 +106,20 @@ describe('TextMergeView', () => {
 
     expect(outputEditorValue(wrapper)).toContain('timeout = 30')
     expect(wrapper.find('[data-testid="merge-conflict-status"]').text()).toContain('0 conflicts')
+  })
+
+  it('passes the selected conflict policy when loading a merge', async () => {
+    const wrapper = mount(TextMergeView)
+
+    await wrapper.find('[data-testid="merge-conflict-policy"]').setValue('favorLeft')
+    await wrapper.find('[data-testid="merge-left-path"]').setValue('left.txt')
+    await wrapper.find('[data-testid="merge-right-path"]').setValue('right.txt')
+    await wrapper.find('[data-testid="load-text-merge"]').trigger('click')
+    await flushPromises()
+
+    expect(mergeTextFiles).toHaveBeenCalledWith(
+      expect.objectContaining({ conflictPolicy: 'favorLeft' }),
+    )
   })
 
   it('edits the output text and saves it to the configured output path', async () => {

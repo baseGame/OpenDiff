@@ -121,7 +121,7 @@
 ### Text Merge 偏差
 
 - 空态启动；通过 Load / 会话启动调用 `merge_text_files` 读取真实文件并做行级三路合并。
-- `acceptConflict` 只是把输出改成固定三行，没有真实 diff3 或三方合并算法。
+- Text Merge 已用 LCS diff3 自动合并与冲突标记；Accept left/base/right 替换输出中的标记块。
 - 只实现了保存 output 文本，没有读取三路输入、自动识别冲突、跳转冲突、Favor Left/Favor Right、Left/Center/Right 视图同步等目标功能。
 
 ### Table Compare 偏差
