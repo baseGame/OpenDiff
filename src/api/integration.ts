@@ -50,6 +50,11 @@ export interface ShellCompareLaunchPayload {
   right: string
   route: string
   sessionType: string
+  center?: string
+  output?: string
+  leftReadOnly?: boolean
+  rightReadOnly?: boolean
+  favor?: 'left' | 'right'
 }
 
 export function takeShellCompareLaunch(): Promise<ShellCompareLaunchPayload | null> {

@@ -41,7 +41,7 @@ import type { SessionCatalogEntry } from '@/app/sessionCatalog'
 import type { SessionDocument, SessionType } from '@/types/session'
 import type { SessionLaunchLocation, SessionLaunchPayload } from '@/types/sessionLaunch'
 
-/** BC5 Home center launch buttons (12), matching home.png order. */
+/** Home center launch buttons (12), matching home.png order. */
 type HomeLaunchType =
   | 'folder-compare'
   | 'folder-merge'
@@ -56,7 +56,7 @@ type HomeLaunchType =
   | 'table-compare'
   | 'version-compare'
 
-/** BC5 Home left tree under New (Text Edit is center-only). */
+/** Home left tree under New (Text Edit is center-only). */
 type HomeTreeType = Exclude<HomeLaunchType, 'text-edit'>
 
 interface QuickStartEntry extends SessionCatalogEntry {

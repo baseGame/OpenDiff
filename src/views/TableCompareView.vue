@@ -192,6 +192,7 @@ watch(
       case 'import-settings':
       case 'paste':
       case 'redo':
+      case 'save-snapshot':
       case 'restore-factory-defaults':
       case 'save':
       case 'save-as':

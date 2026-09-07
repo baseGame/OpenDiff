@@ -81,6 +81,33 @@ describe('TextMergeView', () => {
     expect(wrapper.find('[data-testid="merge-conflict-markers-chip"]').exists()).toBe(true)
   })
 
+  it('applies launch favor into the conflict policy before auto-run', async () => {
+    useSessionLaunchStore().setPendingLaunch({
+      id: 'favor-launch',
+      source: 'shell',
+      sessionType: 'text-merge',
+      title: 'Merge',
+      route: '/merge/text',
+      autoRun: true,
+      favor: 'left',
+      locations: {
+        left: { uri: 'left.txt', kind: 'file', readOnly: true },
+        right: { uri: 'right.txt', kind: 'file', readOnly: false },
+        center: { uri: 'base.txt', kind: 'file', readOnly: false },
+        output: { uri: 'out.txt', kind: 'file', readOnly: false },
+      },
+    })
+
+    mount(TextMergeView)
+    await flushPromises()
+
+    expect(mergeTextFiles).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conflictPolicy: 'favorLeft',
+      }),
+    )
+  })
+
   it('accepts the left side for the current conflict', async () => {
     const wrapper = await mountLoadedMerge()
 

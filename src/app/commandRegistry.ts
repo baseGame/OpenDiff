@@ -86,6 +86,7 @@ export type CommandAction =
         | 'export-settings'
         | 'import-settings'
         | 'restore-factory-defaults'
+        | 'save-snapshot'
     }
 
 export interface CommandShortcut {
@@ -515,11 +516,11 @@ export const commandRegistry: AppCommand[] = [
     id: 'tools.saveSnapshot',
     titleKey: 'ui.saveSnapshot',
     keywords: ['snapshot', 'save', 'tools'],
-    enabled: false,
+    enabled: true,
     visibility: 'global',
     defaultShortcut: { keys: ['Ctrl', 'Alt', 'Y'], scope: 'global' },
     placements: ['command-palette', 'menu'],
-    action: { type: 'noop' },
+    action: { type: 'view-action', name: 'save-snapshot' },
   },
   {
     id: 'help.contents',

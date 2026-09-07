@@ -11,7 +11,8 @@ import type {
 import { computed, onMounted, ref, watch } from 'vue'
 import WorkbenchShell from '@/components/workbench/WorkbenchShell.vue'
 import WorkbenchInspector from '@/components/workbench/WorkbenchInspector.vue'
-import { syncPathPairTitle } from '@/app/sessionToolbars'
+import { pathBaseName, syncPathPairTitle } from '@/app/sessionToolbars'
+import { createFolderSnapshot } from '@/api/diff'
 import { useI18n } from '@/i18n'
 import { useTabsStore } from '@/stores/tabs'
 import { useSessionLaunchStore } from '@/stores/sessionLaunch'
@@ -268,6 +269,27 @@ function swapSyncPaths(): void {
   leftPath.value = nextLeft
 }
 
+async function saveSyncFolderSnapshot(): Promise<void> {
+  const sourceRoot = leftPath.value.trim()
+
+  if (!sourceRoot) {
+    return
+  }
+
+  const normalizedRoot = sourceRoot.replace(/[/\\]+$/u, '')
+  const outputPath = `${normalizedRoot}/open-diff-snapshot.json`
+
+  try {
+    await createFolderSnapshot({
+      sourceRoot: normalizedRoot,
+      outputPath,
+      name: pathBaseName(normalizedRoot),
+    })
+  } catch {
+    // ponytail: folder sync snapshot best-effort
+  }
+}
+
 watch(
   () => [viewActions.sequence, viewActions.name] as const,
   ([, actionName]) => {
@@ -278,6 +300,9 @@ watch(
     switch (actionName) {
       case 'compare':
         void previewSync()
+        break
+      case 'save-snapshot':
+        void saveSyncFolderSnapshot()
         break
       case 'reload':
         void previewSync()

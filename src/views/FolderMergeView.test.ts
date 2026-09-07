@@ -211,6 +211,21 @@ describe('FolderMergeView', () => {
     await wrapper.findAll('[data-testid="folder-merge-row"]')[1].trigger('click')
     expect(wrapper.find('[data-testid="folder-merge-peek-path"]').text()).toContain('left-add.txt')
   })
+
+  it('sets a path-pair style tab title that includes the output folder', async () => {
+    const tabs = useTabsStore()
+    tabs.openTab({
+      title: 'Folder Merge',
+      titleKey: 'ui.folderMerge',
+      route: '/merge/folder',
+      dirty: false,
+    })
+    const wrapper = mountFolderMergeView()
+
+    await fillMergePaths(wrapper)
+
+    expect(tabs.activeTab.title).toBe('left <--> right → output')
+  })
 })
 
 function createMergePlanResponse(): FolderMergePlanResponse {

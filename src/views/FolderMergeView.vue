@@ -16,7 +16,8 @@ import type {
 } from '@/types/folderMerge'
 import WorkbenchShell from '@/components/workbench/WorkbenchShell.vue'
 import WorkbenchInspector from '@/components/workbench/WorkbenchInspector.vue'
-import { singlePathTitle } from '@/app/sessionToolbars'
+import { createFolderSnapshot } from '@/api/diff'
+import { mergeSessionTitle, pathBaseName } from '@/app/sessionToolbars'
 import { useI18n } from '@/i18n'
 import { useViewActionsStore } from '@/stores/viewActions'
 
@@ -84,6 +85,27 @@ onMounted(() => {
     void buildFolderMergePlan()
   }
 })
+
+async function saveMergeFolderSnapshot(): Promise<void> {
+  const sourceRoot = (leftPath.value || basePath.value || rightPath.value).trim()
+
+  if (!sourceRoot) {
+    return
+  }
+
+  const normalizedRoot = sourceRoot.replace(/[/\\]+$/u, '')
+  const outputPath = `${normalizedRoot}/open-diff-snapshot.json`
+
+  try {
+    await createFolderSnapshot({
+      sourceRoot: normalizedRoot,
+      outputPath,
+      name: pathBaseName(normalizedRoot),
+    })
+  } catch {
+    // ponytail: menu status is reported by AppLayout fallback paths
+  }
+}
 
 async function buildFolderMergePlan(): Promise<void> {
   plan.value = await requestFolderMergePlan({
@@ -203,10 +225,12 @@ function joinRoot(root: string, relativePath: string): string {
 }
 
 watch(
-  outputPath,
-  (output) => {
-    if (output) {
-      tabs.setTabTitle('/merge/folder', singlePathTitle(output))
+  [leftPath, rightPath, outputPath],
+  ([left, right, output]) => {
+    const title = mergeSessionTitle(left, right, output)
+
+    if (title) {
+      tabs.setTabTitle('/merge/folder', title)
     }
   },
   { immediate: true },
@@ -223,6 +247,9 @@ watch(
       case 'compare':
       case 'reload':
         void buildFolderMergePlan()
+        break
+      case 'save-snapshot':
+        void saveMergeFolderSnapshot()
         break
       case 'save':
         void runFolderMerge()

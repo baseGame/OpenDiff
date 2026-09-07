@@ -117,6 +117,14 @@ export const versionCompareToolbarOrder = [
 
 export const textPatchToolbarOrder = ['home', 'next-section', 'prev-section'] as const
 
+export const clipboardCompareToolbarOrder = [
+  'home',
+  'capture',
+  'compare',
+  'swap',
+  'reload',
+] as const
+
 interface ToolbarMeta {
   glyph: string
   labelKey: string
@@ -236,6 +244,14 @@ const textPatchMeta: Record<(typeof textPatchToolbarOrder)[number], ToolbarMeta>
   'prev-section': { glyph: 'P', labelKey: 'ui.prevSection' },
 }
 
+const clipboardMeta: Record<(typeof clipboardCompareToolbarOrder)[number], ToolbarMeta> = {
+  home: { glyph: 'H', labelKey: 'ui.home' },
+  capture: { glyph: 'V', labelKey: 'ui.captureClipboard' },
+  compare: { glyph: '!=', labelKey: 'ui.compareSelected' },
+  swap: { glyph: '<>', labelKey: 'ui.swap' },
+  reload: { glyph: 'R', labelKey: 'ui.reload' },
+}
+
 function buildToolbar<T extends string>(
   order: readonly T[],
   meta: Record<T, ToolbarMeta>,
@@ -303,6 +319,12 @@ export function buildTextPatchToolbar(
   return buildToolbar(textPatchToolbarOrder, textPatchMeta, enabled)
 }
 
+export function buildClipboardCompareToolbar(
+  enabled: Partial<Record<(typeof clipboardCompareToolbarOrder)[number], boolean>>,
+): SessionToolbarCommand[] {
+  return buildToolbar(clipboardCompareToolbarOrder, clipboardMeta, enabled)
+}
+
 export function pathPairTitle(leftPath: string, rightPath: string): string {
   return `${pathBaseName(leftPath)} <--> ${pathBaseName(rightPath)}`
 }
@@ -313,6 +335,22 @@ export function syncPathPairTitle(leftPath: string, rightPath: string): string {
 
 export function singlePathTitle(path: string): string {
   return pathBaseName(path)
+}
+
+/** Path-pair title that includes merge output when present. */
+export function mergeSessionTitle(leftPath: string, rightPath: string, outputPath = ''): string {
+  const hasPair = Boolean(leftPath || rightPath)
+  const pair = hasPair ? pathPairTitle(leftPath || '—', rightPath || '—') : ''
+
+  if (outputPath && pair) {
+    return `${pair} → ${pathBaseName(outputPath)}`
+  }
+
+  if (outputPath) {
+    return singlePathTitle(outputPath)
+  }
+
+  return pair
 }
 
 export function pathBaseName(path: string): string {
