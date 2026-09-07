@@ -3,7 +3,12 @@ import {
   deleteRemoteProfile,
   formatRemoteUri,
   isImplementedRemoteProtocol,
+  isRemoteUri,
+  listRemotePath,
   listRemoteProfiles,
+  parseRemoteUri,
+  remoteEntryName,
+  remoteParentPath,
   saveRemoteProfile,
   testRemoteProfile,
 } from './remote'
@@ -29,6 +34,32 @@ describe('remote api', () => {
     expect(formatRemoteUri('web-dav', 'team-webdav', '/shared/docs')).toBe(
       'webdav://profile/team-webdav/shared/docs',
     )
+    expect(parseRemoteUri('sftp://profile/prod-sftp/var/app')).toEqual({
+      protocol: 'sftp',
+      profileRef: 'prod-sftp',
+      remotePath: '/var/app',
+    })
+    expect(isRemoteUri('ftp://profile/release-ftp/')).toBe(true)
+    expect(isRemoteUri('/local/path')).toBe(false)
+    expect(remoteParentPath('/var/app')).toBe('/var')
+    expect(remoteParentPath('/')).toBe('/')
+    expect(remoteEntryName('/var/app/readme.txt')).toBe('readme.txt')
+  })
+
+  it('lists remote paths for a saved profile', async () => {
+    vi.mocked(invoke).mockResolvedValueOnce([
+      { path: '/apps', kind: 'directory', size: 0 },
+      { path: '/apps/readme.txt', kind: 'file', size: 12 },
+    ])
+
+    await expect(listRemotePath('stage-sftp', '/')).resolves.toEqual([
+      { path: '/apps', kind: 'directory', size: 0 },
+      { path: '/apps/readme.txt', kind: 'file', size: 12 },
+    ])
+    expect(invoke).toHaveBeenCalledWith('list_remote_path', {
+      profileId: 'stage-sftp',
+      path: '/',
+    })
   })
 
   it('lists, saves, tests, and deletes persisted profiles', async () => {

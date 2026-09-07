@@ -227,6 +227,15 @@ export function invokeResponse(command: string, args: Record<string, unknown> = 
       return []
     case 'test_remote_profile':
       return 'connected'
+    case 'list_remote_path': {
+      const remotePath = typeof args.path === 'string' ? args.path : '/'
+      const prefix = remotePath === '/' ? '' : remotePath
+
+      return [
+        { path: `${prefix}/docs`, kind: 'directory', size: 0 },
+        { path: `${prefix}/readme.txt`, kind: 'file', size: 12 },
+      ]
+    }
     case 'write_git_integration':
     case 'write_svn_integration':
       return 'Wrote config'

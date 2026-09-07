@@ -27,7 +27,14 @@ import {
   touchFolderEntry,
 } from '@/api/diff'
 import { openPathExternal } from '@/api/integration'
-import { formatRemoteUri, listRemoteProfiles, type RemoteProfileView } from '@/api/remote'
+import {
+  formatRemoteUri,
+  isImplementedRemoteProtocol,
+  listRemoteProfiles,
+  parseRemoteUri,
+  type RemoteProfileView,
+} from '@/api/remote'
+import { isTauriRuntime } from '@/app/desktopDrop'
 import { loadLocalRemoteProfiles } from '@/app/remoteProfilesLocal'
 import type {
   FolderCompareCriteria,
@@ -38,6 +45,7 @@ import type {
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import WorkbenchShell from '@/components/workbench/WorkbenchShell.vue'
+import RemotePathBrowser from '@/components/remote/RemotePathBrowser.vue'
 import WorkbenchInspector from '@/components/workbench/WorkbenchInspector.vue'
 import StatusSummaryGrid from '@/components/workbench/StatusSummaryGrid.vue'
 import { executeFolderSync, previewFolderSync } from '@/api/sync'
@@ -160,6 +168,11 @@ const lastSyncAction = ref<string>()
 const remoteProfiles = ref<RemoteProfileView[]>([])
 const selectedLeftProfileId = ref('')
 const selectedRightProfileId = ref('')
+const showRemoteBrowser = ref(false)
+const remoteBrowseSide = ref<'left' | 'right'>('left')
+const remoteBrowseProfileId = ref('')
+const remoteBrowseProfileLabel = ref('')
+const remoteBrowseInitialPath = ref('/')
 
 async function loadRemoteProfileChoices(): Promise<void> {
   try {
@@ -1213,6 +1226,27 @@ const rowContextMenu = ref<{ x: number; y: number; rowId: string }>()
 const pathContextMenu = ref<{ x: number; y: number; side: 'left' | 'right' }>()
 
 async function browseFolder(side: 'left' | 'right'): Promise<void> {
+  const profileId = side === 'left' ? selectedLeftProfileId.value : selectedRightProfileId.value
+  const currentRoot = side === 'left' ? leftRoot.value : rightRoot.value
+  const profile = remoteProfiles.value.find((item) => item.id === profileId)
+  const parsed = parseRemoteUri(currentRoot)
+
+  if (isTauriRuntime() && profile && isImplementedRemoteProtocol(profile.protocol)) {
+    openRemoteFolderBrowser(side, profile, firstRemotePath(profile.rootPath, parsed?.remotePath))
+
+    return
+  }
+
+  if (isTauriRuntime() && parsed) {
+    const matched = remoteProfiles.value.find((item) => item.id === parsed.profileRef)
+
+    if (matched && isImplementedRemoteProtocol(matched.protocol)) {
+      openRemoteFolderBrowser(side, matched, firstRemotePath(parsed.remotePath, matched.rootPath))
+
+      return
+    }
+  }
+
   const selected = await pickNativePath({ directory: true })
 
   if (!selected) {
@@ -1224,6 +1258,50 @@ async function browseFolder(side: 'left' | 'right'): Promise<void> {
   } else {
     rightRoot.value = selected
   }
+}
+
+function firstRemotePath(...candidates: (string | undefined)[]): string {
+  for (const candidate of candidates) {
+    if (candidate && candidate.trim().length > 0) {
+      return candidate
+    }
+  }
+
+  return '/'
+}
+
+function openRemoteFolderBrowser(
+  side: 'left' | 'right',
+  profile: RemoteProfileView,
+  initialPath: string,
+): void {
+  remoteBrowseSide.value = side
+  remoteBrowseProfileId.value = profile.id
+  remoteBrowseProfileLabel.value = profile.name || profile.id
+  remoteBrowseInitialPath.value = initialPath || profile.rootPath || '/'
+  showRemoteBrowser.value = true
+}
+
+function applyRemoteBrowsePath(path: string): void {
+  const profile = remoteProfiles.value.find((item) => item.id === remoteBrowseProfileId.value)
+
+  showRemoteBrowser.value = false
+
+  if (!profile) {
+    return
+  }
+
+  const uri = formatRemoteUri(profile.protocol, profile.id, path || '/')
+
+  if (remoteBrowseSide.value === 'left') {
+    selectedLeftProfileId.value = profile.id
+    leftRoot.value = uri
+  } else {
+    selectedRightProfileId.value = profile.id
+    rightRoot.value = uri
+  }
+
+  syncFolderTabTitle()
 }
 
 function handlePathFieldDrop(event: DragEvent, side: 'left' | 'right'): void {
@@ -2289,6 +2367,14 @@ onUnmounted(() => {
         </section>
       </WorkbenchInspector>
     </template>
+    <RemotePathBrowser
+      v-if="showRemoteBrowser"
+      :profile-id="remoteBrowseProfileId"
+      :profile-label="remoteBrowseProfileLabel"
+      :initial-path="remoteBrowseInitialPath"
+      @select="applyRemoteBrowsePath"
+      @cancel="showRemoteBrowser = false"
+    />
   </WorkbenchShell>
 </template>
 <style scoped>

@@ -39,6 +39,7 @@ vi.mock('@/api/remote', async (importOriginal) => {
   return {
     ...actual,
     listRemoteProfiles: vi.fn().mockRejectedValue(new Error('no backend')),
+    listRemotePath: vi.fn().mockResolvedValue([{ path: '/apps/api', kind: 'directory', size: 0 }]),
   }
 })
 
@@ -200,6 +201,35 @@ describe('FolderCompareView', () => {
     expect(
       (wrapper.find('[data-testid="folder-left-root"]').element as HTMLInputElement).value,
     ).toBe('sftp://profile/stage-sftp/apps')
+  })
+
+  it('opens the remote folder browser from Browse when a profile is selected', async () => {
+    Object.defineProperty(window, '__TAURI_INTERNALS__', {
+      configurable: true,
+      value: {},
+    })
+    saveLocalRemoteProfiles([
+      {
+        id: 'stage-sftp',
+        name: 'Stage SFTP',
+        protocol: 'sftp',
+        host: 'stage.example.com',
+        port: 22,
+        rootPath: '/apps',
+      },
+    ])
+
+    const wrapper = mountFolderCompareView()
+
+    await flushPromises()
+    await wrapper.find('[data-testid="folder-left-profile"]').setValue('stage-sftp')
+    await wrapper.find('[data-testid="folder-left-profile"]').trigger('change')
+    await wrapper.find('[data-testid="folder-browse-left"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="remote-path-browser"]').exists()).toBe(true)
+
+    Reflect.deleteProperty(window, '__TAURI_INTERNALS__')
   })
 
   it('renders the Folder Compare session toolbar order', () => {

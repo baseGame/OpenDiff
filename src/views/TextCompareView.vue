@@ -9,6 +9,7 @@ import { useTabsStore } from '@/stores/tabs'
 import type { TextDiffAlgorithm, TextDiffRequest, TextDiffResponse } from '@/types/diff'
 import TextDiffPanel from '@/components/diff/TextDiffPanel.vue'
 import WorkbenchShell from '@/components/workbench/WorkbenchShell.vue'
+import RemotePathBrowser from '@/components/remote/RemotePathBrowser.vue'
 import WorkbenchToolbar from '@/components/workbench/WorkbenchToolbar.vue'
 import WorkbenchInspector from '@/components/workbench/WorkbenchInspector.vue'
 import StatusSummaryGrid from '@/components/workbench/StatusSummaryGrid.vue'
@@ -17,6 +18,8 @@ import { loadFileFormats, matchFileFormat } from '@/app/fileFormats'
 import { textOptionsFromFormat } from '@/app/formatSessionRules'
 import { grammarForPath } from '@/app/syntaxGrammars'
 import { pickNativePath } from '@/app/filePicker'
+import { isTauriRuntime } from '@/app/desktopDrop'
+import { formatRemoteUri, isImplementedRemoteProtocol, parseRemoteUri } from '@/api/remote'
 import { formatCompareError } from '@/app/compareError'
 import { buildTextCompareToolbar, pathPairTitle } from '@/app/sessionToolbars'
 
@@ -63,8 +66,26 @@ const showHtmlPreview = ref(false)
 const bookmarkSlots = Array.from({ length: 10 }, (_, index) => index)
 const selectedBookmark = ref(0)
 const bookmarks = ref<Record<number, string>>({})
+const showRemoteBrowser = ref(false)
+const remoteBrowseSide = ref<'left' | 'right'>('left')
+const remoteBrowseProfileId = ref('')
+const remoteBrowseProfileLabel = ref('')
+const remoteBrowseInitialPath = ref('/')
 
 async function browseTextPath(side: 'left' | 'right'): Promise<void> {
+  const current = side === 'left' ? leftPathLabel.value : rightPathLabel.value
+  const parsed = parseRemoteUri(current)
+
+  if (isTauriRuntime() && parsed && isImplementedRemoteProtocol(parsed.protocol)) {
+    remoteBrowseSide.value = side
+    remoteBrowseProfileId.value = parsed.profileRef
+    remoteBrowseProfileLabel.value = parsed.profileRef
+    remoteBrowseInitialPath.value = parsed.remotePath || '/'
+    showRemoteBrowser.value = true
+
+    return
+  }
+
   const selected = await pickNativePath({ directory: false })
 
   if (!selected) {
@@ -75,6 +96,26 @@ async function browseTextPath(side: 'left' | 'right'): Promise<void> {
     leftPathLabel.value = selected
   } else {
     rightPathLabel.value = selected
+  }
+}
+
+function applyRemoteTextBrowsePath(path: string): void {
+  const parsed = parseRemoteUri(
+    remoteBrowseSide.value === 'left' ? leftPathLabel.value : rightPathLabel.value,
+  )
+
+  showRemoteBrowser.value = false
+
+  if (!parsed) {
+    return
+  }
+
+  const uri = formatRemoteUri(parsed.protocol, parsed.profileRef, path || '/')
+
+  if (remoteBrowseSide.value === 'left') {
+    leftPathLabel.value = uri
+  } else {
+    rightPathLabel.value = uri
   }
 }
 
@@ -1301,6 +1342,15 @@ function toggleSourceEditors(): void {
         :srcdoc="right"
       />
     </section>
+    <RemotePathBrowser
+      v-if="showRemoteBrowser"
+      :profile-id="remoteBrowseProfileId"
+      :profile-label="remoteBrowseProfileLabel"
+      :initial-path="remoteBrowseInitialPath"
+      allow-files
+      @select="applyRemoteTextBrowsePath"
+      @cancel="showRemoteBrowser = false"
+    />
   </WorkbenchShell>
 </template>
 <style scoped>

@@ -796,5 +796,17 @@ export const jaJP: LanguagePack = {
     'ui.resetColors': '色をリセット',
     'ui.confirmBeforeDelete': '削除前に確認する',
     'ui.wrapTextDefault': '既定で折り返す',
+    'ui.browseRemotePath': 'リモートパスを参照',
+    'ui.parentFolder': '親フォルダー',
+    'ui.useRemoteFolder': 'このフォルダーを使用',
+    'ui.useRemotePath': 'このパスを使用',
+    'ui.remoteBrowseEmpty': 'このフォルダーは空です',
+    'ui.browseRemote': 'リモートを参照',
+    'status.remoteBrowsing': '{path} を一覧表示中…',
+    'status.remoteBrowseReady': '{path} に {count} 件',
+    'status.remoteBrowseFailed': 'リモートパスを一覧表示できません: {detail}',
+    'status.remoteBrowseNeedsProfile':
+      'リモートフォルダーを参照する前にプロファイルを保存してください',
+    'status.remoteBrowseRequiresDesktop': 'リモート参照にはデスクトップアプリが必要です',
   },
 }

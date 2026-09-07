@@ -812,5 +812,18 @@ export const frFR: LanguagePack = {
     'ui.resetColors': 'Réinitialiser les couleurs',
     'ui.confirmBeforeDelete': 'Confirmer avant suppression',
     'ui.wrapTextDefault': 'Retour à la ligne par défaut',
+    'ui.browseRemotePath': 'Parcourir le chemin distant',
+    'ui.parentFolder': 'Dossier parent',
+    'ui.useRemoteFolder': 'Utiliser ce dossier',
+    'ui.useRemotePath': 'Utiliser ce chemin',
+    'ui.remoteBrowseEmpty': 'Ce dossier est vide',
+    'ui.browseRemote': 'Parcourir distant',
+    'status.remoteBrowsing': 'Liste de {path}…',
+    'status.remoteBrowseReady': '{count} éléments dans {path}',
+    'status.remoteBrowseFailed': 'Impossible de lister le chemin distant : {detail}',
+    'status.remoteBrowseNeedsProfile':
+      'Enregistrez le profil avant de parcourir les dossiers distants',
+    'status.remoteBrowseRequiresDesktop':
+      'La navigation distante nécessite l’application de bureau',
   },
 }
