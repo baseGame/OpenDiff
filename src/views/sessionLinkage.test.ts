@@ -250,6 +250,7 @@ describe('session UI to command linkage', () => {
       strategy: 'updateBoth',
     })
 
+    await wrapper.find('[data-testid="folder-sync-accept"]').trigger('click')
     await wrapper.find('[data-testid="folder-sync-run"]').trigger('click')
     await flushPromises()
 

@@ -244,6 +244,18 @@ describe('PictureCompareView', () => {
     expect(
       wrapper.find('[data-testid="picture-session-toolbar-range"]').attributes('disabled'),
     ).toBeUndefined()
+    expect(
+      wrapper.find('[data-testid="picture-session-toolbar-blend"]').attributes('disabled'),
+    ).toBeUndefined()
+    expect(
+      wrapper.find('[data-testid="picture-session-toolbar-meta"]').attributes('disabled'),
+    ).toBeUndefined()
+    expect(
+      wrapper.find('[data-testid="picture-session-toolbar-minor"]').attributes('disabled'),
+    ).toBeUndefined()
+    expect(
+      wrapper.find('[data-testid="picture-session-toolbar-rules"]').attributes('disabled'),
+    ).toBeUndefined()
     expect(wrapper.html()).not.toContain('unimplemented')
   })
 
@@ -309,5 +321,29 @@ describe('PictureCompareView', () => {
     expect(
       (wrapper.find('[data-testid="picture-right-path"]').element as HTMLInputElement).value,
     ).toBe('C:/images/left.png')
+  })
+
+  it('wires Blend Meta and Minor toolbar chrome', async () => {
+    const wrapper = mount(PictureCompareView)
+
+    await wrapper.find('[data-testid="picture-left-path"]').setValue('C:/images/left-fixture.png')
+    await wrapper.find('[data-testid="picture-right-path"]').setValue('C:/images/right-fixture.png')
+    await wrapper.find('[data-testid="run-picture-compare"]').trigger('click')
+    await wrapper.vm.$nextTick()
+
+    expect(
+      wrapper.find('[data-testid="picture-session-toolbar-blend"]').attributes('disabled'),
+    ).toBeUndefined()
+    await wrapper.find('[data-testid="picture-session-toolbar-blend"]').trigger('click')
+    expect(wrapper.find('[data-testid="picture-blend-panel"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="picture-blend-overlay"]').exists()).toBe(true)
+
+    await wrapper.find('[data-testid="picture-session-toolbar-meta"]').trigger('click')
+    expect(wrapper.find('[data-testid="picture-metadata-panel"]').exists()).toBe(false)
+    await wrapper.find('[data-testid="picture-session-toolbar-meta"]').trigger('click')
+    expect(wrapper.find('[data-testid="picture-metadata-panel"]').exists()).toBe(true)
+
+    await wrapper.find('[data-testid="picture-session-toolbar-minor"]').trigger('click')
+    expect(wrapper.find('[data-testid="picture-metadata-dimensions"]').exists()).toBe(false)
   })
 })

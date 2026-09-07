@@ -40,11 +40,18 @@ vi.mock('@/api/diff', () => ({
         right: 'Open Diff',
         status: 'unchanged',
       },
+      {
+        field: 'Comments',
+        group: 'String Info',
+        left: 'alpha',
+        right: 'beta',
+        status: 'modified',
+      },
     ],
     summary: {
       added: 0,
       removed: 0,
-      modified: 1,
+      modified: 2,
       unchanged: 1,
     },
   }),
@@ -53,6 +60,7 @@ vi.mock('@/api/diff', () => ({
 describe('VersionCompareView', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
+    localStorage.clear()
     vi.mocked(compareVersionFiles).mockClear()
   })
 
@@ -70,7 +78,7 @@ describe('VersionCompareView', () => {
     })
     expect(wrapper.text()).toContain('fixture-left.exe')
     expect(wrapper.text()).toContain('fixture-right.exe')
-    expect(wrapper.find('[data-testid="version-summary-modified"]').text()).toContain('1')
+    expect(wrapper.find('[data-testid="version-summary-modified"]').text()).toContain('2')
     expect(wrapper.find('[data-testid="version-field-FileVersion"]').text()).toContain('1.1.0.0')
   })
 
@@ -106,10 +114,29 @@ describe('VersionCompareView', () => {
     expect(wrapper.find('[data-testid="version-toolbar-home"]').exists()).toBe(true)
     expect(
       wrapper.find('[data-testid="version-toolbar-minor"]').attributes('disabled'),
-    ).toBeDefined()
+    ).toBeUndefined()
     expect(
       wrapper.find('[data-testid="version-toolbar-rules"]').attributes('disabled'),
-    ).toBeDefined()
+    ).toBeUndefined()
+  })
+
+  it('filters minor differences and toggles importance rules', async () => {
+    const wrapper = mount(VersionCompareView)
+
+    await wrapper.find('[data-testid="version-left-path"]').setValue('C:/apps/fixture-left.exe')
+    await wrapper.find('[data-testid="version-right-path"]').setValue('C:/apps/fixture-right.exe')
+    await wrapper.find('[data-testid="run-version-compare"]').trigger('click')
+    await wrapper.vm.$nextTick()
+
+    await wrapper.find('[data-testid="version-toolbar-minor"]').trigger('click')
+    expect(wrapper.find('[data-testid="version-field-Comments"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="version-field-FileVersion"]').exists()).toBe(false)
+
+    await wrapper.find('[data-testid="version-toolbar-rules"]').trigger('click')
+    expect(wrapper.find('[data-testid="version-rules-panel"]').exists()).toBe(true)
+    await wrapper.find('[data-testid="version-rule-Comments"] input').setValue(true)
+    await wrapper.find('[data-testid="version-toolbar-diffs"]').trigger('click')
+    expect(wrapper.find('[data-testid="version-field-Comments"]').exists()).toBe(true)
   })
 
   it('filters diffs and swaps paths from the toolbar', async () => {
@@ -126,6 +153,7 @@ describe('VersionCompareView', () => {
     await wrapper.find('[data-testid="version-toolbar-diffs"]').trigger('click')
 
     expect(wrapper.find('[data-testid="version-field-FileVersion"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="version-field-Comments"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="version-field-CompanyName"]').exists()).toBe(false)
 
     await wrapper.find('[data-testid="version-toolbar-swap"]').trigger('click')

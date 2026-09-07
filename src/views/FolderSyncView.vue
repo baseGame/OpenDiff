@@ -25,6 +25,7 @@ interface SyncPreviewRow {
   id: string
   relativePath: string
   action: FolderSyncPreviewAction
+  plannedAction: FolderSyncOverrideAction
   overrideAction: FolderSyncOverrideAction
   sourcePath?: string
   targetPath?: string
@@ -59,6 +60,8 @@ const syncRunError = ref<string>()
 const previewRows = ref<SyncPreviewRow[]>([])
 const completedOperations = ref(0)
 const syncLogs = ref<string[]>([])
+const planAccepted = ref(false)
+const syncChromeMessage = ref('')
 
 const selectedStrategyLabel = computed(() =>
   t(
@@ -66,7 +69,19 @@ const selectedStrategyLabel = computed(() =>
       'sync.strategy.updateBoth',
   ),
 )
-const canRunSync = computed(() => previewRows.value.length > 0 && !syncRunning.value)
+const canRunSync = computed(
+  () => previewRows.value.length > 0 && planAccepted.value && !syncRunning.value,
+)
+const overriddenRowCount = computed(
+  () => previewRows.value.filter((row) => row.overrideAction !== row.plannedAction).length,
+)
+const syncSessionTitle = computed(() => {
+  if (leftPath.value && rightPath.value) {
+    return syncPathPairTitle(leftPath.value, rightPath.value)
+  }
+
+  return t('ui.folderSync')
+})
 
 onMounted(() => {
   const launch = sessionLaunch.consumeLaunch('/sync/folder')
@@ -101,6 +116,8 @@ async function previewSync(): Promise<void> {
     completedOperations.value = 0
     syncLogs.value = []
     syncRunError.value = undefined
+    planAccepted.value = false
+    syncChromeMessage.value = ''
   } catch (error) {
     previewError.value = error instanceof Error ? error.message : String(error)
   } finally {
@@ -178,15 +195,38 @@ function folderSyncActionLabel(action: FolderSyncPreviewAction): string {
 }
 
 function syncPreviewResponseRowToViewRow(row: FolderSyncPreviewRow): SyncPreviewRow {
+  const planned = plannedOverride(row, leftPath.value, rightPath.value)
+
   return {
     id: row.id,
     relativePath: row.relativePath,
     action: row.action,
-    overrideAction: plannedOverride(row, leftPath.value, rightPath.value),
+    plannedAction: planned,
+    overrideAction: planned,
     sourcePath: row.sourcePath,
     targetPath: row.targetPath,
     detail: row.detail,
   }
+}
+
+function acceptSyncPlan(): void {
+  for (const row of previewRows.value) {
+    row.overrideAction = row.plannedAction
+  }
+  planAccepted.value = true
+  syncChromeMessage.value = t('status.syncPlanAccepted')
+}
+
+function cancelSyncOverrides(): void {
+  for (const row of previewRows.value) {
+    row.overrideAction = 'leave'
+  }
+  planAccepted.value = false
+  syncChromeMessage.value = t('status.syncPlanCancelled')
+}
+
+function resetRowOverride(row: SyncPreviewRow): void {
+  row.overrideAction = row.plannedAction
 }
 
 function folderSyncExecutionLogLabel(log: FolderSyncExecutionLog): string {
@@ -222,7 +262,7 @@ watch(
 
 <template>
   <WorkbenchShell
-    :title="$t('ui.folderSync')"
+    :title="syncSessionTitle"
     :eyebrow="$t('ui.sync')"
     :subtitle="selectedStrategyLabel"
     :inspector-label="$t('ui.folderSyncInspector')"
@@ -231,7 +271,7 @@ watch(
       <header class="folder-sync-header">
         <div>
           <p class="eyebrow">{{ $t('ui.folderSync') }}</p>
-          <h1>{{ $t('ui.folderSync') }}</h1>
+          <h1 data-testid="folder-sync-title">{{ syncSessionTitle }}</h1>
         </div>
         <div class="sync-progress">
           <strong>{{ completedOperations }} / {{ previewRows.length }}</strong>
@@ -281,12 +321,28 @@ watch(
           >
           <NButton
             size="small"
+            secondary
+            data-testid="folder-sync-accept"
+            :disabled="previewRows.length === 0 || syncRunning"
+            @click="acceptSyncPlan"
+            >{{ $t('ui.accept') }}</NButton
+          >
+          <NButton
+            size="small"
+            secondary
+            data-testid="folder-sync-cancel"
+            :disabled="previewRows.length === 0 || syncRunning"
+            @click="cancelSyncOverrides"
+            >{{ $t('ui.cancel') }}</NButton
+          >
+          <NButton
+            size="small"
             type="primary"
             data-testid="folder-sync-run"
             :disabled="!canRunSync"
             :loading="syncRunning"
             @click="runSync"
-            >{{ $t('ui.runSync') }}</NButton
+            >{{ $t('ui.syncNow') }}</NButton
           >
         </div>
       </section>
@@ -308,6 +364,17 @@ watch(
       </section>
 
       <section
+        v-if="syncChromeMessage"
+        class="sync-run-status"
+        data-testid="folder-sync-chrome-status"
+      >
+        {{ syncChromeMessage }}
+        <span v-if="planAccepted">
+          · {{ $t('status.overrideCount', { count: overriddenRowCount }) }}</span
+        >
+      </section>
+
+      <section
         v-if="previewRows.length > 0"
         class="sync-preview"
         data-testid="folder-sync-preview-panel"
@@ -315,10 +382,14 @@ watch(
         <header>
           <strong>{{ previewName || selectedStrategyLabel }}</strong>
           <span>{{ leftPath }} -> {{ rightPath }}</span>
+          <em data-testid="folder-sync-accept-state">{{
+            planAccepted ? $t('status.syncPlanAccepted') : $t('status.syncPlanPending')
+          }}</em>
         </header>
         <div class="sync-preview-table">
           <div class="sync-preview-row sync-preview-head">
-            <span>{{ $t('ui.action') }}</span>
+            <span>{{ $t('ui.plannedAction') }}</span>
+            <span>{{ $t('ui.override') }}</span>
             <span>{{ $t('ui.source') }}</span>
             <span>{{ $t('ui.target') }}</span>
             <span>{{ $t('ui.detail') }}</span>
@@ -327,12 +398,21 @@ watch(
             v-for="row in previewRows"
             :key="row.id"
             class="sync-preview-row"
+            :class="{ 'sync-row-overridden': row.overrideAction !== row.plannedAction }"
+            :data-testid="`sync-row-${row.id}`"
           >
-            <label>
+            <span :data-testid="`sync-planned-${row.id}`">{{
+              $t(
+                overrideOptions.find((option) => option.value === row.plannedAction)?.labelKey ??
+                  'ui.leave',
+              )
+            }}</span>
+            <label class="sync-override-cell">
               <span class="sr-only">{{ folderSyncActionLabel(row.action) }}</span>
               <select
                 v-model="row.overrideAction"
                 :data-testid="`sync-override-${row.id}`"
+                @change="planAccepted = false"
               >
                 <option
                   v-for="option in overrideOptions"
@@ -342,6 +422,15 @@ watch(
                   {{ $t(option.labelKey) }}
                 </option>
               </select>
+              <button
+                type="button"
+                class="sync-reset-override"
+                :data-testid="`sync-reset-${row.id}`"
+                :disabled="row.overrideAction === row.plannedAction"
+                @click="resetRowOverride(row)"
+              >
+                {{ $t('ui.reset') }}
+              </button>
             </label>
             <span>{{ row.sourcePath ?? '--' }}</span>
             <span>{{ row.targetPath ?? '--' }}</span>
@@ -522,10 +611,42 @@ h1 {
 
 .sync-preview-row {
   display: grid;
-  grid-template-columns: 150px minmax(190px, 1fr) minmax(190px, 1fr) minmax(180px, 0.8fr);
-  min-width: 860px;
+  grid-template-columns: 120px minmax(200px, 1fr) minmax(160px, 1.1fr) minmax(160px, 1.1fr) minmax(
+      140px,
+      0.9fr
+    );
+  min-width: 960px;
   border-bottom: 1px solid var(--app-border);
   font-size: 12px;
+}
+
+.sync-row-overridden {
+  background: color-mix(in srgb, var(--diff-modified-bg) 55%, transparent);
+}
+
+.sync-override-cell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 4px 8px;
+  border-right: 1px solid var(--app-border);
+}
+
+.sync-reset-override {
+  min-height: 26px;
+  padding: 0 8px;
+  border: 1px solid var(--app-border);
+  border-radius: 4px;
+  background: var(--app-bg);
+  color: var(--app-text);
+  font: inherit;
+  font-size: 11px;
+}
+
+.sync-reset-override:disabled {
+  opacity: 0.55;
 }
 
 .sync-preview-row label {

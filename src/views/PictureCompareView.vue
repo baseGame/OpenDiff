@@ -54,6 +54,11 @@ const showSessionSettings = ref(false)
 const viewActions = useViewActionsStore()
 const showTolPanel = ref(false)
 const showRangePanel = ref(false)
+const blendEnabled = ref(initialPictureOptions.blendEnabled)
+const blendOpacity = ref(initialPictureOptions.blendOpacity)
+const showMetaPanel = ref(initialPictureOptions.showMeta)
+const showMinor = ref(initialPictureOptions.showMinor)
+const showBlendPanel = ref(false)
 const metadataRows = ref<PictureMetadataRow[]>([])
 const pictureStatistics = ref<PictureCompareResponse['statistics']>({
   totalPixels: 0,
@@ -98,11 +103,19 @@ function applyPictureSessionSettings(
   compareAlpha.value = payload.options.compareAlpha
   ignoreColorFrom.value = payload.options.ignoreColorFrom
   ignoreColorTo.value = payload.options.ignoreColorTo
+  blendEnabled.value = payload.options.blendEnabled
+  blendOpacity.value = payload.options.blendOpacity
+  showMetaPanel.value = payload.options.showMeta
+  showMinor.value = payload.options.showMinor
   savePictureCompareOptions({
     rgbTolerance: payload.options.rgbTolerance,
     compareAlpha: payload.options.compareAlpha,
     ignoreColorFrom: payload.options.ignoreColorFrom,
     ignoreColorTo: payload.options.ignoreColorTo,
+    blendEnabled: payload.options.blendEnabled,
+    blendOpacity: payload.options.blendOpacity,
+    showMeta: payload.options.showMeta,
+    showMinor: payload.options.showMinor,
   })
   showSessionSettings.value = false
   if (leftPath.value && rightPath.value) {
@@ -221,12 +234,12 @@ const pictureSessionToolbar = computed(() =>
     home: true,
     tol: true,
     range: true,
-    blend: false,
-    minor: false,
-    rules: false,
+    blend: true,
+    minor: true,
+    rules: true,
     swap: Boolean(leftPath.value || rightPath.value),
     reload: Boolean(leftPath.value && rightPath.value),
-    meta: false,
+    meta: true,
   }),
 )
 
@@ -243,6 +256,22 @@ const pictureOptionsSnapshot = computed<PictureCompareOptionsState>(() => ({
   compareAlpha: compareAlpha.value,
   ignoreColorFrom: ignoreColorFrom.value,
   ignoreColorTo: ignoreColorTo.value,
+  blendEnabled: blendEnabled.value,
+  blendOpacity: Math.min(100, Math.max(0, Math.round(blendOpacity.value))),
+  showMeta: showMetaPanel.value,
+  showMinor: showMinor.value,
+}))
+
+const visibleMetadataRows = computed(() => {
+  if (!showMinor.value) {
+    return metadataRows.value
+  }
+
+  return metadataRows.value.filter((row) => row.status !== 'equal')
+})
+
+const blendOverlayStyle = computed(() => ({
+  opacity: String(blendOpacity.value / 100),
 }))
 
 const ignoreFromChannels = computed(() => ignoreColorFrom.value ?? [0, 0, 0, 255])
@@ -294,13 +323,35 @@ function runPictureToolbarCommand(commandId: string): void {
       showTolPanel.value = !showTolPanel.value
       if (showTolPanel.value) {
         showRangePanel.value = false
+        showBlendPanel.value = false
       }
       break
     case 'range':
       showRangePanel.value = !showRangePanel.value
       if (showRangePanel.value) {
         showTolPanel.value = false
+        showBlendPanel.value = false
       }
+      break
+    case 'blend':
+      blendEnabled.value = !blendEnabled.value
+      showBlendPanel.value = blendEnabled.value
+      if (showBlendPanel.value) {
+        showTolPanel.value = false
+        showRangePanel.value = false
+      }
+      persistPictureOptions()
+      break
+    case 'minor':
+      showMinor.value = !showMinor.value
+      persistPictureOptions()
+      break
+    case 'rules':
+      openPictureSessionSettings()
+      break
+    case 'meta':
+      showMetaPanel.value = !showMetaPanel.value
+      persistPictureOptions()
       break
     case 'swap':
       swapPicturePaths()
@@ -702,6 +753,29 @@ async function runPictureCompare(): Promise<void> {
         </div>
       </section>
 
+      <section
+        v-if="showBlendPanel || blendEnabled"
+        class="picture-blend-panel"
+        data-testid="picture-blend-panel"
+      >
+        <header>
+          <strong>{{ $t('ui.blend') }}</strong>
+          <span>{{ $t('ui.blendOpacity') }}: {{ blendOpacity }}%</span>
+        </header>
+        <label>
+          <span>{{ $t('ui.blendOpacity') }}</span>
+          <input
+            v-model.number="blendOpacity"
+            type="range"
+            min="0"
+            max="100"
+            step="1"
+            data-testid="picture-blend-opacity"
+            @change="persistPictureOptions"
+          />
+        </label>
+      </section>
+
       <section class="picture-pane-grid">
         <section
           class="picture-side"
@@ -725,10 +799,19 @@ async function runPictureCompare(): Promise<void> {
                 :alt="leftPictureName"
                 data-testid="left-picture-img"
               />
+              <img
+                v-if="blendEnabled && rightImageSrc"
+                class="picture-blend-overlay"
+                :src="rightImageSrc"
+                :alt="rightPictureName"
+                :style="blendOverlayStyle"
+                data-testid="picture-blend-overlay"
+              />
               <span
                 v-if="showOverlay && pictureStatistics.boundingRect"
                 class="picture-diff-overlay"
                 data-testid="picture-diff-overlay"
+                :class="{ 'picture-diff-overlay-minor': showMinor }"
               >
                 <span
                   class="picture-diff-region"
@@ -779,6 +862,7 @@ async function runPictureCompare(): Promise<void> {
       </section>
 
       <section
+        v-if="showMetaPanel"
         class="picture-metadata-panel"
         data-testid="picture-metadata-panel"
       >
@@ -792,7 +876,7 @@ async function runPictureCompare(): Promise<void> {
           <div class="metadata-grid-heading">{{ $t('ui.right') }}</div>
           <div class="metadata-grid-heading">{{ $t('ui.state') }}</div>
           <template
-            v-for="row in metadataRows"
+            v-for="row in visibleMetadataRows"
             :key="row.key"
           >
             <div
@@ -1369,5 +1453,41 @@ h2 {
   .picture-canvas-frame {
     min-height: 260px;
   }
+}
+
+.picture-blend-panel {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  background: var(--app-surface);
+}
+
+.picture-blend-panel header {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.picture-blend-panel label {
+  display: grid;
+  gap: 4px;
+  color: var(--app-text-muted);
+  font-size: 12px;
+}
+
+.picture-blend-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+.picture-diff-overlay-minor {
+  opacity: 0.45;
 }
 </style>
