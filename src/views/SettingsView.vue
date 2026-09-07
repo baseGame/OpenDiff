@@ -20,6 +20,8 @@ import {
 import { usePolicyStore } from '@/stores/policy'
 import { useSavedSessionsStore } from '@/stores/savedSessions'
 import { type DiffHighlightColors, useSettingsStore } from '@/stores/settings'
+import { loadExternalApplications, saveExternalApplications } from '@/app/externalApplications'
+import type { ExternalApplicationConfig } from '@/app/fileOpenActions'
 import WorkbenchShell from '@/components/workbench/WorkbenchShell.vue'
 import WorkbenchInspector from '@/components/workbench/WorkbenchInspector.vue'
 import { useI18n } from '@/i18n'
@@ -40,18 +42,53 @@ const integrationStatus = ref('')
 const integrationError = ref('')
 const integrationWriting = ref(false)
 const shortcutSearch = ref('')
-const optionsSection = ref<
-  'appearance' | 'colors' | 'tweaks' | 'formats' | 'shortcuts' | 'integration' | 'sessions'
->('appearance')
-const optionsSections = [
-  { id: 'appearance' as const, labelKey: 'ui.appearance' },
-  { id: 'colors' as const, labelKey: 'ui.colors' },
-  { id: 'tweaks' as const, labelKey: 'ui.tweaks' },
-  { id: 'formats' as const, labelKey: 'ui.fileFormats' },
-  { id: 'shortcuts' as const, labelKey: 'ui.shortcuts' },
-  { id: 'integration' as const, labelKey: 'ui.integration' },
-  { id: 'sessions' as const, labelKey: 'ui.sessions' },
+
+type OptionsSectionId =
+  | 'appearance'
+  | 'colors'
+  | 'toolbars'
+  | 'textEditing'
+  | 'openWith'
+  | 'shell'
+  | 'backup'
+  | 'tweaks'
+  | 'formats'
+  | 'shortcuts'
+  | 'integration'
+  | 'sessions'
+
+const optionsSection = ref<OptionsSectionId>('appearance')
+const optionsTree = [
+  {
+    groupKey: 'ui.optionsGroupDisplay',
+    items: [
+      { id: 'appearance' as const, labelKey: 'ui.appearance' },
+      { id: 'colors' as const, labelKey: 'ui.colors' },
+      { id: 'toolbars' as const, labelKey: 'ui.toolbars' },
+    ],
+  },
+  {
+    groupKey: 'ui.optionsGroupEditing',
+    items: [
+      { id: 'textEditing' as const, labelKey: 'ui.textEditing' },
+      { id: 'openWith' as const, labelKey: 'ui.openWith' },
+      { id: 'backup' as const, labelKey: 'ui.backup' },
+    ],
+  },
+  {
+    groupKey: 'ui.optionsGroupSystem',
+    items: [
+      { id: 'shell' as const, labelKey: 'ui.shell' },
+      { id: 'tweaks' as const, labelKey: 'ui.tweaks' },
+      { id: 'formats' as const, labelKey: 'ui.fileFormats' },
+      { id: 'shortcuts' as const, labelKey: 'ui.shortcuts' },
+      { id: 'integration' as const, labelKey: 'ui.integration' },
+      { id: 'sessions' as const, labelKey: 'ui.sessions' },
+    ],
+  },
 ]
+const openWithApps = ref<ExternalApplicationConfig[]>(loadExternalApplications())
+const openWithDraft = ref({ name: '', executable: '' })
 const fontFamilySelectOptions: SelectOption[] = [
   { label: 'System UI', value: 'system' },
   { label: 'Segoe UI', value: 'segoe' },
@@ -226,6 +263,73 @@ function onWrapTextDefaultChange(event: Event): void {
   settings.setWrapTextDefault(target.checked)
 }
 
+function onShowSessionToolbarsChange(event: Event): void {
+  const target = event.target
+
+  if (!(target instanceof HTMLInputElement)) {
+    return
+  }
+
+  settings.setShowSessionToolbars(target.checked)
+}
+
+function onShowToolbarLabelsChange(event: Event): void {
+  const target = event.target
+
+  if (!(target instanceof HTMLInputElement)) {
+    return
+  }
+
+  settings.setShowToolbarLabels(target.checked)
+}
+
+function onCreateBackupOnSaveChange(event: Event): void {
+  const target = event.target
+
+  if (!(target instanceof HTMLInputElement)) {
+    return
+  }
+
+  settings.setCreateBackupOnSave(target.checked)
+}
+
+function persistOpenWithApps(): void {
+  saveExternalApplications(openWithApps.value)
+}
+
+function toggleOpenWithApp(id: string, enabled: boolean): void {
+  openWithApps.value = openWithApps.value.map((app) => (app.id === id ? { ...app, enabled } : app))
+  persistOpenWithApps()
+}
+
+function removeOpenWithApp(id: string): void {
+  openWithApps.value = openWithApps.value.filter((app) => app.id !== id)
+  persistOpenWithApps()
+}
+
+function addOpenWithApp(): void {
+  const name = openWithDraft.value.name.trim()
+  const executable = openWithDraft.value.executable.trim()
+
+  if (!name || !executable) {
+    return
+  }
+
+  const id = `${name.toLowerCase().replace(/[^a-z0-9]+/gu, '-')}-${String(openWithApps.value.length + 1)}`
+
+  openWithApps.value = [
+    ...openWithApps.value,
+    {
+      id,
+      name,
+      executable,
+      enabled: true,
+    },
+  ]
+  openWithDraft.value = { name: '', executable: '' }
+  persistOpenWithApps()
+}
+
 async function registerShellExtension(): Promise<void> {
   integrationWriting.value = true
   integrationError.value = ''
@@ -343,21 +447,28 @@ function parseShortcutText(value: string): string[] {
   >
     <section class="settings-view">
       <nav
-        class="options-section-nav"
+        class="options-section-nav options-section-tree"
         data-testid="options-section-nav"
         :aria-label="$t('ui.options')"
       >
-        <button
-          v-for="section in optionsSections"
-          :key="section.id"
-          type="button"
-          class="options-section-button"
-          :class="{ active: optionsSection === section.id }"
-          :data-testid="`options-section-${section.id}`"
-          @click="optionsSection = section.id"
+        <div
+          v-for="group in optionsTree"
+          :key="group.groupKey"
+          class="options-tree-group"
         >
-          {{ $t(section.labelKey) }}
-        </button>
+          <p class="options-tree-group-label">{{ $t(group.groupKey) }}</p>
+          <button
+            v-for="section in group.items"
+            :key="section.id"
+            type="button"
+            class="options-section-button"
+            :class="{ active: optionsSection === section.id }"
+            :data-testid="`options-section-${section.id}`"
+            @click="optionsSection = section.id"
+          >
+            {{ $t(section.labelKey) }}
+          </button>
+        </div>
       </nav>
 
       <NCard
@@ -467,6 +578,204 @@ function parseShortcutText(value: string): string[] {
           @click="settings.resetDiffColors()"
           >{{ $t('ui.resetColors') }}</NButton
         >
+      </NCard>
+
+      <NCard
+        v-show="optionsSection === 'toolbars'"
+        :title="$t('ui.toolbars')"
+        size="small"
+        data-testid="options-toolbars-card"
+      >
+        <label class="tweak-row">
+          <input
+            data-testid="show-session-toolbars"
+            type="checkbox"
+            :checked="settings.showSessionToolbars"
+            @change="onShowSessionToolbarsChange"
+          />
+          <span>{{ $t('ui.showSessionToolbars') }}</span>
+        </label>
+        <label class="tweak-row">
+          <input
+            data-testid="show-toolbar-labels"
+            type="checkbox"
+            :checked="settings.showToolbarLabels"
+            @change="onShowToolbarLabelsChange"
+          />
+          <span>{{ $t('ui.showToolbarLabels') }}</span>
+        </label>
+        <p class="options-hint">{{ $t('ui.toolbarsHint') }}</p>
+      </NCard>
+
+      <NCard
+        v-show="optionsSection === 'textEditing'"
+        :title="$t('ui.textEditing')"
+        size="small"
+        data-testid="options-text-editing-card"
+      >
+        <label class="tweak-row">
+          <input
+            data-testid="wrap-text-default-editing"
+            type="checkbox"
+            :checked="settings.wrapTextDefault"
+            @change="onWrapTextDefaultChange"
+          />
+          <span>{{ $t('ui.wrapTextDefault') }}</span>
+        </label>
+        <p class="options-hint">{{ $t('ui.textEditingHint') }}</p>
+      </NCard>
+
+      <NCard
+        v-show="optionsSection === 'openWith'"
+        :title="$t('ui.openWith')"
+        size="small"
+        data-testid="options-open-with-card"
+      >
+        <p class="options-hint">{{ $t('ui.openWithHint') }}</p>
+        <ul
+          class="open-with-list"
+          data-testid="open-with-app-list"
+        >
+          <li
+            v-for="app in openWithApps"
+            :key="app.id"
+            class="open-with-row"
+          >
+            <label class="tweak-row">
+              <input
+                type="checkbox"
+                :data-testid="`open-with-enabled-${app.id}`"
+                :checked="app.enabled"
+                @change="toggleOpenWithApp(app.id, ($event.target as HTMLInputElement).checked)"
+              />
+              <span
+                >{{ app.name }} <code>{{ app.executable }}</code></span
+              >
+            </label>
+            <NButton
+              text
+              size="small"
+              :data-testid="`open-with-remove-${app.id}`"
+              @click="removeOpenWithApp(app.id)"
+              >{{ $t('ui.remove') }}</NButton
+            >
+          </li>
+        </ul>
+        <div class="open-with-draft">
+          <input
+            v-model="openWithDraft.name"
+            type="text"
+            data-testid="open-with-name"
+            :placeholder="$t('ui.applicationName')"
+          />
+          <input
+            v-model="openWithDraft.executable"
+            type="text"
+            data-testid="open-with-executable"
+            :placeholder="$t('ui.executablePath')"
+          />
+          <NButton
+            size="small"
+            data-testid="open-with-add"
+            @click="addOpenWithApp"
+            >{{ $t('ui.add') }}</NButton
+          >
+        </div>
+      </NCard>
+
+      <NCard
+        v-show="optionsSection === 'shell'"
+        :title="$t('ui.shell')"
+        size="small"
+        data-testid="options-shell-card"
+      >
+        <p class="options-hint">{{ $t('ui.shellOptionsHint') }}</p>
+        <div class="integration-config">
+          <label>
+            <span>{{ $t('ui.executablePath') }}</span>
+            <input
+              v-model="executablePath"
+              type="text"
+              data-testid="shell-executable-path"
+            />
+          </label>
+          <div class="settings-row shell-extension-row">
+            <div>
+              <strong>{{ $t('ui.windowsShell') }}</strong>
+              <span>{{ $t('ui.shellExtensionHint') }}</span>
+            </div>
+            <NSpace>
+              <NButton
+                size="small"
+                type="primary"
+                data-testid="shell-register-windows"
+                :disabled="!policy.isWindows || integrationWriting"
+                @click="registerShellExtension"
+                >{{ $t('ui.installExplorerContextMenu') }}</NButton
+              >
+              <NButton
+                size="small"
+                data-testid="shell-unregister-windows"
+                :disabled="!policy.isWindows || integrationWriting"
+                @click="unregisterShellExtension"
+                >{{ $t('ui.removeExplorerContextMenu') }}</NButton
+              >
+            </NSpace>
+          </div>
+          <div class="settings-row shell-extension-row">
+            <div>
+              <strong>{{ $t('ui.unixShell') }}</strong>
+              <span>{{ $t('ui.unixShellHint') }}</span>
+            </div>
+            <NSpace>
+              <NButton
+                size="small"
+                type="primary"
+                data-testid="shell-register-unix"
+                :disabled="!policy.supportsUnixShell || integrationWriting"
+                @click="registerUnixShell"
+                >{{ $t('ui.installUnixShellIntegration') }}</NButton
+              >
+              <NButton
+                size="small"
+                data-testid="shell-unregister-unix"
+                :disabled="!policy.supportsUnixShell || integrationWriting"
+                @click="unregisterUnixShell"
+                >{{ $t('ui.removeUnixShellIntegration') }}</NButton
+              >
+            </NSpace>
+          </div>
+          <p
+            v-if="integrationStatus"
+            data-testid="shell-integration-status"
+          >
+            {{ integrationStatus }}
+          </p>
+          <p
+            v-if="integrationError"
+            data-testid="shell-integration-error"
+          >
+            {{ integrationError }}
+          </p>
+        </div>
+      </NCard>
+
+      <NCard
+        v-show="optionsSection === 'backup'"
+        :title="$t('ui.backup')"
+        size="small"
+        data-testid="options-backup-card"
+      >
+        <label class="tweak-row">
+          <input
+            data-testid="create-backup-on-save"
+            type="checkbox"
+            :checked="settings.createBackupOnSave"
+            @change="onCreateBackupOnSaveChange"
+          />
+          <span>{{ $t('ui.createBackupOnSave') }}</span>
+        </label>
+        <p class="options-hint">{{ $t('ui.backupHint') }}</p>
       </NCard>
 
       <NCard
@@ -832,6 +1141,65 @@ function parseShortcutText(value: string): string[] {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.options-section-tree {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+}
+
+.options-tree-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.options-tree-group-label {
+  min-width: 88px;
+  margin: 0;
+  color: var(--app-text-muted);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.options-hint {
+  margin: 8px 0 0;
+  color: var(--app-text-muted);
+  font-size: 12px;
+}
+
+.open-with-list {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+}
+
+.open-with-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.open-with-draft {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.open-with-draft input {
+  min-width: 160px;
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid var(--app-border);
+  border-radius: 6px;
+  background: var(--app-bg);
+  color: var(--app-text);
 }
 
 .options-section-button {

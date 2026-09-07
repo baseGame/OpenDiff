@@ -237,6 +237,31 @@ describe('SettingsView', () => {
     expect(settings.confirmBeforeDelete).toBe(false)
     expect(settings.wrapTextDefault).toBe(true)
   })
+
+  it('exposes tree-style options for toolbars, open with, shell, and backup', async () => {
+    const wrapper = mountSettingsView()
+    const settings = useSettingsStore()
+
+    await wrapper.find('[data-testid="options-section-toolbars"]').trigger('click')
+    expect(wrapper.find('[data-testid="options-toolbars-card"]').isVisible()).toBe(true)
+    await wrapper.find('[data-testid="show-session-toolbars"]').setValue(false)
+    expect(settings.showSessionToolbars).toBe(false)
+
+    await wrapper.find('[data-testid="options-section-openWith"]').trigger('click')
+    expect(wrapper.find('[data-testid="options-open-with-card"]').isVisible()).toBe(true)
+    await wrapper.find('[data-testid="open-with-name"]').setValue('Notes')
+    await wrapper.find('[data-testid="open-with-executable"]').setValue('notes')
+    await wrapper.find('[data-testid="open-with-add"]').trigger('click')
+    expect(wrapper.text()).toContain('Notes')
+
+    await wrapper.find('[data-testid="options-section-shell"]').trigger('click')
+    expect(wrapper.find('[data-testid="options-shell-card"]').isVisible()).toBe(true)
+
+    await wrapper.find('[data-testid="options-section-backup"]').trigger('click')
+    expect(wrapper.find('[data-testid="options-backup-card"]').isVisible()).toBe(true)
+    await wrapper.find('[data-testid="create-backup-on-save"]').setValue(false)
+    expect(settings.createBackupOnSave).toBe(false)
+  })
 })
 
 function mountSettingsView(): VueWrapper {

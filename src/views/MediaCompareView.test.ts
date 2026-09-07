@@ -112,4 +112,18 @@ describe('MediaCompareView', () => {
     expect(wrapper.text()).not.toContain('Northern Lights')
     expect(wrapper.find('[data-testid="media-summary-modified"]').text()).toContain('0')
   })
+
+  it('renders dual HTML5 media elements for local paths', async () => {
+    const wrapper = mount(MediaCompareView)
+
+    await wrapper.find('[data-testid="media-left-path"]').setValue('C:/music/fixture-left.mp3')
+    await wrapper.find('[data-testid="media-right-path"]').setValue('C:/music/fixture-right.mp3')
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('[data-testid="media-playback-panel"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="media-left-audio"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="media-right-audio"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="media-scrub"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="media-play-toggle"]').exists()).toBe(true)
+  })
 })

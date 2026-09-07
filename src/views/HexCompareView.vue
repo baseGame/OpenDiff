@@ -22,6 +22,13 @@ import {
 } from '@/app/hexOffset'
 import { useSessionLaunchStore } from '@/stores/sessionLaunch'
 import { useTabsStore } from '@/stores/tabs'
+import { useViewActionsStore } from '@/stores/viewActions'
+import SessionSettingsDialog from '@/components/session/SessionSettingsDialog.vue'
+import {
+  loadHexCompareSessionOptions,
+  saveHexCompareSessionOptions,
+  type HexCompareSessionOptions,
+} from '@/app/hexCompareSessionOptions'
 
 interface HexRow {
   offset: string
@@ -49,9 +56,12 @@ const diffRanges = ref<HexDiffRange[]>([])
 const navigationRanges = ref<HexDiffRange[]>([])
 const activeDiffRangeIndex = ref(0)
 const viewportWidth = ref(640)
-const diffOnly = ref(false)
+const initialHexOptions = loadHexCompareSessionOptions()
+const diffOnly = ref(initialHexOptions.diffOnly)
 const hexOffset = ref(0)
-const hexLength = ref(256)
+const hexLength = ref(initialHexOptions.windowLength)
+const showSessionSettings = ref(false)
+const viewActions = useViewActionsStore()
 const jumpOffsetInput = ref('0')
 const showGoToDialog = ref(false)
 const goToOffsetInput = ref('0')
@@ -91,6 +101,55 @@ const visiblePairedHexRows = computed(() => {
 })
 const loadedBytesLabel = computed(
   () => `${String(leftTotalLen.value)} / ${String(rightTotalLen.value)}`,
+)
+
+function currentHexSessionOptions(): HexCompareSessionOptions {
+  return {
+    windowLength: hexLength.value,
+    diffOnly: diffOnly.value,
+  }
+}
+
+function persistHexSessionOptions(): void {
+  saveHexCompareSessionOptions(currentHexSessionOptions())
+}
+
+function openHexSessionSettings(): void {
+  showSessionSettings.value = true
+}
+
+function applyHexSessionSettings(
+  payload:
+    | { kind: 'folder'; criteria: unknown }
+    | { kind: 'text'; options: unknown }
+    | { kind: 'table'; options: unknown }
+    | { kind: 'hex'; options: HexCompareSessionOptions }
+    | { kind: 'picture'; options: unknown },
+): void {
+  if (payload.kind !== 'hex') {
+    return
+  }
+
+  hexLength.value = payload.options.windowLength
+  diffOnly.value = payload.options.diffOnly
+  persistHexSessionOptions()
+  showSessionSettings.value = false
+  if (leftPath.value && rightPath.value) {
+    void runHexCompare()
+  }
+}
+
+watch([hexLength, diffOnly], () => {
+  persistHexSessionOptions()
+})
+
+watch(
+  () => [viewActions.sequence, viewActions.name] as const,
+  ([, actionName]) => {
+    if (actionName === 'session-settings') {
+      openHexSessionSettings()
+    }
+  },
 )
 
 onMounted(() => {
@@ -757,6 +816,13 @@ async function runHexSave(): Promise<void> {
         </footer>
       </section>
     </div>
+    <SessionSettingsDialog
+      :open="showSessionSettings"
+      kind="hex"
+      :hex-options="currentHexSessionOptions()"
+      @close="showSessionSettings = false"
+      @apply="applyHexSessionSettings"
+    />
   </WorkbenchShell>
 </template>
 <style scoped>

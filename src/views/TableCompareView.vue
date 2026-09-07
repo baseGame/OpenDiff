@@ -18,7 +18,14 @@ import {
 } from '@/app/tableSheets'
 import { useSessionLaunchStore } from '@/stores/sessionLaunch'
 import { useTabsStore } from '@/stores/tabs'
+import { useViewActionsStore } from '@/stores/viewActions'
 import { useI18n } from '@/i18n'
+import SessionSettingsDialog from '@/components/session/SessionSettingsDialog.vue'
+import {
+  loadTableCompareSessionOptions,
+  saveTableCompareSessionOptions,
+  type TableCompareSessionOptions,
+} from '@/app/tableCompareSessionOptions'
 
 interface TableColumnModel {
   name: string
@@ -63,8 +70,11 @@ const leftSheet = ref('')
 const rightSheet = ref('')
 const leftSheets = ref<string[]>([])
 const rightSheets = ref<string[]>([])
-const keyColumnsInput = ref('0')
-const delimiterInput = ref('')
+const initialTableOptions = loadTableCompareSessionOptions()
+const keyColumnsInput = ref(initialTableOptions.keyColumns)
+const delimiterInput = ref(initialTableOptions.delimiter)
+const showSessionSettings = ref(false)
+const viewActions = useViewActionsStore()
 const suppressSheetCompare = ref(false)
 const sessionLaunch = useSessionLaunchStore()
 const tabs = useTabsStore()
@@ -79,12 +89,63 @@ const manualRightColumn = ref('')
 const manualMappings = ref<ColumnMappingModel[]>([])
 const leftGridViewport = ref<HTMLElement | null>(null)
 const rightGridViewport = ref<HTMLElement | null>(null)
-const ignoredColumnKeys = ref<string[]>([])
+const ignoredColumnKeys = ref<string[]>([...initialTableOptions.ignoredColumns])
 const tableSearchQuery = ref('')
 const activeDifferenceIndex = ref(0)
 const loading = ref(false)
 const error = ref('')
 const tableDifferenceCells = ref<TableCellLocation[]>([])
+
+function currentTableSessionOptions(): TableCompareSessionOptions {
+  return {
+    keyColumns: keyColumnsInput.value,
+    delimiter: delimiterInput.value,
+    ignoredColumns: [...ignoredColumnKeys.value],
+  }
+}
+
+function persistTableSessionOptions(): void {
+  saveTableCompareSessionOptions(currentTableSessionOptions())
+}
+
+function openTableSessionSettings(): void {
+  showSessionSettings.value = true
+}
+
+function applyTableSessionSettings(
+  payload:
+    | { kind: 'folder'; criteria: unknown }
+    | { kind: 'text'; options: unknown }
+    | { kind: 'table'; options: TableCompareSessionOptions }
+    | { kind: 'hex'; options: unknown }
+    | { kind: 'picture'; options: unknown },
+): void {
+  if (payload.kind !== 'table') {
+    return
+  }
+
+  keyColumnsInput.value = payload.options.keyColumns
+  delimiterInput.value = payload.options.delimiter
+  ignoredColumnKeys.value = [...payload.options.ignoredColumns]
+  persistTableSessionOptions()
+  showSessionSettings.value = false
+  if (leftCsv.value || rightCsv.value || (leftPath.value && rightPath.value)) {
+    void runTableCompare()
+  }
+}
+
+watch([keyColumnsInput, delimiterInput, ignoredColumnKeys], () => {
+  persistTableSessionOptions()
+})
+
+watch(
+  () => [viewActions.sequence, viewActions.name] as const,
+  ([, actionName]) => {
+    if (actionName === 'session-settings') {
+      openTableSessionSettings()
+    }
+  },
+)
 
 onMounted(() => {
   const launch = sessionLaunch.consumeLaunch('/compare/table')
@@ -927,6 +988,13 @@ watch([leftPath, rightPath], () => {
         </section>
       </WorkbenchInspector>
     </template>
+    <SessionSettingsDialog
+      :open="showSessionSettings"
+      kind="table"
+      :table-options="currentTableSessionOptions()"
+      @close="showSessionSettings = false"
+      @apply="applyTableSessionSettings"
+    />
   </WorkbenchShell>
 </template>
 <style scoped>

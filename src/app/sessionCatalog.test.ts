@@ -36,7 +36,7 @@ describe('sessionCatalog', () => {
     expect(byType['text-edit']).toBe('ready')
     expect(byType['folder-sync']).toBe('partial')
     expect(byType['text-merge']).toBe('partial')
-    expect(byType['media-compare']).toBe('limited')
+    expect(byType['media-compare']).toBe('partial')
     expect(byType['archive-compare']).toBe('limited')
     expect(byType.script).toBe('limited')
     expect(sessionCatalog.every((entry) => Boolean(entry.maturity))).toBe(true)

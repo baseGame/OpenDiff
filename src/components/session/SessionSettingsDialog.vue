@@ -2,20 +2,63 @@
 import { computed, ref, watch } from 'vue'
 import type { FolderCompareCriteria } from '@/types/diff'
 import type { TextCompareSessionOptions } from '@/app/textCompareSessionOptions'
+import type { TableCompareSessionOptions } from '@/app/tableCompareSessionOptions'
+import type { HexCompareSessionOptions } from '@/app/hexCompareSessionOptions'
+import type { PictureCompareOptionsState } from '@/app/pictureCompareOptions'
 
-const props = defineProps<{
-  open: boolean
-  kind: 'folder' | 'text'
-  folderCriteria: FolderCompareCriteria
-  textOptions: TextCompareSessionOptions
-}>()
+export type SessionSettingsKind = 'folder' | 'text' | 'table' | 'hex' | 'picture'
+
+const props = withDefaults(
+  defineProps<{
+    open: boolean
+    kind: SessionSettingsKind
+    folderCriteria?: FolderCompareCriteria
+    textOptions?: TextCompareSessionOptions
+    tableOptions?: TableCompareSessionOptions
+    hexOptions?: HexCompareSessionOptions
+    pictureOptions?: PictureCompareOptionsState
+  }>(),
+  {
+    folderCriteria: () => ({
+      compareSize: true,
+      compareModifiedTime: false,
+      compareContents: true,
+      compareCrc: false,
+    }),
+    textOptions: () => ({
+      algorithm: 'myers',
+      ignoreWhitespace: false,
+      ignoreCase: false,
+      ignoreLineEndings: false,
+      ignoreRegexes: [],
+    }),
+    tableOptions: () => ({
+      keyColumns: '0',
+      delimiter: '',
+      ignoredColumns: [],
+    }),
+    hexOptions: () => ({
+      windowLength: 256,
+      diffOnly: false,
+    }),
+    pictureOptions: () => ({
+      rgbTolerance: 0,
+      compareAlpha: true,
+      ignoreColorFrom: null,
+      ignoreColorTo: null,
+    }),
+  },
+)
 
 const emit = defineEmits<{
   close: []
   apply: [
     payload:
       | { kind: 'folder'; criteria: FolderCompareCriteria }
-      | { kind: 'text'; options: TextCompareSessionOptions },
+      | { kind: 'text'; options: TextCompareSessionOptions }
+      | { kind: 'table'; options: TableCompareSessionOptions }
+      | { kind: 'hex'; options: HexCompareSessionOptions }
+      | { kind: 'picture'; options: PictureCompareOptionsState },
   ]
 }>()
 
@@ -29,10 +72,25 @@ const draftText = ref<TextCompareSessionOptions>({
   ...props.textOptions,
   ignoreRegexes: [...props.textOptions.ignoreRegexes],
 })
+const draftTable = ref<TableCompareSessionOptions>({
+  ...props.tableOptions,
+  ignoredColumns: [...props.tableOptions.ignoredColumns],
+})
+const draftHex = ref<HexCompareSessionOptions>({ ...props.hexOptions })
+const draftPicture = ref<PictureCompareOptionsState>({ ...props.pictureOptions })
 const ignoreRegexDraft = ref(props.textOptions.ignoreRegexes.join(', '))
+const ignoredColumnsDraft = ref(props.tableOptions.ignoredColumns.join(', '))
 
 watch(
-  () => [props.open, props.folderCriteria, props.textOptions] as const,
+  () =>
+    [
+      props.open,
+      props.folderCriteria,
+      props.textOptions,
+      props.tableOptions,
+      props.hexOptions,
+      props.pictureOptions,
+    ] as const,
   ([open]) => {
     if (!open) {
       return
@@ -43,15 +101,35 @@ watch(
       ...props.textOptions,
       ignoreRegexes: [...props.textOptions.ignoreRegexes],
     }
+    draftTable.value = {
+      ...props.tableOptions,
+      ignoredColumns: [...props.tableOptions.ignoredColumns],
+    }
+    draftHex.value = { ...props.hexOptions }
+    draftPicture.value = { ...props.pictureOptions }
     ignoreRegexDraft.value = props.textOptions.ignoreRegexes.join(', ')
+    ignoredColumnsDraft.value = props.tableOptions.ignoredColumns.join(', ')
     folderTab.value = 'comparison'
     textTab.value = 'importance'
   },
 )
 
-const titleKey = computed(() =>
-  props.kind === 'folder' ? 'ui.folderSessionSettings' : 'ui.textSessionSettings',
-)
+const titleKey = computed(() => {
+  switch (props.kind) {
+    case 'folder':
+      return 'ui.folderSessionSettings'
+    case 'text':
+      return 'ui.textSessionSettings'
+    case 'table':
+      return 'ui.tableSessionSettings'
+    case 'hex':
+      return 'ui.hexSessionSettings'
+    case 'picture':
+      return 'ui.pictureSessionSettings'
+  }
+
+  return 'ui.sessionSettings'
+})
 
 function applySettings(): void {
   if (props.kind === 'folder') {
@@ -60,18 +138,47 @@ function applySettings(): void {
     return
   }
 
-  const ignoreRegexes = ignoreRegexDraft.value
-    .split(/[,\n]/u)
-    .map((item) => item.trim())
-    .filter(Boolean)
+  if (props.kind === 'text') {
+    const ignoreRegexes = ignoreRegexDraft.value
+      .split(/[,\n]/u)
+      .map((item) => item.trim())
+      .filter(Boolean)
 
-  emit('apply', {
-    kind: 'text',
-    options: {
-      ...draftText.value,
-      ignoreRegexes,
-    },
-  })
+    emit('apply', {
+      kind: 'text',
+      options: {
+        ...draftText.value,
+        ignoreRegexes,
+      },
+    })
+
+    return
+  }
+
+  if (props.kind === 'table') {
+    const ignoredColumns = ignoredColumnsDraft.value
+      .split(/[,\n]/u)
+      .map((item) => item.trim())
+      .filter(Boolean)
+
+    emit('apply', {
+      kind: 'table',
+      options: {
+        ...draftTable.value,
+        ignoredColumns,
+      },
+    })
+
+    return
+  }
+
+  if (props.kind === 'hex') {
+    emit('apply', { kind: 'hex', options: { ...draftHex.value } })
+
+    return
+  }
+
+  emit('apply', { kind: 'picture', options: { ...draftPicture.value } })
 }
 </script>
 
@@ -121,7 +228,7 @@ function applySettings(): void {
       </nav>
 
       <nav
-        v-else
+        v-else-if="kind === 'text'"
         class="settings-tabs"
       >
         <button
@@ -190,7 +297,7 @@ function applySettings(): void {
       </div>
 
       <div
-        v-else-if="textTab === 'importance'"
+        v-else-if="kind === 'text' && textTab === 'importance'"
         class="settings-body"
         data-testid="session-settings-text-importance"
       >
@@ -230,7 +337,7 @@ function applySettings(): void {
       </div>
 
       <div
-        v-else
+        v-else-if="kind === 'text'"
         class="settings-body"
         data-testid="session-settings-text-alignment"
       >
@@ -244,6 +351,88 @@ function applySettings(): void {
             <option value="patience">{{ $t('ui.patience') }}</option>
             <option value="histogram">{{ $t('ui.histogram') }}</option>
           </select>
+        </label>
+      </div>
+
+      <div
+        v-else-if="kind === 'table'"
+        class="settings-body"
+        data-testid="session-settings-table"
+      >
+        <label class="stack">
+          <span>{{ $t('ui.keyColumns') }}</span>
+          <input
+            v-model="draftTable.keyColumns"
+            type="text"
+            data-testid="session-settings-table-keys"
+          />
+        </label>
+        <label class="stack">
+          <span>{{ $t('ui.delimiter') }}</span>
+          <input
+            v-model="draftTable.delimiter"
+            type="text"
+            data-testid="session-settings-table-delimiter"
+          />
+        </label>
+        <label class="stack">
+          <span>{{ $t('ui.ignoredColumns') }}</span>
+          <input
+            v-model="ignoredColumnsDraft"
+            type="text"
+            data-testid="session-settings-table-ignored"
+            :placeholder="$t('ui.ignoredColumnsHint')"
+          />
+        </label>
+      </div>
+
+      <div
+        v-else-if="kind === 'hex'"
+        class="settings-body"
+        data-testid="session-settings-hex"
+      >
+        <label class="stack">
+          <span>{{ $t('ui.windowLength') }}</span>
+          <input
+            v-model.number="draftHex.windowLength"
+            type="number"
+            min="16"
+            max="4096"
+            data-testid="session-settings-hex-window"
+          />
+        </label>
+        <label>
+          <input
+            v-model="draftHex.diffOnly"
+            type="checkbox"
+            data-testid="session-settings-hex-diff-only"
+          />
+          <span>{{ $t('ui.diffs') }}</span>
+        </label>
+      </div>
+
+      <div
+        v-else
+        class="settings-body"
+        data-testid="session-settings-picture"
+      >
+        <label class="stack">
+          <span>{{ $t('ui.rgbTolerance') }}</span>
+          <input
+            v-model.number="draftPicture.rgbTolerance"
+            type="number"
+            min="0"
+            max="255"
+            data-testid="session-settings-picture-tolerance"
+          />
+        </label>
+        <label>
+          <input
+            v-model="draftPicture.compareAlpha"
+            type="checkbox"
+            data-testid="session-settings-picture-alpha"
+          />
+          <span>{{ $t('ui.compareAlpha') }}</span>
         </label>
       </div>
 
