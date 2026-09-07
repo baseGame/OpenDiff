@@ -861,10 +861,7 @@ fn apply_criteria_command(
         ("compare-contents", criteria.compare_contents),
         ("compare-crc", criteria.compare_crc),
         ("ignore-unimportant", criteria.ignore_unimportant),
-        (
-            "ignore-dst",
-            criteria.ignore_daylight_saving_hour_offset,
-        ),
+        ("ignore-dst", criteria.ignore_daylight_saving_hour_offset),
     ] {
         state
             .options
@@ -943,9 +940,9 @@ pub fn parse_folder_criteria_tokens(
             criteria.compare_modified_time = true;
             if let Some(rest) = lower.strip_prefix("timestamp:") {
                 if !rest.is_empty() {
-                    let seconds: u128 = rest.parse().map_err(|_| {
-                        format!("invalid CRITERIA timestamp tolerance: {token}")
-                    })?;
+                    let seconds: u128 = rest
+                        .parse()
+                        .map_err(|_| format!("invalid CRITERIA timestamp tolerance: {token}"))?;
                     criteria.timestamp_tolerance_ms = seconds.saturating_mul(1_000);
                 }
             }
@@ -987,9 +984,9 @@ pub fn parse_folder_criteria_tokens(
             continue;
         }
         if let Some(rest) = lower.strip_prefix("timezone:") {
-            let hours: i32 = rest.parse().map_err(|_| {
-                format!("invalid CRITERIA timezone offset: {token}")
-            })?;
+            let hours: i32 = rest
+                .parse()
+                .map_err(|_| format!("invalid CRITERIA timezone offset: {token}"))?;
             criteria.compare_modified_time = true;
             criteria.ignored_timezone_hour_offsets.push(hours);
             continue;
