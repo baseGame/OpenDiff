@@ -51,7 +51,7 @@ const clipboardToolbar = computed(() =>
     home: true,
     capture: !loading.value,
     compare: canCompare.value && !comparing.value,
-    swap: Boolean(leftEntryId.value || rightEntryId.value),
+    swap: leftEntryId.value !== null || rightEntryId.value !== null,
     reload: canCompare.value && !comparing.value,
   }),
 )

@@ -1,6 +1,5 @@
 import { mount, type VueWrapper } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
-import { defineComponent } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import ClipboardCompareView from './ClipboardCompareView.vue'
 import { diffText } from '@/api/diff'
@@ -22,30 +21,6 @@ vi.mock('vue-router', () => ({
   useRouter: () => ({ push: vi.fn() }),
 }))
 
-const TextDiffPanelStub = defineComponent({
-  name: 'TextDiffPanel',
-  props: {
-    lines: {
-      type: Array,
-      default: () => [],
-    },
-  },
-  template: '<section data-testid="clipboard-diff-panel" />',
-})
-
-const WorkbenchShellStub = defineComponent({
-  name: 'WorkbenchShell',
-  props: {
-    title: { type: String, default: '' },
-    eyebrow: { type: String, default: '' },
-    subtitle: { type: String, default: '' },
-    toolbarCommands: { type: Array, default: () => [] },
-    toolbarTestIdPrefix: { type: String, default: '' },
-  },
-  emits: ['toolbar-command'],
-  template: '<section><slot /></section>',
-})
-
 function mountClipboardCompareView(): VueWrapper {
   return mount(ClipboardCompareView, {
     global: {
@@ -56,8 +31,26 @@ function mountClipboardCompareView(): VueWrapper {
           template: '<button :disabled="disabled" @click="$emit(\'click\')"><slot /></button>',
         },
         NAlert: { template: '<div><slot /></div>' },
-        TextDiffPanel: TextDiffPanelStub,
-        WorkbenchShell: WorkbenchShellStub,
+        TextDiffPanel: {
+          props: {
+            lines: {
+              type: Array,
+              default: () => [],
+            },
+          },
+          template: '<section data-testid="clipboard-diff-panel" />',
+        },
+        WorkbenchShell: {
+          props: {
+            title: { type: String, default: '' },
+            eyebrow: { type: String, default: '' },
+            subtitle: { type: String, default: '' },
+            toolbarCommands: { type: Array, default: () => [] },
+            toolbarTestIdPrefix: { type: String, default: '' },
+          },
+          emits: ['toolbar-command'],
+          template: '<section><slot /></section>',
+        },
       },
     },
   })

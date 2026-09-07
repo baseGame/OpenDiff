@@ -214,6 +214,7 @@ describe('FolderMergeView', () => {
 
   it('sets a path-pair style tab title that includes the output folder', async () => {
     const tabs = useTabsStore()
+
     tabs.openTab({
       title: 'Folder Merge',
       titleKey: 'ui.folderMerge',
