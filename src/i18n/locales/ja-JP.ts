@@ -940,6 +940,8 @@ export const jaJP: LanguagePack = {
     'ui.windowLength': 'Window length',
     'ui.accept': '承認',
     'ui.syncNow': '今すぐ同期',
+    'ui.toOutput': '出力へ',
+    'ui.folderMergeRulesHint': '自動コピーは出力へ。競合はテキストマージで開きます。',
     'ui.sameOk': '同一 OK',
     'ui.plannedAction': '予定',
     'ui.override': '上書き',

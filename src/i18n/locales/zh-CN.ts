@@ -913,6 +913,8 @@ export const zhCN: LanguagePack = {
     'ui.windowLength': '窗口长度',
     'ui.accept': '接受',
     'ui.syncNow': '立即同步',
+    'ui.toOutput': '到输出',
+    'ui.folderMergeRulesHint': '可自动复制的项写入输出；冲突在文本合并中处理。',
     'ui.sameOk': '相同可用',
     'ui.plannedAction': '计划操作',
     'ui.override': '覆盖',

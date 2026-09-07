@@ -78,6 +78,7 @@ const showSyncFilters = ref(false)
 const showSyncSelect = ref(false)
 const checkedRowIds = ref<Set<string>>(new Set())
 const showPeek = ref(false)
+const minorOnly = ref(false)
 const selectedPeekRowId = ref('')
 const visibleActions = ref<Set<FolderSyncPreviewAction>>(
   new Set(['Copy', 'Delete', 'Leave', 'Conflict']),
@@ -106,7 +107,17 @@ const syncSessionTitle = computed(() => {
   return t('ui.folderSync')
 })
 const filteredPreviewRows = computed(() =>
-  previewRows.value.filter((row) => visibleActions.value.has(row.action)),
+  previewRows.value.filter((row) => {
+    if (!visibleActions.value.has(row.action)) {
+      return false
+    }
+
+    if (minorOnly.value) {
+      return row.action === 'Leave'
+    }
+
+    return true
+  }),
 )
 const visiblePreviewRows = computed(() =>
   filteredPreviewRows.value.filter(
@@ -119,14 +130,16 @@ const selectedPeekRow = computed(
 const syncSessionToolbar = computed(() =>
   buildFolderSyncToolbar({
     home: true,
+    minor: previewRows.value.length > 0,
     expand: previewRows.value.length > 0,
     collapse: previewRows.value.length > 0,
     select: previewRows.value.length > 0,
-    filters: previewRows.value.length > 0,
     refresh: Boolean(leftPath.value && rightPath.value) && !previewLoading.value,
-    swap: Boolean(leftPath.value || rightPath.value),
     stop: previewLoading.value || syncRunning.value,
     peek: previewRows.value.length > 0,
+    'sync-now': canRunSync.value,
+    cancel: previewRows.value.length > 0,
+    accept: previewRows.value.length > 0 && !planAccepted.value,
   }),
 )
 
@@ -226,6 +239,9 @@ function runSyncToolbarCommand(commandId: string): void {
     case 'home':
       goHomeFromSync()
       break
+    case 'minor':
+      minorOnly.value = !minorOnly.value
+      break
     case 'expand':
       expandAllSyncPaths()
       break
@@ -235,20 +251,23 @@ function runSyncToolbarCommand(commandId: string): void {
     case 'select':
       showSyncSelect.value = !showSyncSelect.value
       break
-    case 'filters':
-      showSyncFilters.value = !showSyncFilters.value
-      break
     case 'refresh':
       void previewSync()
-      break
-    case 'swap':
-      swapSyncPaths()
       break
     case 'stop':
       stopSyncWork()
       break
     case 'peek':
       toggleSyncPeekPanel()
+      break
+    case 'sync-now':
+      void runSync()
+      break
+    case 'cancel':
+      cancelSyncOverrides()
+      break
+    case 'accept':
+      acceptSyncPlan()
       break
     default:
       break
@@ -294,6 +313,7 @@ async function previewSync(): Promise<void> {
     checkedRowIds.value = new Set()
     selectedPeekRowId.value = ''
     showPeek.value = false
+    minorOnly.value = false
     lastSelectionAction.value = ''
     reportStatus.value = ''
     reportError.value = ''

@@ -163,40 +163,53 @@ describe('sessionToolbars', () => {
     expect(toolbar.find((item) => item.id === 'prev-section')?.enabled).toBe(false)
   })
 
-  it('keeps Folder Sync toolbar chrome for expand/collapse/select/filters/home/peek', () => {
+  it('keeps Folder Sync toolbar chrome with Accept/Cancel/Sync Now', () => {
     const toolbar = buildFolderSyncToolbar({
       home: true,
+      minor: true,
       expand: true,
       collapse: true,
       select: true,
-      filters: true,
       refresh: true,
-      swap: true,
       stop: false,
       peek: true,
+      'sync-now': true,
+      cancel: true,
+      accept: true,
     })
 
     expect(toolbar.map((item) => item.id)).toEqual([...folderSyncToolbarOrder])
     expect(toolbar.find((item) => item.id === 'home')?.enabled).toBe(true)
-    expect(toolbar.find((item) => item.id === 'select')?.enabled).toBe(true)
+    expect(toolbar.find((item) => item.id === 'accept')?.enabled).toBe(true)
+    expect(toolbar.find((item) => item.id === 'sync-now')?.enabled).toBe(true)
     expect(toolbar.find((item) => item.id === 'stop')?.enabled).toBe(false)
-    expect(toolbar.find((item) => item.id === 'peek')?.enabled).toBe(true)
   })
 
-  it('keeps Folder Merge toolbar chrome for expand/collapse/select', () => {
+  it('keeps Folder Merge toolbar chrome with Same OK / Merge / To Output', () => {
     const toolbar = buildFolderMergeToolbar({
       home: true,
+      all: true,
+      same: true,
+      minor: true,
+      'same-ok': true,
+      rules: true,
+      merge: true,
+      'to-output': true,
       expand: true,
       collapse: true,
       select: true,
-      same: true,
-      filters: true,
+      files: true,
       refresh: true,
+      swap: true,
+      stop: false,
+      filters: true,
       peek: true,
     })
 
     expect(toolbar.map((item) => item.id)).toEqual([...folderMergeToolbarOrder])
-    expect(toolbar.find((item) => item.id === 'expand')?.enabled).toBe(true)
+    expect(toolbar.find((item) => item.id === 'merge')?.enabled).toBe(true)
+    expect(toolbar.find((item) => item.id === 'to-output')?.enabled).toBe(true)
+    expect(toolbar.find((item) => item.id === 'same-ok')?.enabled).toBe(true)
     expect(toolbar.find((item) => item.id === 'peek')?.enabled).toBe(true)
   })
 })

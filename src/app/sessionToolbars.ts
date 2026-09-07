@@ -127,24 +127,35 @@ export const clipboardCompareToolbarOrder = [
 
 export const folderSyncToolbarOrder = [
   'home',
+  'minor',
   'expand',
   'collapse',
   'select',
-  'filters',
   'refresh',
-  'swap',
   'stop',
   'peek',
+  'sync-now',
+  'cancel',
+  'accept',
 ] as const
 
 export const folderMergeToolbarOrder = [
   'home',
+  'all',
+  'same',
+  'minor',
+  'same-ok',
+  'rules',
+  'merge',
+  'to-output',
   'expand',
   'collapse',
   'select',
-  'same',
-  'filters',
+  'files',
   'refresh',
+  'swap',
+  'stop',
+  'filters',
   'peek',
 ] as const
 
@@ -277,24 +288,35 @@ const clipboardMeta: Record<(typeof clipboardCompareToolbarOrder)[number], Toolb
 
 const folderSyncMeta: Record<(typeof folderSyncToolbarOrder)[number], ToolbarMeta> = {
   home: { glyph: 'H', labelKey: 'ui.home' },
+  minor: { glyph: '~', labelKey: 'ui.minor' },
   expand: { glyph: '+', labelKey: 'ui.expand' },
   collapse: { glyph: '-', labelKey: 'ui.collapse' },
   select: { glyph: 'V', labelKey: 'ui.select' },
-  filters: { glyph: 'F', labelKey: 'ui.filters' },
   refresh: { glyph: 'R', labelKey: 'ui.refresh' },
-  swap: { glyph: '<>', labelKey: 'ui.swap' },
   stop: { glyph: 'X', labelKey: 'ui.stop' },
   peek: { glyph: 'P', labelKey: 'ui.peek' },
+  'sync-now': { glyph: '>', labelKey: 'ui.syncNow' },
+  cancel: { glyph: 'X', labelKey: 'ui.cancel' },
+  accept: { glyph: 'OK', labelKey: 'ui.accept' },
 }
 
 const folderMergeMeta: Record<(typeof folderMergeToolbarOrder)[number], ToolbarMeta> = {
   home: { glyph: 'H', labelKey: 'ui.home' },
+  all: { glyph: '*', labelKey: 'ui.all' },
+  same: { glyph: '=', labelKey: 'ui.same' },
+  minor: { glyph: '~', labelKey: 'ui.minor' },
+  'same-ok': { glyph: 'OK', labelKey: 'ui.sameOk' },
+  rules: { glyph: 'R', labelKey: 'ui.rules' },
+  merge: { glyph: 'M', labelKey: 'ui.merge' },
+  'to-output': { glyph: 'O', labelKey: 'ui.toOutput' },
   expand: { glyph: '+', labelKey: 'ui.expand' },
   collapse: { glyph: '-', labelKey: 'ui.collapse' },
   select: { glyph: 'V', labelKey: 'ui.select' },
-  same: { glyph: '=', labelKey: 'ui.sameOk' },
-  filters: { glyph: 'F', labelKey: 'ui.filters' },
+  files: { glyph: 'F', labelKey: 'ui.files' },
   refresh: { glyph: 'R', labelKey: 'ui.refresh' },
+  swap: { glyph: '<>', labelKey: 'ui.swap' },
+  stop: { glyph: 'X', labelKey: 'ui.stop' },
+  filters: { glyph: 'F', labelKey: 'ui.filters' },
   peek: { glyph: 'P', labelKey: 'ui.peek' },
 }
 

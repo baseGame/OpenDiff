@@ -940,6 +940,8 @@ export const enUS: LanguagePack = {
     'ui.windowLength': 'Window length',
     'ui.accept': 'Accept',
     'ui.syncNow': 'Sync Now',
+    'ui.toOutput': 'To Output',
+    'ui.folderMergeRulesHint': 'Automatic copies go to output; conflicts open in Text Merge.',
     'ui.sameOk': 'Same OK',
     'ui.plannedAction': 'Planned',
     'ui.override': 'Override',

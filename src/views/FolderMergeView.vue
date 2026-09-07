@@ -44,37 +44,63 @@ const { t } = useI18n()
 const viewActions = useViewActionsStore()
 const lastOpenedConflictPath = ref('')
 const sameOkOnly = ref(false)
+const importanceFilter = ref<'all' | 'same' | 'minor'>('all')
+const filesOnlyFilter = ref(false)
 const showPeek = ref(false)
+const showMergeRules = ref(false)
 const selectedPlanRowId = ref('')
 const collapsedPrefixes = ref<Set<string>>(new Set())
 const showMergeFilters = ref(false)
 const showMergeSelect = ref(false)
 const checkedRowIds = ref<Set<string>>(new Set())
 const lastSelectionAction = ref('')
+const mergeChromeMessage = ref('')
 
 const planRows = computed<FolderMergePlanRow[]>(() => plan.value?.rows ?? [])
 const hasPlan = computed(() => planRows.value.length > 0)
 const filteredPlanRows = computed(() => {
-  if (!sameOkOnly.value) {
-    return planRows.value
+  let rows = planRows.value
+
+  if (sameOkOnly.value || importanceFilter.value === 'same') {
+    rows = rows.filter((row) => row.action === 'Keep output')
+  } else if (importanceFilter.value === 'minor') {
+    rows = rows.filter((row) => !row.conflict && row.action !== 'Keep output')
   }
 
-  return planRows.value.filter((row) => row.action === 'Keep output')
+  if (filesOnlyFilter.value) {
+    rows = rows.filter(
+      (row) => row.left.kind === 'File' || row.right.kind === 'File' || row.base.kind === 'File',
+    )
+  }
+
+  return rows
 })
 const visiblePlanRows = computed(() =>
   filteredPlanRows.value.filter(
     (row) => !isPathHiddenByCollapse(row.path, collapsedPrefixes.value),
   ),
 )
+const canBuildMergePlan = computed(() =>
+  Boolean(leftPath.value && basePath.value && rightPath.value),
+)
 const mergeSessionToolbar = computed(() =>
   buildFolderMergeToolbar({
     home: true,
+    all: hasPlan.value,
+    same: hasPlan.value,
+    minor: hasPlan.value,
+    'same-ok': hasPlan.value,
+    rules: hasPlan.value,
+    merge: hasPlan.value && Boolean(outputPath.value) && !mergeExecuting.value,
+    'to-output': Boolean(outputPath.value),
     expand: hasPlan.value,
     collapse: hasPlan.value,
     select: hasPlan.value,
-    same: hasPlan.value,
+    files: hasPlan.value,
+    refresh: canBuildMergePlan.value,
+    swap: Boolean(leftPath.value || rightPath.value),
+    stop: mergeExecuting.value,
     filters: hasPlan.value,
-    refresh: Boolean(leftPath.value && basePath.value && rightPath.value),
     peek: hasPlan.value,
   }),
 )
@@ -145,6 +171,27 @@ function runMergeToolbarCommand(commandId: string): void {
     case 'home':
       goHomeFromMerge()
       break
+    case 'all':
+      setImportanceFilter('all')
+      break
+    case 'same':
+      setImportanceFilter('same')
+      break
+    case 'minor':
+      toggleMinorImportanceFilter()
+      break
+    case 'same-ok':
+      toggleSameOkFilter()
+      break
+    case 'rules':
+      showMergeRules.value = !showMergeRules.value
+      break
+    case 'merge':
+      void runFolderMerge()
+      break
+    case 'to-output':
+      openOutputFolderCompare()
+      break
     case 'expand':
       expandAllMergePaths()
       break
@@ -154,8 +201,8 @@ function runMergeToolbarCommand(commandId: string): void {
     case 'select':
       showMergeSelect.value = !showMergeSelect.value
       break
-    case 'same':
-      toggleSameOkFilter()
+    case 'files':
+      filesOnlyFilter.value = !filesOnlyFilter.value
       break
     case 'filters':
       showMergeFilters.value = !showMergeFilters.value
@@ -163,12 +210,57 @@ function runMergeToolbarCommand(commandId: string): void {
     case 'refresh':
       void buildFolderMergePlan()
       break
+    case 'swap':
+      swapMergeSides()
+      break
+    case 'stop':
+      stopMergeWork()
+      break
     case 'peek':
       togglePeekPanel()
       break
     default:
       break
   }
+}
+
+function swapMergeSides(): void {
+  const previousLeft = leftPath.value
+
+  leftPath.value = rightPath.value
+  rightPath.value = previousLeft
+  plan.value = undefined
+  execution.value = undefined
+  mergeChromeMessage.value = t('ui.swap')
+}
+
+function stopMergeWork(): void {
+  mergeChromeMessage.value = t('ui.stop')
+}
+
+function openOutputFolderCompare(): void {
+  const output = outputPath.value.trim()
+
+  if (!output) {
+    return
+  }
+
+  const compareRight = leftPath.value.trim() || basePath.value.trim() || rightPath.value.trim()
+
+  sessionLaunch.setPendingLaunch({
+    id: crypto.randomUUID(),
+    source: 'command',
+    sessionType: 'folder-compare',
+    title: pathBaseName(output),
+    route: '/compare/folder',
+    autoRun: Boolean(compareRight),
+    locations: {
+      left: { uri: output, kind: 'directory', readOnly: false },
+      ...(compareRight ? { right: { uri: compareRight, kind: 'directory', readOnly: false } } : {}),
+    },
+  })
+  tabs.openTab({ title: pathBaseName(output), route: '/compare/folder', dirty: false })
+  void router.push('/compare/folder')
 }
 
 const selectedPlanRow = computed(
@@ -252,6 +344,7 @@ async function buildFolderMergePlan(): Promise<void> {
 async function runFolderMerge(): Promise<void> {
   mergeExecuting.value = true
   mergeExecutionError.value = undefined
+  mergeChromeMessage.value = ''
 
   try {
     execution.value = await executeFolderMergePlan({
@@ -339,6 +432,15 @@ function selectPlanRow(row: FolderMergePlanRow): void {
 
 function toggleSameOkFilter(): void {
   sameOkOnly.value = !sameOkOnly.value
+}
+
+function setImportanceFilter(next: 'all' | 'same' | 'minor'): void {
+  importanceFilter.value = next
+  sameOkOnly.value = false
+}
+
+function toggleMinorImportanceFilter(): void {
+  setImportanceFilter(importanceFilter.value === 'minor' ? 'all' : 'minor')
 }
 
 function togglePeekPanel(): void {
@@ -580,6 +682,27 @@ watch(
         </div>
       </section>
 
+      <p
+        v-if="mergeChromeMessage"
+        class="merge-open-status"
+        data-testid="folder-merge-chrome-status"
+      >
+        {{ mergeChromeMessage }}
+      </p>
+
+      <section
+        v-if="showMergeRules && hasPlan"
+        class="merge-chrome-panel"
+        data-testid="folder-merge-rules-panel"
+      >
+        <strong>{{ $t('ui.rules') }}</strong>
+        <span data-testid="folder-merge-rules-summary">
+          {{ $t('ui.actions') }}: {{ summary.actions }} / {{ $t('ui.conflicts') }}:
+          {{ summary.conflicts }} / {{ $t('ui.sameOk') }}: {{ sameOkCount }}
+        </span>
+        <span>{{ $t('ui.folderMergeRulesHint') }}</span>
+      </section>
+
       <section
         v-if="lastOpenedConflictPath"
         class="merge-open-status"
@@ -627,12 +750,49 @@ watch(
         <strong>{{ $t('ui.filters') }}</strong>
         <button
           type="button"
+          data-testid="folder-merge-filter-all"
+          @click="setImportanceFilter('all')"
+        >
+          {{ $t('ui.all') }}
+        </button>
+        <button
+          type="button"
+          data-testid="folder-merge-filter-same"
+          @click="setImportanceFilter('same')"
+        >
+          {{ $t('ui.same') }}
+        </button>
+        <button
+          type="button"
+          data-testid="folder-merge-filter-minor"
+          @click="toggleMinorImportanceFilter"
+        >
+          {{ $t('ui.minor') }}
+        </button>
+        <button
+          type="button"
           data-testid="folder-merge-filter-same-ok"
           @click="toggleSameOkFilter"
         >
           {{ $t('ui.sameOk') }} ({{ sameOkCount }})
         </button>
-        <span>{{ sameOkOnly ? $t('ui.sameOk') : $t('ui.all') }}</span>
+        <label class="merge-files-only">
+          <input
+            v-model="filesOnlyFilter"
+            type="checkbox"
+            data-testid="folder-merge-files-only"
+          />
+          <span>{{ $t('ui.filesOnly') }}</span>
+        </label>
+        <span data-testid="folder-merge-filter-state">{{
+          sameOkOnly
+            ? $t('ui.sameOk')
+            : importanceFilter === 'same'
+              ? $t('ui.same')
+              : importanceFilter === 'minor'
+                ? $t('ui.minor')
+                : $t('ui.all')
+        }}</span>
       </section>
 
       <section

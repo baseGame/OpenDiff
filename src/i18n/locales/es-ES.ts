@@ -955,6 +955,9 @@ export const esES: LanguagePack = {
     'ui.windowLength': 'Window length',
     'ui.accept': 'Aceptar',
     'ui.syncNow': 'Sincronizar ahora',
+    'ui.toOutput': 'A la salida',
+    'ui.folderMergeRulesHint':
+      'Las copias automáticas van a la salida; los conflictos se abren en la fusión de texto.',
     'ui.sameOk': 'Iguales OK',
     'ui.plannedAction': 'Planificado',
     'ui.override': 'Anular',
