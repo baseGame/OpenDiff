@@ -740,6 +740,13 @@ function openSelectedPreview(): void {
                 />
               </span>
               <h3>{{ $t(entry.titleKey) }}</h3>
+              <span
+                v-if="entry.maturity !== 'ready'"
+                class="session-maturity"
+                :data-testid="`home-maturity-${entry.type}`"
+                :data-maturity="entry.maturity"
+                >{{ $t(`ui.maturity.${entry.maturity}`) }}</span
+              >
             </article>
           </div>
         </section>
@@ -1608,5 +1615,20 @@ tr:hover .row-actions,
   .recent-session-panel header {
     grid-template-columns: 1fr;
   }
+}
+
+.session-maturity {
+  display: inline-flex;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent, #2563eb) 14%, transparent);
+  color: var(--text-muted, #475569);
+  font-size: 0.7rem;
+  margin-top: 0.35rem;
+  letter-spacing: 0.02em;
+}
+
+.session-maturity[data-maturity='limited'] {
+  background: color-mix(in srgb, #b45309 18%, transparent);
 }
 </style>

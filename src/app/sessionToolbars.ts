@@ -293,6 +293,14 @@ export function pathPairTitle(leftPath: string, rightPath: string): string {
   return `${pathBaseName(leftPath)} <--> ${pathBaseName(rightPath)}`
 }
 
+export function syncPathPairTitle(leftPath: string, rightPath: string): string {
+  return `Update: ${pathPairTitle(leftPath, rightPath)}`
+}
+
+export function singlePathTitle(path: string): string {
+  return pathBaseName(path)
+}
+
 export function pathBaseName(path: string): string {
   const normalized = path.replaceAll('\\', '/').replace(/\/+$/, '')
   const parts = normalized.split('/').filter(Boolean)

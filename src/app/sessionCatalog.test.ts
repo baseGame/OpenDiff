@@ -27,4 +27,18 @@ describe('sessionCatalog', () => {
     ])
     expect(sessionCatalog.every((entry) => entry.route)).toBe(true)
   })
+
+  it('records honest maturity instead of implying every session is complete', () => {
+    const byType = Object.fromEntries(sessionCatalog.map((entry) => [entry.type, entry.maturity]))
+
+    expect(byType['text-compare']).toBe('ready')
+    expect(byType['folder-compare']).toBe('ready')
+    expect(byType['text-edit']).toBe('ready')
+    expect(byType['folder-sync']).toBe('partial')
+    expect(byType['text-merge']).toBe('partial')
+    expect(byType['media-compare']).toBe('limited')
+    expect(byType['archive-compare']).toBe('limited')
+    expect(byType.script).toBe('limited')
+    expect(sessionCatalog.every((entry) => Boolean(entry.maturity))).toBe(true)
+  })
 })
