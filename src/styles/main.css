@@ -980,3 +980,8 @@ select {
   height: auto !important;
   min-height: min-content !important;
 }
+
+html[data-show-path-bars='0'] .bc-path-row,
+html[data-show-path-bars='0'] .path-pair-bar {
+  display: none !important;
+}

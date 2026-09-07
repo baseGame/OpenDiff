@@ -30,6 +30,8 @@ const sample: SettingsPackage = {
   showSessionToolbars: true,
   showToolbarLabels: true,
   createBackupOnSave: false,
+  showStatusBar: true,
+  showPathBars: true,
 }
 
 describe('settingsPackage', () => {

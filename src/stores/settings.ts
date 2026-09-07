@@ -67,6 +67,8 @@ const wrapTextDefaultStorageKey = 'open-diff-wrap-text-default'
 const showSessionToolbarsStorageKey = 'open-diff-show-session-toolbars'
 const showToolbarLabelsStorageKey = 'open-diff-show-toolbar-labels'
 const createBackupOnSaveStorageKey = 'open-diff-create-backup-on-save'
+const showStatusBarStorageKey = 'open-diff-show-status-bar'
+const showPathBarsStorageKey = 'open-diff-show-path-bars'
 const fontFamilyIds = new Set<FontFamilyId>(['system', 'segoe', 'inter', 'noto', 'mono'])
 const shortcutScopes = new Set<ShortcutScope>(['global', 'text-compare'])
 const commandIds = new Set<string>(commandRegistry.map((command) => command.id))
@@ -95,6 +97,8 @@ export const useSettingsStore = defineStore('settings', () => {
   const showSessionToolbars = ref(loadShowSessionToolbars())
   const showToolbarLabels = ref(loadShowToolbarLabels())
   const createBackupOnSave = ref(loadCreateBackupOnSave())
+  const showStatusBar = ref(loadShowStatusBar())
+  const showPathBars = ref(loadShowPathBars())
 
   bindSystemThemeListener((prefersDark) => {
     systemPrefersDark.value = prefersDark
@@ -205,6 +209,23 @@ export const useSettingsStore = defineStore('settings', () => {
     createBackupOnSave,
     (value) => {
       localStorage.setItem(createBackupOnSaveStorageKey, value ? '1' : '0')
+    },
+    { immediate: true, flush: 'sync' },
+  )
+
+  watch(
+    showStatusBar,
+    (value) => {
+      localStorage.setItem(showStatusBarStorageKey, value ? '1' : '0')
+    },
+    { immediate: true, flush: 'sync' },
+  )
+
+  watch(
+    showPathBars,
+    (value) => {
+      localStorage.setItem(showPathBarsStorageKey, value ? '1' : '0')
+      document.documentElement.dataset.showPathBars = value ? '1' : '0'
     },
     { immediate: true, flush: 'sync' },
   )
@@ -351,6 +372,14 @@ export const useSettingsStore = defineStore('settings', () => {
     createBackupOnSave.value = value
   }
 
+  function setShowStatusBar(value: boolean): void {
+    showStatusBar.value = value
+  }
+
+  function setShowPathBars(value: boolean): void {
+    showPathBars.value = value
+  }
+
   function exportSettingsPackage(): SettingsPackage {
     return {
       kind: settingsPackageKind,
@@ -368,6 +397,8 @@ export const useSettingsStore = defineStore('settings', () => {
       showSessionToolbars: showSessionToolbars.value,
       showToolbarLabels: showToolbarLabels.value,
       createBackupOnSave: createBackupOnSave.value,
+      showStatusBar: showStatusBar.value,
+      showPathBars: showPathBars.value,
     }
   }
 
@@ -399,6 +430,12 @@ export const useSettingsStore = defineStore('settings', () => {
     setShowSessionToolbars(packageValue.showSessionToolbars)
     setShowToolbarLabels(packageValue.showToolbarLabels)
     setCreateBackupOnSave(packageValue.createBackupOnSave)
+    setShowStatusBar(
+      typeof packageValue.showStatusBar === 'boolean' ? packageValue.showStatusBar : true,
+    )
+    setShowPathBars(
+      typeof packageValue.showPathBars === 'boolean' ? packageValue.showPathBars : true,
+    )
 
     return true
   }
@@ -417,6 +454,8 @@ export const useSettingsStore = defineStore('settings', () => {
     setShowSessionToolbars(true)
     setShowToolbarLabels(true)
     setCreateBackupOnSave(false)
+    setShowStatusBar(true)
+    setShowPathBars(true)
   }
 
   return {
@@ -434,6 +473,8 @@ export const useSettingsStore = defineStore('settings', () => {
     showSessionToolbars,
     showToolbarLabels,
     createBackupOnSave,
+    showStatusBar,
+    showPathBars,
     toggleTheme,
     setTheme,
     setLocale,
@@ -452,6 +493,8 @@ export const useSettingsStore = defineStore('settings', () => {
     setShowSessionToolbars,
     setShowToolbarLabels,
     setCreateBackupOnSave,
+    setShowStatusBar,
+    setShowPathBars,
     exportSettingsPackage,
     importSettingsPackage,
     restoreFactoryDefaults,
@@ -635,6 +678,26 @@ function loadShowSessionToolbars(): boolean {
 
 function loadShowToolbarLabels(): boolean {
   const stored = localStorage.getItem(showToolbarLabelsStorageKey)
+
+  if (stored === null) {
+    return true
+  }
+
+  return stored !== '0'
+}
+
+function loadShowStatusBar(): boolean {
+  const stored = localStorage.getItem(showStatusBarStorageKey)
+
+  if (stored === null) {
+    return true
+  }
+
+  return stored !== '0'
+}
+
+function loadShowPathBars(): boolean {
+  const stored = localStorage.getItem(showPathBarsStorageKey)
 
   if (stored === null) {
     return true
