@@ -701,7 +701,8 @@ export const deDE: LanguagePack = {
     'ui.sheetSelectionEmpty': 'Sheets appear after Excel or HTML compare',
     'ui.sheetSelectionSummary':
       '{leftCount} left / {rightCount} right · {leftSheet} vs {rightSheet}',
-    'session.summary.archiveCompare': 'Compare ZIP or TAR contents (7z not available)',
+    'session.summary.archiveCompare':
+      'Compare ZIP/TAR sides and copy files out into a folder (7z not available)',
     'session.summary.script': 'Run a simple script to load, compare, and export a report',
     'ui.archiveCompare': 'Archivvergleich',
     'ui.archivePathHint':

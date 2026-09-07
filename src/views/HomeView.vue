@@ -173,7 +173,7 @@ const todaySessions = computed(() => {
 
   const startMs = start.getTime()
 
-  return savedSessions.sessions.filter((session) => {
+  const todays = savedSessions.sessions.filter((session) => {
     const stamp = session.metadata.lastOpenedAt
 
     if (!stamp) {
@@ -184,8 +184,18 @@ const todaySessions = computed(() => {
 
     return Number.isFinite(opened) && opened >= startMs
   })
+
+  return filterSavedSessions(todays, {
+    query: sessionSearch.value,
+    types: new Set(),
+  })
 })
-const autoSavedTreeSessions = computed(() => savedSessions.autoSavedSessions)
+const autoSavedTreeSessions = computed(() =>
+  filterSavedSessions(savedSessions.autoSavedSessions, {
+    query: sessionSearch.value,
+    types: new Set(),
+  }),
+)
 const historyItems = computed(() =>
   savedSessions.sessions.slice(0, 6).map((session) => ({
     title: session.name,
