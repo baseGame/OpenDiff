@@ -281,6 +281,7 @@ export const esES: LanguagePack = {
     'ui.pictureCompare': 'Comparar imágenes',
     'ui.pictureReport': 'Informe de imagen',
     'ui.hexReport': 'Informe hexadecimal',
+    'ui.registryReport': 'Informe del registro',
     'ui.port': 'Puerto',
     'ui.preview': 'Avance',
     'ui.previewSync': 'Vista previa de sincronización',

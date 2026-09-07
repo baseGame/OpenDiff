@@ -163,7 +163,7 @@ describe('sessionToolbars', () => {
     expect(toolbar.find((item) => item.id === 'prev-section')?.enabled).toBe(false)
   })
 
-  it('keeps Folder Sync toolbar chrome for expand/collapse/select/filters/home', () => {
+  it('keeps Folder Sync toolbar chrome for expand/collapse/select/filters/home/peek', () => {
     const toolbar = buildFolderSyncToolbar({
       home: true,
       expand: true,
@@ -173,12 +173,14 @@ describe('sessionToolbars', () => {
       refresh: true,
       swap: true,
       stop: false,
+      peek: true,
     })
 
     expect(toolbar.map((item) => item.id)).toEqual([...folderSyncToolbarOrder])
     expect(toolbar.find((item) => item.id === 'home')?.enabled).toBe(true)
     expect(toolbar.find((item) => item.id === 'select')?.enabled).toBe(true)
     expect(toolbar.find((item) => item.id === 'stop')?.enabled).toBe(false)
+    expect(toolbar.find((item) => item.id === 'peek')?.enabled).toBe(true)
   })
 
   it('keeps Folder Merge toolbar chrome for expand/collapse/select', () => {

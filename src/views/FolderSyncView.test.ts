@@ -247,5 +247,15 @@ describe('FolderSyncView', () => {
     expect(wrapper.find('[data-testid="sync-row-copy-app"]').exists()).toBe(false)
     await wrapper.find('[data-testid="folder-sync-session-toolbar-expand"]').trigger('click')
     expect(wrapper.find('[data-testid="sync-row-copy-app"]').exists()).toBe(true)
+
+    await wrapper.find('[data-testid="folder-sync-session-toolbar-peek"]').trigger('click')
+    expect(wrapper.find('[data-testid="folder-sync-peek-panel"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="folder-sync-peek-path"]').text()).toContain(
+      'package/app.exe',
+    )
+    await wrapper.find('[data-testid="sync-row-delete-old"]').trigger('click')
+    expect(wrapper.find('[data-testid="folder-sync-peek-path"]').text()).toContain('prod/old.dll')
+    await wrapper.find('[data-testid="folder-sync-peek-close"]').trigger('click')
+    expect(wrapper.find('[data-testid="folder-sync-peek-panel"]').exists()).toBe(false)
   })
 })

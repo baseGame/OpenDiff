@@ -285,6 +285,7 @@ export const deDE: LanguagePack = {
     'ui.pictureCompare': 'Bildvergleich',
     'ui.pictureReport': 'Bildbericht',
     'ui.hexReport': 'Hex-Bericht',
+    'ui.registryReport': 'Registrierungsbericht',
     'ui.port': 'Hafen',
     'ui.preview': 'Vorschau',
     'ui.previewSync': 'Vorschau-Synchronisierung',

@@ -281,6 +281,7 @@ export const frFR: LanguagePack = {
     'ui.pictureCompare': "Comparaison d'images",
     'ui.pictureReport': 'Rapport image',
     'ui.hexReport': 'Rapport hexadécimal',
+    'ui.registryReport': 'Rapport du Registre',
     'ui.port': 'Port',
     'ui.preview': 'Aperçu',
     'ui.previewSync': "Synchronisation de l'aperçu",

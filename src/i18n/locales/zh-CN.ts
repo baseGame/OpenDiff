@@ -263,6 +263,7 @@ export const zhCN: LanguagePack = {
     'ui.pictureCompare': '图片比较',
     'ui.pictureReport': '图片报告',
     'ui.hexReport': '十六进制报告',
+    'ui.registryReport': '注册表报告',
     'ui.port': '端口',
     'ui.preview': '预览',
     'ui.previewSync': '预览同步',

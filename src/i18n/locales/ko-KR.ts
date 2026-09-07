@@ -272,6 +272,7 @@ export const koKR: LanguagePack = {
     'ui.pictureCompare': '사진 비교',
     'ui.pictureReport': '그림 보고서',
     'ui.hexReport': 'Hex 보고서',
+    'ui.registryReport': '레지스트리 보고서',
     'ui.port': '포트',
     'ui.preview': '시사',
     'ui.previewSync': '미리보기 동기화',

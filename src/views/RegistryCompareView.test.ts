@@ -1,11 +1,13 @@
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import RegistryCompareView from './RegistryCompareView.vue'
-import { compareRegistryExports, readTextFile } from '@/api/diff'
+import { compareRegistryExports, readTextFile, saveTextFile } from '@/api/diff'
 import { queryLiveWindowsRegistry } from '@/api/policy'
 import { useSessionLaunchStore } from '@/stores/sessionLaunch'
 import { useTabsStore } from '@/stores/tabs'
+
+const clipboardWriteText = vi.fn<(text: string) => Promise<void>>().mockResolvedValue(undefined)
 
 vi.mock('vue-router', () => ({
   useRouter: () => ({ push: vi.fn() }),
@@ -18,6 +20,10 @@ vi.mock('@/api/policy', () => ({
 }))
 
 vi.mock('@/api/diff', () => ({
+  saveTextFile: vi.fn().mockResolvedValue({
+    path: 'C:/drop/registry-compare.txt',
+    bytesWritten: 64,
+  }),
   compareRegistryExports: vi.fn().mockResolvedValue({
     leftName: 'fixture-left.reg',
     rightName: 'fixture-right.reg',
@@ -61,6 +67,14 @@ describe('RegistryCompareView', () => {
     setActivePinia(createPinia())
     vi.mocked(compareRegistryExports).mockClear()
     vi.mocked(readTextFile).mockClear()
+    vi.mocked(saveTextFile).mockClear()
+    clipboardWriteText.mockClear()
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: clipboardWriteText,
+      },
+    })
   })
 
   it('runs a registry export comparison and renders returned values', async () => {
@@ -168,5 +182,43 @@ describe('RegistryCompareView', () => {
     await Promise.resolve()
 
     expect(tabs.activeTab.title).toBe('left.reg <--> right.reg')
+  })
+
+  it('exports the registry report to clipboard and a sibling text file', async () => {
+    useSessionLaunchStore().setPendingLaunch({
+      id: 'launch-registry-report',
+      source: 'drop',
+      sessionType: 'registry-compare',
+      title: 'left.reg vs right.reg',
+      route: '/compare/registry',
+      autoRun: true,
+      locations: {
+        left: { uri: 'C:/drop/left.reg', kind: 'file', readOnly: false },
+        right: { uri: 'C:/drop/right.reg', kind: 'file', readOnly: false },
+      },
+    })
+
+    const wrapper = mount(RegistryCompareView)
+
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="registry-report-panel"]').exists()).toBe(true)
+    await wrapper.find('[data-testid="export-registry-report"]').trigger('click')
+    await flushPromises()
+
+    expect(clipboardWriteText).toHaveBeenCalled()
+    const payload = clipboardWriteText.mock.calls[0]?.[0] ?? ''
+
+    expect(payload).toContain('REGISTRY-REPORT')
+    expect(payload).toContain('left: C:/drop/left.reg')
+    expect(payload).toContain('Theme')
+    expect(saveTextFile).toHaveBeenCalledWith({
+      path: 'C:/drop/registry-compare.txt',
+      text: payload,
+      createBackup: false,
+    })
+    expect(wrapper.find('[data-testid="registry-report-status"]').text()).toBe(
+      'C:/drop/registry-compare.txt',
+    )
   })
 })

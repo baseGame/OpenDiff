@@ -73,6 +73,8 @@ const collapsedPrefixes = ref<Set<string>>(new Set())
 const showSyncFilters = ref(false)
 const showSyncSelect = ref(false)
 const checkedRowIds = ref<Set<string>>(new Set())
+const showPeek = ref(false)
+const selectedPeekRowId = ref('')
 const visibleActions = ref<Set<FolderSyncPreviewAction>>(
   new Set(['Copy', 'Delete', 'Leave', 'Conflict']),
 )
@@ -105,6 +107,9 @@ const visiblePreviewRows = computed(() =>
     (row) => !isPathHiddenByCollapse(row.relativePath, collapsedPrefixes.value),
   ),
 )
+const selectedPeekRow = computed(
+  () => previewRows.value.find((row) => row.id === selectedPeekRowId.value) ?? null,
+)
 const syncSessionToolbar = computed(() =>
   buildFolderSyncToolbar({
     home: true,
@@ -115,6 +120,7 @@ const syncSessionToolbar = computed(() =>
     refresh: Boolean(leftPath.value && rightPath.value) && !previewLoading.value,
     swap: Boolean(leftPath.value || rightPath.value),
     stop: previewLoading.value || syncRunning.value,
+    peek: previewRows.value.length > 0,
   }),
 )
 
@@ -195,6 +201,20 @@ function stopSyncWork(): void {
   syncChromeMessage.value = t('ui.stop')
 }
 
+function selectSyncPeekRow(row: SyncPreviewRow): void {
+  selectedPeekRowId.value = row.id
+  if (!showPeek.value) {
+    showPeek.value = true
+  }
+}
+
+function toggleSyncPeekPanel(): void {
+  showPeek.value = !showPeek.value
+  if (showPeek.value && !selectedPeekRowId.value && visiblePreviewRows.value[0]) {
+    selectedPeekRowId.value = visiblePreviewRows.value[0].id
+  }
+}
+
 function runSyncToolbarCommand(commandId: string): void {
   switch (commandId) {
     case 'home':
@@ -220,6 +240,9 @@ function runSyncToolbarCommand(commandId: string): void {
       break
     case 'stop':
       stopSyncWork()
+      break
+    case 'peek':
+      toggleSyncPeekPanel()
       break
     default:
       break
@@ -263,6 +286,8 @@ async function previewSync(): Promise<void> {
     syncChromeMessage.value = ''
     collapsedPrefixes.value = new Set()
     checkedRowIds.value = new Set()
+    selectedPeekRowId.value = ''
+    showPeek.value = false
     lastSelectionAction.value = ''
   } catch (error) {
     previewError.value = error instanceof Error ? error.message : String(error)
@@ -689,15 +714,17 @@ watch(
             class="sync-preview-row"
             :class="{
               'sync-row-overridden': row.overrideAction !== row.plannedAction,
-              'sync-row-selected': checkedRowIds.has(row.id),
+              'sync-row-selected': checkedRowIds.has(row.id) || row.id === selectedPeekRowId,
             }"
             :data-testid="`sync-row-${row.id}`"
+            @click="selectSyncPeekRow(row)"
           >
             <label class="sync-select-cell">
               <input
                 type="checkbox"
                 :checked="checkedRowIds.has(row.id)"
                 :data-testid="`sync-check-${row.id}`"
+                @click.stop
                 @change="toggleSyncRowChecked(row.id)"
               />
             </label>
@@ -712,6 +739,7 @@ watch(
               <select
                 v-model="row.overrideAction"
                 :data-testid="`sync-override-${row.id}`"
+                @click.stop
                 @change="planAccepted = false"
               >
                 <option
@@ -727,7 +755,7 @@ watch(
                 class="sync-reset-override"
                 :data-testid="`sync-reset-${row.id}`"
                 :disabled="row.overrideAction === row.plannedAction"
-                @click="resetRowOverride(row)"
+                @click.stop="resetRowOverride(row)"
               >
                 {{ $t('ui.reset') }}
               </button>
@@ -737,6 +765,69 @@ watch(
             <span>{{ row.detail }}</span>
           </div>
         </div>
+      </section>
+
+      <section
+        v-if="showPeek"
+        class="folder-sync-peek-panel"
+        data-testid="folder-sync-peek-panel"
+      >
+        <header>
+          <strong>{{ $t('ui.peekPanel') }}</strong>
+          <button
+            type="button"
+            data-testid="folder-sync-peek-close"
+            @click="showPeek = false"
+          >
+            {{ $t('ui.close') }}
+          </button>
+        </header>
+        <dl v-if="selectedPeekRow">
+          <div>
+            <dt>{{ $t('ui.path') }}</dt>
+            <dd data-testid="folder-sync-peek-path">{{ selectedPeekRow.relativePath }}</dd>
+          </div>
+          <div>
+            <dt>{{ $t('ui.plannedAction') }}</dt>
+            <dd data-testid="folder-sync-peek-planned">
+              {{
+                $t(
+                  overrideOptions.find((option) => option.value === selectedPeekRow?.plannedAction)
+                    ?.labelKey ?? 'ui.leave',
+                )
+              }}
+            </dd>
+          </div>
+          <div>
+            <dt>{{ $t('ui.override') }}</dt>
+            <dd data-testid="folder-sync-peek-override">
+              {{
+                $t(
+                  overrideOptions.find((option) => option.value === selectedPeekRow?.overrideAction)
+                    ?.labelKey ?? 'ui.leave',
+                )
+              }}
+            </dd>
+          </div>
+          <div>
+            <dt>{{ $t('ui.source') }}</dt>
+            <dd>{{ selectedPeekRow.sourcePath ?? '--' }}</dd>
+          </div>
+          <div>
+            <dt>{{ $t('ui.target') }}</dt>
+            <dd>{{ selectedPeekRow.targetPath ?? '--' }}</dd>
+          </div>
+          <div>
+            <dt>{{ $t('ui.detail') }}</dt>
+            <dd data-testid="folder-sync-peek-detail">{{ selectedPeekRow.detail }}</dd>
+          </div>
+        </dl>
+        <p
+          v-else
+          data-testid="folder-sync-peek-empty"
+        >
+          {{ $t('ui.noSelection') }}
+        </p>
       </section>
 
       <section
@@ -1055,5 +1146,37 @@ h1 {
 
 .sync-row-selected {
   background: color-mix(in srgb, var(--app-accent, #4c8bf5) 12%, transparent);
+}
+
+.folder-sync-peek-panel {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  background: var(--app-surface);
+}
+
+.folder-sync-peek-panel header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.folder-sync-peek-panel dl {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.folder-sync-peek-panel dt {
+  color: var(--app-text-muted);
+  font-size: 12px;
+}
+
+.folder-sync-peek-panel dd {
+  margin: 2px 0 0;
+  font-size: 13px;
 }
 </style>
