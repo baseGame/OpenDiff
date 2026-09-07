@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { useI18n } from '@/i18n'
 import type { SessionToolbarCommand } from '@/app/sessionToolbars'
+import { useSettingsStore } from '@/stores/settings'
 
 const props = defineProps<{
   title: string
@@ -17,6 +18,7 @@ const emit = defineEmits<{
   'toolbar-command': [id: string]
 }>()
 const { t } = useI18n()
+const settings = useSettingsStore()
 const resolvedInspectorLabel = computed(() => props.inspectorLabel ?? t('ui.inspector'))
 const toolbarItems = computed(() => {
   if (props.toolbarCommands) {
@@ -30,6 +32,9 @@ const toolbarItems = computed(() => {
     enabled: false,
   }))
 })
+const showSessionToolbar = computed(
+  () => !props.compact && settings.showSessionToolbars && toolbarItems.value.length > 0,
+)
 const testIdPrefix = computed(() => props.toolbarTestIdPrefix ?? 'session-toolbar')
 
 interface LegacyToolbarItem {
@@ -275,8 +280,9 @@ function onToolbarCommand(command: SessionToolbarCommand): void {
       class="workbench-toolbar-stack"
     >
       <section
-        v-if="toolbarItems.length > 0"
+        v-if="showSessionToolbar"
         class="bc-session-toolbar"
+        :class="{ 'bc-session-toolbar-glyphs-only': !settings.showToolbarLabels }"
         :data-testid="`${testIdPrefix}-bar`"
       >
         <button
@@ -286,10 +292,11 @@ function onToolbarCommand(command: SessionToolbarCommand): void {
           class="bc-toolbar-command"
           :disabled="!toolbarItem.enabled"
           :data-testid="`${testIdPrefix}-${toolbarItem.id}`"
+          :title="t(toolbarItem.labelKey)"
           @click="onToolbarCommand(toolbarItem)"
         >
           <span class="bc-toolbar-glyph">{{ toolbarItem.glyph }}</span>
-          <span>{{ t(toolbarItem.labelKey) }}</span>
+          <span v-if="settings.showToolbarLabels">{{ t(toolbarItem.labelKey) }}</span>
         </button>
       </section>
       <slot name="toolbar" />

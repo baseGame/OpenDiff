@@ -156,11 +156,11 @@ export const sessionCatalog: SessionCatalogEntry[] = [
     type: 'media-compare',
     title: 'Media Compare',
     titleKey: 'ui.mediaCompare',
-    summary: 'Compare basic info from audio or video files',
+    summary: 'Compare media metadata with local audio/video preview',
     summaryKey: 'session.summary.mediaCompare',
     priority: 'P3',
     implemented: true,
-    maturity: 'limited',
+    maturity: 'partial',
     route: '/compare/media',
   },
   {

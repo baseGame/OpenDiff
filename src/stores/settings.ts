@@ -57,6 +57,9 @@ const fontSizeStorageKey = 'open-diff-font-size'
 const diffColorsStorageKey = 'open-diff-diff-colors'
 const confirmBeforeDeleteStorageKey = 'open-diff-confirm-before-delete'
 const wrapTextDefaultStorageKey = 'open-diff-wrap-text-default'
+const showSessionToolbarsStorageKey = 'open-diff-show-session-toolbars'
+const showToolbarLabelsStorageKey = 'open-diff-show-toolbar-labels'
+const createBackupOnSaveStorageKey = 'open-diff-create-backup-on-save'
 const fontFamilyIds = new Set<FontFamilyId>(['system', 'segoe', 'inter', 'noto', 'mono'])
 const shortcutScopes = new Set<ShortcutScope>(['global', 'text-compare'])
 const commandIds = new Set<string>(commandRegistry.map((command) => command.id))
@@ -82,6 +85,9 @@ export const useSettingsStore = defineStore('settings', () => {
   const diffColors = ref<DiffHighlightColors>(loadDiffColors())
   const confirmBeforeDelete = ref(loadConfirmBeforeDelete())
   const wrapTextDefault = ref(loadWrapTextDefault())
+  const showSessionToolbars = ref(loadShowSessionToolbars())
+  const showToolbarLabels = ref(loadShowToolbarLabels())
+  const createBackupOnSave = ref(loadCreateBackupOnSave())
 
   bindSystemThemeListener((prefersDark) => {
     systemPrefersDark.value = prefersDark
@@ -168,6 +174,30 @@ export const useSettingsStore = defineStore('settings', () => {
     wrapTextDefault,
     (value) => {
       localStorage.setItem(wrapTextDefaultStorageKey, value ? '1' : '0')
+    },
+    { immediate: true, flush: 'sync' },
+  )
+
+  watch(
+    showSessionToolbars,
+    (value) => {
+      localStorage.setItem(showSessionToolbarsStorageKey, value ? '1' : '0')
+    },
+    { immediate: true, flush: 'sync' },
+  )
+
+  watch(
+    showToolbarLabels,
+    (value) => {
+      localStorage.setItem(showToolbarLabelsStorageKey, value ? '1' : '0')
+    },
+    { immediate: true, flush: 'sync' },
+  )
+
+  watch(
+    createBackupOnSave,
+    (value) => {
+      localStorage.setItem(createBackupOnSaveStorageKey, value ? '1' : '0')
     },
     { immediate: true, flush: 'sync' },
   )
@@ -302,6 +332,18 @@ export const useSettingsStore = defineStore('settings', () => {
     wrapTextDefault.value = value
   }
 
+  function setShowSessionToolbars(value: boolean): void {
+    showSessionToolbars.value = value
+  }
+
+  function setShowToolbarLabels(value: boolean): void {
+    showToolbarLabels.value = value
+  }
+
+  function setCreateBackupOnSave(value: boolean): void {
+    createBackupOnSave.value = value
+  }
+
   return {
     theme,
     resolvedTheme,
@@ -314,6 +356,9 @@ export const useSettingsStore = defineStore('settings', () => {
     diffColors,
     confirmBeforeDelete,
     wrapTextDefault,
+    showSessionToolbars,
+    showToolbarLabels,
+    createBackupOnSave,
     toggleTheme,
     setTheme,
     setLocale,
@@ -329,6 +374,9 @@ export const useSettingsStore = defineStore('settings', () => {
     resetDiffColors,
     setConfirmBeforeDelete,
     setWrapTextDefault,
+    setShowSessionToolbars,
+    setShowToolbarLabels,
+    setCreateBackupOnSave,
   }
 })
 
@@ -495,6 +543,36 @@ function loadWrapTextDefault(): boolean {
   }
 
   return stored === '1'
+}
+
+function loadShowSessionToolbars(): boolean {
+  const stored = localStorage.getItem(showSessionToolbarsStorageKey)
+
+  if (stored === null) {
+    return true
+  }
+
+  return stored !== '0'
+}
+
+function loadShowToolbarLabels(): boolean {
+  const stored = localStorage.getItem(showToolbarLabelsStorageKey)
+
+  if (stored === null) {
+    return true
+  }
+
+  return stored !== '0'
+}
+
+function loadCreateBackupOnSave(): boolean {
+  const stored = localStorage.getItem(createBackupOnSaveStorageKey)
+
+  if (stored === null) {
+    return true
+  }
+
+  return stored !== '0'
 }
 
 function applyDiffColors(colors: DiffHighlightColors): void {

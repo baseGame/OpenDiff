@@ -197,4 +197,20 @@ describe('useSettingsStore', () => {
     expect(localStorage.getItem('open-diff-confirm-before-delete')).toBe('0')
     expect(localStorage.getItem('open-diff-wrap-text-default')).toBe('1')
   })
+
+  it('persists toolbar and backup option defaults', () => {
+    const store = useSettingsStore()
+
+    expect(store.showSessionToolbars).toBe(true)
+    expect(store.showToolbarLabels).toBe(true)
+    expect(store.createBackupOnSave).toBe(true)
+
+    store.setShowSessionToolbars(false)
+    store.setShowToolbarLabels(false)
+    store.setCreateBackupOnSave(false)
+
+    expect(localStorage.getItem('open-diff-show-session-toolbars')).toBe('0')
+    expect(localStorage.getItem('open-diff-show-toolbar-labels')).toBe('0')
+    expect(localStorage.getItem('open-diff-create-backup-on-save')).toBe('0')
+  })
 })

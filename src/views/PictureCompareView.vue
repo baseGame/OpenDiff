@@ -16,7 +16,9 @@ import {
 } from '@/app/pictureCompareOptions'
 import { useSessionLaunchStore } from '@/stores/sessionLaunch'
 import { useTabsStore } from '@/stores/tabs'
+import { useViewActionsStore } from '@/stores/viewActions'
 import { useI18n } from '@/i18n'
+import SessionSettingsDialog from '@/components/session/SessionSettingsDialog.vue'
 
 const zoom = ref(100)
 const panX = ref(0)
@@ -48,6 +50,8 @@ const rgbTolerance = ref(initialPictureOptions.rgbTolerance)
 const compareAlpha = ref(initialPictureOptions.compareAlpha)
 const ignoreColorFrom = ref<number[] | null>(initialPictureOptions.ignoreColorFrom)
 const ignoreColorTo = ref<number[] | null>(initialPictureOptions.ignoreColorTo)
+const showSessionSettings = ref(false)
+const viewActions = useViewActionsStore()
 const showTolPanel = ref(false)
 const showRangePanel = ref(false)
 const metadataRows = ref<PictureMetadataRow[]>([])
@@ -73,6 +77,47 @@ const overlayStyle = computed(() => {
     height: `${String(rect.height)}px`,
   }
 })
+
+function openPictureSessionSettings(): void {
+  showSessionSettings.value = true
+}
+
+function applyPictureSessionSettings(
+  payload:
+    | { kind: 'folder'; criteria: unknown }
+    | { kind: 'text'; options: unknown }
+    | { kind: 'table'; options: unknown }
+    | { kind: 'hex'; options: unknown }
+    | { kind: 'picture'; options: PictureCompareOptionsState },
+): void {
+  if (payload.kind !== 'picture') {
+    return
+  }
+
+  rgbTolerance.value = payload.options.rgbTolerance
+  compareAlpha.value = payload.options.compareAlpha
+  ignoreColorFrom.value = payload.options.ignoreColorFrom
+  ignoreColorTo.value = payload.options.ignoreColorTo
+  savePictureCompareOptions({
+    rgbTolerance: payload.options.rgbTolerance,
+    compareAlpha: payload.options.compareAlpha,
+    ignoreColorFrom: payload.options.ignoreColorFrom,
+    ignoreColorTo: payload.options.ignoreColorTo,
+  })
+  showSessionSettings.value = false
+  if (leftPath.value && rightPath.value) {
+    void runPictureCompare()
+  }
+}
+
+watch(
+  () => [viewActions.sequence, viewActions.name] as const,
+  ([, actionName]) => {
+    if (actionName === 'session-settings') {
+      openPictureSessionSettings()
+    }
+  },
+)
 
 onMounted(() => {
   const launch = sessionLaunch.consumeLaunch('/compare/picture')
@@ -835,6 +880,13 @@ async function runPictureCompare(): Promise<void> {
         </section>
       </WorkbenchInspector>
     </template>
+    <SessionSettingsDialog
+      :open="showSessionSettings"
+      kind="picture"
+      :picture-options="pictureOptionsSnapshot"
+      @close="showSessionSettings = false"
+      @apply="applyPictureSessionSettings"
+    />
   </WorkbenchShell>
 </template>
 <style scoped>

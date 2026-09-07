@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { compareMediaFiles } from '@/api/diff'
 import type {
@@ -10,6 +10,8 @@ import type {
 } from '@/types/diff'
 import WorkbenchShell from '@/components/workbench/WorkbenchShell.vue'
 import WorkbenchInspector from '@/components/workbench/WorkbenchInspector.vue'
+import { localFileSrc } from '@/app/localFileSrc'
+import { prefersVideoElement } from '@/app/mediaPlayback'
 import { buildMediaCompareToolbar } from '@/app/sessionToolbars'
 import { useSessionLaunchStore } from '@/stores/sessionLaunch'
 import { useTabsStore } from '@/stores/tabs'
@@ -42,6 +44,12 @@ const mediaFields = ref<MediaFieldRow[]>([])
 const mediaSummaryOverride = ref<Record<MediaFieldStatus, number> | null>(null)
 const loading = ref(false)
 const error = ref('')
+const leftPlayer = ref<HTMLMediaElement | null>(null)
+const rightPlayer = ref<HTMLMediaElement | null>(null)
+const syncPlayback = ref(true)
+const playbackPosition = ref(0)
+const playbackDuration = ref(0)
+const isPlaying = ref(false)
 
 onMounted(() => {
   const launch = sessionLaunch.consumeLaunch('/compare/media')
@@ -129,6 +137,102 @@ const mediaSessionToolbar = computed(() =>
   }),
 )
 
+const leftMediaSrc = computed(() => (leftPath.value ? localFileSrc(leftPath.value) : ''))
+const rightMediaSrc = computed(() => (rightPath.value ? localFileSrc(rightPath.value) : ''))
+const useVideoPlayers = computed(() => prefersVideoElement(leftPath.value, rightPath.value))
+const canPreviewMedia = computed(() => Boolean(leftMediaSrc.value || rightMediaSrc.value))
+
+watch([leftPath, rightPath], () => {
+  playbackPosition.value = 0
+  playbackDuration.value = 0
+  isPlaying.value = false
+})
+
+function onMediaMeta(side: 'left' | 'right'): void {
+  const el = side === 'left' ? leftPlayer.value : rightPlayer.value
+  const duration = el?.duration
+
+  if (typeof duration === 'number' && Number.isFinite(duration) && duration > 0) {
+    playbackDuration.value = Math.max(playbackDuration.value, duration)
+  }
+}
+
+function onMediaTime(side: 'left' | 'right'): void {
+  const el = side === 'left' ? leftPlayer.value : rightPlayer.value
+
+  if (!el) {
+    return
+  }
+
+  playbackPosition.value = el.currentTime
+
+  if (syncPlayback.value) {
+    const other = side === 'left' ? rightPlayer.value : leftPlayer.value
+
+    if (other && Math.abs(other.currentTime - el.currentTime) > 0.35) {
+      other.currentTime = el.currentTime
+    }
+  }
+}
+
+function togglePlayback(): void {
+  const players = [leftPlayer.value, rightPlayer.value].filter(
+    (item): item is HTMLMediaElement => item !== null,
+  )
+
+  if (players.length === 0) {
+    return
+  }
+
+  if (isPlaying.value) {
+    for (const player of players) {
+      player.pause()
+    }
+    isPlaying.value = false
+
+    return
+  }
+
+  for (const player of players) {
+    void player.play().catch(() => undefined)
+  }
+  isPlaying.value = true
+}
+
+function onScrubInput(event: Event): void {
+  const target = event.target
+
+  if (!(target instanceof HTMLInputElement)) {
+    return
+  }
+
+  const next = Number(target.value)
+
+  if (!Number.isFinite(next)) {
+    return
+  }
+
+  playbackPosition.value = next
+
+  for (const player of [leftPlayer.value, rightPlayer.value]) {
+    if (player) {
+      player.currentTime = next
+    }
+  }
+}
+
+function formatClock(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds < 0) {
+    return '0:00'
+  }
+
+  const total = Math.floor(seconds)
+  const mins = Math.floor(total / 60)
+  const secs = total % 60
+
+  return `${String(mins)}:${String(secs).padStart(2, '0')}`
+}
+
 function runMediaToolbarCommand(commandId: string): void {
   if (commandId === 'home') {
     tabs.openTab({ title: 'Home', titleKey: 'ui.home', route: '/', dirty: false })
@@ -207,6 +311,103 @@ function runMediaToolbarCommand(commandId: string): void {
           {{ $t('ui.runDiff') }}
         </button>
       </section>
+      <section
+        v-if="canPreviewMedia"
+        class="media-playback-panel"
+        data-testid="media-playback-panel"
+      >
+        <header class="media-playback-header">
+          <strong>{{ $t('ui.mediaPlayback') }}</strong>
+          <label class="media-sync-toggle">
+            <input
+              v-model="syncPlayback"
+              type="checkbox"
+              data-testid="media-sync-playback"
+            />
+            <span>{{ $t('ui.syncPlayback') }}</span>
+          </label>
+        </header>
+        <div class="media-players">
+          <article class="media-player-card">
+            <span>{{ $t('ui.left') }}</span>
+            <video
+              v-if="useVideoPlayers && leftMediaSrc"
+              ref="leftPlayer"
+              :src="leftMediaSrc"
+              controls
+              data-testid="media-left-video"
+              @loadedmetadata="onMediaMeta('left')"
+              @timeupdate="onMediaTime('left')"
+            />
+            <audio
+              v-else-if="leftMediaSrc"
+              ref="leftPlayer"
+              :src="leftMediaSrc"
+              controls
+              data-testid="media-left-audio"
+              @loadedmetadata="onMediaMeta('left')"
+              @timeupdate="onMediaTime('left')"
+            />
+            <p
+              v-else
+              class="media-player-empty"
+            >
+              {{ $t('ui.noMediaPreview') }}
+            </p>
+          </article>
+          <article class="media-player-card">
+            <span>{{ $t('ui.right') }}</span>
+            <video
+              v-if="useVideoPlayers && rightMediaSrc"
+              ref="rightPlayer"
+              :src="rightMediaSrc"
+              controls
+              data-testid="media-right-video"
+              @loadedmetadata="onMediaMeta('right')"
+              @timeupdate="onMediaTime('right')"
+            />
+            <audio
+              v-else-if="rightMediaSrc"
+              ref="rightPlayer"
+              :src="rightMediaSrc"
+              controls
+              data-testid="media-right-audio"
+              @loadedmetadata="onMediaMeta('right')"
+              @timeupdate="onMediaTime('right')"
+            />
+            <p
+              v-else
+              class="media-player-empty"
+            >
+              {{ $t('ui.noMediaPreview') }}
+            </p>
+          </article>
+        </div>
+        <div class="media-scrub-row">
+          <button
+            type="button"
+            data-testid="media-play-toggle"
+            @click="togglePlayback"
+          >
+            {{ isPlaying ? $t('ui.pause') : $t('ui.play') }}
+          </button>
+          <input
+            class="media-scrub"
+            type="range"
+            min="0"
+            :max="playbackDuration || 1"
+            step="0.05"
+            :value="playbackPosition"
+            data-testid="media-scrub"
+            @input="onScrubInput"
+          />
+          <span data-testid="media-clock"
+            >{{ formatClock(playbackPosition) }} / {{ formatClock(playbackDuration) }}</span
+          >
+        </div>
+        <p class="media-playback-hint">{{ $t('ui.mediaPlaybackHint') }}</p>
+      </section>
+
       <p
         v-if="error"
         class="media-error"
@@ -575,5 +776,70 @@ h1 {
   .media-side dl {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+}
+
+.media-playback-panel {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  background: var(--app-surface);
+}
+
+.media-playback-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.media-sync-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.media-players {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.media-player-card {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.media-player-card video,
+.media-player-card audio {
+  width: 100%;
+  max-height: 220px;
+}
+
+.media-player-empty {
+  margin: 0;
+  color: var(--app-text-muted);
+  font-size: 12px;
+}
+
+.media-scrub-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.media-scrub {
+  flex: 1;
+  min-width: 160px;
+}
+
+.media-playback-hint {
+  margin: 0;
+  color: var(--app-text-muted);
+  font-size: 12px;
 }
 </style>

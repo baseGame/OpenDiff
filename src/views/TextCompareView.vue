@@ -107,7 +107,10 @@ function openTextSessionSettings(): void {
 function applyTextSessionSettings(
   payload:
     | { kind: 'folder'; criteria: ReturnType<typeof defaultFolderCompareCriteria> }
-    | { kind: 'text'; options: ReturnType<typeof currentTextSessionOptions> },
+    | { kind: 'text'; options: ReturnType<typeof currentTextSessionOptions> }
+    | { kind: 'table'; options: unknown }
+    | { kind: 'hex'; options: unknown }
+    | { kind: 'picture'; options: unknown },
 ): void {
   if (payload.kind !== 'text') {
     return

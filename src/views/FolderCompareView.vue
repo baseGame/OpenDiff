@@ -16,6 +16,14 @@ import { pickNativePath } from '@/app/filePicker'
 import { formatCompareError } from '@/app/compareError'
 import { loadFolderDisplayFilters, saveFolderDisplayFilters } from '@/app/folderDisplayFilters'
 import { loadFolderCompareCriteria, saveFolderCompareCriteria } from '@/app/folderCompareCriteria'
+import { loadExternalApplications } from '@/app/externalApplications'
+import {
+  invertRowIds,
+  selectAllRowIds,
+  selectFileRowIds,
+  selectRowIdsByNameFilter,
+  selectRowIdsByStatuses,
+} from '@/app/folderRowSelection'
 import SessionSettingsDialog from '@/components/session/SessionSettingsDialog.vue'
 import { useViewActionsStore } from '@/stores/viewActions'
 import { defaultTextCompareSessionOptions } from '@/app/textCompareSessionOptions'
@@ -99,20 +107,7 @@ const configurableColumns: { id: FolderColumnId; labelKey: string }[] = [
   { id: 'modified', labelKey: 'ui.modified' },
   { id: 'type', labelKey: 'ui.type' },
 ]
-const externalApplicationConfigs = ref<ExternalApplicationConfig[]>([
-  {
-    id: 'vscode',
-    name: 'Visual Studio Code',
-    executable: 'code',
-    enabled: true,
-  },
-  {
-    id: 'text-patch',
-    name: 'Text Patch',
-    executable: 'open-diff-text-patch',
-    enabled: true,
-  },
-])
+const externalApplicationConfigs = ref<ExternalApplicationConfig[]>(loadExternalApplications())
 const displayStatusOptions: { statuses: FolderStatus[]; labelKey: string; testId: string }[] = [
   { statuses: ['Same'], labelKey: 'ui.same', testId: 'same' },
   { statuses: ['Different'], labelKey: 'ui.different', testId: 'different' },
@@ -144,6 +139,9 @@ const showSuppressedFilters = ref(initialDisplayFilters.showSuppressed)
 const filesOnlyFilter = ref(initialDisplayFilters.filesOnly)
 const showFolderRules = ref(true)
 const showFolderFilters = ref(true)
+const showFolderSelect = ref(false)
+const checkedRowIds = ref<Set<string>>(new Set())
+const selectNameFilter = ref('')
 let folderCompareGeneration = 0
 const rowHeight = 34
 const virtualViewportRows = 18
@@ -468,7 +466,10 @@ function openFolderSessionSettings(): void {
 function applyFolderSessionSettings(
   payload:
     | { kind: 'folder'; criteria: FolderCompareCriteria }
-    | { kind: 'text'; options: typeof textSettingsPlaceholder },
+    | { kind: 'text'; options: typeof textSettingsPlaceholder }
+    | { kind: 'table'; options: unknown }
+    | { kind: 'hex'; options: unknown }
+    | { kind: 'picture'; options: unknown },
 ): void {
   if (payload.kind !== 'folder') {
     return
@@ -601,7 +602,7 @@ const folderSessionToolbar = computed(() =>
     copy: Boolean(selectedFilePath.value),
     expand: true,
     collapse: true,
-    select: false,
+    select: true,
     files: true,
     refresh: Boolean(leftRoot.value && rightRoot.value) && !folderCompareLoading.value,
     swap: Boolean(leftRoot.value || rightRoot.value),
@@ -651,12 +652,66 @@ function runFolderToolbarCommand(commandId: string): void {
     case 'filters':
       showFolderFilters.value = !showFolderFilters.value
       break
+    case 'select':
+      showFolderSelect.value = !showFolderSelect.value
+      break
     case 'peek':
       showPeekPanel.value = !showPeekPanel.value
       break
     default:
       break
   }
+}
+
+function applyCheckedRowIds(ids: string[], actionLabel: string): void {
+  checkedRowIds.value = new Set(ids)
+  lastSelectionAction.value = t('status.selectedRowCount', {
+    count: ids.length,
+    action: actionLabel,
+  })
+}
+
+function selectVisibleAll(): void {
+  applyCheckedRowIds(selectAllRowIds(visibleRows.value), t('ui.selectAll'))
+}
+
+function selectVisibleFiles(): void {
+  applyCheckedRowIds(selectFileRowIds(visibleRows.value), t('ui.selectAllFiles'))
+}
+
+function selectVisibleByStatuses(statuses: FolderStatus[], labelKey: string): void {
+  applyCheckedRowIds(selectRowIdsByStatuses(visibleRows.value, statuses), t(labelKey))
+}
+
+function selectVisibleByName(): void {
+  applyCheckedRowIds(
+    selectRowIdsByNameFilter(visibleRows.value, selectNameFilter.value),
+    t('ui.selectByName'),
+  )
+}
+
+function invertVisibleSelection(): void {
+  applyCheckedRowIds(invertRowIds(visibleRows.value, checkedRowIds.value), t('ui.invertSelection'))
+}
+
+function clearVisibleSelection(): void {
+  applyCheckedRowIds([], t('ui.clearSelection'))
+}
+
+function toggleCheckedRow(rowId: string, checked: boolean): void {
+  const next = new Set(checkedRowIds.value)
+
+  if (checked) {
+    next.add(rowId)
+  } else {
+    next.delete(rowId)
+  }
+
+  checkedRowIds.value = next
+}
+
+function isRowChecked(rowId: string): boolean {
+  return checkedRowIds.value.has(rowId)
 }
 
 function isExpanded(row: FolderTreeRow): boolean {
@@ -2000,6 +2055,83 @@ onUnmounted(() => {
       </section>
 
       <section
+        v-show="showFolderSelect"
+        class="folder-select-panel display-filters"
+        data-testid="folder-select-panel"
+      >
+        <button
+          type="button"
+          data-testid="folder-select-all"
+          @click="selectVisibleAll"
+        >
+          {{ $t('ui.selectAll') }}
+        </button>
+        <button
+          type="button"
+          data-testid="folder-select-all-files"
+          @click="selectVisibleFiles"
+        >
+          {{ $t('ui.selectAllFiles') }}
+        </button>
+        <button
+          type="button"
+          data-testid="folder-select-same"
+          @click="selectVisibleByStatuses(['Same'], 'ui.same')"
+        >
+          {{ $t('ui.selectSame') }}
+        </button>
+        <button
+          type="button"
+          data-testid="folder-select-different"
+          @click="selectVisibleByStatuses(['Different'], 'ui.different')"
+        >
+          {{ $t('ui.selectDifferent') }}
+        </button>
+        <button
+          type="button"
+          data-testid="folder-select-orphans"
+          @click="selectVisibleByStatuses(['Left only', 'Right only'], 'ui.orphans')"
+        >
+          {{ $t('ui.selectOrphans') }}
+        </button>
+        <button
+          type="button"
+          data-testid="folder-select-invert"
+          @click="invertVisibleSelection"
+        >
+          {{ $t('ui.invertSelection') }}
+        </button>
+        <button
+          type="button"
+          data-testid="folder-select-clear"
+          @click="clearVisibleSelection"
+        >
+          {{ $t('ui.clearSelection') }}
+        </button>
+        <label class="folder-select-name">
+          <span>{{ $t('ui.selectByName') }}</span>
+          <input
+            v-model="selectNameFilter"
+            type="text"
+            data-testid="folder-select-name-filter"
+            @keydown.enter.prevent="selectVisibleByName"
+          />
+          <button
+            type="button"
+            data-testid="folder-select-name-apply"
+            @click="selectVisibleByName"
+          >
+            {{ $t('ui.apply') }}
+          </button>
+        </label>
+        <span
+          class="folder-select-count"
+          data-testid="folder-select-count"
+          >{{ $t('status.checkedRowCount', { count: checkedRowIds.size }) }}</span
+        >
+      </section>
+
+      <section
         v-show="showPeekPanel"
         class="folder-peek-panel"
         data-testid="folder-peek-panel"
@@ -2409,7 +2541,11 @@ onUnmounted(() => {
               :class="[
                 `status-${row.status.toLowerCase().replaceAll(' ', '-')}`,
                 row.kind,
-                { selected: selectedRowId === row.id, suppressed: isSuppressed(row) },
+                {
+                  selected: selectedRowId === row.id,
+                  checked: isRowChecked(row.id),
+                  suppressed: isSuppressed(row),
+                },
               ]"
               :style="{ gridTemplateColumns }"
               :data-row-id="row.id"
@@ -2421,6 +2557,14 @@ onUnmounted(() => {
                 class="name-cell left-name"
                 :style="{ paddingLeft: rowIndent(row) }"
               >
+                <input
+                  class="folder-row-check"
+                  type="checkbox"
+                  :data-testid="`folder-row-check-${row.id}`"
+                  :checked="isRowChecked(row.id)"
+                  @click.stop
+                  @change="toggleCheckedRow(row.id, ($event.target as HTMLInputElement).checked)"
+                />
                 <button
                   v-if="row.kind === 'directory'"
                   type="button"
@@ -3232,5 +3376,42 @@ onUnmounted(() => {
 .folder-peek-panel dd {
   margin: 0;
   word-break: break-all;
+}
+
+.folder-select-panel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.folder-select-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.folder-select-name input {
+  width: 140px;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--app-border);
+  border-radius: 6px;
+  background: var(--app-bg);
+  color: var(--app-text);
+}
+
+.folder-select-count {
+  color: var(--app-text-muted);
+  font-size: 12px;
+}
+
+.folder-row-check {
+  margin-right: 6px;
+}
+
+.tree-row.checked {
+  outline: 1px solid rgb(37 99 235 / 0.45);
+  background: rgb(37 99 235 / 0.08);
 }
 </style>
