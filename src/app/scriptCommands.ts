@@ -44,10 +44,10 @@ export function formatCommandList(commands: readonly string[]): string {
 }
 
 export const compareReportExampleScript = [
-  'load "${left}"',
-  'load "${right}"',
+  `load "\${left}"`,
+  `load "\${right}"`,
   'compare',
-  'text-report "${output}"',
-  'hex-report "${output}.hex.txt"',
-  'folder-report "${output}.folder.txt"',
+  `text-report "\${output}"`,
+  `hex-report "\${output}.hex.txt"`,
+  `folder-report "\${output}.folder.txt"`,
 ].join('\n')

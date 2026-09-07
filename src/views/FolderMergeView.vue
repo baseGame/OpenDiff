@@ -163,6 +163,7 @@ function runMergeToolbarCommand(commandId: string): void {
       break
   }
 }
+
 const selectedPlanRow = computed(
   () => planRows.value.find((row) => row.id === selectedPlanRowId.value) ?? null,
 )
@@ -234,7 +235,7 @@ async function buildFolderMergePlan(): Promise<void> {
   collapsedPrefixes.value = new Set()
   checkedRowIds.value = new Set()
   lastSelectionAction.value = ''
-  if (plan.value?.rows[0]) {
+  if (plan.value.rows.length > 0) {
     selectedPlanRowId.value = plan.value.rows[0].id
   }
 }
