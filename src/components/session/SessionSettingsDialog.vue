@@ -1,6 +1,12 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import type { FolderCompareCriteria } from '@/types/diff'
+import {
+  formatFolderNameFilterDraft,
+  normalizeFolderNameFilters,
+  parseFolderNameFilterDraft,
+  type FolderNameFilters,
+} from '@/app/folderNameFilters'
 import type { TextCompareSessionOptions } from '@/app/textCompareSessionOptions'
 import type { TableCompareSessionOptions } from '@/app/tableCompareSessionOptions'
 import type { HexCompareSessionOptions } from '@/app/hexCompareSessionOptions'
@@ -16,6 +22,7 @@ const props = withDefaults(
     open: boolean
     kind: SessionSettingsKind
     folderCriteria?: FolderCompareCriteria
+    folderFilters?: FolderNameFilters
     textOptions?: TextCompareSessionOptions
     tableOptions?: TableCompareSessionOptions
     hexOptions?: HexCompareSessionOptions
@@ -27,6 +34,11 @@ const props = withDefaults(
       compareModifiedTime: false,
       compareContents: true,
       compareCrc: false,
+    }),
+    folderFilters: () => ({
+      include: [],
+      exclude: [],
+      caseSensitive: false,
     }),
     textOptions: () => ({
       algorithm: 'myers',
@@ -52,7 +64,7 @@ const emit = defineEmits<{
   close: []
   apply: [
     payload:
-      | { kind: 'folder'; criteria: FolderCompareCriteria }
+      | { kind: 'folder'; criteria: FolderCompareCriteria; filters: FolderNameFilters }
       | { kind: 'text'; options: TextCompareSessionOptions }
       | { kind: 'table'; options: TableCompareSessionOptions }
       | { kind: 'hex'; options: HexCompareSessionOptions }
@@ -66,6 +78,9 @@ type TextTab = 'importance' | 'alignment'
 const folderTab = ref<FolderTab>('comparison')
 const textTab = ref<TextTab>('importance')
 const draftFolder = ref<FolderCompareCriteria>({ ...props.folderCriteria })
+const draftFolderFilters = ref<FolderNameFilters>(normalizeFolderNameFilters(props.folderFilters))
+const includeFiltersDraft = ref(formatFolderNameFilterDraft(props.folderFilters.include))
+const excludeFiltersDraft = ref(formatFolderNameFilterDraft(props.folderFilters.exclude))
 const draftText = ref<TextCompareSessionOptions>({
   ...props.textOptions,
   ignoreRegexes: [...props.textOptions.ignoreRegexes],
@@ -84,6 +99,7 @@ watch(
     [
       props.open,
       props.folderCriteria,
+      props.folderFilters,
       props.textOptions,
       props.tableOptions,
       props.hexOptions,
@@ -95,6 +111,9 @@ watch(
     }
 
     draftFolder.value = { ...props.folderCriteria }
+    draftFolderFilters.value = normalizeFolderNameFilters(props.folderFilters)
+    includeFiltersDraft.value = formatFolderNameFilterDraft(props.folderFilters.include)
+    excludeFiltersDraft.value = formatFolderNameFilterDraft(props.folderFilters.exclude)
     draftText.value = {
       ...props.textOptions,
       ignoreRegexes: [...props.textOptions.ignoreRegexes],
@@ -131,7 +150,15 @@ const titleKey = computed(() => {
 
 function applySettings(): void {
   if (props.kind === 'folder') {
-    emit('apply', { kind: 'folder', criteria: { ...draftFolder.value } })
+    emit('apply', {
+      kind: 'folder',
+      criteria: { ...draftFolder.value },
+      filters: normalizeFolderNameFilters({
+        include: parseFolderNameFilterDraft(includeFiltersDraft.value),
+        exclude: parseFolderNameFilterDraft(excludeFiltersDraft.value),
+        caseSensitive: draftFolderFilters.value.caseSensitive,
+      }),
+    })
 
     return
   }
@@ -292,6 +319,32 @@ function applySettings(): void {
         data-testid="session-settings-folder-filters"
       >
         <p>{{ $t('ui.sessionSettingsFiltersHint') }}</p>
+        <label class="stack">
+          <span>{{ $t('ui.includePatterns') }}</span>
+          <textarea
+            v-model="includeFiltersDraft"
+            rows="4"
+            data-testid="session-settings-include-patterns"
+            :placeholder="$t('ui.globPatterns')"
+          />
+        </label>
+        <label class="stack">
+          <span>{{ $t('ui.excludePatterns') }}</span>
+          <textarea
+            v-model="excludeFiltersDraft"
+            rows="4"
+            data-testid="session-settings-exclude-patterns"
+            :placeholder="$t('ui.globPatterns')"
+          />
+        </label>
+        <label>
+          <input
+            v-model="draftFolderFilters.caseSensitive"
+            type="checkbox"
+            data-testid="session-settings-filters-case-sensitive"
+          />
+          <span>{{ $t('ui.caseSensitiveNames') }}</span>
+        </label>
       </div>
 
       <div
@@ -515,6 +568,18 @@ h2 {
 .settings-body label.stack {
   display: grid;
   gap: 4px;
+}
+
+.settings-body textarea {
+  width: 100%;
+  min-height: 84px;
+  padding: 8px;
+  border: 1px solid var(--app-border);
+  border-radius: 4px;
+  background: var(--app-surface-low, #ffffff);
+  color: var(--app-text);
+  font: inherit;
+  resize: vertical;
 }
 
 footer {

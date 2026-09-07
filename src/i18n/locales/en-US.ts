@@ -861,8 +861,11 @@ export const enUS: LanguagePack = {
     'ui.alignment': 'Alignment',
     'ui.replacements': 'Replacements',
     'ui.apply': 'Apply',
+    'ui.includePatterns': 'Include names',
+    'ui.excludePatterns': 'Exclude names',
+    'ui.caseSensitiveNames': 'Case-sensitive names',
     'ui.sessionSettingsFiltersHint':
-      'Display filters stay on the Filters toolbar panel and persist across rescans.',
+      'Name include/exclude patterns apply on the next scan/compare and persist for this workstation. Display status filters stay on the Filters toolbar panel.',
     'ui.goTo': 'Go To',
     'ui.goToOffset': 'Go to offset',
     'ui.hexOffsetHint': 'Decimal or hex (0x…); values past 0x7FFFFFFF are supported',

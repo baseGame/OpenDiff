@@ -855,8 +855,11 @@ export const koKR: LanguagePack = {
     'ui.alignment': '정렬',
     'ui.replacements': '치환',
     'ui.apply': '적용',
+    'ui.includePatterns': '이름 포함',
+    'ui.excludePatterns': '이름 제외',
+    'ui.caseSensitiveNames': '이름 대소문자 구분',
     'ui.sessionSettingsFiltersHint':
-      '표시 필터는 필터 도구 모음 패널에 있으며 다시 검색한 후에도 유지됩니다.',
+      '이름 포함/제외 패턴은 다음 스캔/비교 때 적용되며 이 워크스테이션에 유지됩니다. 표시 상태 필터는 필터 도구 모음 패널에 그대로 있습니다.',
     'ui.goTo': '이동',
     'ui.goToOffset': '오프셋으로 이동',
     'ui.hexOffsetHint': '십진수 또는 십육진수(0x…); 0x7FFFFFFF보다 큰 값 지원',

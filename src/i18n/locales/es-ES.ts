@@ -876,8 +876,11 @@ export const esES: LanguagePack = {
     'ui.alignment': 'Alineación',
     'ui.replacements': 'Reemplazos',
     'ui.apply': 'Aplicar',
+    'ui.includePatterns': 'Incluir nombres',
+    'ui.excludePatterns': 'Excluir nombres',
+    'ui.caseSensitiveNames': 'Nombres sensibles a mayúsculas',
     'ui.sessionSettingsFiltersHint':
-      'Los filtros de visualización permanecen en el panel Filtros y se conservan tras volver a explorar.',
+      'Los patrones de inclusión/exclusión de nombres se aplican en el próximo análisis/comparación y se conservan en este equipo. Los filtros de estado de visualización permanecen en el panel Filtros de la barra de herramientas.',
     'ui.goTo': 'Ir a',
     'ui.goToOffset': 'Ir al desplazamiento',
     'ui.hexOffsetHint': 'Decimal o hex (0x…); se admiten valores mayores que 0x7FFFFFFF',

@@ -375,6 +375,11 @@ describe('FolderCompareView', () => {
         compareContents: true,
         compareCrc: false,
       },
+      filters: {
+        include: [],
+        exclude: [],
+        caseSensitive: false,
+      },
     })
     expect(wrapper.text()).toContain('main.ts')
     expect(wrapper.text()).toContain('Different')
@@ -691,11 +696,22 @@ describe('FolderCompareView', () => {
     await wrapper.find('[data-testid="open-folder-session-settings"]').trigger('click')
     expect(wrapper.find('[data-testid="session-settings-dialog"]').exists()).toBe(true)
     await wrapper.find('[data-testid="session-settings-compare-crc"]').setValue(true)
+    await wrapper.find('[data-testid="session-settings-tab-filters"]').trigger('click')
+    await wrapper.find('[data-testid="session-settings-include-patterns"]').setValue('*.md\n*.txt')
+    await wrapper
+      .find('[data-testid="session-settings-exclude-patterns"]')
+      .setValue('node_modules/**')
     await wrapper.find('[data-testid="session-settings-apply"]').trigger('click')
     expect(wrapper.find('[data-testid="session-settings-dialog"]').exists()).toBe(false)
     expect(
       (wrapper.find('[data-testid="folder-criteria-crc"]').element as HTMLInputElement).checked,
     ).toBe(true)
+    const storedFilters = JSON.parse(
+      localStorage.getItem('open-diff-folder-name-filters') ?? '{}',
+    ) as { include: string[]; exclude: string[] }
+
+    expect(storedFilters.include).toEqual(['*.md', '*.txt'])
+    expect(storedFilters.exclude).toEqual(['node_modules/**'])
 
     await wrapper.find('[data-testid="folder-session-toolbar-peek"]').trigger('click')
     expect(wrapper.find('[data-testid="folder-peek-panel"]').isVisible()).toBe(true)

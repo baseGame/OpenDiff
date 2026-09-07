@@ -5,6 +5,7 @@ import RegistryCompareView from './RegistryCompareView.vue'
 import { compareRegistryExports, readTextFile } from '@/api/diff'
 import { queryLiveWindowsRegistry } from '@/api/policy'
 import { useSessionLaunchStore } from '@/stores/sessionLaunch'
+import { useTabsStore } from '@/stores/tabs'
 
 vi.mock('vue-router', () => ({
   useRouter: () => ({ push: vi.fn() }),
@@ -152,5 +153,20 @@ describe('RegistryCompareView', () => {
 
     expect(queryLiveWindowsRegistry).toHaveBeenCalled()
     expect(wrapper.find('[data-testid="registry-live-error"]').exists()).toBe(true)
+  })
+
+  it('sets path-pair tab titles for registry sessions', async () => {
+    const tabs = useTabsStore()
+
+    tabs.openTab({
+      title: 'Registry Compare',
+      titleKey: 'ui.registryCompare',
+      route: '/compare/registry',
+      dirty: false,
+    })
+    mount(RegistryCompareView)
+    await Promise.resolve()
+
+    expect(tabs.activeTab.title).toBe('left.reg <--> right.reg')
   })
 })

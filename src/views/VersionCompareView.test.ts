@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import VersionCompareView from './VersionCompareView.vue'
 import { compareVersionFiles } from '@/api/diff'
 import { useSessionLaunchStore } from '@/stores/sessionLaunch'
+import { useTabsStore } from '@/stores/tabs'
 
 vi.mock('vue-router', () => ({
   useRouter: () => ({ push: vi.fn() }),
@@ -161,5 +162,23 @@ describe('VersionCompareView', () => {
     expect(
       (wrapper.find('[data-testid="version-left-path"]').element as HTMLInputElement).value,
     ).toBe('C:/apps/fixture-right.exe')
+  })
+
+  it('sets path-pair tab titles for version sessions', async () => {
+    const wrapper = mount(VersionCompareView)
+    const tabs = useTabsStore()
+
+    tabs.openTab({
+      title: 'Version Compare',
+      titleKey: 'ui.versionCompare',
+      route: '/compare/version',
+      dirty: false,
+    })
+
+    await wrapper.find('[data-testid="version-left-path"]').setValue('C:/apps/fixture-left.exe')
+    await wrapper.find('[data-testid="version-right-path"]').setValue('C:/apps/fixture-right.exe')
+    await wrapper.vm.$nextTick()
+
+    expect(tabs.activeTab.title).toBe('fixture-left.exe <--> fixture-right.exe')
   })
 })

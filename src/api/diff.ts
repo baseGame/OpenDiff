@@ -104,6 +104,7 @@ export function compareFolderPaths(request: FolderCompareRequest): Promise<Folde
     leftRoot: request.leftRoot,
     rightRoot: request.rightRoot,
     criteria: request.criteria,
+    filters: request.filters,
   })
 }
 

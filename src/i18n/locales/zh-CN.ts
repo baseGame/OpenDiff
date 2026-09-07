@@ -836,7 +836,11 @@ export const zhCN: LanguagePack = {
     'ui.alignment': '对齐',
     'ui.replacements': '替换规则',
     'ui.apply': '应用',
-    'ui.sessionSettingsFiltersHint': '显示过滤器位于过滤器工具栏面板，并在重新扫描后保留。',
+    'ui.includePatterns': '包含名称',
+    'ui.excludePatterns': '排除名称',
+    'ui.caseSensitiveNames': '区分大小写的名称',
+    'ui.sessionSettingsFiltersHint':
+      '名称包含/排除模式在下次扫描/比较时生效，并在本机保留。显示状态过滤器仍在过滤器工具栏面板中。',
     'ui.goTo': '转到',
     'ui.goToOffset': '转到偏移',
     'ui.hexOffsetHint': '十进制或十六进制（0x…）；支持超过 0x7FFFFFFF 的值',

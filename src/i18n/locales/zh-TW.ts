@@ -837,7 +837,11 @@ export const zhTW: LanguagePack = {
     'ui.alignment': '對齊',
     'ui.replacements': '取代規則',
     'ui.apply': '套用',
-    'ui.sessionSettingsFiltersHint': '顯示篩選器位於篩選器工具列面板，並在重新掃描後保留。',
+    'ui.includePatterns': '包含名稱',
+    'ui.excludePatterns': '排除名稱',
+    'ui.caseSensitiveNames': '區分大小寫的名稱',
+    'ui.sessionSettingsFiltersHint':
+      '名稱包含/排除模式會在下次掃描/比較時生效，並在本機保留。顯示狀態篩選器仍在篩選器工具列面板中。',
     'ui.goTo': '前往',
     'ui.goToOffset': '前往偏移',
     'ui.hexOffsetHint': '十進位或十六進位（0x…）；支援超過 0x7FFFFFFF 的值',

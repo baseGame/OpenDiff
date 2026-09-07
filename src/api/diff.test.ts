@@ -145,6 +145,7 @@ describe('diff api', () => {
       leftRoot: 'D:/left',
       rightRoot: 'D:/right',
       criteria: undefined,
+      filters: undefined,
     })
     expect(result.rows[0]?.relativePath).toBe('src/main.ts')
   })
