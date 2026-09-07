@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { readTextFile, saveTextFile } from '@/api/diff'
 import { useRouter } from 'vue-router'
 import { useI18n } from '@/i18n'
@@ -14,6 +14,7 @@ import {
   syntaxLanguageOptions,
   tokenizeSyntaxLine,
 } from '@/app/syntaxGrammars'
+import { resolveGoToLine } from '@/app/textEditNavigation'
 
 interface LoadedTextDocument {
   path: string
@@ -48,6 +49,10 @@ const currentFindIndex = ref(0)
 const syntaxMenuOpen = ref(false)
 const syntaxLanguageId = ref('auto')
 const wordWrap = ref(settings.wrapTextDefault)
+const goToMenuOpen = ref(false)
+const goToLineInput = ref('1')
+const goToLineStatus = ref('')
+const editorHostRef = ref<HTMLElement | null>(null)
 
 const fileTitle = computed(() => {
   if (!document.value) {
@@ -318,9 +323,73 @@ function runTextEditCommand(commandId: string): void {
     return
   }
 
+  if (commandId === 'goto') {
+    goToMenuOpen.value = !goToMenuOpen.value
+    goToLineStatus.value = ''
+
+    if (goToMenuOpen.value && lineCount.value > 0) {
+      goToLineInput.value = '1'
+    }
+
+    return
+  }
+
   if (commandId === 'wrap') {
     wordWrap.value = !wordWrap.value
   }
+}
+
+function resolveEditorTextarea(): HTMLTextAreaElement | null {
+  const host = editorHostRef.value
+
+  if (!host) {
+    return null
+  }
+
+  if (host instanceof HTMLTextAreaElement) {
+    return host
+  }
+
+  const nested = host.querySelector('textarea')
+
+  if (nested instanceof HTMLTextAreaElement) {
+    return nested
+  }
+
+  const byTestId = host.querySelector('[data-testid="text-edit-editor"]')
+
+  if (byTestId instanceof HTMLTextAreaElement) {
+    return byTestId
+  }
+
+  return null
+}
+
+function applyGoToLine(): void {
+  const resolved = resolveGoToLine(editorText.value, goToLineInput.value)
+
+  if (!resolved) {
+    goToLineStatus.value = t('status.goToLineInvalid')
+
+    return
+  }
+
+  goToLineInput.value = String(resolved.line)
+  goToLineStatus.value = t('status.goToLinePosition', {
+    line: resolved.line,
+    total: resolved.totalLines,
+  })
+
+  void nextTick(() => {
+    const editor = resolveEditorTextarea()
+
+    if (!editor) {
+      return
+    }
+
+    editor.focus()
+    editor.setSelectionRange(resolved.start, resolved.end)
+  })
 }
 
 function updateFindQuery(event: Event): void {
@@ -447,6 +516,7 @@ const textEditToolbarCommands = computed(() => [
   },
   { id: 'delete', glyph: 'D', labelKey: 'ui.delete', enabled: hasEditorContent.value },
   { id: 'syntax', glyph: 'S', labelKey: 'ui.syntax', enabled: true },
+  { id: 'goto', glyph: '#', labelKey: 'ui.goToLine', enabled: hasEditorContent.value },
   { id: 'wrap', glyph: 'W', labelKey: 'ui.wrap', enabled: true },
 ])
 </script>
@@ -458,9 +528,14 @@ const textEditToolbarCommands = computed(() => [
       :key="command.id"
       class="bc-toolbar-command"
       type="button"
-      :class="{ 'bc-toolbar-command-active': command.id === 'wrap' && wordWrap }"
+      :class="{
+        'bc-toolbar-command-active':
+          (command.id === 'wrap' && wordWrap) || (command.id === 'goto' && goToMenuOpen),
+      }"
       :disabled="!command.enabled"
-      :aria-pressed="command.id === 'wrap' ? wordWrap : undefined"
+      :aria-pressed="
+        command.id === 'wrap' ? wordWrap : command.id === 'goto' ? goToMenuOpen : undefined
+      "
       :data-testid="`text-edit-toolbar-${command.id}`"
       @click="runTextEditCommand(command.id)"
     >
@@ -489,6 +564,36 @@ const textEditToolbarCommands = computed(() => [
       </select>
     </label>
     <span data-testid="text-edit-syntax-grammar">{{ activeSyntaxGrammar.id }}</span>
+  </section>
+  <section
+    v-if="goToMenuOpen"
+    class="syntax-language-bar"
+    data-testid="text-edit-goto-menu"
+  >
+    <label>
+      <span>{{ $t('ui.goToLine') }}</span>
+      <input
+        v-model="goToLineInput"
+        data-testid="text-edit-goto-line"
+        type="number"
+        min="1"
+        :aria-label="$t('ui.goToLine')"
+        @keydown.enter.prevent="applyGoToLine"
+      />
+    </label>
+    <button
+      type="button"
+      class="toolbar-button"
+      data-testid="text-edit-goto-apply"
+      @click="applyGoToLine"
+    >
+      {{ $t('ui.goTo') }}
+    </button>
+    <span
+      class="status-chip"
+      data-testid="text-edit-goto-status"
+      >{{ goToLineStatus }}</span
+    >
   </section>
   <section class="text-edit-view">
     <header class="text-edit-header">
@@ -596,14 +701,21 @@ const textEditToolbarCommands = computed(() => [
       >{{ error }}</NAlert
     >
 
-    <NInput
-      :value="editorText"
-      type="textarea"
-      class="editor-input"
-      :class="{ 'editor-input-wrap': wordWrap, 'editor-input-nowrap': !wordWrap }"
-      :placeholder="$t('ui.openATextFileToBeginEditing')"
-      @update:value="updateEditorText"
-    />
+    <div
+      ref="editorHostRef"
+      class="editor-host"
+      data-testid="text-edit-editor-host"
+    >
+      <NInput
+        :value="editorText"
+        type="textarea"
+        class="editor-input"
+        data-testid="text-edit-editor"
+        :class="{ 'editor-input-wrap': wordWrap, 'editor-input-nowrap': !wordWrap }"
+        :placeholder="$t('ui.openATextFileToBeginEditing')"
+        @update:value="updateEditorText"
+      />
+    </div>
 
     <pre
       v-if="syntaxMenuOpen && editorText.length > 0"
@@ -668,6 +780,11 @@ const textEditToolbarCommands = computed(() => [
 .syntax-comment {
   color: #64748b;
   font-style: italic;
+}
+
+.editor-host {
+  display: grid;
+  min-height: 0;
 }
 
 .text-edit-view {

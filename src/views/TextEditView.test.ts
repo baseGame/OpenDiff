@@ -240,4 +240,31 @@ describe('TextEditView', () => {
 
     expect(wrapButton.attributes('aria-pressed')).toBe('false')
   })
+
+  it('opens Go To Line and selects the requested line in the editor', async () => {
+    const wrapper = mountTextEditView()
+
+    await wrapper.find('[data-testid="text-edit-path"]').setValue('D:/workspace/notes.txt')
+    await wrapper.find('[data-testid="text-edit-open"]').trigger('click')
+    await wrapper.vm.$nextTick()
+
+    expect(
+      wrapper.find('[data-testid="text-edit-toolbar-goto"]').attributes('disabled'),
+    ).toBeUndefined()
+
+    await wrapper.find('[data-testid="text-edit-toolbar-goto"]').trigger('click')
+    expect(wrapper.find('[data-testid="text-edit-goto-menu"]').exists()).toBe(true)
+
+    await wrapper.find('[data-testid="text-edit-goto-line"]').setValue('2')
+    await wrapper.find('[data-testid="text-edit-goto-apply"]').trigger('click')
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('[data-testid="text-edit-goto-status"]').text()).toContain('Line 2 of 3')
+
+    const editor = wrapper.find('[data-testid="text-edit-editor"]').element as HTMLTextAreaElement
+
+    expect(editor.selectionStart).toBe(13)
+    expect(editor.selectionEnd).toBe(24)
+    expect(editor.value.slice(editor.selectionStart, editor.selectionEnd)).toBe('second line')
+  })
 })

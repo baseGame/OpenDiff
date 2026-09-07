@@ -463,6 +463,23 @@ describe('FolderCompareView', () => {
     expect(alignWith.text()).not.toContain('unimplemented')
   })
 
+  it('keeps Align With pairs across a folder rescan', async () => {
+    const wrapper = mountFolderCompareView()
+
+    await runCompare(wrapper)
+    await wrapper.find('[data-row-id="notes-md"]').trigger('click')
+    await wrapper.find('[data-testid="align-with-target"]').setValue('extra-right-md')
+    await wrapper.find('[data-testid="align-with-selected-file"]').trigger('click')
+
+    expect(wrapper.find('[data-row-id="align-notes-md-with-extra-right-md"]').exists()).toBe(true)
+
+    await runCompare(wrapper)
+
+    expect(wrapper.find('[data-row-id="align-notes-md-with-extra-right-md"]').exists()).toBe(true)
+    expect(wrapper.find('[data-row-id="notes-md"]').exists()).toBe(false)
+    expect(wrapper.find('[data-row-id="extra-right-md"]').exists()).toBe(false)
+  })
+
   it('moves the selected file through the Tauri command', async () => {
     const wrapper = mountFolderCompareView()
 

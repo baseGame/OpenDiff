@@ -23,6 +23,13 @@ import {
   saveFolderNameFilters,
   type FolderNameFilters,
 } from '@/app/folderNameFilters'
+import {
+  applyManualAlignments,
+  mergeAlignedOrphans,
+  removeManualAlignment,
+  upsertManualAlignment,
+  type ManualAlignmentPair,
+} from '@/app/folderManualAlignments'
 import { loadExternalApplications } from '@/app/externalApplications'
 import {
   folderCopyTargetsForDirection,
@@ -100,6 +107,8 @@ interface FolderTreeRow {
   status: FolderStatus
   kind: 'file' | 'directory'
   manualAlignment?: boolean
+  alignedLeftRelativePath?: string
+  alignedRightRelativePath?: string
 }
 
 interface SyncPreviewItem {
@@ -125,6 +134,8 @@ const displayStatusOptions: { statuses: FolderStatus[]; labelKey: string; testId
   { statuses: ['Left only', 'Right only'], labelKey: 'ui.orphans', testId: 'orphans' },
 ]
 const alignWithTargetId = ref('')
+const manualAlignments = ref<ManualAlignmentPair[]>([])
+const alignmentRootKey = ref('')
 const rows = ref<FolderTreeRow[]>([])
 const expandedDirectoryIds = ref<Set<string>>(new Set())
 const leftRoot = ref('')
@@ -869,10 +880,17 @@ function cancelFolderCompare(): void {
 function applyFolderCompareResponse(response: FolderCompareResponse): void {
   const nextRows = response.rows.map(folderCompareResponseRowToTreeRow)
   const rowIds = new Set(nextRows.map((row) => row.id))
-
-  rows.value = nextRows.map((row) =>
+  const normalized = nextRows.map((row) =>
     row.parentId && !rowIds.has(row.parentId) ? { ...row, parentId: undefined } : row,
   )
+  const nextRootKey = `${response.leftRoot}|${response.rightRoot}`
+
+  if (alignmentRootKey.value && alignmentRootKey.value !== nextRootKey) {
+    manualAlignments.value = []
+  }
+
+  alignmentRootKey.value = nextRootKey
+  rows.value = applyManualAlignments(normalized, manualAlignments.value)
   leftRoot.value = response.leftRoot
   rightRoot.value = response.rightRoot
   expandedDirectoryIds.value = new Set(
@@ -982,25 +1000,14 @@ function alignSelectedWithTarget(): void {
 
   const leftSide = selected.status === 'Left only' ? selected : target
   const rightSide = selected.status === 'Right only' ? selected : target
-  const mergedId = `align-${leftSide.id}-with-${rightSide.id}`
-  const merged: FolderTreeRow = {
-    id: mergedId,
-    relativePath: `${leftSide.relativePath} <--> ${rightSide.relativePath}`,
-    parentId: leftSide.parentId ?? rightSide.parentId,
-    depth: Math.min(leftSide.depth, rightSide.depth),
-    leftName: leftSide.leftName,
-    rightName: rightSide.rightName,
-    leftSize: leftSide.leftSize,
-    rightSize: rightSide.rightSize,
-    leftModified: leftSide.leftModified,
-    rightModified: rightSide.rightModified,
-    leftPath: leftSide.leftPath,
-    rightPath: rightSide.rightPath,
-    status: 'Different',
-    kind: 'file',
-    manualAlignment: true,
-  }
+  const merged = mergeAlignedOrphans(leftSide, rightSide)
 
+  manualAlignments.value = upsertManualAlignment(
+    manualAlignments.value,
+    leftSide.relativePath,
+    rightSide.relativePath,
+  )
+  alignmentRootKey.value = `${leftRoot.value}|${rightRoot.value}`
   rows.value = rows.value
     .filter((row) => row.id !== leftSide.id && row.id !== rightSide.id)
     .concat(merged)
@@ -1019,9 +1026,18 @@ function breakSelectedAlignment(): void {
     return
   }
 
+  const leftRelative = selected.alignedLeftRelativePath ?? pathBaseFromPath(selected.leftPath)
+  const rightRelative = selected.alignedRightRelativePath ?? pathBaseFromPath(selected.rightPath)
+
+  manualAlignments.value = removeManualAlignment(
+    manualAlignments.value,
+    leftRelative,
+    rightRelative,
+  )
+
   const leftOnly: FolderTreeRow = {
     id: `${selected.id}-left`,
-    relativePath: selected.leftName ?? pathBaseFromPath(selected.leftPath),
+    relativePath: leftRelative,
     parentId: selected.parentId,
     depth: selected.depth,
     leftName: selected.leftName ?? pathBaseFromPath(selected.leftPath),
@@ -1033,7 +1049,7 @@ function breakSelectedAlignment(): void {
   }
   const rightOnly: FolderTreeRow = {
     id: `${selected.id}-right`,
-    relativePath: selected.rightName ?? pathBaseFromPath(selected.rightPath),
+    relativePath: rightRelative,
     parentId: selected.parentId,
     depth: selected.depth,
     rightName: selected.rightName ?? pathBaseFromPath(selected.rightPath),
