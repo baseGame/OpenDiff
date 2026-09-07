@@ -58,6 +58,7 @@ pub fn prepare_shell_startup(args: impl IntoIterator<Item = String>) -> ShellSta
             left,
             right,
             route,
+            options: _,
         } => {
             let payload = ShellCompareLaunchPayload {
                 left,

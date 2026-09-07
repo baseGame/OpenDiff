@@ -1,8 +1,8 @@
 use cli_core::{
     automerge_text_files, build_git_difftool_config, build_git_mergetool_config,
-    build_svn_diff_config, cli_exit_code_contract, cli_exit_code_value, compare_folders,
-    compare_text_files, describe_open_compare, open_named_session, parse_cli_args,
-    preview_folder_sync_cli, write_git_tool_config, write_svn_diff_config, CliCommand, CliExitCode,
+    build_svn_diff_config, cli_exit_code_value, cli_help_text, compare_folders, compare_text_files,
+    describe_open_compare, open_named_session, parse_cli_args, preview_folder_sync_cli,
+    write_git_tool_config, write_svn_diff_config, CliCommand, CliExitCode,
 };
 use shell_core::{ShellCompareOutcome, ShellCompareSessionType, ShellCompareStateStore};
 
@@ -17,28 +17,9 @@ fn main() {
 
     match invocation.command {
         CliCommand::Help => {
-            println!("Usage: open-diff-cli <command> [args]");
-            println!("Commands:");
-            println!("  compare <left> <right>");
-            println!("  compare-folders <left> <right>");
-            println!("  shell-compare [--select-left] <path>");
-            println!("  git-difftool-config [--global|--local] [--write] <executable-path>");
-            println!("  git-mergetool-config [--global|--local] [--write] <executable-path>");
-            println!("  svn-diff <svn external diff args>");
-            println!("  svn-diff-config [--write] <executable-path> <wrapper-path>");
-            println!("  script <script-path>");
-            println!("  open-session <store-root> <name>");
-            println!("  open [--session <type>] [--left <path>] [--right <path>] <left> <right>");
-            println!("      session types: folder-compare, folder-sync, text-compare, text-merge,");
-            println!("                     table-compare, hex-compare, picture-compare, ...");
-            println!("  sync-preview <left> <right>");
-            println!("  merge-text --automerge <base> <left> <right> <output>");
-            println!("Exit codes:");
-            for spec in cli_exit_code_contract() {
-                println!("  {} {}", spec.value, spec.meaning);
-            }
+            println!("{}", cli_help_text());
         }
-        CliCommand::CompareFiles { left, right } => {
+        CliCommand::CompareFiles { left, right, quiet } => {
             let result = match compare_text_files(&left, &right) {
                 Ok(result) => result,
                 Err(error) => {
@@ -47,10 +28,12 @@ fn main() {
                 }
             };
 
-            println!(
-                "added: {}, deleted: {}, modified: {}",
-                result.added, result.deleted, result.modified
-            );
+            if !quiet {
+                println!(
+                    "added: {}, deleted: {}, modified: {}",
+                    result.added, result.deleted, result.modified
+                );
+            }
             std::process::exit(cli_exit_code_value(result.exit_code));
         }
         CliCommand::ShellCompare { path, select_left } => {
@@ -231,7 +214,7 @@ fn main() {
                 }
             }
         }
-        CliCommand::CompareFolders { left, right } => {
+        CliCommand::CompareFolders { left, right, quiet } => {
             let result = match compare_folders(&left, &right) {
                 Ok(result) => result,
                 Err(error) => {
@@ -240,15 +223,17 @@ fn main() {
                 }
             };
 
-            println!(
-                "total: {}, same: {}, different: {}, left-only: {}, right-only: {}, error: {}",
-                result.total,
-                result.same,
-                result.different,
-                result.left_only,
-                result.right_only,
-                result.error
-            );
+            if !quiet {
+                println!(
+                    "total: {}, same: {}, different: {}, left-only: {}, right-only: {}, error: {}",
+                    result.total,
+                    result.same,
+                    result.different,
+                    result.left_only,
+                    result.right_only,
+                    result.error
+                );
+            }
             std::process::exit(cli_exit_code_value(result.exit_code));
         }
         CliCommand::OpenSession { store_root, name } => {
@@ -284,15 +269,37 @@ fn main() {
             left,
             right,
             route,
+            options,
         } => {
-            let result = describe_open_compare(session_type, left, right, route);
-            println!(
-                "open session: {} | route: {} | left: {} | right: {}",
-                result.session_type, result.route, result.left, result.right
-            );
+            let silent = options.silent;
+            let result = describe_open_compare(session_type, left, right, route, options);
+            if !silent {
+                println!(
+                    "open session: {} | route: {} | left: {} | right: {}",
+                    result.session_type, result.route, result.left, result.right
+                );
+                if let Some(center) = &result.options.center {
+                    println!("center: {center}");
+                }
+                if let Some(output) = &result.options.output {
+                    println!("output: {output}");
+                }
+                if result.options.left_readonly || result.options.right_readonly {
+                    println!(
+                        "readonly: left={} right={}",
+                        result.options.left_readonly, result.options.right_readonly
+                    );
+                }
+                if result.options.edit {
+                    println!("edit: true");
+                }
+                if let Some(favor) = result.options.favor {
+                    println!("favor: {favor:?}");
+                }
+            }
             std::process::exit(cli_exit_code_value(result.exit_code));
         }
-        CliCommand::SyncPreview { left, right } => {
+        CliCommand::SyncPreview { left, right, quiet } => {
             let result = match preview_folder_sync_cli(&left, &right) {
                 Ok(result) => result,
                 Err(error) => {
@@ -300,10 +307,12 @@ fn main() {
                     std::process::exit(cli_exit_code_value(error.exit_code));
                 }
             };
-            println!(
-                "sync-preview total: {}, copy: {}, delete: {}, leave: {}, conflict: {}",
-                result.total, result.copy, result.delete, result.leave, result.conflict
-            );
+            if !quiet {
+                println!(
+                    "sync-preview total: {}, copy: {}, delete: {}, leave: {}, conflict: {}",
+                    result.total, result.copy, result.delete, result.leave, result.conflict
+                );
+            }
             std::process::exit(cli_exit_code_value(result.exit_code));
         }
         CliCommand::MergeText(args) => {

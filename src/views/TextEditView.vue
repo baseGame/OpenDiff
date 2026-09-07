@@ -8,6 +8,12 @@ import { useViewActionsStore } from '@/stores/viewActions'
 import { useTabsStore } from '@/stores/tabs'
 import { useSettingsStore } from '@/stores/settings'
 import type { FileStamp } from '@/types/diff'
+import {
+  resolveSyntaxGrammar,
+  splitLineBySyntaxTokens,
+  syntaxLanguageOptions,
+  tokenizeSyntaxLine,
+} from '@/app/syntaxGrammars'
 
 interface LoadedTextDocument {
   path: string
@@ -39,6 +45,8 @@ const saveStatusParams = ref<Record<string, string | number>>({})
 const findQuery = ref('')
 const replaceQuery = ref('')
 const currentFindIndex = ref(0)
+const syntaxMenuOpen = ref(false)
+const syntaxLanguageId = ref('auto')
 
 const fileTitle = computed(() => {
   if (!document.value) {
@@ -299,6 +307,12 @@ function runTextEditCommand(commandId: string): void {
 
   if (commandId === 'delete') {
     deleteEdit()
+
+    return
+  }
+
+  if (commandId === 'syntax') {
+    syntaxMenuOpen.value = !syntaxMenuOpen.value
   }
 }
 
@@ -400,6 +414,16 @@ watch(
   },
 )
 
+const activeSyntaxGrammar = computed(() =>
+  resolveSyntaxGrammar(syntaxLanguageId.value, document.value?.path ?? pathInput.value),
+)
+const highlightedLines = computed(() =>
+  editorText.value.split('\n').map((line) => {
+    const tokens = tokenizeSyntaxLine(line, activeSyntaxGrammar.value)
+
+    return splitLineBySyntaxTokens(line, tokens)
+  }),
+)
 const hasEditorContent = computed(() => editorText.value.length > 0)
 const canPaste = computed(() => localClipboard.value.length > 0)
 const textEditToolbarCommands = computed(() => [
@@ -415,7 +439,7 @@ const textEditToolbarCommands = computed(() => [
     enabled: canPaste.value || document.value !== null,
   },
   { id: 'delete', glyph: 'D', labelKey: 'ui.delete', enabled: hasEditorContent.value },
-  { id: 'syntax', glyph: 'S', labelKey: 'ui.syntax', enabled: false },
+  { id: 'syntax', glyph: 'S', labelKey: 'ui.syntax', enabled: true },
 ])
 </script>
 
@@ -433,6 +457,28 @@ const textEditToolbarCommands = computed(() => [
       <span class="bc-toolbar-glyph">{{ command.glyph }}</span
       ><span>{{ $t(command.labelKey) }}</span>
     </button>
+  </section>
+  <section
+    v-if="syntaxMenuOpen"
+    class="syntax-language-bar"
+    data-testid="text-edit-syntax-menu"
+  >
+    <label>
+      <span>{{ $t('ui.syntaxLanguage') }}</span>
+      <select
+        v-model="syntaxLanguageId"
+        data-testid="text-edit-syntax-language"
+      >
+        <option
+          v-for="option in syntaxLanguageOptions"
+          :key="option.id"
+          :value="option.id"
+        >
+          {{ $t(option.labelKey) }}
+        </option>
+      </select>
+    </label>
+    <span data-testid="text-edit-syntax-grammar">{{ activeSyntaxGrammar.id }}</span>
   </section>
   <section class="text-edit-view">
     <header class="text-edit-header">
@@ -547,12 +593,75 @@ const textEditToolbarCommands = computed(() => [
       :placeholder="$t('ui.openATextFileToBeginEditing')"
       @update:value="updateEditorText"
     />
+
+    <pre
+      v-if="syntaxMenuOpen && editorText.length > 0"
+      class="syntax-preview"
+      data-testid="text-edit-syntax-preview"
+    ><code
+        v-for="(parts, lineIndex) in highlightedLines"
+        :key="lineIndex"
+        class="syntax-line"
+      ><span
+          v-for="(part, partIndex) in parts"
+          :key="partIndex"
+          class="syntax-part"
+          :class="{
+            'syntax-keyword': part.kind === 'keyword',
+            'syntax-comment': part.kind === 'comment',
+          }"
+          >{{ part.text }}</span
+        >{{ '\n' }}</code
+      ></pre>
   </section>
 </template>
 <style scoped>
+.syntax-language-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--app-border);
+  background: var(--app-surface);
+}
+
+.syntax-language-bar label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.syntax-preview {
+  margin: 0;
+  padding: 10px 12px;
+  overflow: auto;
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  background: var(--app-surface);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+.syntax-line {
+  display: block;
+}
+
+.syntax-keyword {
+  color: #7c3aed;
+  font-weight: 600;
+}
+
+.syntax-comment {
+  color: #64748b;
+  font-style: italic;
+}
+
 .text-edit-view {
   display: grid;
-  grid-template-rows: auto auto auto auto auto minmax(0, 1fr);
+  grid-template-rows: auto auto auto auto auto minmax(0, 1fr) auto;
   gap: 10px;
   height: 100%;
   padding: 12px;

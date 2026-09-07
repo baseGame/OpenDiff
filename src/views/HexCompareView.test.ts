@@ -96,7 +96,7 @@ describe('HexCompareView', () => {
     ).toBeDefined()
     expect(
       wrapper.find('[data-testid="hex-session-toolbar-rules"]').attributes('disabled'),
-    ).toBeDefined()
+    ).toBeUndefined()
   })
 
   it('swaps paths and reloads from the session toolbar', async () => {

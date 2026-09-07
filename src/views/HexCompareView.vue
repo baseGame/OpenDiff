@@ -338,7 +338,7 @@ const hexSessionToolbar = computed(() =>
     all: true,
     diffs: true,
     same: false,
-    rules: false,
+    rules: true,
     copy: false,
     'next-diff': navigationRanges.value.length > 0,
     'prev-diff': navigationRanges.value.length > 0,
@@ -357,6 +357,9 @@ function runHexToolbarCommand(commandId: string): void {
       break
     case 'diffs':
       diffOnly.value = true
+      break
+    case 'rules':
+      openHexSessionSettings()
       break
     case 'next-diff':
       goToHexDiffRange(activeDiffRangeIndex.value + 1)
@@ -405,6 +408,21 @@ function goToPreviousHexPage(): void {
 
 function goToNextHexPage(): void {
   hexOffset.value += hexLength.value
+  void runHexCompare()
+}
+
+function goToFirstHexPage(): void {
+  hexOffset.value = 0
+  jumpOffsetInput.value = hexOffsetInputValue(0)
+  void runHexCompare()
+}
+
+function goToLastHexPage(): void {
+  const total = Math.max(leftTotalLen.value, rightTotalLen.value)
+  const last = Math.max(0, total - hexLength.value)
+
+  hexOffset.value = last
+  jumpOffsetInput.value = hexOffsetInputValue(last)
   void runHexCompare()
 }
 
@@ -616,6 +634,14 @@ async function runHexSave(): Promise<void> {
         </button>
         <button
           type="button"
+          data-testid="hex-first-page"
+          :disabled="loading || hexOffset <= 0"
+          @click="goToFirstHexPage"
+        >
+          {{ $t('ui.firstPage') }}
+        </button>
+        <button
+          type="button"
           data-testid="hex-previous-page"
           :disabled="loading || hexOffset <= 0"
           @click="goToPreviousHexPage"
@@ -629,6 +655,14 @@ async function runHexSave(): Promise<void> {
           @click="goToNextHexPage"
         >
           {{ $t('ui.next') }}
+        </button>
+        <button
+          type="button"
+          data-testid="hex-last-page"
+          :disabled="loading"
+          @click="goToLastHexPage"
+        >
+          {{ $t('ui.lastPage') }}
         </button>
         <button
           type="button"
@@ -806,7 +840,39 @@ async function runHexSave(): Promise<void> {
             ]"
           />
         </section>
-        <section class="workbench-inspector-section">
+        <section
+          class="workench-inspector-section"
+          data-testid="hex-rules-panel"
+        >
+          <h2>{{ $t('ui.rules') }}</h2>
+          <label class="hex-rules-row">
+            <span>{{ $t('ui.windowLength') }}</span>
+            <input
+              v-model.number="hexLength"
+              type="number"
+              min="16"
+              max="4096"
+              step="16"
+              data-testid="hex-rules-window"
+            />
+          </label>
+          <label class="hex-rules-row">
+            <input
+              v-model="diffOnly"
+              type="checkbox"
+              data-testid="hex-rules-diff-only"
+            />
+            <span>{{ $t('ui.differencesOnly') }}</span>
+          </label>
+          <button
+            type="button"
+            data-testid="hex-rules-open"
+            @click="openHexSessionSettings"
+          >
+            {{ $t('ui.sessionSettings') }}
+          </button>
+        </section>
+        <section class="workench-inspector-section">
           <h2>{{ $t('ui.formatDetails') }}</h2>
           <dl>
             <div>
@@ -1090,5 +1156,17 @@ h2 {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+}
+
+.hex-rules-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0;
+  font-size: 12px;
+}
+
+.hex-rules-row input[type='number'] {
+  width: 96px;
 }
 </style>
