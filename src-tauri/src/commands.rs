@@ -910,7 +910,7 @@ fn extract_archive_entry_to_folder(
                 "error.app.unknown.title",
                 error.to_string(),
             )
-            .with_param("path", &destination.display().to_string())
+            .with_param("path", destination.display().to_string())
         })?;
     }
 
@@ -920,7 +920,7 @@ fn extract_archive_entry_to_folder(
             "error.app.unknown.title",
             error.to_string(),
         )
-        .with_param("path", &destination.display().to_string())
+        .with_param("path", destination.display().to_string())
     })?;
 
     let written = fs::read(&destination).map_err(|error| {
@@ -929,7 +929,7 @@ fn extract_archive_entry_to_folder(
             "error.app.unknown.title",
             error.to_string(),
         )
-        .with_param("path", &destination.display().to_string())
+        .with_param("path", destination.display().to_string())
     })?;
     let refreshed_status = if written == bytes {
         folder_core::FolderCompareStatus::Same
