@@ -17,6 +17,7 @@ import {
   type LucideIcon,
 } from '@lucide/vue'
 import { readClipboardTextSource } from '@/app/clipboardSource'
+import { isArchivePath } from '@/app/archivePath'
 import { pickNativePath } from '@/app/filePicker'
 import { classifyDropInputs } from '@/app/dropInput'
 import { createLaunchFromDrop } from '@/app/dropLaunch'
@@ -592,6 +593,44 @@ async function browseFoldersToCompare(): Promise<void> {
   void router.push('/compare/folder')
 }
 
+async function browseArchivesToCompare(): Promise<void> {
+  const left = await pickNativePath({ directory: false })
+
+  if (!left) {
+    return
+  }
+
+  const right = await pickNativePath({ directory: false })
+
+  if (!right) {
+    return
+  }
+
+  if (!isArchivePath(left) || !isArchivePath(right)) {
+    return
+  }
+
+  sessionLaunch.setPendingLaunch({
+    id: crypto.randomUUID(),
+    source: 'home',
+    sessionType: 'archive-compare',
+    title: `${left} vs ${right}`,
+    route: '/compare/folder',
+    locations: {
+      left: { uri: left, displayName: left, kind: 'file', readOnly: true },
+      right: { uri: right, displayName: right, kind: 'file', readOnly: true },
+    },
+    autoRun: true,
+  })
+  tabs.openTab({
+    title: t('ui.archiveCompare'),
+    titleKey: 'ui.archiveCompare',
+    route: '/compare/folder',
+    dirty: false,
+  })
+  void router.push('/compare/folder')
+}
+
 function openSelectedPreview(): void {
   if (selectedSavedSession.value) {
     openSavedSession(selectedSavedSession.value)
@@ -797,6 +836,14 @@ function openSelectedPreview(): void {
                 @click="browseFoldersToCompare"
               >
                 {{ $t('ui.browseFolders') }}
+              </button>
+              <button
+                type="button"
+                class="home-primary-cta"
+                data-testid="home-browse-archives"
+                @click="browseArchivesToCompare"
+              >
+                {{ $t('ui.browseArchive') }}
               </button>
               <span
                 class="home-drop-cta"

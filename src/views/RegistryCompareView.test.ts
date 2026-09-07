@@ -3,10 +3,17 @@ import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import RegistryCompareView from './RegistryCompareView.vue'
 import { compareRegistryExports, readTextFile } from '@/api/diff'
+import { queryLiveWindowsRegistry } from '@/api/policy'
 import { useSessionLaunchStore } from '@/stores/sessionLaunch'
 
 vi.mock('vue-router', () => ({
   useRouter: () => ({ push: vi.fn() }),
+}))
+
+vi.mock('@/api/policy', () => ({
+  queryLiveWindowsRegistry: vi
+    .fn()
+    .mockRejectedValue(new Error('Live registry query is available on Windows only')),
 }))
 
 vi.mock('@/api/diff', () => ({
@@ -111,5 +118,39 @@ describe('RegistryCompareView', () => {
     expect(wrapper.text()).toContain('Registry Compare')
     expect(wrapper.find('[data-testid="registry-summary-modified"]').text()).toContain('0')
     expect(wrapper.find('[data-testid="registry-key-HKCU/Software/OpenDiff"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="registry-maturity-note"]').exists()).toBe(true)
+  })
+
+  it('filters diffs, applies right value in the workspace, and probes live query honesty', async () => {
+    const wrapper = mount(RegistryCompareView)
+
+    await wrapper.find('[data-testid="registry-left-export"]').setValue('left export')
+    await wrapper.find('[data-testid="registry-right-export"]').setValue('right export')
+    await wrapper.find('[data-testid="run-registry-compare"]').trigger('click')
+    await wrapper.vm.$nextTick()
+
+    await wrapper
+      .find('[data-testid="registry-value-HKCU/Software/OpenDiff::Theme"]')
+      .trigger('click')
+    await wrapper.find('[data-testid="registry-apply-right"]').trigger('click')
+
+    expect(wrapper.find('[data-testid="registry-apply-status"]').text().length).toBeGreaterThan(0)
+    expect(
+      wrapper.find('[data-testid="registry-value-HKCU/Software/OpenDiff::Theme"]').text(),
+    ).toContain('light')
+    expect(wrapper.find('[data-testid="registry-summary-unchanged"]').text()).toContain('1')
+
+    await wrapper.find('[data-testid="registry-session-toolbar-diffs"]').trigger('click')
+    expect(
+      wrapper.find('[data-testid="registry-value-HKCU/Software/OpenDiff::Theme"]').exists(),
+    ).toBe(false)
+
+    await wrapper.find('[data-testid="registry-live-key"]').setValue('HKCU\\Software\\OpenDiff')
+    await wrapper.find('[data-testid="registry-live-query"]').trigger('click')
+    await wrapper.vm.$nextTick()
+    await Promise.resolve()
+
+    expect(queryLiveWindowsRegistry).toHaveBeenCalled()
+    expect(wrapper.find('[data-testid="registry-live-error"]').exists()).toBe(true)
   })
 })

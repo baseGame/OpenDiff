@@ -143,6 +143,57 @@ describe('TextMergeView', () => {
     expect(wrapper.find('[data-testid="merge-favor-left"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="merge-favor-right"]').exists()).toBe(true)
   })
+
+  it('navigates conflicts and accepts then next', async () => {
+    vi.mocked(mergeTextFiles).mockResolvedValueOnce({
+      leftPath: 'left.txt',
+      rightPath: 'right.txt',
+      centerPath: 'base.txt',
+      outputPath: 'out.txt',
+      leftText: 'a\nb-left\nc\nd-left',
+      rightText: 'a\nb-right\nc\nd-right',
+      centerText: 'a\nb-base\nc\nd-base',
+      outputText:
+        'a\n<<<<<<< Left\nb-left\n=======\nb-right\n>>>>>>> Right\nc\n<<<<<<< Left\nd-left\n=======\nd-right\n>>>>>>> Right',
+      conflicts: [
+        {
+          lineIndex: 1,
+          title: 'Conflict A',
+          base: 'b-base',
+          left: 'b-left',
+          right: 'b-right',
+          outputSpan: 5,
+        },
+        {
+          lineIndex: 7,
+          title: 'Conflict B',
+          base: 'd-base',
+          left: 'd-left',
+          right: 'd-right',
+          outputSpan: 5,
+        },
+      ],
+    })
+
+    const wrapper = mount(TextMergeView)
+
+    await wrapper.find('[data-testid="merge-left-path"]').setValue('left.txt')
+    await wrapper.find('[data-testid="merge-right-path"]').setValue('right.txt')
+    await wrapper.find('[data-testid="load-text-merge"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="merge-conflict-position"]').text()).toContain('1')
+    expect(wrapper.find('[data-testid="merge-sync-panes"]').exists()).toBe(true)
+
+    await wrapper.find('[data-testid="merge-next-conflict"]').trigger('click')
+    expect(wrapper.find('[data-testid="merge-conflict-position"]').text()).toContain('2')
+    expect(wrapper.find('[data-testid="merge-conflict-item-1"]').classes()).toContain('active')
+
+    await wrapper.find('[data-testid="merge-accept-left-then-next"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[data-testid="merge-conflict-status"]').text()).toContain('1 conflict')
+    expect(outputEditorValue(wrapper)).toContain('d-left')
+  })
 })
 
 async function mountLoadedMerge(): Promise<VueWrapper> {

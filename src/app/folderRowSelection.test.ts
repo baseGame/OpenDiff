@@ -51,53 +51,55 @@ describe('folderRowSelection', () => {
     expect(selectRowIdsByNameFilter(rows, '  ')).toEqual([])
     expect(invertRowIds(rows, ['a', 'c'])).toEqual(['b', 'd'])
   })
-})
 
-it('prefers checked rows for bulk ops, else the focused selection', () => {
-  expect(resolveOperationRows(rows, ['a', 'd'], 'b').map((row) => row.id)).toEqual(['a', 'd'])
-  expect(resolveOperationRows(rows, [], 'b').map((row) => row.id)).toEqual(['b'])
-  expect(resolveOperationRows(rows, [], undefined)).toEqual([])
-})
+  it('prefers checked rows for bulk ops, else the focused selection', () => {
+    expect(resolveOperationRows(rows, ['a', 'd'], 'b').map((row) => row.id)).toEqual(['a', 'd'])
+    expect(resolveOperationRows(rows, [], 'b').map((row) => row.id)).toEqual(['b'])
+    expect(resolveOperationRows(rows, [], undefined)).toEqual([])
+  })
 
-it('builds copy targets and entry paths for checked rows', () => {
-  const withPaths = [
-    {
-      id: 'a',
-      kind: 'file' as const,
-      status: 'Different' as const,
-      relativePath: 'a.txt',
-      leftPath: '/L/a.txt',
-      rightPath: '/R/a.txt',
-    },
-    {
-      id: 'd',
-      kind: 'file' as const,
-      status: 'Right only' as const,
-      relativePath: 'only-right.log',
-      rightPath: '/R/only-right.log',
-    },
-  ]
+  it('builds copy targets and entry paths for checked rows', () => {
+    const withPaths = [
+      {
+        id: 'a',
+        kind: 'file' as const,
+        status: 'Different' as const,
+        relativePath: 'a.txt',
+        leftPath: '/L/a.txt',
+        rightPath: '/R/a.txt',
+      },
+      {
+        id: 'd',
+        kind: 'file' as const,
+        status: 'Right only' as const,
+        relativePath: 'only-right.log',
+        rightPath: '/R/only-right.log',
+      },
+    ]
 
-  expect(folderCopyTargetsForDirection(withPaths, 'Right', (relative) => `/L/${relative}`)).toEqual(
-    [
+    expect(
+      folderCopyTargetsForDirection(withPaths, 'Right', (relative) => `/L/${relative}`),
+    ).toEqual([
       {
         relativePath: 'a.txt',
         sourcePath: '/L/a.txt',
         targetPath: '/R/a.txt',
       },
-    ],
-  )
-  expect(folderCopyTargetsForDirection(withPaths, 'Left', (relative) => `/L/${relative}`)).toEqual([
-    {
-      relativePath: 'a.txt',
-      sourcePath: '/R/a.txt',
-      targetPath: '/L/a.txt',
-    },
-    {
-      relativePath: 'only-right.log',
-      sourcePath: '/R/only-right.log',
-      targetPath: '/L/only-right.log',
-    },
-  ])
-  expect(folderEntryPaths(withPaths)).toEqual(['/L/a.txt', '/R/only-right.log'])
+    ])
+    expect(
+      folderCopyTargetsForDirection(withPaths, 'Left', (relative) => `/L/${relative}`),
+    ).toEqual([
+      {
+        relativePath: 'a.txt',
+        sourcePath: '/R/a.txt',
+        targetPath: '/L/a.txt',
+      },
+      {
+        relativePath: 'only-right.log',
+        sourcePath: '/R/only-right.log',
+        targetPath: '/L/only-right.log',
+      },
+    ])
+    expect(folderEntryPaths(withPaths)).toEqual(['/L/a.txt', '/R/only-right.log'])
+  })
 })

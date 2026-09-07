@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { mergeTextFiles, saveTextFile } from '@/api/diff'
 import WorkbenchShell from '@/components/workbench/WorkbenchShell.vue'
 import WorkbenchInspector from '@/components/workbench/WorkbenchInspector.vue'
@@ -51,6 +51,10 @@ const saving = ref(false)
 const loading = ref(false)
 const conflicts = ref<MergeConflict[]>([])
 const conflictPolicy = ref<ConflictPolicy>('markConflict')
+const activeConflictIndex = ref(0)
+const syncPanes = ref(true)
+let syncingScroll = false
+const paneBodyRefs: Partial<Record<MergePaneId, HTMLElement | null>> = {}
 const panes = computed<MergePane[]>(() => [
   {
     id: 'left',
@@ -78,7 +82,28 @@ const panes = computed<MergePane[]>(() => [
   },
 ])
 const unresolvedConflicts = computed(() => conflicts.value.filter((conflict) => !conflict.resolved))
-const currentConflict = computed<MergeConflict | undefined>(() => unresolvedConflicts.value.at(0))
+const currentConflict = computed<MergeConflict | undefined>(() => {
+  const list = unresolvedConflicts.value
+
+  if (list.length === 0) {
+    return undefined
+  }
+
+  const index = Math.min(Math.max(activeConflictIndex.value, 0), list.length - 1)
+
+  return list[index]
+})
+const conflictPositionLabel = computed(() => {
+  const list = unresolvedConflicts.value
+
+  if (list.length === 0) {
+    return t('status.conflictCountPlural', { count: 0 })
+  }
+
+  const index = Math.min(Math.max(activeConflictIndex.value, 0), list.length - 1)
+
+  return t('status.conflictPosition', { index: index + 1, total: list.length })
+})
 const outputHasConflictMarkers = computed(() =>
   outputLines.value.some((line) => /^(<{7}|={7}|>{7})/u.test(line)),
 )
@@ -154,6 +179,9 @@ async function loadMerge(): Promise<void> {
       outputSpan: Math.max(1, conflict.outputSpan),
       resolved: false,
     }))
+    activeConflictIndex.value = 0
+    await nextTick()
+    scrollPanesToCurrentConflict()
   } finally {
     loading.value = false
   }
@@ -164,7 +192,35 @@ function favorSide(side: 'left' | 'right'): void {
   acceptConflict(side)
 }
 
-function acceptConflict(source: MergeSource): void {
+function clampActiveConflictIndex(): void {
+  const max = Math.max(0, unresolvedConflicts.value.length - 1)
+
+  activeConflictIndex.value = Math.min(Math.max(activeConflictIndex.value, 0), max)
+}
+
+function goToConflict(delta: number): void {
+  const list = unresolvedConflicts.value
+
+  if (list.length === 0) {
+    return
+  }
+
+  activeConflictIndex.value = (activeConflictIndex.value + delta + list.length) % list.length
+  void nextTick().then(() => scrollPanesToCurrentConflict())
+}
+
+function selectConflict(id: number): void {
+  const index = unresolvedConflicts.value.findIndex((conflict) => conflict.id === id)
+
+  if (index < 0) {
+    return
+  }
+
+  activeConflictIndex.value = index
+  void nextTick().then(() => scrollPanesToCurrentConflict())
+}
+
+function acceptConflict(source: MergeSource, advance = false): void {
   const conflict = currentConflict.value
 
   if (!conflict) {
@@ -196,6 +252,67 @@ function acceptConflict(source: MergeSource): void {
     }
   })
   setSaveStatus('status.outputHasUnsavedEdits')
+  clampActiveConflictIndex()
+  if (advance && unresolvedConflicts.value.length > 0) {
+    void nextTick().then(() => scrollPanesToCurrentConflict())
+  }
+}
+
+function acceptThenNext(source: MergeSource): void {
+  acceptConflict(source, true)
+}
+
+function setPaneBodyRef(paneId: MergePaneId, element: Element | null): void {
+  const next = element instanceof HTMLElement ? element : null
+
+  if (paneBodyRefs[paneId] === next) {
+    return
+  }
+  paneBodyRefs[paneId] = next
+}
+
+function onPaneScroll(paneId: MergePaneId, event: Event): void {
+  if (!syncPanes.value || syncingScroll) {
+    return
+  }
+
+  const source = event.target
+
+  if (!(source instanceof HTMLElement)) {
+    return
+  }
+
+  syncingScroll = true
+  for (const [id, body] of Object.entries(paneBodyRefs)) {
+    if (id === paneId || !body) {
+      continue
+    }
+    body.scrollTop = source.scrollTop
+  }
+  syncingScroll = false
+}
+
+function scrollPanesToCurrentConflict(): void {
+  const conflict = currentConflict.value
+
+  if (!conflict) {
+    return
+  }
+
+  const lineIndex = Math.max(0, conflict.line - 1)
+
+  for (const body of Object.values(paneBodyRefs)) {
+    if (!body) {
+      continue
+    }
+    const target = body.querySelector(`[data-line-index="${String(lineIndex)}"]`)
+
+    if (target instanceof HTMLElement && typeof target.scrollIntoView === 'function') {
+      target.scrollIntoView({ block: 'center' })
+    } else {
+      body.scrollTop = Math.max(0, lineIndex * 22 - 40)
+    }
+  }
 }
 
 async function saveOutput(): Promise<void> {
@@ -312,6 +429,56 @@ watch(
             {{ $t('ui.favorRight') }}
           </button>
         </span>
+        <span
+          class="conflict-nav-chrome"
+          data-testid="merge-conflict-nav"
+        >
+          <span data-testid="merge-conflict-position">{{ conflictPositionLabel }}</span>
+          <button
+            type="button"
+            class="toolbar-button"
+            data-testid="merge-prev-conflict"
+            :disabled="unresolvedConflicts.length === 0"
+            @click="goToConflict(-1)"
+          >
+            {{ $t('ui.previousConflict') }}
+          </button>
+          <button
+            type="button"
+            class="toolbar-button"
+            data-testid="merge-next-conflict"
+            :disabled="unresolvedConflicts.length === 0"
+            @click="goToConflict(1)"
+          >
+            {{ $t('ui.nextConflict') }}
+          </button>
+          <button
+            type="button"
+            class="toolbar-button"
+            data-testid="merge-accept-left-then-next"
+            :disabled="!currentConflict"
+            @click="acceptThenNext('left')"
+          >
+            {{ $t('ui.acceptLeftThenNext') }}
+          </button>
+          <button
+            type="button"
+            class="toolbar-button"
+            data-testid="merge-accept-right-then-next"
+            :disabled="!currentConflict"
+            @click="acceptThenNext('right')"
+          >
+            {{ $t('ui.acceptRightThenNext') }}
+          </button>
+          <label class="sync-panes-toggle">
+            <input
+              v-model="syncPanes"
+              data-testid="merge-sync-panes"
+              type="checkbox"
+            />
+            <span>{{ $t('ui.syncPanes') }}</span>
+          </label>
+        </span>
 
         <input
           v-model="leftPath"
@@ -394,19 +561,27 @@ watch(
           </header>
           <textarea
             v-if="pane.id === 'output'"
+            :ref="(el) => setPaneBodyRef(pane.id, el as Element | null)"
             v-model="outputText"
             class="output-editor"
             data-testid="merge-output-editor"
             spellcheck="false"
+            @scroll="onPaneScroll(pane.id, $event)"
           />
           <ol
             v-else
+            :ref="(el) => setPaneBodyRef(pane.id, el as Element | null)"
             class="merge-lines"
+            @scroll="onPaneScroll(pane.id, $event)"
           >
             <li
               v-for="(line, index) in pane.lines"
               :key="`${pane.id}-${String(index)}`"
-              :class="lineClass(line, pane.id)"
+              :data-line-index="index"
+              :class="[
+                lineClass(line, pane.id),
+                { active: currentConflict && index === currentConflict.line - 1 },
+              ]"
             >
               <span class="line-number">{{ index + 1 }}</span>
               <code>{{ line }}</code>
@@ -430,6 +605,9 @@ watch(
           <li
             v-for="conflict in unresolvedConflicts"
             :key="conflict.id"
+            :class="{ active: currentConflict?.id === conflict.id }"
+            :data-testid="`merge-conflict-item-${conflict.id}`"
+            @click="selectConflict(conflict.id)"
           >
             <strong>{{ $t('ui.line') }} {{ conflict.line }}: {{ conflict.title }}</strong>
             <div class="conflict-source">
@@ -437,7 +615,7 @@ watch(
               <button
                 type="button"
                 data-testid="accept-left-conflict"
-                @click="acceptConflict('left')"
+                @click.stop="acceptConflict('left')"
               >
                 {{ $t('ui.acceptLeft') }}
               </button>
@@ -447,7 +625,7 @@ watch(
               <button
                 type="button"
                 data-testid="accept-base-conflict"
-                @click="acceptConflict('base')"
+                @click.stop="acceptConflict('base')"
               >
                 {{ $t('ui.acceptBase') }}
               </button>
@@ -457,7 +635,7 @@ watch(
               <button
                 type="button"
                 data-testid="accept-right-conflict"
-                @click="acceptConflict('right')"
+                @click.stop="acceptConflict('right')"
               >
                 {{ $t('ui.acceptRight') }}
               </button>
@@ -566,6 +744,28 @@ watch(
 .toolbar-button:disabled {
   cursor: not-allowed;
   opacity: 0.5;
+}
+
+.conflict-nav-chrome,
+.favor-chrome {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.sync-panes-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--app-text-muted);
+  font-size: 12px;
+}
+
+.merge-lines li.active,
+.conflict-list li.active {
+  outline: 1px solid var(--app-accent);
+  background: color-mix(in srgb, var(--app-accent) 12%, transparent);
 }
 
 .merge-grid {
