@@ -254,6 +254,10 @@ describe('AppLayout command palette', () => {
       wrapper.find('[data-testid="menu-edit-group"] [data-testid="menu-panel"]').exists(),
     ).toBe(true)
     expect(wrapper.find('[data-testid="menu-command-edit.copyLeft"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="menu-command-edit.undo"]').exists()).toBe(true)
+    expect(
+      wrapper.find('[data-testid="menu-command-edit.paste"]').attributes('disabled'),
+    ).toBeUndefined()
     expect(wrapper.find('[data-testid="menu-command-open.textCompare"]').exists()).toBe(false)
 
     await wrapper.find('[data-testid="menu-view"]').trigger('click')

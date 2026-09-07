@@ -18,6 +18,12 @@ export type CommandId =
   | 'session.exit'
   | 'edit.copyLeft'
   | 'edit.copyRight'
+  | 'edit.undo'
+  | 'edit.redo'
+  | 'edit.cut'
+  | 'edit.copy'
+  | 'edit.paste'
+  | 'edit.delete'
   | 'diff.previous'
   | 'diff.next'
   | 'view.showAll'
@@ -46,6 +52,12 @@ export type CommandAction =
         | 'next-difference'
         | 'copy-left'
         | 'copy-right'
+        | 'undo'
+        | 'redo'
+        | 'cut'
+        | 'copy'
+        | 'paste'
+        | 'delete'
         | 'save'
         | 'save-as'
         | 'export'
@@ -187,6 +199,66 @@ export const commandRegistry: AppCommand[] = [
     defaultShortcut: { keys: ['Alt', 'Right'], scope: 'global' },
     placements: ['command-palette', 'toolbar', 'menu'],
     action: { type: 'view-action', name: 'copy-right' },
+  },
+  {
+    id: 'edit.undo',
+    titleKey: 'ui.undo',
+    keywords: ['edit', 'undo'],
+    enabled: true,
+    visibility: 'view',
+    defaultShortcut: { keys: ['Ctrl', 'Z'], scope: 'global' },
+    placements: ['command-palette', 'menu'],
+    action: { type: 'view-action', name: 'undo' },
+  },
+  {
+    id: 'edit.redo',
+    titleKey: 'ui.redo',
+    keywords: ['edit', 'redo'],
+    enabled: true,
+    visibility: 'view',
+    defaultShortcut: { keys: ['Ctrl', 'Y'], scope: 'global' },
+    placements: ['command-palette', 'menu'],
+    action: { type: 'view-action', name: 'redo' },
+  },
+  {
+    id: 'edit.cut',
+    titleKey: 'ui.cut',
+    keywords: ['edit', 'cut', 'clipboard'],
+    enabled: true,
+    visibility: 'view',
+    defaultShortcut: { keys: ['Ctrl', 'X'], scope: 'global' },
+    placements: ['command-palette', 'menu'],
+    action: { type: 'view-action', name: 'cut' },
+  },
+  {
+    id: 'edit.copy',
+    titleKey: 'ui.copy',
+    keywords: ['edit', 'copy', 'clipboard'],
+    enabled: true,
+    visibility: 'view',
+    defaultShortcut: { keys: ['Ctrl', 'C'], scope: 'global' },
+    placements: ['command-palette', 'menu'],
+    action: { type: 'view-action', name: 'copy' },
+  },
+  {
+    id: 'edit.paste',
+    titleKey: 'ui.paste',
+    keywords: ['edit', 'paste', 'clipboard'],
+    enabled: true,
+    visibility: 'view',
+    defaultShortcut: { keys: ['Ctrl', 'V'], scope: 'global' },
+    placements: ['command-palette', 'menu'],
+    action: { type: 'view-action', name: 'paste' },
+  },
+  {
+    id: 'edit.delete',
+    titleKey: 'ui.delete',
+    keywords: ['edit', 'delete'],
+    enabled: true,
+    visibility: 'view',
+    defaultShortcut: { keys: ['Delete'], scope: 'global' },
+    placements: ['command-palette', 'menu'],
+    action: { type: 'view-action', name: 'delete' },
   },
   {
     id: 'diff.previous',

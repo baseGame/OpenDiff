@@ -222,10 +222,29 @@ describe('HomeView', () => {
     expect(wrapper.text()).not.toContain('Release v1.2')
     expect(wrapper.find('[data-testid="home-session-history-empty"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="home-edit-selected"]').attributes('disabled')).toBeDefined()
-    expect(wrapper.find('[data-testid="home-tree-add"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.find('[data-testid="home-tree-add"]').attributes('disabled')).toBeUndefined()
     expect(wrapper.find('[data-testid="home-tree-remove"]').attributes('disabled')).toBeDefined()
     expect(wrapper.find('[data-testid="home-edit-selected"]').text()).toBe('Edit')
     expect(wrapper.find('[data-testid="home-edit-selected"]').text()).not.toContain('unimplemented')
+    expect(wrapper.find('.workbench-shell').attributes('data-compact')).toBe('true')
+  })
+
+  it('enables Edit for a selected saved session and renames it', async () => {
+    seedSampleSessions()
+    const wrapper = mountHomeView()
+
+    expect(
+      wrapper.find('[data-testid="home-edit-selected"]').attributes('disabled'),
+    ).toBeUndefined()
+
+    await wrapper.find('[data-testid="home-edit-selected"]').trigger('click')
+    expect(wrapper.find('[data-testid="home-edit-panel"]').exists()).toBe(true)
+
+    await wrapper.find('[data-testid="home-edit-name-input"]').setValue('Renamed from Edit')
+    await wrapper.find('[data-testid="home-edit-confirm"]').trigger('click')
+
+    expect(wrapper.text()).toContain('Renamed from Edit')
+    expect(wrapper.find('[data-testid="home-edit-panel"]').exists()).toBe(false)
   })
 
   it('shows saved sessions in a dense recent sessions table', () => {
