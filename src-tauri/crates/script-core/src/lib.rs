@@ -2447,11 +2447,7 @@ mod tests {
             .iter()
             .any(|entry| entry == "COLLAPSE"));
 
-        let mut permissions = std::fs::metadata(&attrib_target)
-            .expect("meta")
-            .permissions();
-        permissions.set_readonly(false);
-        std::fs::set_permissions(&attrib_target, permissions).expect("clear readonly");
+        set_readonly(&attrib_target, false);
 
         let move_result = run_script_source(
             &format!(
@@ -2523,6 +2519,15 @@ mod tests {
         bytes.extend(frame);
         bytes.extend(b"MPEG");
         bytes
+    }
+
+    fn set_readonly(path: &std::path::Path, readonly: bool) {
+        let mut permissions = std::fs::metadata(path)
+            .expect("metadata should be readable")
+            .permissions();
+
+        permissions.set_readonly(readonly);
+        std::fs::set_permissions(path, permissions).expect("permissions should update");
     }
 
     fn unique_temp_dir(label: &str) -> std::path::PathBuf {
