@@ -74,6 +74,10 @@ vi.mock('@/api/sync', () => ({
   }),
 }))
 
+vi.mock('@/app/filePicker', () => ({
+  pickNativePath: vi.fn(),
+}))
+
 vi.mock('@/api/diff', () => ({
   changeFolderEntryAttributes: vi.fn().mockResolvedValue({
     path: 'D:/left/README.md',
@@ -696,5 +700,43 @@ describe('FolderCompareView', () => {
     await wrapper.find('[data-testid="folder-session-toolbar-peek"]').trigger('click')
     expect(wrapper.find('[data-testid="folder-peek-panel"]').isVisible()).toBe(true)
     expect(wrapper.find('[data-testid="folder-peek-empty"]').isVisible()).toBe(true)
+  })
+
+  it('shows archive side chips when roots are ZIP/TAR paths', async () => {
+    const wrapper = mountFolderCompareView()
+
+    await wrapper.find('[data-testid="folder-left-root"]').setValue('/tmp/left.zip')
+    await wrapper.find('[data-testid="folder-right-root"]').setValue('/tmp/right.tar.gz')
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('[data-testid="folder-left-archive-chip"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="folder-right-archive-chip"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="folder-browse-archive-left"]').exists()).toBe(true)
+  })
+
+  it('applies readonly attributes across the checked set', async () => {
+    vi.mocked(changeFolderEntryAttributes).mockClear()
+    const wrapper = mountFolderCompareView()
+
+    await runCompare(wrapper)
+
+    const notes = wrapper.find('[data-testid="folder-row-check-notes-md"]')
+    const readme = wrapper.find('[data-testid="folder-row-check-readme-md"]')
+
+    expect(notes.exists()).toBe(true)
+    expect(readme.exists()).toBe(true)
+    await notes.setValue(true)
+    await notes.trigger('change')
+    await readme.setValue(true)
+    await readme.trigger('change')
+
+    const toggle = wrapper.find('[data-testid="toggle-selected-readonly"]')
+
+    await toggle.setValue(true)
+    await toggle.trigger('change')
+    await flushPromises()
+
+    expect(changeFolderEntryAttributes).toHaveBeenCalled()
+    expect(vi.mocked(changeFolderEntryAttributes).mock.calls.length).toBeGreaterThanOrEqual(2)
   })
 })

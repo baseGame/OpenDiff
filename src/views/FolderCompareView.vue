@@ -12,6 +12,7 @@ import {
   type FileOperationConfirmation,
 } from '@/app/fileOperationConfirmation'
 import { createChildCompareLaunch } from '@/app/childSession'
+import { isArchivePath } from '@/app/archivePath'
 import { pickNativePath } from '@/app/filePicker'
 import { formatCompareError } from '@/app/compareError'
 import { loadFolderDisplayFilters, saveFolderDisplayFilters } from '@/app/folderDisplayFilters'
@@ -1043,6 +1044,33 @@ function operationTargetRows(): FolderTreeRow[] {
   return resolveOperationRows(rows.value, checkedRowIds.value, selectedRowId.value)
 }
 
+function operationEntryPaths(): string[] {
+  return folderEntryPaths(operationTargetRows())
+}
+
+const leftSideIsArchive = computed(() => isArchivePath(leftRoot.value))
+const rightSideIsArchive = computed(() => isArchivePath(rightRoot.value))
+
+async function browseArchive(side: 'left' | 'right'): Promise<void> {
+  const selected = await pickNativePath({ directory: false })
+
+  if (!selected) {
+    return
+  }
+
+  if (!isArchivePath(selected)) {
+    folderCompareError.value = t('status.notAnArchivePath', { path: selected })
+
+    return
+  }
+
+  if (side === 'left') {
+    leftRoot.value = selected
+  } else {
+    rightRoot.value = selected
+  }
+}
+
 function copySelectedTo(direction: 'Left' | 'Right'): void {
   const targets = folderCopyTargetsForDirection(operationTargetRows(), direction, (relativePath) =>
     folderSidePath(direction === 'Left' ? leftRoot.value : rightRoot.value, relativePath),
@@ -1065,14 +1093,14 @@ function copySelectedTo(direction: 'Left' | 'Right'): void {
 }
 
 function renameSelectedFile(): void {
-  const row = selectedRow.value
+  const targets = operationTargetRows()
 
-  if (!row) {
+  if (targets.length === 0) {
     return
   }
 
   renamePanelOpen.value = true
-  renameTargetName.value = displayName(row)
+  renameTargetName.value = displayName(targets[0])
 }
 
 function displayName(row: FolderTreeRow): string {
@@ -1137,16 +1165,25 @@ async function confirmFolderCopy(): Promise<void> {
 }
 
 async function confirmRenameFile(): Promise<void> {
-  const path = selectedEntryPath.value
+  const paths = operationEntryPaths()
 
-  if (!path || !renameTargetName.value) {
+  if (paths.length === 0 || !renameTargetName.value) {
     return
   }
 
   try {
-    await renameFolderEntry({ path, newName: renameTargetName.value })
-    lastFileOperationAction.value = t('status.renamedPath', { path: renameTargetName.value })
+    for (const path of paths) {
+      await renameFolderEntry({ path, newName: renameTargetName.value })
+    }
+    lastFileOperationAction.value =
+      paths.length === 1
+        ? t('status.renamedPath', { path: renameTargetName.value })
+        : t('status.renamedBulkPaths', {
+            count: paths.length,
+            path: renameTargetName.value,
+          })
     renamePanelOpen.value = false
+    checkedRowIds.value = new Set()
     await runFolderCompare()
   } catch (error) {
     folderCompareError.value = formatCompareError(error, t)
@@ -1221,18 +1258,27 @@ async function confirmDangerousFileOperation(): Promise<void> {
 }
 
 async function toggleSelectedReadonly(selected: boolean): Promise<void> {
-  const path = selectedEntryPath.value
+  const paths = operationEntryPaths()
 
-  if (!path) {
+  if (paths.length === 0) {
     return
   }
 
   try {
-    await changeFolderEntryAttributes({ path, readonly: selected })
+    for (const path of paths) {
+      await changeFolderEntryAttributes({ path, readonly: selected })
+    }
     selectedReadonly.value = selected
-    lastMetadataAction.value = t('status.attributesChanged', {
-      state: selected ? 'readonly' : 'writable',
-    })
+    lastMetadataAction.value =
+      paths.length === 1
+        ? t('status.attributesChanged', {
+            state: selected ? 'readonly' : 'writable',
+          })
+        : t('status.attributesChangedBulk', {
+            count: paths.length,
+            state: selected ? 'readonly' : 'writable',
+          })
+    checkedRowIds.value = new Set()
     await runFolderCompare()
   } catch (error) {
     folderCompareError.value = formatCompareError(error, t)
@@ -1698,6 +1744,19 @@ onUnmounted(() => {
               >
                 {{ $t('ui.browse') }}
               </button>
+              <button
+                type="button"
+                data-testid="folder-browse-archive-left"
+                @click="browseArchive('left')"
+              >
+                {{ $t('ui.browseArchive') }}
+              </button>
+              <span
+                v-if="leftSideIsArchive"
+                class="archive-side-chip"
+                data-testid="folder-left-archive-chip"
+                >{{ $t('ui.archiveSide') }}</span
+              >
             </div>
           </label>
           <label>
@@ -1722,6 +1781,19 @@ onUnmounted(() => {
               >
                 {{ $t('ui.browse') }}
               </button>
+              <button
+                type="button"
+                data-testid="folder-browse-archive-right"
+                @click="browseArchive('right')"
+              >
+                {{ $t('ui.browseArchive') }}
+              </button>
+              <span
+                v-if="rightSideIsArchive"
+                class="archive-side-chip"
+                data-testid="folder-right-archive-chip"
+                >{{ $t('ui.archiveSide') }}</span
+              >
             </div>
           </label>
         </div>
@@ -2361,7 +2433,7 @@ onUnmounted(() => {
             data-testid="toggle-selected-readonly"
             type="checkbox"
             :checked="selectedReadonly"
-            :disabled="!selectedEntryPath"
+            :disabled="operationEntryPaths().length === 0"
             @change="toggleSelectedReadonly(($event.target as HTMLInputElement).checked)"
           />
           <span>{{ $t('ui.readonly') }}</span>
@@ -2839,6 +2911,19 @@ onUnmounted(() => {
 .path-pair span {
   color: var(--app-text-muted);
   font-size: 12px;
+}
+
+.archive-side-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid var(--app-border);
+  border-radius: 999px;
+  background: var(--app-surface-muted);
+  color: var(--app-text-muted);
+  font-size: 11px;
+  white-space: nowrap;
 }
 
 .archive-path-hint {

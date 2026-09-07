@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { compareRegistryExports, readTextFile } from '@/api/diff'
+import { queryLiveWindowsRegistry } from '@/api/policy'
 import type {
   RegistryCompareResponse,
   RegistryDiffStatus,
@@ -11,6 +12,12 @@ import type {
 } from '@/types/diff'
 import WorkbenchShell from '@/components/workbench/WorkbenchShell.vue'
 import WorkbenchInspector from '@/components/workbench/WorkbenchInspector.vue'
+import {
+  applyRegistryValueSide,
+  collectExpandableKeyPaths,
+  registryValueMatchesFilter,
+  type RegistryValueFilter,
+} from '@/app/registryWorkspace'
 import { buildRegistryCompareToolbar } from '@/app/sessionToolbars'
 import { useSessionLaunchStore } from '@/stores/sessionLaunch'
 import { useTabsStore } from '@/stores/tabs'
@@ -30,9 +37,17 @@ const { t } = useI18n()
 const leftName = ref('left.reg')
 const rightName = ref('right.reg')
 const registryTree = ref<RegistryKeyNode[]>([])
-const registrySummaryOverride = ref<Record<RegistryDiffStatus, number> | null>(null)
 const loading = ref(false)
 const error = ref('')
+const valueFilter = ref<RegistryValueFilter>('all')
+const collapsedKeyPaths = ref<Set<string>>(new Set())
+const selectedKeyPath = ref<string>()
+const selectedValueKey = ref<string>()
+const lastApplyAction = ref('')
+const liveQueryKey = ref('')
+const liveQueryResult = ref('')
+const liveQueryError = ref('')
+const liveQueryLoading = ref(false)
 
 onMounted(() => {
   const launch = sessionLaunch.consumeLaunch('/compare/registry')
@@ -53,17 +68,24 @@ onMounted(() => {
     void loadLaunchRegistryExports(launch.locations.left.uri, launch.locations.right.uri)
   }
 })
+
 const flatRegistryKeys = computed<FlatRegistryKeyNode[]>(() =>
   flattenRegistryKeys(registryTree.value),
+)
+const visibleRegistryKeys = computed<FlatRegistryKeyNode[]>(() =>
+  flattenRegistryKeys(registryTree.value, 0, collapsedKeyPaths.value),
 )
 const allRegistryValues = computed<RegistryValueRow[]>(() =>
   flatRegistryKeys.value.flatMap((key) => key.values),
 )
-const registrySummary = computed<Record<RegistryDiffStatus, number>>(() => {
-  if (registrySummaryOverride.value) {
-    return registrySummaryOverride.value
-  }
+const visibleRegistryValues = computed<RegistryValueRow[]>(() => {
+  const values = selectedKeyPath.value
+    ? (flatRegistryKeys.value.find((key) => key.path === selectedKeyPath.value)?.values ?? [])
+    : allRegistryValues.value
 
+  return values.filter((value) => registryValueMatchesFilter(value.status, valueFilter.value))
+})
+const registrySummary = computed<Record<RegistryDiffStatus, number>>(() => {
   const initial: Record<RegistryDiffStatus, number> = {
     added: 0,
     removed: 0,
@@ -77,12 +99,28 @@ const registrySummary = computed<Record<RegistryDiffStatus, number>>(() => {
 
   return initial
 })
+const selectedValue = computed(() =>
+  allRegistryValues.value.find(
+    (value) => `${value.keyPath}::${value.name}` === selectedValueKey.value,
+  ),
+)
 
-function flattenRegistryKeys(nodes: RegistryKeyNode[], depth = 0): FlatRegistryKeyNode[] {
-  return nodes.flatMap((node) => [
-    { ...node, depth },
-    ...flattenRegistryKeys(node.children, depth + 1),
-  ])
+function flattenRegistryKeys(
+  nodes: RegistryKeyNode[],
+  depth = 0,
+  collapsed?: Set<string>,
+): FlatRegistryKeyNode[] {
+  const rows: FlatRegistryKeyNode[] = []
+
+  for (const node of nodes) {
+    rows.push({ ...node, depth })
+    if (collapsed?.has(node.path)) {
+      continue
+    }
+    rows.push(...flattenRegistryKeys(node.children, depth + 1, collapsed))
+  }
+
+  return rows
 }
 
 function statusLabel(status: RegistryDiffStatus): string {
@@ -108,7 +146,10 @@ function applyRegistryResult(result: RegistryCompareResponse): void {
   leftName.value = result.leftName
   rightName.value = result.rightName
   registryTree.value = result.tree
-  registrySummaryOverride.value = result.summary
+  collapsedKeyPaths.value = new Set()
+  selectedKeyPath.value = result.tree[0]?.path
+  selectedValueKey.value = undefined
+  lastApplyAction.value = ''
 }
 
 async function runRegistryCompare(): Promise<void> {
@@ -155,17 +196,105 @@ function fileNameFromPath(path: string): string {
   return path.replaceAll('\\', '/').split('/').filter(Boolean).at(-1) ?? path
 }
 
+function mapValueTree(
+  nodes: RegistryKeyNode[],
+  mapper: (value: RegistryValueRow) => RegistryValueRow,
+): RegistryKeyNode[] {
+  return nodes.map((node) => ({
+    ...node,
+    values: node.values.map(mapper),
+    children: mapValueTree(node.children, mapper),
+  }))
+}
+
+function applySelectedValue(source: 'left' | 'right'): void {
+  const current = selectedValue.value
+
+  if (!current) {
+    return
+  }
+
+  const key = `${current.keyPath}::${current.name}`
+
+  registryTree.value = mapValueTree(registryTree.value, (value) => {
+    if (`${value.keyPath}::${value.name}` !== key) {
+      return value
+    }
+
+    return applyRegistryValueSide(value, source)
+  })
+  lastApplyAction.value = t(
+    source === 'left' ? 'status.registryAppliedLeft' : 'status.registryAppliedRight',
+    { name: current.name },
+  )
+}
+
+function selectKey(path: string): void {
+  selectedKeyPath.value = path
+  liveQueryKey.value = path.replaceAll('/', '\\')
+}
+
+function selectValue(value: RegistryValueRow): void {
+  selectedKeyPath.value = value.keyPath
+  selectedValueKey.value = `${value.keyPath}::${value.name}`
+}
+
+function expandAllKeys(): void {
+  collapsedKeyPaths.value = new Set()
+}
+
+function collapseAllKeys(): void {
+  collapsedKeyPaths.value = new Set(collectExpandableKeyPaths(registryTree.value))
+}
+
+function toggleKeyCollapsed(path: string, hasChildren: boolean): void {
+  if (!hasChildren) {
+    selectKey(path)
+
+    return
+  }
+
+  const next = new Set(collapsedKeyPaths.value)
+
+  if (next.has(path)) {
+    next.delete(path)
+  } else {
+    next.add(path)
+  }
+
+  collapsedKeyPaths.value = next
+  selectKey(path)
+}
+
+async function runLiveRegistryQuery(): Promise<void> {
+  if (!liveQueryKey.value.trim()) {
+    return
+  }
+
+  liveQueryLoading.value = true
+  liveQueryError.value = ''
+  liveQueryResult.value = ''
+
+  try {
+    liveQueryResult.value = await queryLiveWindowsRegistry(liveQueryKey.value.trim())
+  } catch (event) {
+    liveQueryError.value = String(event)
+  } finally {
+    liveQueryLoading.value = false
+  }
+}
+
 const registrySessionToolbar = computed(() =>
   buildRegistryCompareToolbar({
     home: true,
-    all: false,
-    diffs: false,
-    same: false,
-    copy: false,
+    all: true,
+    diffs: true,
+    same: true,
+    copy: Boolean(selectedValue.value),
     swap: Boolean(leftExport.value || rightExport.value),
     reload: Boolean(leftExport.value && rightExport.value),
-    expand: false,
-    collapse: false,
+    expand: registryTree.value.length > 0,
+    collapse: registryTree.value.length > 0,
   }),
 )
 
@@ -173,6 +302,42 @@ function runRegistryToolbarCommand(commandId: string): void {
   if (commandId === 'home') {
     tabs.openTab({ title: 'Home', titleKey: 'ui.home', route: '/', dirty: false })
     void router.push('/')
+
+    return
+  }
+
+  if (commandId === 'all') {
+    valueFilter.value = 'all'
+
+    return
+  }
+
+  if (commandId === 'diffs') {
+    valueFilter.value = 'diffs'
+
+    return
+  }
+
+  if (commandId === 'same') {
+    valueFilter.value = 'same'
+
+    return
+  }
+
+  if (commandId === 'expand') {
+    expandAllKeys()
+
+    return
+  }
+
+  if (commandId === 'collapse') {
+    collapseAllKeys()
+
+    return
+  }
+
+  if (commandId === 'copy') {
+    applySelectedValue('right')
 
     return
   }
@@ -227,6 +392,12 @@ function runRegistryToolbarCommand(commandId: string): void {
       >
         {{ $t('ui.registryExportHint') }}
       </p>
+      <p
+        class="registry-maturity"
+        data-testid="registry-maturity-note"
+      >
+        {{ $t('ui.registryMaturityNote') }}
+      </p>
       <section class="registry-input-panel">
         <label>
           <span>{{ $t('ui.leftCurrentExport') }}</span>
@@ -274,6 +445,43 @@ function runRegistryToolbarCommand(commandId: string): void {
         </article>
       </section>
 
+      <section
+        class="registry-filter-bar"
+        data-testid="registry-filter-bar"
+      >
+        <span
+          >{{ $t('ui.filters') }}:
+          {{
+            valueFilter === 'diffs'
+              ? $t('ui.diffs')
+              : valueFilter === 'same'
+                ? $t('ui.same')
+                : $t('ui.all')
+          }}</span
+        >
+        <span
+          v-if="lastApplyAction"
+          data-testid="registry-apply-status"
+          >{{ lastApplyAction }}</span
+        >
+        <button
+          type="button"
+          data-testid="registry-apply-left"
+          :disabled="!selectedValue?.left"
+          @click="applySelectedValue('left')"
+        >
+          {{ $t('ui.applyLeftValue') }}
+        </button>
+        <button
+          type="button"
+          data-testid="registry-apply-right"
+          :disabled="!selectedValue?.right"
+          @click="applySelectedValue('right')"
+        >
+          {{ $t('ui.applyRightValue') }}
+        </button>
+      </section>
+
       <section class="registry-layout">
         <aside class="registry-key-pane">
           <header>
@@ -282,15 +490,19 @@ function runRegistryToolbarCommand(commandId: string): void {
           </header>
           <div class="registry-key-list">
             <button
-              v-for="key in flatRegistryKeys"
+              v-for="key in visibleRegistryKeys"
               :key="key.path"
               type="button"
               class="registry-key-row"
-              :class="`status-${key.status}`"
+              :class="[`status-${key.status}`, { selected: selectedKeyPath === key.path }]"
               :style="{ paddingLeft: `${10 + key.depth * 18}px` }"
               :data-testid="`registry-key-${key.path}`"
+              @click="toggleKeyCollapsed(key.path, key.children.length > 0)"
             >
-              <span>{{ key.label }}</span>
+              <span
+                >{{ key.children.length > 0 ? (collapsedKeyPaths.has(key.path) ? '+' : '-') : '·' }}
+                {{ key.label }}</span
+              >
               <small>{{ key.path }}</small>
               <strong>{{ statusLabel(key.status) }}</strong>
             </button>
@@ -300,7 +512,7 @@ function runRegistryToolbarCommand(commandId: string): void {
         <section class="registry-value-pane">
           <header>
             <strong>{{ $t('ui.values') }}</strong>
-            <span>{{ $t('status.valueCount', { count: allRegistryValues.length }) }}</span>
+            <span>{{ $t('status.valueCount', { count: visibleRegistryValues.length }) }}</span>
           </header>
           <div class="registry-value-table">
             <div class="registry-value-row registry-value-head">
@@ -310,21 +522,64 @@ function runRegistryToolbarCommand(commandId: string): void {
               <span>{{ $t('ui.right') }}</span>
               <span>{{ $t('ui.status') }}</span>
             </div>
-            <div
-              v-for="value in allRegistryValues"
+            <button
+              v-for="value in visibleRegistryValues"
               :key="`${value.keyPath}::${value.name}`"
+              type="button"
               class="registry-value-row"
-              :class="`status-${value.status}`"
+              :class="[
+                `status-${value.status}`,
+                { selected: selectedValueKey === `${value.keyPath}::${value.name}` },
+              ]"
               :data-testid="`registry-value-${value.keyPath}::${value.name}`"
+              @click="selectValue(value)"
             >
               <span>{{ value.keyPath }}</span>
               <strong>{{ value.name }}</strong>
               <code>{{ registryValueText(value.left) }}</code>
               <code>{{ registryValueText(value.right) }}</code>
               <em>{{ statusLabel(value.status) }}</em>
-            </div>
+            </button>
           </div>
         </section>
+      </section>
+
+      <section
+        class="registry-live-panel"
+        data-testid="registry-live-panel"
+      >
+        <header>
+          <strong>{{ $t('ui.liveRegistryQuery') }}</strong>
+          <span>{{ $t('ui.liveRegistryQueryHint') }}</span>
+        </header>
+        <div class="registry-live-row">
+          <input
+            v-model="liveQueryKey"
+            data-testid="registry-live-key"
+            type="text"
+            :placeholder="$t('ui.liveRegistryKeyPlaceholder')"
+          />
+          <button
+            type="button"
+            data-testid="registry-live-query"
+            :disabled="liveQueryLoading || !liveQueryKey"
+            @click="runLiveRegistryQuery"
+          >
+            {{ $t('ui.queryLiveRegistry') }}
+          </button>
+        </div>
+        <p
+          v-if="liveQueryError"
+          class="registry-error"
+          data-testid="registry-live-error"
+        >
+          {{ liveQueryError }}
+        </p>
+        <pre
+          v-if="liveQueryResult"
+          class="registry-live-result"
+          data-testid="registry-live-result"
+          >{{ liveQueryResult }}</pre>
       </section>
     </section>
 
@@ -462,6 +717,61 @@ h1 {
   font-size: 12px;
 }
 
+.registry-maturity,
+.registry-filter-bar,
+.registry-live-panel {
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  background: var(--app-surface);
+  color: var(--app-text-muted);
+  font-size: 12px;
+}
+
+.registry-filter-bar,
+.registry-live-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.registry-filter-bar button,
+.registry-live-row button,
+.registry-live-row input {
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--app-border);
+  border-radius: 6px;
+  background: var(--app-bg);
+  color: var(--app-text);
+  font: inherit;
+  font-size: 12px;
+}
+
+.registry-live-row input {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+.registry-live-result {
+  margin: 8px 0 0;
+  padding: 8px;
+  overflow: auto;
+  border: 1px solid var(--app-border);
+  border-radius: 6px;
+  background: var(--app-bg);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  white-space: pre-wrap;
+}
+
+.registry-key-row.selected,
+.registry-value-row.selected {
+  outline: 1px solid var(--app-accent);
+}
+
 .registry-summary-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(120px, 1fr));
@@ -576,8 +886,16 @@ h1 {
     minmax(220px, 1.35fr) minmax(112px, 0.7fr) minmax(150px, 1fr)
     minmax(150px, 1fr) 92px;
   min-width: 760px;
+  padding: 0;
+  border: 0;
   border-bottom: 1px solid var(--app-border);
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
   font-size: 12px;
+  text-align: left;
+  cursor: pointer;
 }
 
 .registry-value-row:last-child {
