@@ -15,6 +15,10 @@ import { createChildCompareLaunch } from '@/app/childSession'
 import { pickNativePath } from '@/app/filePicker'
 import { formatCompareError } from '@/app/compareError'
 import { loadFolderDisplayFilters, saveFolderDisplayFilters } from '@/app/folderDisplayFilters'
+import { loadFolderCompareCriteria, saveFolderCompareCriteria } from '@/app/folderCompareCriteria'
+import SessionSettingsDialog from '@/components/session/SessionSettingsDialog.vue'
+import { useViewActionsStore } from '@/stores/viewActions'
+import { defaultTextCompareSessionOptions } from '@/app/textCompareSessionOptions'
 import { buildFolderCompareToolbar, pathPairTitle } from '@/app/sessionToolbars'
 import {
   changeFolderEntryAttributes,
@@ -119,12 +123,11 @@ const rows = ref<FolderTreeRow[]>([])
 const expandedDirectoryIds = ref<Set<string>>(new Set())
 const leftRoot = ref('')
 const rightRoot = ref('')
-const folderCriteria = ref<FolderCompareCriteria>({
-  compareSize: true,
-  compareModifiedTime: false,
-  compareContents: true,
-  compareCrc: false,
-})
+const folderCriteria = ref<FolderCompareCriteria>(loadFolderCompareCriteria())
+const showSessionSettings = ref(false)
+const showPeekPanel = ref(false)
+const viewActions = useViewActionsStore()
+const textSettingsPlaceholder = defaultTextCompareSessionOptions()
 const sessionLaunch = useSessionLaunchStore()
 const lastCompare = useLastCompareStore()
 const tabs = useTabsStore()
@@ -454,6 +457,48 @@ function isSuppressed(row: FolderTreeRow): boolean {
   return !visibleStatuses.value.has(row.status)
 }
 
+function persistFolderCriteria(): void {
+  saveFolderCompareCriteria({ ...folderCriteria.value })
+}
+
+function openFolderSessionSettings(): void {
+  showSessionSettings.value = true
+}
+
+function applyFolderSessionSettings(
+  payload:
+    | { kind: 'folder'; criteria: FolderCompareCriteria }
+    | { kind: 'text'; options: typeof textSettingsPlaceholder },
+): void {
+  if (payload.kind !== 'folder') {
+    return
+  }
+
+  folderCriteria.value = { ...payload.criteria }
+  persistFolderCriteria()
+  showSessionSettings.value = false
+  if (leftRoot.value && rightRoot.value) {
+    void runFolderCompare()
+  }
+}
+
+watch(
+  () => [viewActions.sequence, viewActions.name] as const,
+  ([, actionName]) => {
+    if (actionName === 'session-settings') {
+      openFolderSessionSettings()
+    }
+  },
+)
+
+watch(
+  folderCriteria,
+  () => {
+    persistFolderCriteria()
+  },
+  { deep: true },
+)
+
 function persistDisplayFilters(): void {
   saveFolderDisplayFilters({
     statuses: [...visibleStatuses.value],
@@ -562,7 +607,7 @@ const folderSessionToolbar = computed(() =>
     swap: Boolean(leftRoot.value || rightRoot.value),
     stop: folderCompareLoading.value,
     filters: true,
-    peek: false,
+    peek: true,
   }),
 )
 
@@ -605,6 +650,9 @@ function runFolderToolbarCommand(commandId: string): void {
       break
     case 'filters':
       showFolderFilters.value = !showFolderFilters.value
+      break
+    case 'peek':
+      showPeekPanel.value = !showPeekPanel.value
       break
     default:
       break
@@ -1680,6 +1728,14 @@ onUnmounted(() => {
             <span>{{ $t('ui.compareCrc') }}</span>
           </label>
         </fieldset>
+        <button
+          type="button"
+          data-testid="open-folder-session-settings"
+          @click="openFolderSessionSettings"
+        >
+          {{ $t('ui.sessionSettings') }}
+        </button>
+
         <div class="folder-actions">
           <NButton
             size="small"
@@ -1941,6 +1997,53 @@ onUnmounted(() => {
           />
           <span>{{ $t('ui.filesOnly') }}</span>
         </label>
+      </section>
+
+      <section
+        v-show="showPeekPanel"
+        class="folder-peek-panel"
+        data-testid="folder-peek-panel"
+      >
+        <header>
+          <strong>{{ $t('ui.peekPanel') }}</strong>
+          <button
+            type="button"
+            data-testid="folder-peek-close"
+            @click="showPeekPanel = false"
+          >
+            {{ $t('ui.close') }}
+          </button>
+        </header>
+        <template v-if="selectedRow && selectedRow.kind === 'file'">
+          <dl>
+            <div>
+              <dt>{{ $t('ui.left') }}</dt>
+              <dd data-testid="folder-peek-left">{{ selectedRow.leftPath || '—' }}</dd>
+            </div>
+            <div>
+              <dt>{{ $t('ui.right') }}</dt>
+              <dd data-testid="folder-peek-right">{{ selectedRow.rightPath || '—' }}</dd>
+            </div>
+            <div>
+              <dt>{{ $t('ui.status') }}</dt>
+              <dd data-testid="folder-peek-status">{{ selectedRow.status }}</dd>
+            </div>
+          </dl>
+          <button
+            type="button"
+            data-testid="folder-peek-open-compare"
+            :disabled="!selectedRow.leftPath || !selectedRow.rightPath"
+            @click="openChildCompareForSelected('compare')"
+          >
+            {{ $t('ui.openPeekCompare') }}
+          </button>
+        </template>
+        <p
+          v-else
+          data-testid="folder-peek-empty"
+        >
+          {{ $t('ui.noPeekSelection') }}
+        </p>
       </section>
 
       <section class="folder-summary">
@@ -2501,6 +2604,15 @@ onUnmounted(() => {
       :initial-path="remoteBrowseInitialPath"
       @select="applyRemoteBrowsePath"
       @cancel="showRemoteBrowser = false"
+    />
+
+    <SessionSettingsDialog
+      :open="showSessionSettings"
+      kind="folder"
+      :folder-criteria="folderCriteria"
+      :text-options="textSettingsPlaceholder"
+      @close="showSessionSettings = false"
+      @apply="applyFolderSessionSettings"
     />
   </WorkbenchShell>
 </template>
@@ -3088,5 +3200,37 @@ onUnmounted(() => {
 .in-app-context-menu button:disabled {
   cursor: default;
   opacity: 0.45;
+}
+
+.folder-peek-panel {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  background: var(--app-surface);
+}
+
+.folder-peek-panel header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.folder-peek-panel dl {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+}
+
+.folder-peek-panel dt {
+  font-size: 12px;
+  opacity: 0.75;
+}
+
+.folder-peek-panel dd {
+  margin: 0;
+  word-break: break-all;
 }
 </style>

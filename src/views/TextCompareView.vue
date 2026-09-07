@@ -22,6 +22,13 @@ import { isTauriRuntime } from '@/app/desktopDrop'
 import { formatRemoteUri, isImplementedRemoteProtocol, parseRemoteUri } from '@/api/remote'
 import { formatCompareError } from '@/app/compareError'
 import { buildTextCompareToolbar, pathPairTitle } from '@/app/sessionToolbars'
+import {
+  loadTextCompareSessionOptions,
+  saveTextCompareSessionOptions,
+} from '@/app/textCompareSessionOptions'
+import SessionSettingsDialog from '@/components/session/SessionSettingsDialog.vue'
+import { useViewActionsStore } from '@/stores/viewActions'
+import { defaultFolderCompareCriteria } from '@/app/folderCompareCriteria'
 
 type DiffLine = TextDiffResponse['lines'][number]
 
@@ -35,12 +42,16 @@ const lastCompare = useLastCompareStore()
 const tabs = useTabsStore()
 const router = useRouter()
 const { t } = useI18n()
-const algorithm = ref<TextDiffAlgorithm>('myers')
-const ignoreWhitespace = ref(false)
-const ignoreCase = ref(false)
-const ignoreLineEndings = ref(false)
-const ignoreRegexInput = ref('')
+const initialTextSessionOptions = loadTextCompareSessionOptions()
+const algorithm = ref<TextDiffAlgorithm>(initialTextSessionOptions.algorithm)
+const ignoreWhitespace = ref(initialTextSessionOptions.ignoreWhitespace)
+const ignoreCase = ref(initialTextSessionOptions.ignoreCase)
+const ignoreLineEndings = ref(initialTextSessionOptions.ignoreLineEndings)
+const ignoreRegexInput = ref(initialTextSessionOptions.ignoreRegexes.join(', '))
 const showTextRules = ref(true)
+const showSessionSettings = ref(false)
+const viewActions = useViewActionsStore()
+const folderSettingsPlaceholder = defaultFolderCompareCriteria()
 const fileFormats = ref(loadFileFormats())
 const selectedFormatId = ref('')
 const reportStatus = ref('')
@@ -71,6 +82,61 @@ const remoteBrowseSide = ref<'left' | 'right'>('left')
 const remoteBrowseProfileId = ref('')
 const remoteBrowseProfileLabel = ref('')
 const remoteBrowseInitialPath = ref('/')
+
+function currentTextSessionOptions(): ReturnType<typeof loadTextCompareSessionOptions> {
+  return {
+    algorithm: algorithm.value,
+    ignoreWhitespace: ignoreWhitespace.value,
+    ignoreCase: ignoreCase.value,
+    ignoreLineEndings: ignoreLineEndings.value,
+    ignoreRegexes: ignoreRegexInput.value
+      .split(/[,\n]/u)
+      .map((item) => item.trim())
+      .filter(Boolean),
+  }
+}
+
+function persistTextSessionOptions(): void {
+  saveTextCompareSessionOptions(currentTextSessionOptions())
+}
+
+function openTextSessionSettings(): void {
+  showSessionSettings.value = true
+}
+
+function applyTextSessionSettings(
+  payload:
+    | { kind: 'folder'; criteria: ReturnType<typeof defaultFolderCompareCriteria> }
+    | { kind: 'text'; options: ReturnType<typeof currentTextSessionOptions> },
+): void {
+  if (payload.kind !== 'text') {
+    return
+  }
+
+  algorithm.value = payload.options.algorithm
+  ignoreWhitespace.value = payload.options.ignoreWhitespace
+  ignoreCase.value = payload.options.ignoreCase
+  ignoreLineEndings.value = payload.options.ignoreLineEndings
+  ignoreRegexInput.value = payload.options.ignoreRegexes.join(', ')
+  persistTextSessionOptions()
+  showSessionSettings.value = false
+  if (left.value || right.value) {
+    void runDiff()
+  }
+}
+
+watch(
+  () => [viewActions.sequence, viewActions.name] as const,
+  ([, actionName]) => {
+    if (actionName === 'session-settings') {
+      openTextSessionSettings()
+    }
+  },
+)
+
+watch([algorithm, ignoreWhitespace, ignoreCase, ignoreLineEndings, ignoreRegexInput], () => {
+  persistTextSessionOptions()
+})
 
 async function browseTextPath(side: 'left' | 'right'): Promise<void> {
   const current = side === 'left' ? leftPathLabel.value : rightPathLabel.value
@@ -1049,6 +1115,14 @@ function toggleSourceEditors(): void {
         </fieldset>
         <button
           type="button"
+          data-testid="open-text-session-settings"
+          @click="openTextSessionSettings"
+        >
+          {{ $t('ui.sessionSettings') }}
+        </button>
+
+        <button
+          type="button"
           data-testid="export-text-html-report"
           @click="exportCurrentReport('html')"
         >
@@ -1350,6 +1424,15 @@ function toggleSourceEditors(): void {
       allow-files
       @select="applyRemoteTextBrowsePath"
       @cancel="showRemoteBrowser = false"
+    />
+
+    <SessionSettingsDialog
+      :open="showSessionSettings"
+      kind="text"
+      :folder-criteria="folderSettingsPlaceholder"
+      :text-options="currentTextSessionOptions()"
+      @close="showSessionSettings = false"
+      @apply="applyTextSessionSettings"
     />
   </WorkbenchShell>
 </template>

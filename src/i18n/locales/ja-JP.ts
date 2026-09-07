@@ -825,5 +825,22 @@ export const jaJP: LanguagePack = {
     'status.remoteBrowseNeedsProfile':
       'リモートフォルダーを参照する前にプロファイルを保存してください',
     'status.remoteBrowseRequiresDesktop': 'リモート参照にはデスクトップアプリが必要です',
+    'ui.sessionSettings': 'セッション設定...',
+    'ui.folderSessionSettings': 'フォルダーセッション設定',
+    'ui.textSessionSettings': 'テキストセッション設定',
+    'ui.comparison': '比較',
+    'ui.importance': '重要度',
+    'ui.alignment': '整列',
+    'ui.replacements': '置換',
+    'ui.apply': '適用',
+    'ui.sessionSettingsFiltersHint':
+      '表示フィルターはフィルターツールバーパネルにあり、再スキャン後も保持されます。',
+    'ui.goTo': '移動',
+    'ui.goToOffset': 'オフセットへ移動',
+    'ui.hexOffsetHint': '10 進または 16 進 (0x…)；0x7FFFFFFF を超える値に対応',
+    'ui.peekPanel': 'ピーク',
+    'ui.openPeekCompare': '比較を開く',
+    'ui.noPeekSelection': 'プレビューするファイルペアを選択',
+    'ui.favorChrome': '優先',
   },
 }

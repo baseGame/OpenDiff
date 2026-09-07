@@ -197,6 +197,7 @@ const appMenus: AppMenuDefinition[] = [
       'workspace.save',
       'session.save',
       'session.saveAs',
+      'session.settings',
       'session.closeTab',
       'session.exit',
     ],

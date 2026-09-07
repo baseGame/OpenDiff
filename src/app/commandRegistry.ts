@@ -16,6 +16,7 @@ export type CommandId =
   | 'session.loadWorkspace'
   | 'session.closeTab'
   | 'session.exit'
+  | 'session.settings'
   | 'edit.copyLeft'
   | 'edit.copyRight'
   | 'edit.undo'
@@ -69,6 +70,7 @@ export type CommandAction =
         | 'check-for-updates'
         | 'help-contents'
         | 'help-support'
+        | 'session-settings'
     }
 
 export interface CommandShortcut {
@@ -179,6 +181,16 @@ export const commandRegistry: AppCommand[] = [
     defaultShortcut: { keys: ['Ctrl', 'E'], scope: 'global' },
     placements: ['command-palette', 'menu'],
     action: { type: 'view-action', name: 'export' },
+  },
+  {
+    id: 'session.settings',
+    titleKey: 'ui.sessionSettings',
+    keywords: ['session', 'settings', 'rules', 'importance', 'alignment'],
+    enabled: true,
+    visibility: 'view',
+    defaultShortcut: { keys: ['Ctrl', 'Shift', 'T'], scope: 'global' },
+    placements: ['command-palette', 'menu'],
+    action: { type: 'view-action', name: 'session-settings' },
   },
   {
     id: 'edit.copyLeft',

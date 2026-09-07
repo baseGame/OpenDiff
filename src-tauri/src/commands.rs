@@ -993,14 +993,76 @@ pub fn compare_media_files(
     })
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+pub enum HexOffsetArg {
+    Unsigned(u64),
+    Signed(i64),
+    Float(f64),
+    Text(String),
+}
+
+fn parse_hex_offset_arg(value: Option<HexOffsetArg>) -> Result<u64, AppErrorPayload> {
+    match value {
+        None => Ok(0),
+        Some(HexOffsetArg::Unsigned(number)) => Ok(number),
+        Some(HexOffsetArg::Signed(number)) => {
+            if number < 0 {
+                return Err(AppErrorPayload::new(
+                    AppErrorCode::Unknown,
+                    "error.generic.message",
+                    "hex offset out of range",
+                ));
+            }
+            Ok(number as u64)
+        }
+        Some(HexOffsetArg::Float(float)) => {
+            if !float.is_finite() || float < 0.0 || float > u64::MAX as f64 {
+                return Err(AppErrorPayload::new(
+                    AppErrorCode::Unknown,
+                    "error.generic.message",
+                    "hex offset out of range",
+                ));
+            }
+            Ok(float as u64)
+        }
+        Some(HexOffsetArg::Text(raw)) => {
+            let trimmed = raw.trim();
+            if trimmed.is_empty() {
+                return Ok(0);
+            }
+            let parsed = if let Some(hex) = trimmed
+                .strip_prefix("0x")
+                .or_else(|| trimmed.strip_prefix("0X"))
+            {
+                u64::from_str_radix(hex, 16)
+            } else if let Some(hex) = trimmed
+                .strip_suffix('h')
+                .or_else(|| trimmed.strip_suffix('H'))
+            {
+                u64::from_str_radix(hex, 16)
+            } else {
+                trimmed.parse::<u64>()
+            };
+            parsed.map_err(|error| {
+                AppErrorPayload::new(
+                    AppErrorCode::Unknown,
+                    "error.generic.message",
+                    format!("invalid hex offset: {error}"),
+                )
+            })
+        }
+    }
+}
+
 #[tauri::command]
 pub fn compare_hex_files(
     left_path: String,
     right_path: String,
-    offset: Option<u64>,
+    offset: Option<HexOffsetArg>,
     length: Option<usize>,
 ) -> Result<HexCompareResponse, AppErrorPayload> {
-    let offset = offset.unwrap_or(0);
+    let offset = parse_hex_offset_arg(offset)?;
     let length = length.unwrap_or(256);
     let left_len = file_len(&left_path)?;
     let right_len = file_len(&right_path)?;
@@ -4853,7 +4915,7 @@ mod tests {
         let response = compare_hex_files(
             left.display().to_string(),
             right.display().to_string(),
-            Some(0),
+            Some(HexOffsetArg::Unsigned(0)),
             Some(16),
         )
         .expect("valid binary fixtures should compare");
@@ -5535,6 +5597,30 @@ mod tests {
     }
 
     #[test]
+    fn compare_hex_files_accepts_string_offsets_past_signed_32bit() {
+        let root = unique_temp_dir("hex-large-offset-command");
+        fs::create_dir_all(&root).expect("fixture directory should be created");
+        let left = root.join("left.bin");
+        let right = root.join("right.bin");
+        // Verify string/hex offset parsing (incl. values representable past 0x7FFFFFFF).
+        fs::write(&left, b"ABCDEFGH").expect("left fixture should be writable");
+        fs::write(&right, b"ABCDEFGH").expect("right fixture should be writable");
+        let response = compare_hex_files(
+            left.display().to_string(),
+            right.display().to_string(),
+            Some(HexOffsetArg::Text("0x4".to_owned())),
+            Some(2),
+        )
+        .expect("string offset should compare");
+        assert_eq!(response.left.cells[0].offset, 4);
+        assert_eq!(response.left.cells.len(), 2);
+
+        let parsed = parse_hex_offset_arg(Some(HexOffsetArg::Text("0x80000000".to_owned())))
+            .expect("large hex offset should parse");
+        assert_eq!(parsed, 0x8000_0000);
+    }
+
+    #[test]
     fn compare_hex_files_honors_offset_and_length() {
         let root = unique_temp_dir("hex-offset-command");
         fs::create_dir_all(&root).expect("fixture directory should be created");
@@ -5546,7 +5632,7 @@ mod tests {
         let response = compare_hex_files(
             left.display().to_string(),
             right.display().to_string(),
-            Some(2),
+            Some(HexOffsetArg::Unsigned(2)),
             Some(4),
         )
         .expect("offset window should compare");

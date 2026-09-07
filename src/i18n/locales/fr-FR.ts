@@ -842,5 +842,22 @@ export const frFR: LanguagePack = {
       'Enregistrez le profil avant de parcourir les dossiers distants',
     'status.remoteBrowseRequiresDesktop':
       'La navigation distante nécessite l’application de bureau',
+    'ui.sessionSettings': 'Paramètres de session...',
+    'ui.folderSessionSettings': 'Paramètres de session dossier',
+    'ui.textSessionSettings': 'Paramètres de session texte',
+    'ui.comparison': 'Comparaison',
+    'ui.importance': 'Importance',
+    'ui.alignment': 'Alignement',
+    'ui.replacements': 'Remplacements',
+    'ui.apply': 'Appliquer',
+    'ui.sessionSettingsFiltersHint':
+      'Les filtres d’affichage restent dans le panneau Filtres et persistent après rescan.',
+    'ui.goTo': 'Aller à',
+    'ui.goToOffset': 'Aller à l’offset',
+    'ui.hexOffsetHint': 'Décimal ou hex (0x…) ; valeurs au-delà de 0x7FFFFFFF prises en charge',
+    'ui.peekPanel': 'Aperçu',
+    'ui.openPeekCompare': 'Ouvrir la comparaison',
+    'ui.noPeekSelection': 'Sélectionnez une paire de fichiers à prévisualiser',
+    'ui.favorChrome': 'Favoriser',
   },
 }

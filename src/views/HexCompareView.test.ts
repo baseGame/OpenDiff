@@ -144,6 +144,27 @@ describe('HexCompareView', () => {
     expect(wrapper.find('[data-testid="right-hex-byte-diff-00000001"]').text()).toBe('58')
   })
 
+  it('Go To dialog accepts offsets past 0x7FFFFFFF', async () => {
+    const wrapper = mount(HexCompareView)
+
+    await runCompare(wrapper)
+    await wrapper.find('[data-testid="hex-go-to-open"]').trigger('click')
+    expect(wrapper.find('[data-testid="hex-goto-dialog"]').exists()).toBe(true)
+
+    await wrapper.find('[data-testid="hex-goto-input"]').setValue('0x80000000')
+    await wrapper.find('[data-testid="hex-goto-apply"]').trigger('click')
+    await flushPromises()
+
+    expect(compareHexFiles).toHaveBeenLastCalledWith(
+      expect.objectContaining({ offset: 0x80000000 }),
+    )
+    expect(
+      (
+        wrapper.find('[data-testid="hex-jump-offset"]').element as HTMLInputElement
+      ).value.toLowerCase(),
+    ).toContain('80000000')
+  })
+
   it('pages and jumps through chunked offsets', async () => {
     const wrapper = mount(HexCompareView)
 
@@ -155,7 +176,7 @@ describe('HexCompareView', () => {
       expect.objectContaining({ offset: 256, length: 256 }),
     )
 
-    await wrapper.find('[data-testid="hex-jump-offset"]').setValue(512)
+    await wrapper.find('[data-testid="hex-jump-offset"]').setValue('512')
     await wrapper.find('[data-testid="hex-jump"]').trigger('click')
     await wrapper.vm.$nextTick()
 

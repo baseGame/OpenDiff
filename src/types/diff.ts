@@ -303,12 +303,13 @@ export interface MediaCompareResponse {
 export interface HexCompareRequest {
   leftPath: string
   rightPath: string
-  offset?: number
+  /** Decimal number or decimal/hex string for offsets past Number.MAX_SAFE_INTEGER. */
+  offset?: number | string
   length?: number
 }
 
 export interface HexViewCell {
-  offset: number
+  offset: number | string
   byte: number
   hex: string
   ascii: string
@@ -322,7 +323,7 @@ export interface HexSideWindow {
 }
 
 export interface HexDiffRange {
-  offset: number
+  offset: number | string
   leftBytes: number[]
   rightBytes: number[]
 }
@@ -512,12 +513,12 @@ export interface HexFindRequest {
 }
 
 export interface HexFindMatch {
-  offset: number
+  offset: number | string
   length: number
 }
 
 export interface HexByteEdit {
-  offset: number
+  offset: number | string
   value: number
 }
 

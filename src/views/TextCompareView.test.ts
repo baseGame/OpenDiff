@@ -634,4 +634,23 @@ describe('TextCompareView', () => {
     expect(wrapper.find('[data-testid="left-path-label"]').text()).toContain('left.txt')
     expect(wrapper.find('[data-testid="right-path-label"]').text()).toContain('right.txt')
   })
+
+  it('opens text session settings and persists importance options', async () => {
+    localStorage.clear()
+    const wrapper = mount(TextCompareView)
+
+    await wrapper.find('[data-testid="open-text-session-settings"]').trigger('click')
+    expect(wrapper.find('[data-testid="session-settings-dialog"]').exists()).toBe(true)
+    await wrapper.find('[data-testid="session-settings-ignore-whitespace"]').setValue(true)
+    await wrapper.find('[data-testid="session-settings-tab-alignment"]').trigger('click')
+    await wrapper.find('[data-testid="session-settings-algorithm"]').setValue('histogram')
+    await wrapper.find('[data-testid="session-settings-apply"]').trigger('click')
+    expect(wrapper.find('[data-testid="session-settings-dialog"]').exists()).toBe(false)
+    expect(
+      (wrapper.find('[data-testid="ignore-whitespace"]').element as HTMLInputElement).checked,
+    ).toBe(true)
+    expect(
+      (wrapper.find('[data-testid="algorithm-select"]').element as HTMLSelectElement).value,
+    ).toBe('histogram')
+  })
 })

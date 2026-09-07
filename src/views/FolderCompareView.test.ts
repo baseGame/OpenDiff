@@ -279,7 +279,7 @@ describe('FolderCompareView', () => {
     ).toBeUndefined()
     expect(
       wrapper.find('[data-testid="folder-session-toolbar-peek"]').attributes('disabled'),
-    ).toBeDefined()
+    ).toBeUndefined()
     expect(
       wrapper.find('[data-testid="folder-session-toolbar-select"]').attributes('disabled'),
     ).toBeDefined()
@@ -664,5 +664,22 @@ describe('FolderCompareView', () => {
     await wrapper.find('[data-testid="folder-left-root"]').setValue(longPath)
 
     expect(wrapper.find('[data-testid="folder-left-root"]').attributes('title')).toBe(longPath)
+  })
+
+  it('opens session settings and peeks a selected file pair', async () => {
+    const wrapper = mountFolderCompareView()
+
+    await wrapper.find('[data-testid="open-folder-session-settings"]').trigger('click')
+    expect(wrapper.find('[data-testid="session-settings-dialog"]').exists()).toBe(true)
+    await wrapper.find('[data-testid="session-settings-compare-crc"]').setValue(true)
+    await wrapper.find('[data-testid="session-settings-apply"]').trigger('click')
+    expect(wrapper.find('[data-testid="session-settings-dialog"]').exists()).toBe(false)
+    expect(
+      (wrapper.find('[data-testid="folder-criteria-crc"]').element as HTMLInputElement).checked,
+    ).toBe(true)
+
+    await wrapper.find('[data-testid="folder-session-toolbar-peek"]').trigger('click')
+    expect(wrapper.find('[data-testid="folder-peek-panel"]').isVisible()).toBe(true)
+    expect(wrapper.find('[data-testid="folder-peek-empty"]').isVisible()).toBe(true)
   })
 })

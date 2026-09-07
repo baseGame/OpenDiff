@@ -134,6 +134,14 @@ describe('TextMergeView', () => {
     })
     expect(wrapper.find('[data-testid="merge-save-status"]').text()).toContain('Saved 32 bytes')
   })
+
+  it('exposes Favor Left/Right chrome for the current conflict', () => {
+    const wrapper = mount(TextMergeView)
+
+    expect(wrapper.find('[data-testid="merge-favor-chrome"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="merge-favor-left"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="merge-favor-right"]').exists()).toBe(true)
+  })
 })
 
 async function mountLoadedMerge(): Promise<VueWrapper> {

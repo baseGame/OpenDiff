@@ -13,6 +13,13 @@ import WorkbenchShell from '@/components/workbench/WorkbenchShell.vue'
 import WorkbenchInspector from '@/components/workbench/WorkbenchInspector.vue'
 import StatusSummaryGrid from '@/components/workbench/StatusSummaryGrid.vue'
 import { buildHexCompareToolbar, pathPairTitle } from '@/app/sessionToolbars'
+import {
+  clampHexOffset,
+  formatHexOffset,
+  hexOffsetForInvoke,
+  hexOffsetInputValue,
+  parseHexOffset,
+} from '@/app/hexOffset'
 import { useSessionLaunchStore } from '@/stores/sessionLaunch'
 import { useTabsStore } from '@/stores/tabs'
 
@@ -45,7 +52,10 @@ const viewportWidth = ref(640)
 const diffOnly = ref(false)
 const hexOffset = ref(0)
 const hexLength = ref(256)
-const jumpOffset = ref(0)
+const jumpOffsetInput = ref('0')
+const showGoToDialog = ref(false)
+const goToOffsetInput = ref('0')
+const goToError = ref('')
 const findQuery = ref('')
 const findKind = ref<'text' | 'hex'>('hex')
 const findMatches = ref<HexFindMatch[]>([])
@@ -127,8 +137,14 @@ function visibleRows(rows: HexRow[]): HexRow[] {
   return rows.filter((row) => row.cells.some((cell) => cell.different))
 }
 
-function formatOffset(offset: number): string {
-  return offset.toString(16).toUpperCase().padStart(8, '0')
+function formatOffset(offset: number | string): string {
+  return formatHexOffset(offset)
+}
+
+function numericOffset(value: number | string | bigint): number {
+  const asBig = typeof value === 'bigint' ? value : BigInt(value)
+
+  return Number(clampHexOffset(asBig, BigInt(Number.MAX_SAFE_INTEGER) + 1n))
 }
 
 function syncHexScroll(source: 'left' | 'right', event: Event): void {
@@ -199,8 +215,8 @@ function goToHexDiffRange(index: number): void {
   activeDiffRangeIndex.value = nextIndex
   const range = navigationRanges.value[nextIndex]
 
-  hexOffset.value = range.offset
-  jumpOffset.value = range.offset
+  hexOffset.value = numericOffset(range.offset)
+  jumpOffsetInput.value = hexOffsetInputValue(range.offset)
   void runHexCompare({ preserveNavigationRanges: true })
 }
 
@@ -258,7 +274,7 @@ async function runHexCompare(options?: { preserveNavigationRanges?: boolean }): 
     const result = await compareHexFiles({
       leftPath: leftPath.value,
       rightPath: rightPath.value,
-      offset: hexOffset.value,
+      offset: hexOffsetForInvoke(hexOffset.value),
       length: hexLength.value,
     })
 
@@ -280,8 +296,41 @@ function goToNextHexPage(): void {
   void runHexCompare()
 }
 
+function openGoToDialog(): void {
+  goToOffsetInput.value = jumpOffsetInput.value || hexOffsetInputValue(hexOffset.value)
+  goToError.value = ''
+  showGoToDialog.value = true
+}
+
+function applyGoToOffset(): void {
+  const parsed = parseHexOffset(goToOffsetInput.value)
+
+  if (parsed === undefined) {
+    goToError.value = 'invalid'
+
+    return
+  }
+  const clamped = clampHexOffset(parsed)
+
+  hexOffset.value = numericOffset(clamped)
+  jumpOffsetInput.value = hexOffsetInputValue(clamped)
+  showGoToDialog.value = false
+  goToError.value = ''
+  void runHexCompare()
+}
+
 function jumpToHexOffset(): void {
-  hexOffset.value = Math.max(0, jumpOffset.value)
+  const parsed = parseHexOffset(jumpOffsetInput.value)
+
+  if (parsed === undefined) {
+    openGoToDialog()
+
+    return
+  }
+  const clamped = clampHexOffset(parsed)
+
+  hexOffset.value = numericOffset(clamped)
+  jumpOffsetInput.value = hexOffsetInputValue(clamped)
   void runHexCompare()
 }
 
@@ -300,8 +349,8 @@ async function runHexFind(): Promise<void> {
     const firstMatch = findMatches.value.at(0)
 
     if (firstMatch) {
-      hexOffset.value = firstMatch.offset
-      jumpOffset.value = firstMatch.offset
+      hexOffset.value = numericOffset(firstMatch.offset)
+      jumpOffsetInput.value = hexOffsetInputValue(firstMatch.offset)
       await runHexCompare()
     }
   } catch (event) {
@@ -438,12 +487,20 @@ async function runHexSave(): Promise<void> {
         <label>
           <span>{{ $t('ui.jump') }}</span>
           <input
-            v-model.number="jumpOffset"
-            type="number"
-            min="0"
+            v-model="jumpOffsetInput"
+            type="text"
             data-testid="hex-jump-offset"
+            :placeholder="$t('ui.hexOffsetHint')"
           />
         </label>
+        <button
+          type="button"
+          data-testid="hex-go-to-open"
+          :disabled="loading"
+          @click="openGoToDialog"
+        >
+          {{ $t('ui.goTo') }}
+        </button>
         <button
           type="button"
           data-testid="hex-previous-page"
@@ -655,6 +712,51 @@ async function runHexSave(): Promise<void> {
         </section>
       </WorkbenchInspector>
     </template>
+
+    <div
+      v-if="showGoToDialog"
+      class="hex-goto-backdrop"
+      data-testid="hex-goto-dialog"
+    >
+      <section
+        class="hex-goto-dialog"
+        role="dialog"
+        aria-modal="true"
+        :aria-label="$t('ui.goToOffset')"
+      >
+        <header>
+          <h2>{{ $t('ui.goToOffset') }}</h2>
+        </header>
+        <p>{{ $t('ui.hexOffsetHint') }}</p>
+        <input
+          v-model="goToOffsetInput"
+          type="text"
+          data-testid="hex-goto-input"
+        />
+        <p
+          v-if="goToError"
+          data-testid="hex-goto-error"
+        >
+          {{ $t('ui.hexOffsetHint') }}
+        </p>
+        <footer>
+          <button
+            type="button"
+            data-testid="hex-goto-cancel"
+            @click="showGoToDialog = false"
+          >
+            {{ $t('ui.cancel') }}
+          </button>
+          <button
+            type="button"
+            data-testid="hex-goto-apply"
+            @click="applyGoToOffset"
+          >
+            {{ $t('ui.goTo') }}
+          </button>
+        </footer>
+      </section>
+    </div>
   </WorkbenchShell>
 </template>
 <style scoped>
@@ -843,5 +945,30 @@ h2 {
   .hex-summary {
     text-align: left;
   }
+}
+
+.hex-goto-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  background: rgb(15 23 42 / 0.45);
+}
+
+.hex-goto-dialog {
+  display: grid;
+  gap: 10px;
+  width: min(420px, 100%);
+  padding: 16px;
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  background: var(--app-surface);
+}
+
+.hex-goto-dialog footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 </style>
