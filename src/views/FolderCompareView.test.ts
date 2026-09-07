@@ -698,7 +698,9 @@ describe('FolderCompareView', () => {
     await wrapper.find('[data-testid="session-settings-compare-crc"]').setValue(true)
     await wrapper.find('[data-testid="session-settings-tab-filters"]').trigger('click')
     await wrapper.find('[data-testid="session-settings-include-patterns"]').setValue('*.md\n*.txt')
-    await wrapper.find('[data-testid="session-settings-exclude-patterns"]').setValue('node_modules/**')
+    await wrapper
+      .find('[data-testid="session-settings-exclude-patterns"]')
+      .setValue('node_modules/**')
     await wrapper.find('[data-testid="session-settings-apply"]').trigger('click')
     expect(wrapper.find('[data-testid="session-settings-dialog"]').exists()).toBe(false)
     expect(
