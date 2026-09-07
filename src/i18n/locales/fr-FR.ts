@@ -723,9 +723,8 @@ export const frFR: LanguagePack = {
     'ui.scriptingNotImplemented':
       'Le langage de script hérité complet n’est pas implémenté. Les commandes prises en charge s’exécutent ; les lacunes connues renvoient unsupported.',
     'ui.scriptingSupported':
-      'Commandes prises en charge : LOAD, FILTER, COMPARE, REPORT, FILE-REPORT, HEX-REPORT, TABLE-REPORT, PICTURE-REPORT, VERSION-REPORT, REGISTRY-REPORT, LOG, BEEP, OPTION, SELECT, COPY, COPYTO, DELETE, RENAME, TOUCH, SNAPSHOT, SYNC, TEXT-REPORT, FOLDER-REPORT.',
-    'ui.scriptingUnsupported':
-      'Non prises en charge : ATTRIB, COLLAPSE, CRITERIA, EXPAND, MEDIA-REPORT, MOVE, MOVETO.',
+      'Commandes prises en charge : LOAD, FILTER, COMPARE, REPORT, FILE-REPORT, HEX-REPORT, TABLE-REPORT, PICTURE-REPORT, VERSION-REPORT, REGISTRY-REPORT, MEDIA-REPORT, LOG, BEEP, OPTION, SELECT, COPY, COPYTO, MOVE, MOVETO, DELETE, RENAME, TOUCH, ATTRIB, EXPAND, COLLAPSE, SNAPSHOT, SYNC, TEXT-REPORT, FOLDER-REPORT.',
+    'ui.scriptingUnsupported': 'Non prises en charge : CRITERIA.',
     'ui.scriptingUnsupportedCommands': 'Commandes non prises en charge',
     'ui.scriptingSupportedCommands': 'Commandes prises en charge',
     'ui.secretsHint':

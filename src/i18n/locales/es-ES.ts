@@ -723,9 +723,8 @@ export const esES: LanguagePack = {
     'ui.scriptingNotImplemented':
       'El lenguaje de scripts heredado completo no está implementado. Los comandos admitidos se ejecutan; las lagunas conocidas devuelven unsupported.',
     'ui.scriptingSupported':
-      'Comandos admitidos: LOAD, FILTER, COMPARE, REPORT, FILE-REPORT, HEX-REPORT, TABLE-REPORT, PICTURE-REPORT, VERSION-REPORT, REGISTRY-REPORT, LOG, BEEP, OPTION, SELECT, COPY, COPYTO, DELETE, RENAME, TOUCH, SNAPSHOT, SYNC, TEXT-REPORT, FOLDER-REPORT.',
-    'ui.scriptingUnsupported':
-      'No admitidos: ATTRIB, COLLAPSE, CRITERIA, EXPAND, MEDIA-REPORT, MOVE, MOVETO.',
+      'Comandos admitidos: LOAD, FILTER, COMPARE, REPORT, FILE-REPORT, HEX-REPORT, TABLE-REPORT, PICTURE-REPORT, VERSION-REPORT, REGISTRY-REPORT, MEDIA-REPORT, LOG, BEEP, OPTION, SELECT, COPY, COPYTO, MOVE, MOVETO, DELETE, RENAME, TOUCH, ATTRIB, EXPAND, COLLAPSE, SNAPSHOT, SYNC, TEXT-REPORT, FOLDER-REPORT.',
+    'ui.scriptingUnsupported': 'No admitidos: CRITERIA.',
     'ui.scriptingUnsupportedCommands': 'Comandos no admitidos',
     'ui.scriptingSupportedCommands': 'Comandos admitidos',
     'ui.secretsHint':
