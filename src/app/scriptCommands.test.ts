@@ -22,7 +22,8 @@ describe('scriptCommands', () => {
   })
 
   it('keeps an honest unsupported list for known legacy gaps', () => {
-    expect(unsupportedScriptCommands).toEqual(['CRITERIA'])
+    expect(unsupportedScriptCommands).toEqual([])
+    expect(supportedScriptCommands).toContain('CRITERIA')
     expect(unsupportedScriptCommands).not.toContain('HEX-REPORT')
     expect(unsupportedScriptCommands).not.toContain('FILE-REPORT')
     expect(unsupportedScriptCommands).not.toContain('MEDIA-REPORT')

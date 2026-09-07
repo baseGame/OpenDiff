@@ -10,6 +10,46 @@ export const defaultUnimportantVersionFields = [
   'InternalName',
 ] as const
 
+/** Catalog of common version resource fields shown in Importance Rules before/without a compare. */
+export const knownVersionRuleFields = [
+  'FileVersion',
+  'ProductVersion',
+  'CompanyName',
+  'FileDescription',
+  'ProductName',
+  'OriginalFilename',
+  'InternalName',
+  'LegalCopyright',
+  'LegalTrademarks',
+  'Comments',
+  'PrivateBuild',
+  'SpecialBuild',
+] as const
+
+export function versionRuleFieldGroup(field: string): string {
+  if (field === 'FileVersion' || field === 'ProductVersion') {
+    return 'Fixed Info'
+  }
+
+  return 'String Info'
+}
+
+export function buildVersionRulesCatalog(
+  extraFields: string[] = [],
+): { field: string; group: string }[] {
+  const names = [
+    ...new Set([
+      ...knownVersionRuleFields,
+      ...extraFields.map((field) => field.trim()).filter(Boolean),
+    ]),
+  ]
+
+  return names.map((field) => ({
+    field,
+    group: versionRuleFieldGroup(field),
+  }))
+}
+
 export interface VersionCompareOptionsState {
   unimportantFields: string[]
 }
@@ -91,4 +131,8 @@ export function toggleVersionFieldImportance(
       (entry) => entry.trim().toLowerCase() !== field.trim().toLowerCase(),
     ),
   }
+}
+
+export function resetVersionCompareOptions(): VersionCompareOptionsState {
+  return defaultVersionCompareOptions()
 }

@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
+  buildVersionRulesCatalog,
   defaultVersionCompareOptions,
   isVersionFieldImportant,
   loadVersionCompareOptions,
+  resetVersionCompareOptions,
   saveVersionCompareOptions,
   toggleVersionFieldImportance,
   versionCompareOptionsStorageKey,
@@ -36,4 +38,23 @@ describe('versionCompareOptions', () => {
 
     expect(isVersionFieldImportant('Comments', promoted)).toBe(true)
   })
+})
+
+it('builds a rules catalog with known fields and extras', () => {
+  const catalog = buildVersionRulesCatalog(['CustomField'])
+
+  expect(catalog.some((row) => row.field === 'FileVersion')).toBe(true)
+  expect(catalog.some((row) => row.field === 'Comments')).toBe(true)
+  expect(catalog.some((row) => row.field === 'CustomField')).toBe(true)
+})
+
+it('resets importance rules to defaults', () => {
+  saveVersionCompareOptions({ unimportantFields: ['FileVersion'] })
+  const reset = resetVersionCompareOptions()
+
+  saveVersionCompareOptions(reset)
+
+  expect(loadVersionCompareOptions().unimportantFields).toEqual(
+    defaultVersionCompareOptions().unimportantFields,
+  )
 })

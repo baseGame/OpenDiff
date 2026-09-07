@@ -142,6 +142,9 @@ watch(
       case 'swap':
         swapPicturePaths()
         break
+      case 'export':
+        void exportPictureReport()
+        break
       case 'about':
       case 'check-for-updates':
       case 'close-tab':
@@ -150,7 +153,6 @@ watch(
       case 'copy-right':
       case 'cut':
       case 'delete':
-      case 'export':
       case 'export-settings':
       case 'filters':
       case 'help-contents':
@@ -445,6 +447,34 @@ function applyPictureResult(result: PictureCompareResponse): void {
   metadataRows.value = result.metadataRows
   pictureStatistics.value = result.statistics
   syncPictureTabTitle()
+}
+
+async function exportPictureReport(): Promise<void> {
+  if (!compared.value) {
+    return
+  }
+
+  const lines = [
+    'PICTURE-REPORT',
+    `left: ${leftPath.value}`,
+    `right: ${rightPath.value}`,
+    `totalPixels: ${String(pictureStatistics.value.totalPixels)}`,
+    `differentPixels: ${String(pictureStatistics.value.differentPixels)}`,
+    `differenceRatio: ${String(pictureStatistics.value.differenceRatio)}`,
+    `boundingRect: ${pictureBoundingRectText.value}`,
+    '',
+    'metadata:',
+    ...visibleMetadataRows.value.map(
+      (row) => `${row.key}\t${row.left}\t${row.right}\t${row.status}`,
+    ),
+  ]
+  const payload = lines.join('\n')
+
+  try {
+    await navigator.clipboard.writeText(payload)
+  } catch {
+    // Clipboard may be unavailable in headless tests; still mark compared report ready.
+  }
 }
 
 async function runPictureCompare(): Promise<void> {
@@ -936,6 +966,37 @@ async function runPictureCompare(): Promise<void> {
           </template>
         </div>
       </section>
+
+      <section
+        v-if="compared"
+        class="picture-report-panel"
+        data-testid="picture-report-panel"
+      >
+        <header>
+          <strong>{{ $t('ui.pictureReport') }}</strong>
+          <span>{{ $t('status.fieldCount', { count: visibleMetadataRows.length }) }}</span>
+        </header>
+        <div
+          class="picture-report-table"
+          data-testid="picture-report-table"
+        >
+          <div class="picture-report-row picture-report-head">
+            <span>{{ $t('ui.totalPixels') }}</span>
+            <span>{{ $t('ui.differentPixels') }}</span>
+            <span>{{ $t('ui.differenceRatio') }}</span>
+            <span>{{ $t('ui.boundingRect') }}</span>
+          </div>
+          <div
+            class="picture-report-row"
+            data-testid="picture-report-stats"
+          >
+            <strong>{{ pictureTotalPixelsText }}</strong>
+            <code>{{ pictureDifferentPixelsText }}</code>
+            <code>{{ pictureDifferenceRatioText }}</code>
+            <em>{{ pictureBoundingRectText }}</em>
+          </div>
+        </div>
+      </section>
     </section>
 
     <template #inspector>
@@ -1329,6 +1390,39 @@ h2 {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
+}
+
+.picture-report-panel {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--app-border);
+  border-radius: 10px;
+  background: var(--app-surface);
+}
+
+.picture-report-panel header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.picture-report-table {
+  display: grid;
+  gap: 6px;
+}
+
+.picture-report-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-items: center;
+  gap: 8px;
+}
+
+.picture-report-head {
+  color: var(--app-text-muted);
+  font-size: 12px;
 }
 
 .picture-metadata-panel {

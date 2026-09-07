@@ -328,6 +328,7 @@ export const enUS: LanguagePack = {
     'ui.patchSummaryTitle': 'Patch Summary',
     'ui.picture': 'Picture',
     'ui.pictureCompare': 'Picture Compare',
+    'ui.pictureReport': 'Picture Report',
     'ui.pictureCompareInspector': 'Picture compare inspector',
     'ui.policy': 'Policy',
     'ui.port': 'Port',

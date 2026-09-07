@@ -46,6 +46,7 @@ pub enum ScriptCommandKind {
     Collapse { path: Option<String> },
     Snapshot { output: String },
     Sync { strategy: Option<String> },
+    Criteria { tokens: Vec<String> },
     Unsupported { name: String },
 }
 
@@ -112,6 +113,10 @@ pub struct ScriptRuntimeState {
     pub folder_tree_expand_all: bool,
     /// Explicit folder prefixes expanded via EXPAND path (ignored when expand_all).
     pub expanded_paths: Vec<String>,
+    /// Folder Session Settings comparison flags set by CRITERIA.
+    pub criteria: Option<ScriptFolderCriteria>,
+    /// Legacy CRITERIA tokens accepted but not applied to compare results.
+    pub criteria_acknowledged: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -119,6 +124,39 @@ pub struct ScriptRuntimeState {
 pub struct ScriptOption {
     pub key: String,
     pub value: String,
+}
+
+/// Folder-compare criteria mirrored from Session Settings (size / timestamp / contents / CRC).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScriptFolderCriteria {
+    pub compare_size: bool,
+    pub compare_modified_time: bool,
+    pub compare_contents: bool,
+    pub compare_crc: bool,
+}
+
+impl Default for ScriptFolderCriteria {
+    fn default() -> Self {
+        Self {
+            compare_size: true,
+            compare_modified_time: false,
+            compare_contents: true,
+            compare_crc: false,
+        }
+    }
+}
+
+impl ScriptFolderCriteria {
+    pub fn to_folder_options(&self) -> folder_core::FolderCompareOptions {
+        folder_core::FolderCompareOptions {
+            compare_size: self.compare_size,
+            compare_modified_time: self.compare_modified_time,
+            case_sensitive_names: true,
+            compare_contents: self.compare_contents,
+            compare_crc: self.compare_crc,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -152,6 +190,7 @@ pub struct ScriptCompareSummary {
 pub struct ScriptCompareRequest {
     pub load_paths: Vec<String>,
     pub filters: Vec<String>,
+    pub criteria: Option<ScriptFolderCriteria>,
 }
 
 pub trait ScriptCompareEngine {
@@ -306,9 +345,13 @@ where
                     .compare(ScriptCompareRequest {
                         load_paths: state.load_paths.clone(),
                         filters: state.filters.clone(),
+                        criteria: state.criteria.clone(),
                     })
                     .map_err(|reason| execution_error(command, reason))?;
                 state.last_compare = Some(summary);
+            }
+            ScriptCommandKind::Criteria { tokens } => {
+                apply_criteria_command(command, &mut state, tokens, &execution.variables)?;
             }
             other => {
                 return Err(execution_error(
@@ -696,6 +739,9 @@ where
                     command,
                 )?;
             }
+            ScriptCommandKind::Criteria { tokens } => {
+                apply_criteria_command(command, &mut state, tokens, &execution.variables)?;
+            }
             ScriptCommandKind::Unsupported { name } => {
                 return Err(execution_error(command, format!("{name} is unsupported")));
             }
@@ -773,11 +819,127 @@ where
         .compare(ScriptCompareRequest {
             load_paths: state.load_paths.clone(),
             filters: state.filters.clone(),
+            criteria: state.criteria.clone(),
         })
         .map_err(|reason| execution_error(command, reason))?;
     state.last_compare = Some(summary);
 
     Ok(())
+}
+
+fn apply_criteria_command(
+    command: &ScriptCommand,
+    state: &mut ScriptRuntimeState,
+    tokens: &[String],
+    variables: &ScriptVariables,
+) -> Result<(), ScriptExecutionError> {
+    let expanded = expand_command_values(command, tokens, variables)?;
+    let (criteria, acknowledged) = parse_folder_criteria_tokens(&expanded)
+        .map_err(|reason| execution_error(command, reason))?;
+    state.criteria = Some(criteria.clone());
+    state.criteria_acknowledged = acknowledged.clone();
+    // Persist as OPTION-like keys so script state mirrors Session Settings flags.
+    for (key, value) in [
+        ("compare-size", criteria.compare_size),
+        ("compare-timestamp", criteria.compare_modified_time),
+        ("compare-contents", criteria.compare_contents),
+        ("compare-crc", criteria.compare_crc),
+    ] {
+        state
+            .options
+            .retain(|option| !option.key.eq_ignore_ascii_case(key));
+        state.options.push(ScriptOption {
+            key: key.to_owned(),
+            value: if value {
+                "true".to_owned()
+            } else {
+                "false".to_owned()
+            },
+        });
+    }
+    for token in &acknowledged {
+        state
+            .options
+            .retain(|option| !option.key.eq_ignore_ascii_case(token));
+        state.options.push(ScriptOption {
+            key: token.clone(),
+            value: "acknowledged".to_owned(),
+        });
+    }
+    Ok(())
+}
+
+/// Map CRITERIA tokens onto folder Session Settings comparison flags.
+/// Supported: timestamp[:…], size, crc, binary, rules-based.
+/// Other legacy script tokens are acknowledged without changing compare results.
+pub fn parse_folder_criteria_tokens(
+    tokens: &[String],
+) -> Result<(ScriptFolderCriteria, Vec<String>), String> {
+    let mut criteria = ScriptFolderCriteria {
+        compare_size: false,
+        compare_modified_time: false,
+        compare_contents: false,
+        compare_crc: false,
+    };
+    let mut acknowledged = Vec::new();
+    let mut saw_content_method = false;
+
+    if tokens.is_empty() {
+        return Ok((ScriptFolderCriteria::default(), acknowledged));
+    }
+
+    for raw in tokens {
+        let token = raw.trim();
+        if token.is_empty() {
+            continue;
+        }
+        let lower = token.to_ascii_lowercase();
+        if lower == "timestamp" || lower.starts_with("timestamp:") {
+            criteria.compare_modified_time = true;
+            continue;
+        }
+        if lower == "size" {
+            if saw_content_method {
+                return Err("CRITERIA accepts only one of size|CRC|binary|rules-based".to_owned());
+            }
+            saw_content_method = true;
+            criteria.compare_size = true;
+            continue;
+        }
+        if lower == "crc" {
+            if saw_content_method {
+                return Err("CRITERIA accepts only one of size|CRC|binary|rules-based".to_owned());
+            }
+            saw_content_method = true;
+            criteria.compare_crc = true;
+            criteria.compare_size = true;
+            continue;
+        }
+        if lower == "binary" || lower == "rules-based" || lower == "rulesbased" {
+            if saw_content_method {
+                return Err("CRITERIA accepts only one of size|CRC|binary|rules-based".to_owned());
+            }
+            saw_content_method = true;
+            criteria.compare_contents = true;
+            criteria.compare_size = true;
+            continue;
+        }
+        if lower.starts_with("attrib:")
+            || lower == "version"
+            || lower.starts_with("timezone:")
+            || lower == "follow-symlinks"
+            || lower == "ignore-unimportant"
+            || lower == "owner"
+            || lower == "group"
+            || lower == "permissions"
+        {
+            acknowledged.push(token.to_owned());
+            continue;
+        }
+        return Err(format!("unsupported CRITERIA token: {token}"));
+    }
+
+    Ok((criteria, acknowledged))
 }
 
 fn run_report_command<R>(
@@ -841,6 +1003,7 @@ fn script_command_log_status(command: &ScriptCommandKind) -> LogStatus {
     match command {
         ScriptCommandKind::Log { .. }
         | ScriptCommandKind::Option { .. }
+        | ScriptCommandKind::Criteria { .. }
         | ScriptCommandKind::Select { .. }
         | ScriptCommandKind::Expand { .. }
         | ScriptCommandKind::Collapse { .. } => LogStatus::Info,
@@ -879,6 +1042,7 @@ impl ScriptCommandKind {
             ScriptCommandKind::Collapse { .. } => "COLLAPSE",
             ScriptCommandKind::Snapshot { .. } => "SNAPSHOT",
             ScriptCommandKind::Sync { .. } => "SYNC",
+            ScriptCommandKind::Criteria { .. } => "CRITERIA",
             ScriptCommandKind::Unsupported { .. } => "UNSUPPORTED",
         }
     }
@@ -915,7 +1079,8 @@ impl ScriptCompareEngine for FilesystemScriptEngine {
 
         let left = &request.load_paths[0];
         let right = &request.load_paths[1];
-        let summary = compare_script_paths(left, right, &request.filters)?;
+        let summary =
+            compare_script_paths(left, right, &request.filters, request.criteria.as_ref())?;
         self.last_request = Some(request);
         Ok(summary)
     }
@@ -978,6 +1143,7 @@ fn compare_script_paths(
     left: &str,
     right: &str,
     filters: &[String],
+    criteria: Option<&ScriptFolderCriteria>,
 ) -> Result<ScriptCompareSummary, String> {
     let left_path = std::path::Path::new(left);
     let right_path = std::path::Path::new(right);
@@ -1087,11 +1253,12 @@ fn compare_script_paths(
                 })
                 .collect()
         };
+        let criteria = criteria.cloned().unwrap_or_default();
         let different = filtered
             .iter()
             .filter(|row| {
                 !matches!(
-                    folder_core::classify_folder_alignment(row.left.as_ref(), row.right.as_ref()),
+                    classify_script_folder_row(left_path, right_path, row, &criteria),
                     folder_core::FolderCompareStatus::Same
                 )
             })
@@ -1106,6 +1273,64 @@ fn compare_script_paths(
     Err(format!(
         "LOAD paths must be two files or two folders: {left} / {right}"
     ))
+}
+
+fn classify_script_folder_row(
+    left_root: &std::path::Path,
+    right_root: &std::path::Path,
+    row: &folder_core::FolderAlignmentRow,
+    criteria: &ScriptFolderCriteria,
+) -> folder_core::FolderCompareStatus {
+    let options = criteria.to_folder_options();
+    let metadata_status = folder_core::classify_folder_alignment_with_options(
+        row.left.as_ref(),
+        row.right.as_ref(),
+        &options,
+    );
+
+    if metadata_status != folder_core::FolderCompareStatus::Same {
+        return metadata_status;
+    }
+
+    let is_file_pair = matches!(
+        (&row.left, &row.right),
+        (Some(left), Some(right))
+            if left.kind == folder_core::FolderNodeKind::File
+                && right.kind == folder_core::FolderNodeKind::File
+    );
+    if !is_file_pair || (!criteria.compare_contents && !criteria.compare_crc) {
+        return metadata_status;
+    }
+
+    let left_bytes = match std::fs::read(left_root.join(&row.relative_path)) {
+        Ok(bytes) => bytes,
+        Err(_) => return folder_core::FolderCompareStatus::Error,
+    };
+    let right_bytes = match std::fs::read(right_root.join(&row.relative_path)) {
+        Ok(bytes) => bytes,
+        Err(_) => return folder_core::FolderCompareStatus::Error,
+    };
+
+    if criteria.compare_crc {
+        let status = folder_core::classify_folder_alignment_with_crc32(
+            row.left.as_ref(),
+            row.right.as_ref(),
+            &options,
+            Some(folder_core::calculate_crc32(&left_bytes)),
+            Some(folder_core::calculate_crc32(&right_bytes)),
+        );
+        if status != folder_core::FolderCompareStatus::Same || !criteria.compare_contents {
+            return status;
+        }
+    }
+
+    if criteria.compare_contents {
+        return folder_core::compare_binary_streams(&left_bytes[..], &right_bytes[..], 8192)
+            .map(|result| result.status)
+            .unwrap_or(folder_core::FolderCompareStatus::Error);
+    }
+
+    metadata_status
 }
 
 fn parse_command(
@@ -1246,6 +1471,9 @@ fn parse_command(
                 strategy: args.first().cloned(),
             })
         }
+        "CRITERIA" => Ok(ScriptCommandKind::Criteria {
+            tokens: args.to_vec(),
+        }),
         unsupported if is_unsupported_script_command(unsupported) => {
             Ok(ScriptCommandKind::Unsupported {
                 name: unsupported.to_owned(),
@@ -1293,12 +1521,13 @@ pub fn supported_script_commands() -> &'static [&'static str] {
         "COLLAPSE",
         "SNAPSHOT",
         "SYNC",
+        "CRITERIA",
     ]
 }
 
 /// Known legacy commands that parse but fail at execution with an honest unsupported error.
 pub fn unsupported_script_commands() -> &'static [&'static str] {
-    &["CRITERIA"]
+    &[]
 }
 
 fn copy_path_recursive(source: &std::path::Path, target: &std::path::Path) -> Result<(), String> {
@@ -1684,7 +1913,8 @@ mod tests {
         assert!(supported_script_commands().contains(&"COLLAPSE"));
         assert!(supported_script_commands().contains(&"MOVE"));
         assert!(supported_script_commands().contains(&"MOVETO"));
-        assert!(unsupported_script_commands().contains(&"CRITERIA"));
+        assert!(supported_script_commands().contains(&"CRITERIA"));
+        assert!(!unsupported_script_commands().contains(&"CRITERIA"));
         assert!(!unsupported_script_commands().contains(&"MEDIA-REPORT"));
         assert!(!unsupported_script_commands().contains(&"ATTRIB"));
         assert!(!unsupported_script_commands().contains(&"HEX-REPORT"));
@@ -1739,18 +1969,26 @@ mod tests {
     }
 
     #[test]
-    fn parsed_unsupported_commands_fail_at_execution_with_clear_reason() {
-        struct NoopCompareEngine;
-        struct NoopReportEngine;
+    fn parses_and_applies_criteria_tokens_to_runtime_state() {
+        #[derive(Default)]
+        struct RecordingCompareEngine {
+            requests: Vec<ScriptCompareRequest>,
+        }
 
-        impl ScriptCompareEngine for NoopCompareEngine {
+        impl ScriptCompareEngine for RecordingCompareEngine {
             fn compare(
                 &mut self,
-                _request: ScriptCompareRequest,
+                request: ScriptCompareRequest,
             ) -> Result<ScriptCompareSummary, String> {
-                Ok(ScriptCompareSummary::default())
+                self.requests.push(request);
+                Ok(ScriptCompareSummary {
+                    compared: 1,
+                    different: 0,
+                })
             }
         }
+
+        struct NoopReportEngine;
 
         impl ScriptReportEngine for NoopReportEngine {
             fn write_report(&mut self, _request: ScriptReportRequest) -> Result<(), String> {
@@ -1758,19 +1996,96 @@ mod tests {
             }
         }
 
-        let script =
-            parse_script("LOAD left right\nCRITERIA rules").expect("known missing command parses");
-        let error = execute_automation_script(
+        let script = parse_script("LOAD left right\nCRITERIA timestamp size\nCOMPARE\n")
+            .expect("criteria script parses");
+        let mut engine = RecordingCompareEngine::default();
+        let result = execute_automation_script(
             &script,
             ScriptExecutionContext::default(),
-            &mut NoopCompareEngine,
+            &mut engine,
             &mut NoopReportEngine,
         )
-        .expect_err("unsupported command should fail at runtime");
+        .expect("criteria script runs");
 
-        assert_eq!(error.command, "UNSUPPORTED");
-        assert!(error.reason.contains("CRITERIA"));
-        assert!(error.reason.contains("unsupported"));
+        assert_eq!(
+            result.state.criteria,
+            Some(ScriptFolderCriteria {
+                compare_size: true,
+                compare_modified_time: true,
+                compare_contents: false,
+                compare_crc: false,
+            })
+        );
+        assert!(result
+            .state
+            .options
+            .iter()
+            .any(|option| option.key == "compare-timestamp" && option.value == "true"));
+        assert_eq!(
+            engine.requests[0].criteria,
+            Some(ScriptFolderCriteria {
+                compare_size: true,
+                compare_modified_time: true,
+                compare_contents: false,
+                compare_crc: false,
+            })
+        );
+    }
+
+    #[test]
+    fn criteria_rejects_unknown_tokens_and_duplicate_content_methods() {
+        let error = parse_folder_criteria_tokens(&[
+            "timestamp".to_owned(),
+            "size".to_owned(),
+            "crc".to_owned(),
+        ])
+        .expect_err("duplicate content methods");
+        assert!(error.contains("only one"));
+
+        let error = parse_folder_criteria_tokens(&["nope".to_owned()]).expect_err("unknown");
+        assert!(error.contains("unsupported CRITERIA token"));
+
+        let (criteria, acknowledged) = parse_folder_criteria_tokens(&[
+            "rules-based".to_owned(),
+            "ignore-unimportant".to_owned(),
+        ])
+        .expect("ack tokens");
+        assert!(criteria.compare_contents);
+        assert_eq!(acknowledged, vec!["ignore-unimportant".to_owned()]);
+    }
+
+    #[test]
+    fn criteria_size_skips_same_sized_files_with_different_contents() {
+        let root = unique_temp_dir("script-criteria-size");
+        let left = root.join("left");
+        let right = root.join("right");
+        std::fs::create_dir_all(&left).expect("left");
+        std::fs::create_dir_all(&right).expect("right");
+        std::fs::write(left.join("a.txt"), "aaaa").expect("left file");
+        std::fs::write(right.join("a.txt"), "bbbb").expect("right file");
+
+        let same_size = run_script_source(
+            &format!(
+                "LOAD \"{}\" \"{}\"\nCRITERIA size\nCOMPARE\n",
+                left.display(),
+                right.display()
+            ),
+            ScriptExecutionContext::default(),
+        )
+        .expect("size criteria");
+        assert_eq!(same_size.state.last_compare.map(|s| s.different), Some(0));
+
+        let content = run_script_source(
+            &format!(
+                "LOAD \"{}\" \"{}\"\nCRITERIA binary\nCOMPARE\n",
+                left.display(),
+                right.display()
+            ),
+            ScriptExecutionContext::default(),
+        )
+        .expect("binary criteria");
+        assert_eq!(content.state.last_compare.map(|s| s.different), Some(1));
+        let _ = std::fs::remove_dir_all(root);
     }
 
     #[test]
@@ -1898,6 +2213,8 @@ mod tests {
                 file_operations: Vec::new(),
                 folder_tree_expand_all: false,
                 expanded_paths: Vec::new(),
+                criteria: None,
+                criteria_acknowledged: Vec::new(),
             }
         );
         assert_eq!(
@@ -1905,6 +2222,7 @@ mod tests {
             vec![ScriptCompareRequest {
                 load_paths: vec!["left/root".to_owned(), "right/root".to_owned()],
                 filters: vec!["*.rs".to_owned(), "-target".to_owned()],
+                criteria: None,
             }]
         );
     }

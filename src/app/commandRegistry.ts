@@ -386,6 +386,10 @@ export const commandRegistry: AppCommand[] = [
     id: 'session.newWindow',
     titleKey: 'ui.newWindow',
     keywords: ['session', 'window', 'new'],
+    // Left disabled on purpose: default capability only grants window label "main"
+    // with core:default. Creating a second WebviewWindow needs an explicit create
+    // permission plus a second window label in capabilities — enabling the menu
+    // without that would fake a broken New Window. Keep noop until those land.
     enabled: false,
     visibility: 'global',
     defaultShortcut: { keys: ['Ctrl', 'Shift', 'N'], scope: 'global' },

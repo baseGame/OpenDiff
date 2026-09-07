@@ -11,8 +11,10 @@ import type {
 } from '@/types/diff'
 import { buildVersionCompareToolbar, pathPairTitle } from '@/app/sessionToolbars'
 import {
+  buildVersionRulesCatalog,
   isVersionFieldImportant,
   loadVersionCompareOptions,
+  resetVersionCompareOptions,
   saveVersionCompareOptions,
   toggleVersionFieldImportance,
   type VersionCompareOptionsState,
@@ -121,6 +123,10 @@ const differenceFields = computed(() =>
 
     return true
   }),
+)
+
+const versionRulesCatalog = computed(() =>
+  buildVersionRulesCatalog(versionFields.value.map((row) => row.field)),
 )
 
 const versionToolbarCommands = computed(() =>
@@ -238,6 +244,11 @@ function persistVersionOptions(): void {
 
 function toggleFieldImportance(field: string): void {
   versionOptions.value = toggleVersionFieldImportance(field, versionOptions.value)
+  persistVersionOptions()
+}
+
+function resetVersionRules(): void {
+  versionOptions.value = resetVersionCompareOptions()
   persistVersionOptions()
 }
 
@@ -419,10 +430,17 @@ async function runVersionCompare(): Promise<void> {
       <header>
         <strong>{{ $t('ui.importanceRules') }}</strong>
         <span>{{ $t('ui.versionRulesHint') }}</span>
+        <button
+          type="button"
+          data-testid="version-rules-reset"
+          @click="resetVersionRules"
+        >
+          {{ $t('ui.reset') }}
+        </button>
       </header>
       <div class="version-rules-list">
         <label
-          v-for="row in versionFields"
+          v-for="row in versionRulesCatalog"
           :key="`rule-${row.field}`"
           class="version-rule-row"
           :data-testid="`version-rule-${row.field}`"
@@ -662,6 +680,10 @@ h1 {
   flex-wrap: wrap;
   justify-content: space-between;
   gap: 8px;
+}
+
+.version-rules-panel header button {
+  margin-left: auto;
 }
 
 .version-rules-panel header span {
