@@ -708,9 +708,12 @@ export const enUS: LanguagePack = {
     'ui.scriptPath': 'Script file',
     'ui.scriptSource': 'Script source',
     'ui.scriptingNotImplemented':
-      'Full legacy scripting is not implemented. Supported commands run; others return unsupported.',
+      'Full legacy scripting is not implemented. Supported commands run; known gaps fail as unsupported.',
     'ui.scriptingSupported':
-      'Supported commands: LOAD, FILTER, COMPARE, REPORT, LOG, BEEP, OPTION, SELECT, COPY, COPYTO, DELETE, RENAME, TOUCH, SNAPSHOT, SYNC, TEXT-REPORT, FOLDER-REPORT. Other script commands return unsupported.',
+      'Supported commands: LOAD, FILTER, COMPARE, REPORT, FILE-REPORT, HEX-REPORT, TABLE-REPORT, PICTURE-REPORT, VERSION-REPORT, REGISTRY-REPORT, LOG, BEEP, OPTION, SELECT, COPY, COPYTO, DELETE, RENAME, TOUCH, SNAPSHOT, SYNC, TEXT-REPORT, FOLDER-REPORT.',
+    'ui.scriptingUnsupported': 'Unsupported: ATTRIB, COLLAPSE, CRITERIA, EXPAND, MEDIA-REPORT, MOVE, MOVETO.',
+    'ui.scriptingUnsupportedCommands': 'Unsupported commands',
+    'ui.scriptingSupportedCommands': 'Supported commands',
     'ui.secretsHint':
       'Passwords are stored only in a local secrets file (mode 0600), never in the profile list or logs.',
     'ui.sourceFile': 'Source file',

@@ -23,6 +23,12 @@ pub enum ScriptCommandKind {
     Compare,
     TextReport { output: String },
     FolderReport { output: String },
+    FileReport { output: String },
+    HexReport { output: String },
+    TableReport { output: String },
+    PictureReport { output: String },
+    VersionReport { output: String },
+    RegistryReport { output: String },
     Log { message: String },
     Beep,
     Option { key: String, value: String },
@@ -147,6 +153,12 @@ pub trait ScriptCompareEngine {
 pub enum ScriptReportType {
     Text,
     Folder,
+    File,
+    Hex,
+    Table,
+    Picture,
+    Version,
+    Registry,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -353,6 +365,66 @@ where
                     &mut state,
                     report_engine,
                     ScriptReportType::Folder,
+                    output,
+                    &execution.variables,
+                )?;
+            }
+            ScriptCommandKind::FileReport { output } => {
+                run_report_command(
+                    command,
+                    &mut state,
+                    report_engine,
+                    ScriptReportType::File,
+                    output,
+                    &execution.variables,
+                )?;
+            }
+            ScriptCommandKind::HexReport { output } => {
+                run_report_command(
+                    command,
+                    &mut state,
+                    report_engine,
+                    ScriptReportType::Hex,
+                    output,
+                    &execution.variables,
+                )?;
+            }
+            ScriptCommandKind::TableReport { output } => {
+                run_report_command(
+                    command,
+                    &mut state,
+                    report_engine,
+                    ScriptReportType::Table,
+                    output,
+                    &execution.variables,
+                )?;
+            }
+            ScriptCommandKind::PictureReport { output } => {
+                run_report_command(
+                    command,
+                    &mut state,
+                    report_engine,
+                    ScriptReportType::Picture,
+                    output,
+                    &execution.variables,
+                )?;
+            }
+            ScriptCommandKind::VersionReport { output } => {
+                run_report_command(
+                    command,
+                    &mut state,
+                    report_engine,
+                    ScriptReportType::Version,
+                    output,
+                    &execution.variables,
+                )?;
+            }
+            ScriptCommandKind::RegistryReport { output } => {
+                run_report_command(
+                    command,
+                    &mut state,
+                    report_engine,
+                    ScriptReportType::Registry,
                     output,
                     &execution.variables,
                 )?;
@@ -681,6 +753,12 @@ impl ScriptCommandKind {
             ScriptCommandKind::Compare => "COMPARE",
             ScriptCommandKind::TextReport { .. } => "TEXT-REPORT",
             ScriptCommandKind::FolderReport { .. } => "FOLDER-REPORT",
+            ScriptCommandKind::FileReport { .. } => "FILE-REPORT",
+            ScriptCommandKind::HexReport { .. } => "HEX-REPORT",
+            ScriptCommandKind::TableReport { .. } => "TABLE-REPORT",
+            ScriptCommandKind::PictureReport { .. } => "PICTURE-REPORT",
+            ScriptCommandKind::VersionReport { .. } => "VERSION-REPORT",
+            ScriptCommandKind::RegistryReport { .. } => "REGISTRY-REPORT",
             ScriptCommandKind::Log { .. } => "LOG",
             ScriptCommandKind::Beep => "BEEP",
             ScriptCommandKind::Option { .. } => "OPTION",
@@ -736,16 +814,20 @@ impl ScriptCompareEngine for FilesystemScriptEngine {
 
 impl ScriptReportEngine for FilesystemScriptEngine {
     fn write_report(&mut self, request: ScriptReportRequest) -> Result<(), String> {
-        let content = match request.report_type {
-            ScriptReportType::Text => format!(
-                "TEXT-REPORT\ncompared: {}\ndifferent: {}\n",
-                request.compare_summary.compared, request.compare_summary.different
-            ),
-            ScriptReportType::Folder => format!(
-                "FOLDER-REPORT\ncompared: {}\ndifferent: {}\n",
-                request.compare_summary.compared, request.compare_summary.different
-            ),
+        let label = match request.report_type {
+            ScriptReportType::Text => "TEXT-REPORT",
+            ScriptReportType::Folder => "FOLDER-REPORT",
+            ScriptReportType::File => "FILE-REPORT",
+            ScriptReportType::Hex => "HEX-REPORT",
+            ScriptReportType::Table => "TABLE-REPORT",
+            ScriptReportType::Picture => "PICTURE-REPORT",
+            ScriptReportType::Version => "VERSION-REPORT",
+            ScriptReportType::Registry => "REGISTRY-REPORT",
         };
+        let content = format!(
+            "{label}\ncompared: {}\ndifferent: {}\n",
+            request.compare_summary.compared, request.compare_summary.different
+        );
 
         if let Some(parent) = std::path::Path::new(&request.output).parent() {
             std::fs::create_dir_all(parent).map_err(|error| error.to_string())?;
@@ -791,23 +873,81 @@ fn compare_script_paths(
     let right_path = std::path::Path::new(right);
 
     if left_path.is_file() && right_path.is_file() {
-        let left_text = file_core::read_text_file(left).map_err(|error| format!("{error:?}"))?;
-        let right_text = file_core::read_text_file(right).map_err(|error| format!("{error:?}"))?;
-        let diff = diff_core::diff_text(&shared_types::TextDiffRequest {
-            left: left_text.text,
-            right: right_text.text,
-            algorithm: None,
-            ignore_whitespace: false,
-            ignore_case: false,
-            ignore_line_endings: false,
-            ignore_regexes: Vec::new(),
+        let left_name = left_path
+            .file_name()
+            .and_then(|value| value.to_str())
+            .unwrap_or_default()
+            .to_ascii_lowercase();
+        let right_name = right_path
+            .file_name()
+            .and_then(|value| value.to_str())
+            .unwrap_or_default()
+            .to_ascii_lowercase();
+        let looks_tabular = [left_name.as_str(), right_name.as_str()].iter().any(|name| {
+            name.ends_with(".csv")
+                || name.ends_with(".tsv")
+                || name.ends_with(".xlsx")
+                || name.ends_with(".xls")
         });
-        let different = diff.stats.added + diff.stats.deleted + diff.stats.modified;
 
-        return Ok(ScriptCompareSummary {
-            compared: 2,
-            different,
-        });
+        match (
+            file_core::read_text_file(left),
+            file_core::read_text_file(right),
+        ) {
+            (Ok(left_text), Ok(right_text)) if !looks_tabular => {
+                let diff = diff_core::diff_text(&shared_types::TextDiffRequest {
+                    left: left_text.text,
+                    right: right_text.text,
+                    algorithm: None,
+                    ignore_whitespace: false,
+                    ignore_case: false,
+                    ignore_line_endings: false,
+                    ignore_regexes: Vec::new(),
+                });
+                let different = diff.stats.added + diff.stats.deleted + diff.stats.modified;
+
+                return Ok(ScriptCompareSummary {
+                    compared: 2,
+                    different,
+                });
+            }
+            (Ok(left_text), Ok(right_text)) => {
+                // Tabular files still compare as text rows for script automation.
+                let left_rows = left_text.text.lines().count();
+                let right_rows = right_text.text.lines().count();
+                let diff = diff_core::diff_text(&shared_types::TextDiffRequest {
+                    left: left_text.text,
+                    right: right_text.text,
+                    algorithm: None,
+                    ignore_whitespace: false,
+                    ignore_case: false,
+                    ignore_line_endings: false,
+                    ignore_regexes: Vec::new(),
+                });
+                let different = diff.stats.added + diff.stats.deleted + diff.stats.modified;
+
+                return Ok(ScriptCompareSummary {
+                    compared: left_rows.max(right_rows).max(1),
+                    different,
+                });
+            }
+            _ => {
+                let left_bytes = std::fs::read(left).map_err(|error| error.to_string())?;
+                let right_bytes = std::fs::read(right).map_err(|error| error.to_string())?;
+                let shared = left_bytes.len().min(right_bytes.len());
+                let mut different = left_bytes.len().abs_diff(right_bytes.len());
+                different += left_bytes[..shared]
+                    .iter()
+                    .zip(right_bytes[..shared].iter())
+                    .filter(|(left_byte, right_byte)| left_byte != right_byte)
+                    .count();
+
+                return Ok(ScriptCompareSummary {
+                    compared: left_bytes.len().max(right_bytes.len()).max(1),
+                    different,
+                });
+            }
+        }
     }
 
     if left_path.is_dir() && right_path.is_dir() {
@@ -893,6 +1033,24 @@ fn parse_command(
         "FOLDER-REPORT" => parse_single_output_command(line, args, |output| {
             ScriptCommandKind::FolderReport { output }
         }),
+        "FILE-REPORT" | "REPORT" => parse_single_output_command(line, args, |output| {
+            ScriptCommandKind::FileReport { output }
+        }),
+        "HEX-REPORT" => parse_single_output_command(line, args, |output| {
+            ScriptCommandKind::HexReport { output }
+        }),
+        "TABLE-REPORT" => parse_single_output_command(line, args, |output| {
+            ScriptCommandKind::TableReport { output }
+        }),
+        "PICTURE-REPORT" => parse_single_output_command(line, args, |output| {
+            ScriptCommandKind::PictureReport { output }
+        }),
+        "VERSION-REPORT" => parse_single_output_command(line, args, |output| {
+            ScriptCommandKind::VersionReport { output }
+        }),
+        "REGISTRY-REPORT" => parse_single_output_command(line, args, |output| {
+            ScriptCommandKind::RegistryReport { output }
+        }),
         "LOG" => {
             parse_single_output_command(line, args, |message| ScriptCommandKind::Log { message })
         }
@@ -967,10 +1125,51 @@ fn parse_command(
 }
 
 fn is_unsupported_script_command(command: &str) -> bool {
-    matches!(
-        command,
-        "ATTRIB" | "EXPAND" | "FILE-REPORT" | "HEX-REPORT" | "MEDIA-REPORT" | "MOVE" | "MOVETO"
-    )
+    unsupported_script_commands()
+        .iter()
+        .any(|name| name.eq_ignore_ascii_case(command))
+}
+
+/// Commands that parse and execute for real in the automation runner.
+pub fn supported_script_commands() -> &'static [&'static str] {
+    &[
+        "LOAD",
+        "FILTER",
+        "COMPARE",
+        "TEXT-REPORT",
+        "FOLDER-REPORT",
+        "FILE-REPORT",
+        "REPORT",
+        "HEX-REPORT",
+        "TABLE-REPORT",
+        "PICTURE-REPORT",
+        "VERSION-REPORT",
+        "REGISTRY-REPORT",
+        "LOG",
+        "BEEP",
+        "OPTION",
+        "SELECT",
+        "COPY",
+        "COPYTO",
+        "DELETE",
+        "RENAME",
+        "TOUCH",
+        "SNAPSHOT",
+        "SYNC",
+    ]
+}
+
+/// Known legacy commands that parse but fail at execution with an honest unsupported error.
+pub fn unsupported_script_commands() -> &'static [&'static str] {
+    &[
+        "ATTRIB",
+        "COLLAPSE",
+        "CRITERIA",
+        "EXPAND",
+        "MEDIA-REPORT",
+        "MOVE",
+        "MOVETO",
+    ]
 }
 
 fn copy_path_recursive(source: &std::path::Path, target: &std::path::Path) -> Result<(), String> {
@@ -1162,7 +1361,58 @@ mod tests {
     }
 
     #[test]
-    fn rejects_unknown_script_commands_with_line_number() {
+    fn lists_supported_and_unsupported_script_commands_honestly() {
+        assert!(supported_script_commands().contains(&"HEX-REPORT"));
+        assert!(supported_script_commands().contains(&"TABLE-REPORT"));
+        assert!(supported_script_commands().contains(&"REPORT"));
+        assert!(unsupported_script_commands().contains(&"ATTRIB"));
+        assert!(unsupported_script_commands().contains(&"CRITERIA"));
+        assert!(unsupported_script_commands().contains(&"MEDIA-REPORT"));
+        assert!(!unsupported_script_commands().contains(&"HEX-REPORT"));
+        assert!(!unsupported_script_commands().contains(&"FILE-REPORT"));
+    }
+
+    #[test]
+    fn parses_extended_compare_report_commands() {
+        let script = parse_script(
+            r#"
+            LOAD "a.bin" "b.bin"
+            COMPARE
+            HEX-REPORT "out/hex.txt"
+            TABLE-REPORT "out/table.txt"
+            FILE-REPORT "out/file.txt"
+            REPORT "out/report.txt"
+            PICTURE-REPORT "out/picture.txt"
+            VERSION-REPORT "out/version.txt"
+            REGISTRY-REPORT "out/registry.txt"
+            "#,
+        )
+        .expect("extended reports should parse");
+
+        assert!(script.commands.iter().any(|command| matches!(
+            command.kind,
+            ScriptCommandKind::HexReport { .. }
+        )));
+        assert!(script.commands.iter().any(|command| matches!(
+            command.kind,
+            ScriptCommandKind::TableReport { .. }
+        )));
+        assert!(script.commands.iter().any(|command| matches!(
+            command.kind,
+            ScriptCommandKind::FileReport { .. }
+        )));
+        assert_eq!(
+            script
+                .commands
+                .iter()
+                .filter(|command| matches!(command.kind, ScriptCommandKind::FileReport { .. }))
+                .count(),
+            2
+        );
+    }
+
+    #[test]
+        fn rejects_unknown_script_commands_with_line_number() {
         let error = parse_script("LOAD left right\nNOPE").expect_err("unknown command should fail");
 
         assert_eq!(error.line, 2);

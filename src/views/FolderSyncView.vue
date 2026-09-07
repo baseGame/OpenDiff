@@ -9,10 +9,15 @@ import type {
   FolderSyncStrategy,
 } from '@/types/sync'
 import { computed, onMounted, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import WorkbenchShell from '@/components/workbench/WorkbenchShell.vue'
 import WorkbenchInspector from '@/components/workbench/WorkbenchInspector.vue'
-import { pathBaseName, syncPathPairTitle } from '@/app/sessionToolbars'
 import { createFolderSnapshot } from '@/api/diff'
+import {
+  collectExpandablePrefixes,
+  isPathHiddenByCollapse,
+} from '@/app/folderPathGroups'
+import { buildFolderSyncToolbar, pathBaseName, syncPathPairTitle } from '@/app/sessionToolbars'
 import { useI18n } from '@/i18n'
 import { useTabsStore } from '@/stores/tabs'
 import { useSessionLaunchStore } from '@/stores/sessionLaunch'
@@ -50,6 +55,7 @@ const strategyOptions: SyncStrategyOption[] = [
 ]
 const { t } = useI18n()
 const tabs = useTabsStore()
+const router = useRouter()
 const sessionLaunch = useSessionLaunchStore()
 const viewActions = useViewActionsStore()
 const leftPath = ref('')
@@ -65,6 +71,14 @@ const completedOperations = ref(0)
 const syncLogs = ref<string[]>([])
 const planAccepted = ref(false)
 const syncChromeMessage = ref('')
+const collapsedPrefixes = ref<Set<string>>(new Set())
+const showSyncFilters = ref(false)
+const showSyncSelect = ref(false)
+const checkedRowIds = ref<Set<string>>(new Set())
+const visibleActions = ref<Set<FolderSyncPreviewAction>>(
+  new Set(['Copy', 'Delete', 'Leave', 'Conflict']),
+)
+const lastSelectionAction = ref('')
 
 const selectedStrategyLabel = computed(() =>
   t(
@@ -85,6 +99,134 @@ const syncSessionTitle = computed(() => {
 
   return t('ui.folderSync')
 })
+const filteredPreviewRows = computed(() =>
+  previewRows.value.filter((row) => visibleActions.value.has(row.action)),
+)
+const visiblePreviewRows = computed(() =>
+  filteredPreviewRows.value.filter(
+    (row) => !isPathHiddenByCollapse(row.relativePath, collapsedPrefixes.value),
+  ),
+)
+const syncSessionToolbar = computed(() =>
+  buildFolderSyncToolbar({
+    home: true,
+    expand: previewRows.value.length > 0,
+    collapse: previewRows.value.length > 0,
+    select: previewRows.value.length > 0,
+    filters: previewRows.value.length > 0,
+    refresh: Boolean(leftPath.value && rightPath.value) && !previewLoading.value,
+    swap: Boolean(leftPath.value || rightPath.value),
+    stop: previewLoading.value || syncRunning.value,
+  }),
+)
+
+function goHomeFromSync(): void {
+  tabs.openTab({ title: 'Home', titleKey: 'ui.home', route: '/', dirty: false })
+  void router.push('/')
+}
+
+function expandAllSyncPaths(): void {
+  collapsedPrefixes.value = new Set()
+}
+
+function collapseAllSyncPaths(): void {
+  collapsedPrefixes.value = new Set(
+    collectExpandablePrefixes(previewRows.value.map((row) => row.relativePath)),
+  )
+}
+
+function toggleSyncActionFilter(action: FolderSyncPreviewAction): void {
+  const next = new Set(visibleActions.value)
+
+  if (next.has(action)) {
+    next.delete(action)
+  } else {
+    next.add(action)
+  }
+
+  visibleActions.value = next
+}
+
+function selectVisibleSyncRows(): void {
+  checkedRowIds.value = new Set(visiblePreviewRows.value.map((row) => row.id))
+  lastSelectionAction.value = t('status.selectedRowCount', {
+    count: checkedRowIds.value.size,
+    action: t('ui.selectAll'),
+  })
+}
+
+function clearSyncSelection(): void {
+  checkedRowIds.value = new Set()
+  lastSelectionAction.value = t('status.selectedRowCount', {
+    count: 0,
+    action: t('ui.clearSelection'),
+  })
+}
+
+function invertSyncSelection(): void {
+  const next = new Set(checkedRowIds.value)
+
+  for (const row of visiblePreviewRows.value) {
+    if (next.has(row.id)) {
+      next.delete(row.id)
+    } else {
+      next.add(row.id)
+    }
+  }
+
+  checkedRowIds.value = next
+  lastSelectionAction.value = t('status.selectedRowCount', {
+    count: next.size,
+    action: t('ui.invertSelection'),
+  })
+}
+
+function toggleSyncRowChecked(rowId: string): void {
+  const next = new Set(checkedRowIds.value)
+
+  if (next.has(rowId)) {
+    next.delete(rowId)
+  } else {
+    next.add(rowId)
+  }
+
+  checkedRowIds.value = next
+}
+
+function stopSyncWork(): void {
+  syncChromeMessage.value = t('ui.stop')
+}
+
+function runSyncToolbarCommand(commandId: string): void {
+  switch (commandId) {
+    case 'home':
+      goHomeFromSync()
+      break
+    case 'expand':
+      expandAllSyncPaths()
+      break
+    case 'collapse':
+      collapseAllSyncPaths()
+      break
+    case 'select':
+      showSyncSelect.value = !showSyncSelect.value
+      break
+    case 'filters':
+      showSyncFilters.value = !showSyncFilters.value
+      break
+    case 'refresh':
+      void previewSync()
+      break
+    case 'swap':
+      swapSyncPaths()
+      break
+    case 'stop':
+      stopSyncWork()
+      break
+    default:
+      break
+  }
+}
 
 onMounted(() => {
   const launch = sessionLaunch.consumeLaunch('/sync/folder')
@@ -121,6 +263,9 @@ async function previewSync(): Promise<void> {
     syncRunError.value = undefined
     planAccepted.value = false
     syncChromeMessage.value = ''
+    collapsedPrefixes.value = new Set()
+    checkedRowIds.value = new Set()
+    lastSelectionAction.value = ''
   } catch (error) {
     previewError.value = error instanceof Error ? error.message : String(error)
   } finally {
@@ -324,6 +469,8 @@ watch(
       case 'export':
       case 'export-settings':
       case 'filters':
+        showSyncFilters.value = !showSyncFilters.value
+        break
       case 'help-contents':
       case 'help-support':
       case 'import-settings':
@@ -352,6 +499,9 @@ watch(
     :eyebrow="$t('ui.sync')"
     :subtitle="selectedStrategyLabel"
     :inspector-label="$t('ui.folderSyncInspector')"
+    :toolbar-commands="syncSessionToolbar"
+    toolbar-test-id-prefix="folder-sync-session-toolbar"
+    @toolbar-command="runSyncToolbarCommand"
   >
     <section class="folder-sync-view">
       <header class="folder-sync-header">
@@ -461,6 +611,60 @@ watch(
       </section>
 
       <section
+        v-if="showSyncFilters && previewRows.length > 0"
+        class="sync-chrome-panel"
+        data-testid="folder-sync-filters-panel"
+      >
+        <strong>{{ $t('ui.filters') }}</strong>
+        <label
+          v-for="action in (['Copy', 'Delete', 'Leave', 'Conflict'] as const)"
+          :key="action"
+        >
+          <input
+            type="checkbox"
+            :checked="visibleActions.has(action)"
+            :data-testid="`folder-sync-filter-${action}`"
+            @change="toggleSyncActionFilter(action)"
+          />
+          <span>{{ folderSyncActionLabel(action) }}</span>
+        </label>
+      </section>
+
+      <section
+        v-if="showSyncSelect && previewRows.length > 0"
+        class="sync-chrome-panel"
+        data-testid="folder-sync-select-panel"
+      >
+        <strong>{{ $t('ui.select') }}</strong>
+        <button
+          type="button"
+          data-testid="folder-sync-select-all"
+          @click="selectVisibleSyncRows"
+        >
+          {{ $t('ui.selectAll') }}
+        </button>
+        <button
+          type="button"
+          data-testid="folder-sync-select-invert"
+          @click="invertSyncSelection"
+        >
+          {{ $t('ui.invertSelection') }}
+        </button>
+        <button
+          type="button"
+          data-testid="folder-sync-select-clear"
+          @click="clearSyncSelection"
+        >
+          {{ $t('ui.clearSelection') }}
+        </button>
+        <span
+          v-if="lastSelectionAction"
+          data-testid="folder-sync-selection-status"
+          >{{ lastSelectionAction }}</span
+        >
+      </section>
+
+      <section
         v-if="previewRows.length > 0"
         class="sync-preview"
         data-testid="folder-sync-preview-panel"
@@ -474,6 +678,7 @@ watch(
         </header>
         <div class="sync-preview-table">
           <div class="sync-preview-row sync-preview-head">
+            <span>{{ $t('ui.select') }}</span>
             <span>{{ $t('ui.plannedAction') }}</span>
             <span>{{ $t('ui.override') }}</span>
             <span>{{ $t('ui.source') }}</span>
@@ -481,12 +686,23 @@ watch(
             <span>{{ $t('ui.detail') }}</span>
           </div>
           <div
-            v-for="row in previewRows"
+            v-for="row in visiblePreviewRows"
             :key="row.id"
             class="sync-preview-row"
-            :class="{ 'sync-row-overridden': row.overrideAction !== row.plannedAction }"
+            :class="{
+              'sync-row-overridden': row.overrideAction !== row.plannedAction,
+              'sync-row-selected': checkedRowIds.has(row.id),
+            }"
             :data-testid="`sync-row-${row.id}`"
           >
+            <label class="sync-select-cell">
+              <input
+                type="checkbox"
+                :checked="checkedRowIds.has(row.id)"
+                :data-testid="`sync-check-${row.id}`"
+                @change="toggleSyncRowChecked(row.id)"
+              />
+            </label>
             <span :data-testid="`sync-planned-${row.id}`">{{
               $t(
                 overrideOptions.find((option) => option.value === row.plannedAction)?.labelKey ??
@@ -697,7 +913,7 @@ h1 {
 
 .sync-preview-row {
   display: grid;
-  grid-template-columns: 120px minmax(200px, 1fr) minmax(160px, 1.1fr) minmax(160px, 1.1fr) minmax(
+  grid-template-columns: 44px 120px minmax(200px, 1fr) minmax(160px, 1.1fr) minmax(160px, 1.1fr) minmax(
       140px,
       0.9fr
     );
@@ -805,5 +1021,42 @@ h1 {
   .sync-progress {
     text-align: left;
   }
+}
+
+.sync-chrome-panel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  background: var(--app-surface);
+}
+
+.sync-chrome-panel label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.sync-chrome-panel button {
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--app-border);
+  border-radius: 6px;
+  background: var(--app-bg);
+  color: var(--app-text);
+  cursor: pointer;
+}
+
+.sync-select-cell {
+  display: flex;
+  align-items: center;
+}
+
+.sync-row-selected {
+  background: color-mix(in srgb, var(--app-accent, #4c8bf5) 12%, transparent);
 }
 </style>

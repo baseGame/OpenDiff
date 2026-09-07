@@ -7,6 +7,12 @@ import {
   recordRecentReportExport,
   type RecentReportExport,
 } from '@/app/reportExports'
+import {
+  compareReportExampleScript,
+  formatCommandList,
+  supportedScriptCommands,
+  unsupportedScriptCommands,
+} from '@/app/scriptCommands'
 import WorkbenchShell from '@/components/workbench/WorkbenchShell.vue'
 import WorkbenchToolbar from '@/components/workbench/WorkbenchToolbar.vue'
 import WorkbenchInspector from '@/components/workbench/WorkbenchInspector.vue'
@@ -32,9 +38,9 @@ const jobs = ref<ReportJob[]>(loadRecentReportExports())
 const running = ref(false)
 const error = ref('')
 const lastExport = ref('')
-const scriptSource = ref(
-  'load "$' + '{left}"\nload "$' + '{right}"\ncompare\ntext-report "$' + '{output}"\n',
-)
+const scriptSource = ref(compareReportExampleScript)
+const supportedCommandsLabel = formatCommandList(supportedScriptCommands)
+const unsupportedCommandsLabel = formatCommandList(unsupportedScriptCommands)
 const scriptPath = ref('')
 const scriptResult = ref('')
 const scriptRunning = ref(false)
@@ -296,8 +302,21 @@ function fillFromLastCompare(): void {
       <section class="script-panel">
         <header class="split-pane-header">
           <strong>{{ $t('ui.scriptCli') }}</strong>
-          <span>{{ $t('ui.scriptingSupported') }}</span>
+          <span>{{ $t('ui.scriptingNotImplemented') }}</span>
         </header>
+        <section
+          class="script-command-lists"
+          data-testid="script-command-lists"
+        >
+          <div>
+            <strong>{{ $t('ui.scriptingSupportedCommands') }}</strong>
+            <p data-testid="script-supported-commands">{{ supportedCommandsLabel }}</p>
+          </div>
+          <div>
+            <strong>{{ $t('ui.scriptingUnsupportedCommands') }}</strong>
+            <p data-testid="script-unsupported-commands">{{ unsupportedCommandsLabel }}</p>
+          </div>
+        </section>
         <label class="script-path">
           <span>{{ $t('ui.scriptPath') }}</span>
           <input
@@ -475,5 +494,28 @@ function fillFromLastCompare(): void {
   font-family: var(--font-mono);
   font-size: 12px;
   line-height: 20px;
+}
+
+.script-command-lists {
+  display: grid;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  background: var(--app-bg);
+}
+
+.script-command-lists strong {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 12px;
+}
+
+.script-command-lists p {
+  margin: 0;
+  color: var(--app-text-muted);
+  font-size: 12px;
+  line-height: 1.45;
+  word-break: break-word;
 }
 </style>

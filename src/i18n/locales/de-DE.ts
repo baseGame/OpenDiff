@@ -726,9 +726,12 @@ export const deDE: LanguagePack = {
     'ui.scriptPath': 'Skriptdatei',
     'ui.scriptSource': 'Skriptquelle',
     'ui.scriptingNotImplemented':
-      'Die vollständige BC-Skriptsprache ist nicht implementiert. Unterstützte Befehle laufen; andere liefern unsupported.',
+      'Die vollständige Legacy-Skriptsprache ist nicht implementiert. Unterstützte Befehle laufen; bekannte Lücken liefern unsupported.',
     'ui.scriptingSupported':
-      'Unterstützt: LOAD, FILTER, COMPARE, REPORT, LOG, BEEP, OPTION, SELECT, COPY, COPYTO, DELETE, RENAME, TOUCH, SNAPSHOT, SYNC, TEXT-REPORT, FOLDER-REPORT. Andere BC-Befehle liefern unsupported.',
+      'Unterstützt: LOAD, FILTER, COMPARE, REPORT, FILE-REPORT, HEX-REPORT, TABLE-REPORT, PICTURE-REPORT, VERSION-REPORT, REGISTRY-REPORT, LOG, BEEP, OPTION, SELECT, COPY, COPYTO, DELETE, RENAME, TOUCH, SNAPSHOT, SYNC, TEXT-REPORT, FOLDER-REPORT.',
+    'ui.scriptingUnsupported': 'Nicht unterstützt: ATTRIB, COLLAPSE, CRITERIA, EXPAND, MEDIA-REPORT, MOVE, MOVETO.',
+    'ui.scriptingUnsupportedCommands': 'Nicht unterstützte Befehle',
+    'ui.scriptingSupportedCommands': 'Unterstützte Befehle',
     'ui.secretsHint':
       'Passwörter liegen nur in einer lokalen Geheimdatei (Modus 0600), nie in der Profilliste oder in Logs.',
     'ui.sourceFile': 'Source file',

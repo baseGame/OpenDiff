@@ -721,9 +721,12 @@ export const esES: LanguagePack = {
     'ui.scriptPath': 'Archivo de script',
     'ui.scriptSource': 'Origen del script',
     'ui.scriptingNotImplemented':
-      'El lenguaje de scripts BC completo no está implementado. Los comandos admitidos se ejecutan; el resto devuelve unsupported.',
+      'El lenguaje de scripts heredado completo no está implementado. Los comandos admitidos se ejecutan; las lagunas conocidas devuelven unsupported.',
     'ui.scriptingSupported':
-      'Admitidos: LOAD, FILTER, COMPARE, REPORT, LOG, BEEP, OPTION, SELECT, COPY, COPYTO, DELETE, RENAME, TOUCH, SNAPSHOT, SYNC, TEXT-REPORT, FOLDER-REPORT. Otros comandos BC devuelven unsupported.',
+      'Comandos admitidos: LOAD, FILTER, COMPARE, REPORT, FILE-REPORT, HEX-REPORT, TABLE-REPORT, PICTURE-REPORT, VERSION-REPORT, REGISTRY-REPORT, LOG, BEEP, OPTION, SELECT, COPY, COPYTO, DELETE, RENAME, TOUCH, SNAPSHOT, SYNC, TEXT-REPORT, FOLDER-REPORT.',
+    'ui.scriptingUnsupported': 'No admitidos: ATTRIB, COLLAPSE, CRITERIA, EXPAND, MEDIA-REPORT, MOVE, MOVETO.',
+    'ui.scriptingUnsupportedCommands': 'Comandos no admitidos',
+    'ui.scriptingSupportedCommands': 'Comandos admitidos',
     'ui.secretsHint':
       'Las contraseñas se guardan solo en un archivo local (modo 0600), nunca en la lista de perfiles ni en los registros.',
     'ui.sourceFile': 'Source file',

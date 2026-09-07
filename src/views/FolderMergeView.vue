@@ -17,7 +17,11 @@ import type {
 import WorkbenchShell from '@/components/workbench/WorkbenchShell.vue'
 import WorkbenchInspector from '@/components/workbench/WorkbenchInspector.vue'
 import { createFolderSnapshot } from '@/api/diff'
-import { mergeSessionTitle, pathBaseName } from '@/app/sessionToolbars'
+import {
+  collectExpandablePrefixes,
+  isPathHiddenByCollapse,
+} from '@/app/folderPathGroups'
+import { buildFolderMergeToolbar, mergeSessionTitle, pathBaseName } from '@/app/sessionToolbars'
 import { useI18n } from '@/i18n'
 import { useViewActionsStore } from '@/stores/viewActions'
 
@@ -38,16 +42,130 @@ const lastOpenedConflictPath = ref('')
 const sameOkOnly = ref(false)
 const showPeek = ref(false)
 const selectedPlanRowId = ref('')
+const collapsedPrefixes = ref<Set<string>>(new Set())
+const showMergeFilters = ref(false)
+const showMergeSelect = ref(false)
+const checkedRowIds = ref<Set<string>>(new Set())
+const lastSelectionAction = ref('')
 
 const planRows = computed<FolderMergePlanRow[]>(() => plan.value?.rows ?? [])
 const hasPlan = computed(() => planRows.value.length > 0)
-const visiblePlanRows = computed(() => {
+const filteredPlanRows = computed(() => {
   if (!sameOkOnly.value) {
     return planRows.value
   }
 
   return planRows.value.filter((row) => row.action === 'Keep output')
 })
+const visiblePlanRows = computed(() =>
+  filteredPlanRows.value.filter(
+    (row) => !isPathHiddenByCollapse(row.path, collapsedPrefixes.value),
+  ),
+)
+const mergeSessionToolbar = computed(() =>
+  buildFolderMergeToolbar({
+    home: true,
+    expand: hasPlan.value,
+    collapse: hasPlan.value,
+    select: hasPlan.value,
+    same: hasPlan.value,
+    filters: hasPlan.value,
+    refresh: Boolean(leftPath.value && basePath.value && rightPath.value),
+    peek: hasPlan.value,
+  }),
+)
+
+function goHomeFromMerge(): void {
+  tabs.openTab({ title: 'Home', titleKey: 'ui.home', route: '/', dirty: false })
+  void router.push('/')
+}
+
+function expandAllMergePaths(): void {
+  collapsedPrefixes.value = new Set()
+}
+
+function collapseAllMergePaths(): void {
+  collapsedPrefixes.value = new Set(
+    collectExpandablePrefixes(planRows.value.map((row) => row.path)),
+  )
+}
+
+function selectVisibleMergeRows(): void {
+  checkedRowIds.value = new Set(visiblePlanRows.value.map((row) => row.id))
+  lastSelectionAction.value = t('status.selectedRowCount', {
+    count: checkedRowIds.value.size,
+    action: t('ui.selectAll'),
+  })
+}
+
+function clearMergeSelection(): void {
+  checkedRowIds.value = new Set()
+  lastSelectionAction.value = t('status.selectedRowCount', {
+    count: 0,
+    action: t('ui.clearSelection'),
+  })
+}
+
+function invertMergeSelection(): void {
+  const next = new Set(checkedRowIds.value)
+
+  for (const row of visiblePlanRows.value) {
+    if (next.has(row.id)) {
+      next.delete(row.id)
+    } else {
+      next.add(row.id)
+    }
+  }
+
+  checkedRowIds.value = next
+  lastSelectionAction.value = t('status.selectedRowCount', {
+    count: next.size,
+    action: t('ui.invertSelection'),
+  })
+}
+
+function toggleMergeRowChecked(rowId: string): void {
+  const next = new Set(checkedRowIds.value)
+
+  if (next.has(rowId)) {
+    next.delete(rowId)
+  } else {
+    next.add(rowId)
+  }
+
+  checkedRowIds.value = next
+}
+
+function runMergeToolbarCommand(commandId: string): void {
+  switch (commandId) {
+    case 'home':
+      goHomeFromMerge()
+      break
+    case 'expand':
+      expandAllMergePaths()
+      break
+    case 'collapse':
+      collapseAllMergePaths()
+      break
+    case 'select':
+      showMergeSelect.value = !showMergeSelect.value
+      break
+    case 'same':
+      toggleSameOkFilter()
+      break
+    case 'filters':
+      showMergeFilters.value = !showMergeFilters.value
+      break
+    case 'refresh':
+      void buildFolderMergePlan()
+      break
+    case 'peek':
+      togglePeekPanel()
+      break
+    default:
+      break
+  }
+}
 const selectedPlanRow = computed(
   () => planRows.value.find((row) => row.id === selectedPlanRowId.value) ?? null,
 )
@@ -116,6 +234,12 @@ async function buildFolderMergePlan(): Promise<void> {
   })
   execution.value = undefined
   mergeExecutionError.value = undefined
+  collapsedPrefixes.value = new Set()
+  checkedRowIds.value = new Set()
+  lastSelectionAction.value = ''
+  if (plan.value?.rows[0]) {
+    selectedPlanRowId.value = plan.value.rows[0].id
+  }
 }
 
 async function runFolderMerge(): Promise<void> {
@@ -265,6 +389,8 @@ watch(
       case 'export':
       case 'export-settings':
       case 'filters':
+        showMergeFilters.value = !showMergeFilters.value
+        break
       case 'help-contents':
       case 'help-support':
       case 'import-settings':
@@ -294,6 +420,9 @@ watch(
     :eyebrow="$t('ui.merge')"
     :subtitle="$t('status.actionCount', { count: summary.actions })"
     :inspector-label="$t('ui.folderMergeInspector')"
+    :toolbar-commands="mergeSessionToolbar"
+    toolbar-test-id-prefix="folder-merge-session-toolbar"
+    @toolbar-command="runMergeToolbarCommand"
   >
     <section class="folder-merge-view">
       <header class="merge-header">
@@ -426,6 +555,56 @@ watch(
       </section>
 
       <section
+        v-if="showMergeFilters && hasPlan"
+        class="merge-chrome-panel"
+        data-testid="folder-merge-filters-panel"
+      >
+        <strong>{{ $t('ui.filters') }}</strong>
+        <button
+          type="button"
+          data-testid="folder-merge-filter-same-ok"
+          @click="toggleSameOkFilter"
+        >
+          {{ $t('ui.sameOk') }} ({{ sameOkCount }})
+        </button>
+        <span>{{ sameOkOnly ? $t('ui.sameOk') : $t('ui.all') }}</span>
+      </section>
+
+      <section
+        v-if="showMergeSelect && hasPlan"
+        class="merge-chrome-panel"
+        data-testid="folder-merge-select-panel"
+      >
+        <strong>{{ $t('ui.select') }}</strong>
+        <button
+          type="button"
+          data-testid="folder-merge-select-all"
+          @click="selectVisibleMergeRows"
+        >
+          {{ $t('ui.selectAll') }}
+        </button>
+        <button
+          type="button"
+          data-testid="folder-merge-select-invert"
+          @click="invertMergeSelection"
+        >
+          {{ $t('ui.invertSelection') }}
+        </button>
+        <button
+          type="button"
+          data-testid="folder-merge-select-clear"
+          @click="clearMergeSelection"
+        >
+          {{ $t('ui.clearSelection') }}
+        </button>
+        <span
+          v-if="lastSelectionAction"
+          data-testid="folder-merge-selection-status"
+          >{{ lastSelectionAction }}</span
+        >
+      </section>
+
+      <section
         v-if="hasPlan"
         class="merge-plan"
         data-testid="folder-merge-plan"
@@ -436,6 +615,7 @@ watch(
         </header>
         <div class="merge-plan-table">
           <div class="merge-plan-row merge-plan-head">
+            <span>{{ $t('ui.select') }}</span>
             <span>{{ $t('ui.path') }}</span>
             <span>{{ $t('ui.base') }}</span>
             <span>{{ $t('ui.left') }}</span>
@@ -449,11 +629,22 @@ watch(
             class="merge-plan-row"
             :class="{
               conflict: row.action === 'Mark conflict',
-              selected: row.id === selectedPlanRowId,
+              selected: row.id === selectedPlanRowId || checkedRowIds.has(row.id),
             }"
             data-testid="folder-merge-row"
             @click="selectPlanRow(row)"
           >
+            <label
+              class="merge-select-cell"
+              @click.stop
+            >
+              <input
+                type="checkbox"
+                :checked="checkedRowIds.has(row.id)"
+                :data-testid="`folder-merge-check-${row.id}`"
+                @change="toggleMergeRowChecked(row.id)"
+              />
+            </label>
             <strong>{{ row.path }}</strong>
             <span>{{ sideLabel(row.base) }}</span>
             <span>{{ sideLabel(row.left) }}</span>
@@ -733,9 +924,9 @@ h1 {
 .merge-plan-row {
   display: grid;
   grid-template-columns:
-    minmax(150px, 0.75fr) minmax(170px, 1fr) minmax(170px, 1fr) minmax(170px, 1fr)
+    44px minmax(150px, 0.75fr) minmax(170px, 1fr) minmax(170px, 1fr) minmax(170px, 1fr)
     140px minmax(220px, 1fr);
-  min-width: 1080px;
+  min-width: 1124px;
   border-bottom: 1px solid var(--app-border);
   color: var(--app-text);
   font-size: 12px;
@@ -865,5 +1056,31 @@ h1 {
 .merge-plan-row.selected {
   outline: 1px solid var(--app-accent);
   background: color-mix(in srgb, var(--app-accent) 12%, transparent);
+}
+
+.merge-chrome-panel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  background: var(--app-surface);
+}
+
+.merge-chrome-panel button {
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--app-border);
+  border-radius: 6px;
+  background: var(--app-bg);
+  color: var(--app-text);
+  cursor: pointer;
+}
+
+.merge-select-cell {
+  display: flex;
+  align-items: center;
 }
 </style>

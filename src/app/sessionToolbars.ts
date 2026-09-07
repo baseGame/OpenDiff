@@ -125,6 +125,28 @@ export const clipboardCompareToolbarOrder = [
   'reload',
 ] as const
 
+export const folderSyncToolbarOrder = [
+  'home',
+  'expand',
+  'collapse',
+  'select',
+  'filters',
+  'refresh',
+  'swap',
+  'stop',
+] as const
+
+export const folderMergeToolbarOrder = [
+  'home',
+  'expand',
+  'collapse',
+  'select',
+  'same',
+  'filters',
+  'refresh',
+  'peek',
+] as const
+
 interface ToolbarMeta {
   glyph: string
   labelKey: string
@@ -252,6 +274,28 @@ const clipboardMeta: Record<(typeof clipboardCompareToolbarOrder)[number], Toolb
   reload: { glyph: 'R', labelKey: 'ui.reload' },
 }
 
+const folderSyncMeta: Record<(typeof folderSyncToolbarOrder)[number], ToolbarMeta> = {
+  home: { glyph: 'H', labelKey: 'ui.home' },
+  expand: { glyph: '+', labelKey: 'ui.expand' },
+  collapse: { glyph: '-', labelKey: 'ui.collapse' },
+  select: { glyph: 'V', labelKey: 'ui.select' },
+  filters: { glyph: 'F', labelKey: 'ui.filters' },
+  refresh: { glyph: 'R', labelKey: 'ui.refresh' },
+  swap: { glyph: '<>', labelKey: 'ui.swap' },
+  stop: { glyph: 'X', labelKey: 'ui.stop' },
+}
+
+const folderMergeMeta: Record<(typeof folderMergeToolbarOrder)[number], ToolbarMeta> = {
+  home: { glyph: 'H', labelKey: 'ui.home' },
+  expand: { glyph: '+', labelKey: 'ui.expand' },
+  collapse: { glyph: '-', labelKey: 'ui.collapse' },
+  select: { glyph: 'V', labelKey: 'ui.select' },
+  same: { glyph: '=', labelKey: 'ui.sameOk' },
+  filters: { glyph: 'F', labelKey: 'ui.filters' },
+  refresh: { glyph: 'R', labelKey: 'ui.refresh' },
+  peek: { glyph: 'P', labelKey: 'ui.peek' },
+}
+
 function buildToolbar<T extends string>(
   order: readonly T[],
   meta: Record<T, ToolbarMeta>,
@@ -323,6 +367,18 @@ export function buildClipboardCompareToolbar(
   enabled: Partial<Record<(typeof clipboardCompareToolbarOrder)[number], boolean>>,
 ): SessionToolbarCommand[] {
   return buildToolbar(clipboardCompareToolbarOrder, clipboardMeta, enabled)
+}
+
+export function buildFolderSyncToolbar(
+  enabled: Partial<Record<(typeof folderSyncToolbarOrder)[number], boolean>>,
+): SessionToolbarCommand[] {
+  return buildToolbar(folderSyncToolbarOrder, folderSyncMeta, enabled)
+}
+
+export function buildFolderMergeToolbar(
+  enabled: Partial<Record<(typeof folderMergeToolbarOrder)[number], boolean>>,
+): SessionToolbarCommand[] {
+  return buildToolbar(folderMergeToolbarOrder, folderMergeMeta, enabled)
 }
 
 export function pathPairTitle(leftPath: string, rightPath: string): string {
