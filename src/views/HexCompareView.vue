@@ -148,8 +148,40 @@ watch([hexLength, diffOnly], () => {
 watch(
   () => [viewActions.sequence, viewActions.name] as const,
   ([, actionName]) => {
-    if (actionName === 'session-settings') {
-      openHexSessionSettings()
+    if (!actionName) {
+      return
+    }
+
+    switch (actionName) {
+      case 'session-settings':
+      case 'rules':
+        openHexSessionSettings()
+        break
+      case 'compare':
+      case 'reload':
+        void runHexCompare()
+        break
+      case 'swap':
+        swapHexPaths()
+        break
+      case 'show-all':
+        diffOnly.value = false
+        break
+      case 'show-differences':
+      case 'filters':
+        diffOnly.value = true
+        break
+      case 'previous-difference':
+        goToHexDiffRange(activeDiffRangeIndex.value - 1)
+        break
+      case 'next-difference':
+        goToHexDiffRange(activeDiffRangeIndex.value + 1)
+        break
+      case 'save':
+        void runHexSave()
+        break
+      default:
+        break
     }
   },
 )

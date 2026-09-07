@@ -126,8 +126,24 @@ function applyPictureSessionSettings(
 watch(
   () => [viewActions.sequence, viewActions.name] as const,
   ([, actionName]) => {
-    if (actionName === 'session-settings') {
-      openPictureSessionSettings()
+    if (!actionName) {
+      return
+    }
+
+    switch (actionName) {
+      case 'session-settings':
+      case 'rules':
+        openPictureSessionSettings()
+        break
+      case 'compare':
+      case 'reload':
+        void runPictureCompare()
+        break
+      case 'swap':
+        swapPicturePaths()
+        break
+      default:
+        break
     }
   },
 )

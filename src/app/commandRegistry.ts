@@ -30,6 +30,11 @@ export type CommandId =
   | 'view.showAll'
   | 'view.showDifferences'
   | 'workspace.save'
+  | 'session.compare'
+  | 'session.swap'
+  | 'session.reload'
+  | 'session.rules'
+  | 'view.filters'
   | 'tools.exportSettings'
   | 'tools.importSettings'
   | 'tools.restoreFactoryDefaults'
@@ -71,6 +76,15 @@ export type CommandAction =
         | 'help-contents'
         | 'help-support'
         | 'session-settings'
+        | 'compare'
+        | 'swap'
+        | 'reload'
+        | 'rules'
+        | 'filters'
+        | 'workspace-load'
+        | 'export-settings'
+        | 'import-settings'
+        | 'restore-factory-defaults'
     }
 
 export interface CommandShortcut {
@@ -390,11 +404,11 @@ export const commandRegistry: AppCommand[] = [
     id: 'session.loadWorkspace',
     titleKey: 'ui.loadWorkspace',
     keywords: ['workspace', 'load'],
-    enabled: false,
+    enabled: true,
     visibility: 'global',
     defaultShortcut: { keys: ['Ctrl', 'Alt', 'O'], scope: 'global' },
     placements: ['command-palette', 'menu'],
-    action: { type: 'noop' },
+    action: { type: 'view-action', name: 'workspace-load' },
   },
   {
     id: 'session.closeTab',
@@ -417,34 +431,84 @@ export const commandRegistry: AppCommand[] = [
     action: { type: 'noop' },
   },
   {
+    id: 'session.compare',
+    titleKey: 'ui.compare',
+    keywords: ['session', 'compare', 'run'],
+    enabled: true,
+    visibility: 'view',
+    defaultShortcut: { keys: ['Ctrl', 'R'], scope: 'global' },
+    placements: ['command-palette', 'menu'],
+    action: { type: 'view-action', name: 'compare' },
+  },
+  {
+    id: 'session.swap',
+    titleKey: 'ui.swap',
+    keywords: ['session', 'swap', 'sides'],
+    enabled: true,
+    visibility: 'view',
+    defaultShortcut: { keys: ['Ctrl', 'Shift', 'W'], scope: 'global' },
+    placements: ['command-palette', 'menu'],
+    action: { type: 'view-action', name: 'swap' },
+  },
+  {
+    id: 'session.reload',
+    titleKey: 'ui.reload',
+    keywords: ['session', 'reload', 'refresh'],
+    enabled: true,
+    visibility: 'view',
+    defaultShortcut: { keys: ['F5'], scope: 'global' },
+    placements: ['command-palette', 'menu'],
+    action: { type: 'view-action', name: 'reload' },
+  },
+  {
+    id: 'session.rules',
+    titleKey: 'ui.rules',
+    keywords: ['session', 'rules'],
+    enabled: true,
+    visibility: 'view',
+    defaultShortcut: { keys: ['Ctrl', 'Shift', 'R'], scope: 'global' },
+    placements: ['command-palette', 'menu'],
+    action: { type: 'view-action', name: 'rules' },
+  },
+  {
+    id: 'view.filters',
+    titleKey: 'ui.filters',
+    keywords: ['view', 'filters', 'filter'],
+    enabled: true,
+    visibility: 'view',
+    defaultShortcut: { keys: ['Ctrl', 'Shift', 'F'], scope: 'global' },
+    placements: ['command-palette', 'menu'],
+    action: { type: 'view-action', name: 'filters' },
+  },
+  {
     id: 'tools.exportSettings',
     titleKey: 'ui.exportSettings',
     keywords: ['export', 'settings', 'tools'],
-    enabled: false,
+    enabled: true,
     visibility: 'global',
     defaultShortcut: { keys: ['Ctrl', 'Alt', 'X'], scope: 'global' },
     placements: ['command-palette', 'menu'],
-    action: { type: 'noop' },
+    action: { type: 'view-action', name: 'export-settings' },
   },
   {
     id: 'tools.importSettings',
     titleKey: 'ui.importSettings',
     keywords: ['import', 'settings', 'tools'],
-    enabled: false,
+    enabled: true,
     visibility: 'global',
     defaultShortcut: { keys: ['Ctrl', 'Alt', 'I'], scope: 'global' },
     placements: ['command-palette', 'menu'],
-    action: { type: 'noop' },
+    action: { type: 'view-action', name: 'import-settings' },
   },
   {
     id: 'tools.restoreFactoryDefaults',
     titleKey: 'ui.restoreFactoryDefaults',
     keywords: ['restore', 'factory', 'defaults', 'tools'],
-    enabled: false,
+    enabled: true,
     visibility: 'global',
     defaultShortcut: { keys: ['Ctrl', 'Alt', 'D'], scope: 'global' },
     placements: ['command-palette', 'menu'],
-    action: { type: 'noop' },
+    action: { type: 'view-action', name: 'restore-factory-defaults' },
   },
   {
     id: 'tools.saveSnapshot',

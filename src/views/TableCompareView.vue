@@ -154,8 +154,30 @@ watch(
 watch(
   () => [viewActions.sequence, viewActions.name] as const,
   ([, actionName]) => {
-    if (actionName === 'session-settings') {
-      openTableSessionSettings()
+    if (!actionName) {
+      return
+    }
+
+    switch (actionName) {
+      case 'session-settings':
+      case 'rules':
+        openTableSessionSettings()
+        break
+      case 'compare':
+      case 'reload':
+        void runTableCompare()
+        break
+      case 'swap':
+        swapTablePaths()
+        break
+      case 'previous-difference':
+        goToPreviousTableDifference()
+        break
+      case 'next-difference':
+        goToNextTableDifference()
+        break
+      default:
+        break
     }
   },
 )

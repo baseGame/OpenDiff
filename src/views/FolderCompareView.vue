@@ -491,8 +491,47 @@ function applyFolderSessionSettings(
 watch(
   () => [viewActions.sequence, viewActions.name] as const,
   ([, actionName]) => {
-    if (actionName === 'session-settings') {
-      openFolderSessionSettings()
+    if (!actionName) {
+      return
+    }
+
+    switch (actionName) {
+      case 'session-settings':
+        openFolderSessionSettings()
+        break
+      case 'compare':
+      case 'reload':
+        if (leftRoot.value && rightRoot.value) {
+          void runFolderCompare()
+        }
+        break
+      case 'swap':
+        swapFolderRoots()
+        break
+      case 'rules':
+        showFolderRules.value = !showFolderRules.value
+        break
+      case 'filters':
+        showFolderFilters.value = !showFolderFilters.value
+        break
+      case 'export':
+        void exportFolderReport('html')
+        break
+      case 'show-all':
+        showAllFolderStatuses()
+        break
+      case 'show-differences':
+        visibleStatuses.value = new Set(['Different', 'Left only', 'Right only'])
+        persistDisplayFilters()
+        break
+      case 'copy-left':
+        copySelectedTo('Left')
+        break
+      case 'copy-right':
+        copySelectedTo('Right')
+        break
+      default:
+        break
     }
   },
 )

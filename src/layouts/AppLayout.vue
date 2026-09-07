@@ -45,6 +45,7 @@ import { useSavedSessionsStore } from '@/stores/savedSessions'
 import { useSessionLaunchStore } from '@/stores/sessionLaunch'
 import { useTabsStore } from '@/stores/tabs'
 import { useViewActionsStore } from '@/stores/viewActions'
+import { useWorkspacesStore } from '@/stores/workspaces'
 import { openPathExternal, takeShellCompareLaunch } from '@/api/integration'
 import { APP_VERSION, DOCS_URL, RELEASES_URL, SUPPORT_URL } from '@/app/appMeta'
 import type { SessionType } from '@/types/session'
@@ -81,6 +82,7 @@ const tabs = useTabsStore()
 const viewActions = useViewActionsStore()
 const sessionLaunch = useSessionLaunchStore()
 const savedSessions = useSavedSessionsStore()
+const workspaces = useWorkspacesStore()
 
 let stopDesktopDrop: (() => void) | undefined
 
@@ -197,6 +199,11 @@ const appMenus: AppMenuDefinition[] = [
       'workspace.save',
       'session.save',
       'session.saveAs',
+      'session.export',
+      'session.compare',
+      'session.swap',
+      'session.reload',
+      'session.rules',
       'session.settings',
       'session.closeTab',
       'session.exit',
@@ -210,7 +217,16 @@ const appMenus: AppMenuDefinition[] = [
   {
     id: 'actions',
     titleKey: 'ui.actions',
-    commandIds: ['edit.copyLeft', 'edit.copyRight', 'workspace.save'],
+    commandIds: [
+      'session.compare',
+      'session.swap',
+      'session.reload',
+      'session.rules',
+      'view.filters',
+      'edit.copyLeft',
+      'edit.copyRight',
+      'workspace.save',
+    ],
   },
   {
     id: 'edit',
@@ -234,7 +250,14 @@ const appMenus: AppMenuDefinition[] = [
   {
     id: 'view',
     titleKey: 'ui.view',
-    commandIds: ['view.showAll', 'view.showDifferences', 'theme.toggle'],
+    commandIds: [
+      'view.showAll',
+      'view.showDifferences',
+      'view.filters',
+      'session.swap',
+      'session.reload',
+      'theme.toggle',
+    ],
   },
   {
     id: 'tools',
@@ -267,7 +290,11 @@ const visibleAppMenus = computed(() => {
 
   if (route.path === '/') {
     wantedMenus = homeMenus
-  } else if (route.path.includes('/folder')) {
+  } else if (
+    route.path.includes('/folder') ||
+    route.path.includes('/sync') ||
+    route.path.includes('/merge')
+  ) {
     wantedMenus = folderMenus
   } else if (route.path.includes('/picture')) {
     wantedMenus = pictureMenus
@@ -301,6 +328,80 @@ async function openHelpLink(url: string, kind: 'updates' | 'docs' | 'support'): 
 
 function closeAboutDialog(): void {
   aboutDialogOpen.value = false
+}
+
+function saveCurrentWorkspaceFromMenu(): void {
+  const name = `Workspace ${new Date().toLocaleString()}`
+  workspaces.saveWorkspace(name, tabs.workspaceSnapshot())
+  statusBar.reportStatus({
+    comparisonStatus: t('ui.saveWorkspaceAs'),
+    source: 'workspace',
+  })
+}
+
+function loadWorkspaceFromMenu(): void {
+  const latest = workspaces.workspaces[0]
+
+  if (!latest) {
+    tabs.openTab({ title: t('ui.home'), titleKey: 'ui.home', route: '/', dirty: false })
+    void router.push('/')
+    statusBar.reportStatus({
+      comparisonStatus: t('ui.loadWorkspace'),
+      source: 'workspace',
+    })
+
+    return
+  }
+
+  tabs.restoreWorkspaceTabs(latest.tabs)
+  const active = tabs.activeTab
+  void router.push(active.route)
+  statusBar.reportStatus({
+    comparisonStatus: latest.name,
+    source: 'workspace',
+  })
+}
+
+async function exportSettingsFromMenu(): Promise<void> {
+  const payload = JSON.stringify(settings.exportSettingsPackage(), null, 2)
+
+  try {
+    await navigator.clipboard.writeText(payload)
+    statusBar.reportStatus({
+      comparisonStatus: t('ui.exportSettings'),
+      source: 'settings',
+    })
+  } catch {
+    statusBar.reportStatus({
+      comparisonStatus: t('ui.exportSettings'),
+      source: 'settings',
+    })
+  }
+}
+
+async function importSettingsFromMenu(): Promise<void> {
+  let raw = ''
+
+  try {
+    raw = await navigator.clipboard.readText()
+  } catch {
+    raw = window.prompt(t('ui.importSettings'), '') ?? ''
+  }
+
+  const imported = settings.importSettingsPackage(raw.trim())
+
+  statusBar.reportStatus({
+    comparisonStatus: imported ? t('ui.importSettings') : t('ui.importJson'),
+    source: 'settings',
+  })
+}
+
+function restoreFactoryDefaultsFromMenu(): void {
+  settings.restoreFactoryDefaults()
+  statusBar.reportStatus({
+    comparisonStatus: t('ui.restoreFactoryDefaults'),
+    source: 'settings',
+  })
 }
 
 const executeRegisteredCommand = createCommandExecutor(commandRegistry, {
@@ -337,6 +438,21 @@ const executeRegisteredCommand = createCommandExecutor(commandRegistry, {
       if (tabs.canCloseTab(active.id)) {
         requestCloseTab({ id: active.id, title: displayTabTitle(active), dirty: active.dirty })
       }
+    }
+    if (name === 'workspace-save') {
+      saveCurrentWorkspaceFromMenu()
+    }
+    if (name === 'workspace-load') {
+      loadWorkspaceFromMenu()
+    }
+    if (name === 'export-settings') {
+      void exportSettingsFromMenu()
+    }
+    if (name === 'import-settings') {
+      void importSettingsFromMenu()
+    }
+    if (name === 'restore-factory-defaults') {
+      restoreFactoryDefaultsFromMenu()
     }
   },
 })

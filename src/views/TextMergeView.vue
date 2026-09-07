@@ -8,6 +8,7 @@ import { useI18n } from '@/i18n'
 import { useTabsStore } from '@/stores/tabs'
 import { useSettingsStore } from '@/stores/settings'
 import { useSessionLaunchStore } from '@/stores/sessionLaunch'
+import { useViewActionsStore } from '@/stores/viewActions'
 
 type MergePaneId = 'left' | 'base' | 'right' | 'output'
 type MergeSource = 'left' | 'base' | 'right'
@@ -37,6 +38,7 @@ const { t } = useI18n()
 const tabs = useTabsStore()
 const settings = useSettingsStore()
 const sessionLaunch = useSessionLaunchStore()
+const viewActions = useViewActionsStore()
 const leftPath = ref('')
 const rightPath = ref('')
 const centerPath = ref('')
@@ -367,6 +369,34 @@ watch(
     }
   },
   { immediate: true },
+)
+
+watch(
+  () => [viewActions.sequence, viewActions.name] as const,
+  ([, actionName]) => {
+    if (!actionName) {
+      return
+    }
+
+    switch (actionName) {
+      case 'compare':
+      case 'reload':
+        void loadMerge()
+        break
+      case 'save':
+      case 'export':
+        void saveOutput()
+        break
+      case 'copy-left':
+        favorSide('left')
+        break
+      case 'copy-right':
+        favorSide('right')
+        break
+      default:
+        break
+    }
+  },
 )
 </script>
 

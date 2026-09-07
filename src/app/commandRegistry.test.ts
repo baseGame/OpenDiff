@@ -41,6 +41,27 @@ describe('commandRegistry', () => {
     expect(commandRegistry.find((command) => command.id === 'session.newWindow')?.enabled).toBe(
       false,
     )
+    expect(commandRegistry.find((command) => command.id === 'session.exit')?.enabled).toBe(false)
+    expect(commandRegistry.find((command) => command.id === 'tools.saveSnapshot')?.enabled).toBe(
+      false,
+    )
+    expect(commandRegistry.find((command) => command.id === 'session.loadWorkspace')?.enabled).toBe(
+      true,
+    )
+    expect(commandRegistry.find((command) => command.id === 'session.compare')?.enabled).toBe(true)
+    expect(commandRegistry.find((command) => command.id === 'session.swap')?.enabled).toBe(true)
+    expect(commandRegistry.find((command) => command.id === 'session.reload')?.enabled).toBe(true)
+    expect(commandRegistry.find((command) => command.id === 'session.rules')?.enabled).toBe(true)
+    expect(commandRegistry.find((command) => command.id === 'view.filters')?.enabled).toBe(true)
+    expect(commandRegistry.find((command) => command.id === 'tools.exportSettings')?.enabled).toBe(
+      true,
+    )
+    expect(commandRegistry.find((command) => command.id === 'tools.importSettings')?.enabled).toBe(
+      true,
+    )
+    expect(
+      commandRegistry.find((command) => command.id === 'tools.restoreFactoryDefaults')?.enabled,
+    ).toBe(true)
     expect(commandRegistry.find((command) => command.id === 'help.about')?.enabled).toBe(true)
     expect(commandRegistry.find((command) => command.id === 'edit.undo')?.enabled).toBe(true)
     expect(commandRegistry.find((command) => command.id === 'edit.paste')?.enabled).toBe(true)
