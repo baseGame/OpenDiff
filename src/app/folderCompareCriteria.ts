@@ -8,6 +8,7 @@ export function defaultFolderCompareCriteria(): FolderCompareCriteria {
     compareModifiedTime: false,
     compareContents: true,
     compareCrc: false,
+    followSymlinks: false,
   }
 }
 
@@ -28,6 +29,7 @@ export function loadFolderCompareCriteria(
       compareModifiedTime: Boolean(parsed.compareModifiedTime),
       compareContents: parsed.compareContents !== false,
       compareCrc: Boolean(parsed.compareCrc),
+      followSymlinks: Boolean(parsed.followSymlinks),
     }
   } catch {
     return defaultFolderCompareCriteria()
@@ -45,6 +47,7 @@ export function saveFolderCompareCriteria(
       compareModifiedTime: state.compareModifiedTime,
       compareContents: state.compareContents,
       compareCrc: state.compareCrc,
+      followSymlinks: Boolean(state.followSymlinks),
     }),
   )
 }

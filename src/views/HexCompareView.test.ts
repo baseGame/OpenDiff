@@ -40,7 +40,10 @@ vi.mock('@/api/diff', () => ({
       differentRanges: 1,
     },
   }),
-  findHexInFile: vi.fn().mockResolvedValue([{ offset: 256, length: 2 }]),
+  findHexInFile: vi.fn().mockResolvedValue([
+    { offset: 256, length: 2 },
+    { offset: 512, length: 2 },
+  ]),
   saveHexEdits: vi.fn().mockResolvedValue({ bytesWritten: 1 }),
 }))
 
@@ -198,7 +201,15 @@ describe('HexCompareView', () => {
       queryKind: 'hex',
       query: '4142',
     })
-    expect(wrapper.find('[data-testid="hex-find-status"]').text()).toContain('1')
+    expect(wrapper.find('[data-testid="hex-find-status"]').text()).toBe('1/2')
+
+    await wrapper.find('[data-testid="hex-find-next"]').trigger('click')
+    await wrapper.vm.$nextTick()
+    expect(wrapper.find('[data-testid="hex-find-status"]').text()).toBe('2/2')
+
+    await wrapper.find('[data-testid="hex-find-prev"]').trigger('click')
+    await wrapper.vm.$nextTick()
+    expect(wrapper.find('[data-testid="hex-find-status"]').text()).toBe('1/2')
 
     await wrapper.find('[data-testid="hex-edit-offset"]').setValue(1)
     await wrapper.find('[data-testid="hex-edit-value"]').setValue('58')

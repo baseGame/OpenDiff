@@ -34,6 +34,7 @@ const props = withDefaults(
       compareModifiedTime: false,
       compareContents: true,
       compareCrc: false,
+      followSymlinks: false,
     }),
     folderFilters: () => ({
       include: [],
@@ -310,6 +311,14 @@ function applySettings(): void {
             data-testid="session-settings-compare-crc"
           />
           <span>{{ $t('ui.compareCrc') }}</span>
+        </label>
+        <label>
+          <input
+            v-model="draftFolder.followSymlinks"
+            type="checkbox"
+            data-testid="session-settings-follow-symlinks"
+          />
+          <span>{{ $t('ui.followSymlinks') }}</span>
         </label>
       </div>
 

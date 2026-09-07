@@ -374,6 +374,7 @@ describe('FolderCompareView', () => {
         compareModifiedTime: false,
         compareContents: true,
         compareCrc: false,
+        followSymlinks: false,
       },
       filters: {
         include: [],

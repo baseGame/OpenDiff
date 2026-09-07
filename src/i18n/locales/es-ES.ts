@@ -761,6 +761,7 @@ export const esES: LanguagePack = {
     'ui.compareByTimestamp': 'Comparar marca de tiempo',
     'ui.compareBinaryContents': 'Comparar contenido binario',
     'ui.compareCrc': 'Comparar CRC',
+    'ui.followSymlinks': 'Seguir enlaces simbólicos',
     'ui.folderCriteria': 'Criterios de comparación',
     'ui.windowsShell': 'Shell de Windows',
     'ui.unixShell': 'Shell de macOS / Linux',

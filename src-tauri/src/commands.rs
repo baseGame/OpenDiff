@@ -342,6 +342,8 @@ pub struct FolderCompareCriteria {
     pub compare_modified_time: bool,
     pub compare_contents: bool,
     pub compare_crc: bool,
+    #[serde(default)]
+    pub follow_symlinks: bool,
 }
 
 impl Default for FolderCompareCriteria {
@@ -351,6 +353,7 @@ impl Default for FolderCompareCriteria {
             compare_modified_time: false,
             compare_contents: true,
             compare_crc: false,
+            follow_symlinks: false,
         }
     }
 }
@@ -363,6 +366,7 @@ impl FolderCompareCriteria {
             case_sensitive_names: true,
             compare_contents: self.compare_contents,
             compare_crc: self.compare_crc,
+            follow_symlinks: self.follow_symlinks,
             ..Default::default()
         }
     }
@@ -766,10 +770,12 @@ pub fn compare_folder_paths(
         .map_err(|error| compare_source_error(&left_root, error))?;
     let right_source = crate::sources::load_compare_source(&right_root)
         .map_err(|error| compare_source_error(&right_root, error))?;
-    let left_tree = crate::sources::scan_compare_source(&left_source)
-        .map_err(|error| compare_source_error(&left_root, error))?;
-    let right_tree = crate::sources::scan_compare_source(&right_source)
-        .map_err(|error| compare_source_error(&right_root, error))?;
+    let left_tree =
+        crate::sources::scan_compare_source_with_options(&left_source, options.follow_symlinks)
+            .map_err(|error| compare_source_error(&left_root, error))?;
+    let right_tree =
+        crate::sources::scan_compare_source_with_options(&right_source, options.follow_symlinks)
+            .map_err(|error| compare_source_error(&right_root, error))?;
     let alignment_rows =
         folder_core::align_folder_trees_with_options(&left_tree, &right_tree, &options);
     let alignment_rows = if name_filters.is_active() {
@@ -4562,6 +4568,7 @@ mod tests {
                 compare_modified_time: false,
                 compare_contents: false,
                 compare_crc: false,
+                follow_symlinks: false,
             }),
             None,
         )
@@ -4574,6 +4581,7 @@ mod tests {
                 compare_modified_time: false,
                 compare_contents: true,
                 compare_crc: false,
+                follow_symlinks: false,
             }),
             None,
         )
@@ -4586,6 +4594,7 @@ mod tests {
                 compare_modified_time: false,
                 compare_contents: false,
                 compare_crc: true,
+                follow_symlinks: false,
             }),
             None,
         )

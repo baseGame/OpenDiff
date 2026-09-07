@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::fs;
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
@@ -61,6 +61,9 @@ pub struct FolderCompareOptions {
     /// Additional whole-hour timezone offsets to treat as equal when comparing times.
     #[serde(default)]
     pub ignored_timezone_hour_offsets: Vec<i32>,
+    /// When true, directory/file symbolic links are resolved during folder scans.
+    #[serde(default)]
+    pub follow_symlinks: bool,
 }
 
 impl Default for FolderCompareOptions {
@@ -74,6 +77,7 @@ impl Default for FolderCompareOptions {
             timestamp_tolerance_ms: 0,
             ignore_daylight_saving_hour_offset: false,
             ignored_timezone_hour_offsets: Vec::new(),
+            follow_symlinks: false,
         }
     }
 }
@@ -340,6 +344,11 @@ impl FolderScanNode {
             metadata,
             children: Vec::new(),
         }
+    }
+
+    fn with_children(mut self, children: Vec<FolderScanNode>) -> Self {
+        self.children = children;
+        self
     }
 }
 
@@ -1015,51 +1024,143 @@ pub fn scan_local_folder(
     root: impl AsRef<Path>,
     cancel_token: &job_core::CancellationToken,
 ) -> Result<FolderScanNode, FolderScanError> {
-    let root = root.as_ref();
-    let vfs = LocalVfs::new();
-    let root_path = VfsPath::new(root.display().to_string());
-
-    scan_path(&vfs, root, &root_path, cancel_token)
+    scan_local_folder_with_options(root, cancel_token, &FolderCompareOptions::default())
 }
 
-fn scan_path(
-    vfs: &LocalVfs,
-    root: &Path,
-    path: &VfsPath,
+pub fn scan_local_folder_with_options(
+    root: impl AsRef<Path>,
     cancel_token: &job_core::CancellationToken,
+    options: &FolderCompareOptions,
+) -> Result<FolderScanNode, FolderScanError> {
+    let root = root.as_ref();
+    let mut visiting = HashSet::new();
+    if let Ok(canonical) = fs::canonicalize(root) {
+        visiting.insert(canonical);
+    }
+    // Always enter the requested root; follow_symlinks applies to nested entries.
+    scan_resolved_path(
+        root,
+        root,
+        cancel_token,
+        options.follow_symlinks,
+        &mut visiting,
+    )
+}
+
+fn scan_path_entry(
+    root: &Path,
+    path: &Path,
+    cancel_token: &job_core::CancellationToken,
+    follow_symlinks: bool,
+    visiting: &mut HashSet<PathBuf>,
 ) -> Result<FolderScanNode, FolderScanError> {
     if cancel_token.is_cancelled() {
         return Err(FolderScanError::Cancelled);
     }
 
-    let metadata = vfs
-        .metadata(path)
-        .map_err(|error| FolderScanError::Vfs(format!("{error:?}")))?;
-    let relative_path = relative_path(root, Path::new(path.as_str()));
+    let symlink_meta =
+        fs::symlink_metadata(path).map_err(|error| FolderScanError::Vfs(error.to_string()))?;
 
-    if metadata.kind == VfsEntryKind::File {
-        return Ok(FolderScanNode::new_file(
-            relative_path,
-            metadata.name.clone(),
-            metadata,
-        ));
+    if symlink_meta.file_type().is_symlink() {
+        if !follow_symlinks {
+            return Ok(folder_node_from_fs_meta(root, path, &symlink_meta, true));
+        }
+
+        let canonical = match fs::canonicalize(path) {
+            Ok(canonical) => canonical,
+            Err(_) => return Ok(folder_node_from_fs_meta(root, path, &symlink_meta, true)),
+        };
+        if !visiting.insert(canonical.clone()) {
+            return Ok(folder_node_from_fs_meta(root, path, &symlink_meta, true));
+        }
+        let scanned = scan_resolved_path(root, path, cancel_token, follow_symlinks, visiting);
+        visiting.remove(&canonical);
+        return scanned;
     }
 
-    let mut children = vfs
-        .list(path)
-        .map_err(|error| FolderScanError::Vfs(format!("{error:?}")))?
-        .into_iter()
-        .map(|entry| scan_path(vfs, root, &entry.path, cancel_token))
+    scan_resolved_path(root, path, cancel_token, follow_symlinks, visiting)
+}
+
+fn scan_resolved_path(
+    root: &Path,
+    path: &Path,
+    cancel_token: &job_core::CancellationToken,
+    follow_symlinks: bool,
+    visiting: &mut HashSet<PathBuf>,
+) -> Result<FolderScanNode, FolderScanError> {
+    if cancel_token.is_cancelled() {
+        return Err(FolderScanError::Cancelled);
+    }
+
+    let metadata = fs::metadata(path).map_err(|error| FolderScanError::Vfs(error.to_string()))?;
+    if metadata.is_file() || metadata.file_type().is_symlink() {
+        return Ok(folder_node_from_fs_meta(root, path, &metadata, true));
+    }
+
+    let mut children = fs::read_dir(path)
+        .map_err(|error| FolderScanError::Vfs(error.to_string()))?
+        .map(|entry| {
+            let entry = entry.map_err(|error| FolderScanError::Vfs(error.to_string()))?;
+            scan_path_entry(root, &entry.path(), cancel_token, follow_symlinks, visiting)
+        })
         .collect::<Result<Vec<_>, _>>()?;
 
     children.sort_by(|left, right| left.name.cmp(&right.name));
+    Ok(folder_node_from_fs_meta(root, path, &metadata, false).with_children(children))
+}
 
-    Ok(FolderScanNode::new_directory(
-        relative_path,
-        metadata.name.clone(),
-        metadata,
-        children,
-    ))
+fn folder_node_from_fs_meta(
+    root: &Path,
+    path: &Path,
+    metadata: &fs::Metadata,
+    as_file: bool,
+) -> FolderScanNode {
+    let relative = relative_path(root, path);
+    let name = path
+        .file_name()
+        .map(|value| value.to_string_lossy().into_owned())
+        .unwrap_or_else(|| path.display().to_string());
+    let vfs_meta = vfs_metadata_from_fs(path, metadata, as_file);
+    if as_file || metadata.is_file() {
+        FolderScanNode::new_file(relative, name, vfs_meta)
+    } else {
+        FolderScanNode::new_directory(relative, name, vfs_meta, Vec::new())
+    }
+}
+
+fn vfs_metadata_from_fs(path: &Path, metadata: &fs::Metadata, force_file: bool) -> VfsMetadata {
+    let kind = if !force_file && metadata.is_dir() {
+        VfsEntryKind::Directory
+    } else {
+        VfsEntryKind::File
+    };
+    VfsMetadata {
+        kind,
+        name: path
+            .file_name()
+            .map(|value| value.to_string_lossy().into_owned())
+            .unwrap_or_else(|| path.display().to_string()),
+        extension: path
+            .extension()
+            .map(|extension| extension.to_string_lossy().into_owned()),
+        size: metadata.len(),
+        readonly: metadata.permissions().readonly(),
+        created_at_ms: metadata
+            .created()
+            .ok()
+            .and_then(|created| created.duration_since(UNIX_EPOCH).ok())
+            .map(|duration| duration.as_millis()),
+        modified_at_ms: metadata
+            .modified()
+            .ok()
+            .and_then(|modified| modified.duration_since(UNIX_EPOCH).ok())
+            .map(|duration| duration.as_millis()),
+        accessed_at_ms: metadata
+            .accessed()
+            .ok()
+            .and_then(|accessed| accessed.duration_since(UNIX_EPOCH).ok())
+            .map(|duration| duration.as_millis()),
+    }
 }
 
 fn collect_alignment_side(
@@ -1217,6 +1318,45 @@ mod tests {
         assert_eq!(scanned.kind, FolderNodeKind::Directory);
         assert_eq!(scanned.children[0].name, "src");
         assert_eq!(scanned.children[0].children[0].name, "main.rs");
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn skips_directory_symlinks_unless_follow_symlinks_enabled() {
+        let root = unique_temp_dir("folder-symlink");
+        let real = root.join("real");
+        fs::create_dir_all(real.join("nested")).expect("directory should be created");
+        fs::write(real.join("nested").join("a.txt"), b"a").expect("file should be written");
+        std::os::unix::fs::symlink(&real, root.join("link")).expect("symlink should be created");
+
+        let skipped = scan_local_folder(&root, &CancellationToken::default()).expect("scan");
+        let link = skipped
+            .children
+            .iter()
+            .find(|child| child.name == "link")
+            .expect("link entry");
+        assert_eq!(link.kind, FolderNodeKind::File);
+        assert!(link.children.is_empty());
+
+        let followed = scan_local_folder_with_options(
+            &root,
+            &CancellationToken::default(),
+            &FolderCompareOptions {
+                follow_symlinks: true,
+                ..FolderCompareOptions::default()
+            },
+        )
+        .expect("follow scan");
+        let link = followed
+            .children
+            .iter()
+            .find(|child| child.name == "link")
+            .expect("followed link");
+        assert_eq!(link.kind, FolderNodeKind::Directory);
+        assert_eq!(link.children[0].name, "nested");
+        assert_eq!(link.children[0].children[0].name, "a.txt");
 
         let _ = fs::remove_dir_all(root);
     }

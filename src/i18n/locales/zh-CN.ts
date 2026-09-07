@@ -728,6 +728,7 @@ export const zhCN: LanguagePack = {
     'ui.compareByTimestamp': '比较时间戳',
     'ui.compareBinaryContents': '比较二进制内容',
     'ui.compareCrc': '比较 CRC',
+    'ui.followSymlinks': '跟随符号链接',
     'ui.folderCriteria': '比较条件',
     'ui.windowsShell': 'Windows 外壳扩展',
     'ui.unixShell': 'macOS / Linux 外壳集成',

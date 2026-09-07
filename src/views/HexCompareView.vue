@@ -70,6 +70,7 @@ const goToError = ref('')
 const findQuery = ref('')
 const findKind = ref<'text' | 'hex'>('hex')
 const findMatches = ref<HexFindMatch[]>([])
+const activeFindIndex = ref(-1)
 const findStatus = ref('')
 const pendingEdits = ref<HexByteEdit[]>([])
 const editOffset = ref(0)
@@ -477,16 +478,41 @@ async function runHexFind(): Promise<void> {
       query: findQuery.value.trim(),
     })
     findStatus.value = String(findMatches.value.length)
-    const firstMatch = findMatches.value.at(0)
+    if (findMatches.value.length === 0) {
+      activeFindIndex.value = -1
 
-    if (firstMatch) {
-      hexOffset.value = numericOffset(firstMatch.offset)
-      jumpOffsetInput.value = hexOffsetInputValue(firstMatch.offset)
-      await runHexCompare()
+      return
     }
+
+    await jumpToFindMatch(0)
   } catch (event) {
     error.value = String(event)
   }
+}
+
+async function jumpToFindMatch(index: number): Promise<void> {
+  if (index < 0 || index >= findMatches.value.length) {
+    return
+  }
+
+  const match = findMatches.value[index]
+
+  activeFindIndex.value = index
+  hexOffset.value = numericOffset(match.offset)
+  jumpOffsetInput.value = hexOffsetInputValue(match.offset)
+  findStatus.value = `${String(index + 1)}/${String(findMatches.value.length)}`
+  await runHexCompare()
+}
+
+function goToFindMatch(delta: number): void {
+  if (findMatches.value.length === 0) {
+    return
+  }
+
+  const current = activeFindIndex.value < 0 ? 0 : activeFindIndex.value
+  const next = (current + delta + findMatches.value.length) % findMatches.value.length
+
+  void jumpToFindMatch(next)
 }
 
 function queueHexEdit(): void {
@@ -694,6 +720,22 @@ async function runHexSave(): Promise<void> {
           @click="runHexFind"
         >
           {{ $t('ui.find') }}
+        </button>
+        <button
+          type="button"
+          data-testid="hex-find-prev"
+          :disabled="findMatches.length === 0"
+          @click="goToFindMatch(-1)"
+        >
+          {{ $t('ui.previous') }}
+        </button>
+        <button
+          type="button"
+          data-testid="hex-find-next"
+          :disabled="findMatches.length === 0"
+          @click="goToFindMatch(1)"
+        >
+          {{ $t('ui.next') }}
         </button>
         <strong data-testid="hex-find-status">{{ findStatus }}</strong>
         <label>
