@@ -157,6 +157,11 @@ async function loadMerge(): Promise<void> {
   }
 }
 
+function favorSide(side: 'left' | 'right'): void {
+  conflictPolicy.value = side === 'left' ? 'favorLeft' : 'favorRight'
+  acceptConflict(side)
+}
+
 function acceptConflict(source: MergeSource): void {
   const conflict = currentConflict.value
 
@@ -280,6 +285,30 @@ watch(
           <option value="favorLeft">{{ $t('ui.favorLeft') }}</option>
           <option value="favorRight">{{ $t('ui.favorRight') }}</option>
         </select>
+        <span
+          class="favor-chrome"
+          data-testid="merge-favor-chrome"
+        >
+          <span>{{ $t('ui.favorChrome') }}</span>
+          <button
+            type="button"
+            class="toolbar-button"
+            data-testid="merge-favor-left"
+            :disabled="!currentConflict || currentConflict.resolved"
+            @click="favorSide('left')"
+          >
+            {{ $t('ui.favorLeft') }}
+          </button>
+          <button
+            type="button"
+            class="toolbar-button"
+            data-testid="merge-favor-right"
+            :disabled="!currentConflict || currentConflict.resolved"
+            @click="favorSide('right')"
+          >
+            {{ $t('ui.favorRight') }}
+          </button>
+        </span>
 
         <input
           v-model="leftPath"
@@ -749,5 +778,12 @@ watch(
   .merge-pane {
     min-height: 220px;
   }
+}
+
+.favor-chrome {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
 }
 </style>
