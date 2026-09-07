@@ -50,4 +50,5 @@ export const compareReportExampleScript = [
   `hex-report "\${output}.hex.txt"`,
   `folder-report "\${output}.folder.txt"`,
   `media-report "\${output}.media.txt"`,
+  `picture-report "\${output}.picture.txt"`,
 ].join('\n')

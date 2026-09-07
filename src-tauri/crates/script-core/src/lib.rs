@@ -470,11 +470,10 @@ where
                 )?;
             }
             ScriptCommandKind::PictureReport { output } => {
-                run_report_command(
+                run_picture_report_command(
                     command,
                     &mut state,
                     report_engine,
-                    ScriptReportType::Picture,
                     output,
                     &execution.variables,
                 )?;
@@ -1643,6 +1642,129 @@ fn delete_path(path: &str) -> Result<(), String> {
     }
 }
 
+fn run_picture_report_command<R>(
+    command: &ScriptCommand,
+    state: &mut ScriptRuntimeState,
+    report_engine: &mut R,
+    output: &str,
+    variables: &ScriptVariables,
+) -> Result<(), ScriptExecutionError>
+where
+    R: ScriptReportEngine,
+{
+    let output = expand_script_variables(output, variables).map_err(|error| {
+        execution_error(command, format!("{} at line {}", error.message, error.line))
+    })?;
+
+    if state.load_paths.len() >= 2 {
+        let left = &state.load_paths[0];
+        let right = &state.load_paths[1];
+        let left_path = std::path::Path::new(left);
+        let right_path = std::path::Path::new(right);
+        if left_path.is_file() && right_path.is_file() {
+            if let Ok((summary, report_text)) = compare_picture_script_paths(left, right) {
+                state.last_compare = Some(summary.clone());
+                write_script_report_file(&output, &report_text)
+                    .map_err(|reason| execution_error(command, reason))?;
+                state.reports_written += 1;
+                return Ok(());
+            }
+        }
+    }
+
+    let Some(compare_summary) = state.last_compare.clone() else {
+        return Err(execution_error(
+            command,
+            "PICTURE-REPORT requires picture LOAD paths or COMPARE first",
+        ));
+    };
+
+    report_engine
+        .write_report(ScriptReportRequest {
+            report_type: ScriptReportType::Picture,
+            output,
+            compare_summary,
+        })
+        .map_err(|reason| execution_error(command, reason))?;
+    state.reports_written += 1;
+    Ok(())
+}
+
+fn write_script_report_file(output: &str, content: &str) -> Result<(), String> {
+    if let Some(parent) = std::path::Path::new(output).parent() {
+        if !parent.as_os_str().is_empty() {
+            std::fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+        }
+    }
+    std::fs::write(output, content).map_err(|error| error.to_string())
+}
+
+fn compare_picture_script_paths(
+    left: &str,
+    right: &str,
+) -> Result<(ScriptCompareSummary, String), String> {
+    let left_bytes = std::fs::read(left).map_err(|error| error.to_string())?;
+    let right_bytes = std::fs::read(right).map_err(|error| error.to_string())?;
+    let left_image = image_core::decode_image(&left_bytes).map_err(|error| format!("{error:?}"))?;
+    let right_image =
+        image_core::decode_image(&right_bytes).map_err(|error| format!("{error:?}"))?;
+
+    let total_pixels = u64::from(left_image.metadata.width) * u64::from(left_image.metadata.height);
+    let diff = if left_image.metadata.width == right_image.metadata.width
+        && left_image.metadata.height == right_image.metadata.height
+    {
+        image_core::scan_pixel_differences(
+            &left_image.pixels,
+            &right_image.pixels,
+            left_image.metadata.width,
+            left_image.metadata.height,
+        )
+        .map_err(|error| format!("{error:?}"))?
+    } else {
+        image_core::PixelDiff {
+            different_pixels: total_pixels,
+            bounding_rect: Some(image_core::ImageRect {
+                x: 0,
+                y: 0,
+                width: left_image.metadata.width,
+                height: left_image.metadata.height,
+            }),
+        }
+    };
+
+    let report = image_core::build_image_report(
+        left_image.metadata.clone(),
+        right_image.metadata.clone(),
+        diff.clone(),
+        None,
+    );
+    let metadata_rows = report
+        .metadata_differences
+        .iter()
+        .map(|row| format!("{}\t{}\t{}\tmodified", row.field, row.left, row.right))
+        .collect::<Vec<_>>();
+    let bounding = match report.statistics.bounding_rect {
+        Some(rect) => format!("{}, {}, {} x {}", rect.x, rect.y, rect.width, rect.height),
+        None => "--".to_owned(),
+    };
+    let report_text = format!(
+        "PICTURE-REPORT\nleft: {left}\nright: {right}\ntotalPixels: {}\ndifferentPixels: {}\ndifferenceRatio: {}\nboundingRect: {bounding}\n\nmetadata:\n{}\ncompared: {}\ndifferent: {}\n",
+        report.statistics.total_pixels,
+        report.statistics.different_pixels,
+        report.statistics.difference_ratio,
+        metadata_rows.join("\n"),
+        total_pixels.max(1) as usize,
+        report.statistics.different_pixels as usize,
+    );
+
+    let summary = ScriptCompareSummary {
+        compared: total_pixels.max(1) as usize,
+        different: report.statistics.different_pixels as usize,
+    };
+
+    Ok((summary, report_text))
+}
+
 fn run_media_report_command<R>(
     command: &ScriptCommand,
     state: &mut ScriptRuntimeState,
@@ -1993,6 +2115,7 @@ mod tests {
         assert!(supported_script_commands().contains(&"TABLE-REPORT"));
         assert!(supported_script_commands().contains(&"REPORT"));
         assert!(supported_script_commands().contains(&"MEDIA-REPORT"));
+        assert!(supported_script_commands().contains(&"PICTURE-REPORT"));
         assert!(supported_script_commands().contains(&"ATTRIB"));
         assert!(supported_script_commands().contains(&"EXPAND"));
         assert!(supported_script_commands().contains(&"COLLAPSE"));
@@ -2001,6 +2124,7 @@ mod tests {
         assert!(supported_script_commands().contains(&"CRITERIA"));
         assert!(!unsupported_script_commands().contains(&"CRITERIA"));
         assert!(!unsupported_script_commands().contains(&"MEDIA-REPORT"));
+        assert!(!unsupported_script_commands().contains(&"PICTURE-REPORT"));
         assert!(!unsupported_script_commands().contains(&"ATTRIB"));
         assert!(!unsupported_script_commands().contains(&"HEX-REPORT"));
         assert!(!unsupported_script_commands().contains(&"FILE-REPORT"));
@@ -2955,6 +3079,83 @@ mod tests {
         assert!(content.contains("different: 1"));
         let _ = std::fs::remove_dir_all(root);
     }
+
+    #[test]
+    fn picture_report_compares_images_when_load_paths_are_picture_files() {
+        let root = unique_temp_dir("script-picture-tags");
+        let left = root.join("left.png");
+        let right = root.join("right.png");
+        let report = root.join("out.txt");
+
+        std::fs::write(&left, RED_PNG).expect("left picture");
+        std::fs::write(&right, BLUE_PNG).expect("right picture");
+
+        let result = run_script_source(
+            &format!(
+                "LOAD \"{}\" \"{}\"\nPICTURE-REPORT \"{}\"\n",
+                left.display(),
+                right.display(),
+                report.display()
+            ),
+            ScriptExecutionContext::default(),
+        )
+        .expect("picture report runs");
+
+        assert_eq!(result.state.reports_written, 1);
+        assert_eq!(
+            result.state.last_compare,
+            Some(ScriptCompareSummary {
+                compared: 4,
+                different: 4,
+            })
+        );
+        let content = std::fs::read_to_string(&report).expect("report");
+        assert!(content.contains("PICTURE-REPORT"));
+        assert!(content.contains("differentPixels: 4"));
+        assert!(content.contains("totalPixels: 4"));
+        assert!(content.contains(&format!("left: {}", left.display())));
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn picture_report_falls_back_to_compare_summary_for_non_images() {
+        let root = unique_temp_dir("script-picture-fallback");
+        let left = root.join("left.txt");
+        let right = root.join("right.txt");
+        let report = root.join("picture.txt");
+        std::fs::write(&left, "alpha\n").expect("left");
+        std::fs::write(&right, "beta\n").expect("right");
+
+        let result = run_script_source(
+            &format!(
+                "LOAD \"{}\" \"{}\"\nCOMPARE\nPICTURE-REPORT \"{}\"\n",
+                left.display(),
+                right.display(),
+                report.display()
+            ),
+            ScriptExecutionContext::default(),
+        )
+        .expect("picture report after compare");
+
+        assert_eq!(result.state.reports_written, 1);
+        let content = std::fs::read_to_string(&report).expect("report");
+        assert!(content.contains("PICTURE-REPORT"));
+        assert!(content.contains("compared:"));
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    const RED_PNG: &[u8] = &[
+        137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 2, 0, 0, 0, 2, 8, 6,
+        0, 0, 0, 114, 182, 13, 36, 0, 0, 0, 17, 73, 68, 65, 84, 120, 156, 99, 248, 207, 192, 240,
+        31, 132, 25, 96, 12, 0, 71, 202, 7, 249, 103, 89, 110, 183, 0, 0, 0, 0, 73, 69, 78, 68,
+        174, 66, 96, 130,
+    ];
+    const BLUE_PNG: &[u8] = &[
+        137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 2, 0, 0, 0, 2, 8, 6,
+        0, 0, 0, 114, 182, 13, 36, 0, 0, 0, 16, 73, 68, 65, 84, 120, 156, 99, 96, 96, 248, 255, 31,
+        130, 161, 12, 0, 63, 210, 7, 249, 180, 18, 79, 205, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66,
+        96, 130,
+    ];
 
     fn id3_fixture(title: &str) -> Vec<u8> {
         let mut payload = vec![0];

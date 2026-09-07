@@ -129,6 +129,13 @@ const versionRulesCatalog = computed(() =>
   buildVersionRulesCatalog(versionFields.value.map((row) => row.field)),
 )
 
+const minorDifferenceCount = computed(
+  () =>
+    versionFields.value.filter(
+      (field) => field.status !== 'unchanged' && !fieldIsImportant(field.field),
+    ).length,
+)
+
 const versionToolbarCommands = computed(() =>
   buildVersionCompareToolbar({
     home: true,
@@ -340,6 +347,10 @@ async function runVersionCompare(): Promise<void> {
       >
         <strong :data-testid="`version-summary-${status}`">{{ versionSummary[status] }}</strong>
         <span>{{ statusLabel(status) }}</span>
+      </article>
+      <article class="version-summary-item status-minor">
+        <strong data-testid="version-summary-minor">{{ minorDifferenceCount }}</strong>
+        <span>{{ $t('ui.minor') }}</span>
       </article>
     </section>
 
@@ -769,6 +780,14 @@ h1 {
 .status-modified em,
 .status-modified.version-summary-item {
   color: var(--diff-modified-fg);
+}
+
+.status-minor.version-summary-item {
+  border-color: color-mix(in srgb, var(--bc-warning, #c9a227) 55%, var(--bc-border));
+}
+
+.status-minor.version-summary-item strong {
+  color: var(--bc-warning, #c9a227);
 }
 
 .status-unchanged em {
