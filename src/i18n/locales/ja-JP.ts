@@ -457,6 +457,10 @@ export const jaJP: LanguagePack = {
     'ui.textPatchInspector': 'Text patch inspector',
     'ui.theme': 'Theme',
     'ui.threeWayMergeWorkspace': 'Three-way merge workspace',
+    'ui.fourWayMergeWorkspace': '4 方向マージ作業領域',
+    'ui.mergeTo': 'マージ先',
+    'ui.other': 'その他',
+    'ui.center': '中央',
     'ui.today': 'Today',
     'ui.touch': 'Touch',
     'ui.totalPixels': 'Total Pixels',
@@ -710,8 +714,8 @@ export const jaJP: LanguagePack = {
     'ui.scriptingNotImplemented':
       '完全なレガシースクリプト言語は未実装です。対応コマンドは実行され、既知の欠落は unsupported を返します。',
     'ui.scriptingSupported':
-      '対応: LOAD、FILTER、COMPARE、REPORT、FILE-REPORT、HEX-REPORT、TABLE-REPORT、PICTURE-REPORT、VERSION-REPORT、REGISTRY-REPORT、MEDIA-REPORT、LOG、BEEP、OPTION、SELECT、COPY、COPYTO、MOVE、MOVETO、DELETE、RENAME、TOUCH、ATTRIB、EXPAND、COLLAPSE、SNAPSHOT、SYNC、TEXT-REPORT、FOLDER-REPORT。',
-    'ui.scriptingUnsupported': '未対応: CRITERIA。',
+      '対応: LOAD、FILTER、COMPARE、REPORT、FILE-REPORT、HEX-REPORT、TABLE-REPORT、PICTURE-REPORT、VERSION-REPORT、REGISTRY-REPORT、MEDIA-REPORT、LOG、BEEP、OPTION、SELECT、COPY、COPYTO、MOVE、MOVETO、DELETE、RENAME、TOUCH、ATTRIB、EXPAND、COLLAPSE、SNAPSHOT、SYNC、CRITERIA、TEXT-REPORT、FOLDER-REPORT。',
+    'ui.scriptingUnsupported': 'なし。',
     'ui.scriptingUnsupportedCommands': '未対応コマンド',
     'ui.scriptingSupportedCommands': '対応コマンド',
     'ui.secretsHint':
@@ -794,6 +798,7 @@ export const jaJP: LanguagePack = {
     'ui.previousConflict': 'Previous Conflict',
     'ui.acceptLeftThenNext': 'Accept Left → Next',
     'ui.acceptRightThenNext': 'Accept Right → Next',
+    'ui.acceptBaseThenNext': '中央を適用 → 次へ',
     'ui.syncPanes': 'Sync Panes',
     'status.conflictPosition': 'Conflict {index} of {total}',
     'ui.browseArchive': 'Archive…',

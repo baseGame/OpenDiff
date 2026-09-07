@@ -380,6 +380,10 @@ export const frFR: LanguagePack = {
     'ui.textPatchInspector': 'Inspecteur de correctifs de texte',
     'ui.theme': 'Thème',
     'ui.threeWayMergeWorkspace': 'Espace de travail de fusion à trois voies',
+    'ui.fourWayMergeWorkspace': 'Espace de travail de fusion à quatre voies',
+    'ui.mergeTo': 'Fusionner vers',
+    'ui.other': 'Autre',
+    'ui.center': 'Centre',
     'ui.touch': 'Touche',
     'ui.totalPixels': 'Nombre total de pixels',
     'ui.tools': 'Outils',
@@ -724,8 +728,8 @@ export const frFR: LanguagePack = {
     'ui.scriptingNotImplemented':
       'Le langage de script hérité complet n’est pas implémenté. Les commandes prises en charge s’exécutent ; les lacunes connues renvoient unsupported.',
     'ui.scriptingSupported':
-      'Commandes prises en charge : LOAD, FILTER, COMPARE, REPORT, FILE-REPORT, HEX-REPORT, TABLE-REPORT, PICTURE-REPORT, VERSION-REPORT, REGISTRY-REPORT, MEDIA-REPORT, LOG, BEEP, OPTION, SELECT, COPY, COPYTO, MOVE, MOVETO, DELETE, RENAME, TOUCH, ATTRIB, EXPAND, COLLAPSE, SNAPSHOT, SYNC, TEXT-REPORT, FOLDER-REPORT.',
-    'ui.scriptingUnsupported': 'Non prises en charge : CRITERIA.',
+      'Commandes prises en charge : LOAD, FILTER, COMPARE, REPORT, FILE-REPORT, HEX-REPORT, TABLE-REPORT, PICTURE-REPORT, VERSION-REPORT, REGISTRY-REPORT, MEDIA-REPORT, LOG, BEEP, OPTION, SELECT, COPY, COPYTO, MOVE, MOVETO, DELETE, RENAME, TOUCH, ATTRIB, EXPAND, COLLAPSE, SNAPSHOT, SYNC, CRITERIA, TEXT-REPORT, FOLDER-REPORT.',
+    'ui.scriptingUnsupported': 'Aucun.',
     'ui.scriptingUnsupportedCommands': 'Commandes non prises en charge',
     'ui.scriptingSupportedCommands': 'Commandes prises en charge',
     'ui.secretsHint':
@@ -810,6 +814,7 @@ export const frFR: LanguagePack = {
     'ui.previousConflict': 'Previous Conflict',
     'ui.acceptLeftThenNext': 'Accept Left → Next',
     'ui.acceptRightThenNext': 'Accept Right → Next',
+    'ui.acceptBaseThenNext': 'Accepter le centre → Suivant',
     'ui.syncPanes': 'Sync Panes',
     'status.conflictPosition': 'Conflict {index} of {total}',
     'ui.browseArchive': 'Archive…',

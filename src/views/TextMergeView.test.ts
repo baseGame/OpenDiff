@@ -221,6 +221,84 @@ describe('TextMergeView', () => {
     expect(wrapper.find('[data-testid="merge-conflict-status"]').text()).toContain('1 conflict')
     expect(outputEditorValue(wrapper)).toContain('d-left')
   })
+
+  it('uses a four-way layout with Merge to Left/Right/Other chrome', async () => {
+    const wrapper = await mountLoadedMerge()
+
+    expect(wrapper.find('[data-testid="merge-four-way-grid"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="merge-pane-output"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="merge-to-chrome"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="merge-to-other"]').exists()).toBe(true)
+
+    await wrapper.find('[data-testid="merge-to-left"]').setValue(true)
+    await flushPromises()
+    expect(
+      (wrapper.find('[data-testid="merge-output-path"]').element as HTMLInputElement).value,
+    ).toBe('left.txt')
+    expect(
+      (wrapper.find('[data-testid="merge-output-path"]').element as HTMLInputElement).disabled,
+    ).toBe(true)
+
+    await wrapper.find('[data-testid="merge-to-right"]').setValue(true)
+    await flushPromises()
+    expect(
+      (wrapper.find('[data-testid="merge-output-path"]').element as HTMLInputElement).value,
+    ).toBe('right.txt')
+
+    await wrapper.find('[data-testid="merge-to-other"]').setValue(true)
+    await wrapper.find('[data-testid="merge-output-path"]').setValue('custom-out.txt')
+    await flushPromises()
+    expect(
+      (wrapper.find('[data-testid="merge-output-path"]').element as HTMLInputElement).value,
+    ).toBe('custom-out.txt')
+    expect(
+      (wrapper.find('[data-testid="merge-output-path"]').element as HTMLInputElement).disabled,
+    ).toBe(false)
+  })
+
+  it('accepts the base side then advances to the next conflict', async () => {
+    vi.mocked(mergeTextFiles).mockResolvedValueOnce({
+      leftPath: 'left.txt',
+      rightPath: 'right.txt',
+      centerPath: 'base.txt',
+      outputPath: 'out.txt',
+      leftText: 'a\nb-left\nc\nd-left',
+      rightText: 'a\nb-right\nc\nd-right',
+      centerText: 'a\nb-base\nc\nd-base',
+      outputText:
+        'a\n<<<<<<< Left\nb-left\n=======\nb-right\n>>>>>>> Right\nc\n<<<<<<< Left\nd-left\n=======\nd-right\n>>>>>>> Right',
+      conflicts: [
+        {
+          lineIndex: 1,
+          title: 'Conflict A',
+          base: 'b-base',
+          left: 'b-left',
+          right: 'b-right',
+          outputSpan: 5,
+        },
+        {
+          lineIndex: 7,
+          title: 'Conflict B',
+          base: 'd-base',
+          left: 'd-left',
+          right: 'd-right',
+          outputSpan: 5,
+        },
+      ],
+    })
+
+    const wrapper = mount(TextMergeView)
+
+    await wrapper.find('[data-testid="merge-left-path"]').setValue('left.txt')
+    await wrapper.find('[data-testid="merge-right-path"]').setValue('right.txt')
+    await wrapper.find('[data-testid="load-text-merge"]').trigger('click')
+    await flushPromises()
+
+    await wrapper.find('[data-testid="merge-accept-base-then-next"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[data-testid="merge-conflict-status"]').text()).toContain('1 conflict')
+    expect(outputEditorValue(wrapper)).toContain('b-base')
+  })
 })
 
 async function mountLoadedMerge(): Promise<VueWrapper> {

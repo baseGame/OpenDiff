@@ -379,6 +379,10 @@ export const esES: LanguagePack = {
     'ui.textPatchInspector': 'inspector de parches de texto',
     'ui.theme': 'Tema',
     'ui.threeWayMergeWorkspace': 'Espacio de trabajo de combinación de tres vías',
+    'ui.fourWayMergeWorkspace': 'Espacio de trabajo de combinación de cuatro vías',
+    'ui.mergeTo': 'Combinar en',
+    'ui.other': 'Otro',
+    'ui.center': 'Centro',
     'ui.touch': 'Tocar',
     'ui.totalPixels': 'Píxeles totales',
     'ui.tools': 'Herramientas',
@@ -724,8 +728,8 @@ export const esES: LanguagePack = {
     'ui.scriptingNotImplemented':
       'El lenguaje de scripts heredado completo no está implementado. Los comandos admitidos se ejecutan; las lagunas conocidas devuelven unsupported.',
     'ui.scriptingSupported':
-      'Comandos admitidos: LOAD, FILTER, COMPARE, REPORT, FILE-REPORT, HEX-REPORT, TABLE-REPORT, PICTURE-REPORT, VERSION-REPORT, REGISTRY-REPORT, MEDIA-REPORT, LOG, BEEP, OPTION, SELECT, COPY, COPYTO, MOVE, MOVETO, DELETE, RENAME, TOUCH, ATTRIB, EXPAND, COLLAPSE, SNAPSHOT, SYNC, TEXT-REPORT, FOLDER-REPORT.',
-    'ui.scriptingUnsupported': 'No admitidos: CRITERIA.',
+      'Comandos admitidos: LOAD, FILTER, COMPARE, REPORT, FILE-REPORT, HEX-REPORT, TABLE-REPORT, PICTURE-REPORT, VERSION-REPORT, REGISTRY-REPORT, MEDIA-REPORT, LOG, BEEP, OPTION, SELECT, COPY, COPYTO, MOVE, MOVETO, DELETE, RENAME, TOUCH, ATTRIB, EXPAND, COLLAPSE, SNAPSHOT, SYNC, CRITERIA, TEXT-REPORT, FOLDER-REPORT.',
+    'ui.scriptingUnsupported': 'Ninguno.',
     'ui.scriptingUnsupportedCommands': 'Comandos no admitidos',
     'ui.scriptingSupportedCommands': 'Comandos admitidos',
     'ui.secretsHint':
@@ -810,6 +814,7 @@ export const esES: LanguagePack = {
     'ui.previousConflict': 'Previous Conflict',
     'ui.acceptLeftThenNext': 'Accept Left → Next',
     'ui.acceptRightThenNext': 'Accept Right → Next',
+    'ui.acceptBaseThenNext': 'Aceptar centro → Siguiente',
     'ui.syncPanes': 'Sync Panes',
     'status.conflictPosition': 'Conflict {index} of {total}',
     'ui.browseArchive': 'Archive…',

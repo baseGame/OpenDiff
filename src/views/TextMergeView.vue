@@ -33,6 +33,7 @@ interface MergeConflict {
 }
 
 type ConflictPolicy = 'markConflict' | 'favorLeft' | 'favorRight'
+type MergeTarget = 'left' | 'right' | 'other'
 
 const { t } = useI18n()
 const tabs = useTabsStore()
@@ -43,6 +44,8 @@ const leftPath = ref('')
 const rightPath = ref('')
 const centerPath = ref('')
 const outputPath = ref('')
+const customOutputPath = ref('')
+const mergeTarget = ref<MergeTarget>('other')
 const leftText = ref('')
 const rightText = ref('')
 const centerText = ref('')
@@ -57,7 +60,7 @@ const activeConflictIndex = ref(0)
 const syncPanes = ref(true)
 let syncingScroll = false
 const paneBodyRefs: Partial<Record<MergePaneId, HTMLElement | null>> = {}
-const panes = computed<MergePane[]>(() => [
+const sourcePanes = computed<MergePane[]>(() => [
   {
     id: 'left',
     title: t('ui.left'),
@@ -66,7 +69,7 @@ const panes = computed<MergePane[]>(() => [
   },
   {
     id: 'base',
-    title: t('ui.base'),
+    title: t('ui.center'),
     subtitle: centerPath.value || t('ui.commonAncestor'),
     lines: splitLines(centerText.value),
   },
@@ -76,13 +79,14 @@ const panes = computed<MergePane[]>(() => [
     subtitle: rightPath.value || t('ui.mainBranch'),
     lines: splitLines(rightText.value),
   },
-  {
-    id: 'output',
-    title: t('ui.output'),
-    subtitle: t('ui.mergeResult'),
-    lines: outputLines.value,
-  },
 ])
+const outputPane = computed<MergePane>(() => ({
+  id: 'output',
+  title: t('ui.output'),
+  subtitle: t('ui.mergeResult'),
+  lines: outputLines.value,
+}))
+const mergeTargetLocked = computed(() => mergeTarget.value !== 'other')
 const unresolvedConflicts = computed(() => conflicts.value.filter((conflict) => !conflict.resolved))
 const currentConflict = computed<MergeConflict | undefined>(() => {
   const list = unresolvedConflicts.value
@@ -135,6 +139,14 @@ onMounted(() => {
   rightPath.value = launch.locations.right?.uri ?? ''
   centerPath.value = launch.locations.center?.uri ?? ''
   outputPath.value = launch.locations.output?.uri ?? outputPath.value
+  customOutputPath.value = outputPath.value
+  if (outputPath.value && outputPath.value === leftPath.value) {
+    mergeTarget.value = 'left'
+  } else if (outputPath.value && outputPath.value === rightPath.value) {
+    mergeTarget.value = 'right'
+  } else {
+    mergeTarget.value = 'other'
+  }
 
   if (launch.favor === 'left') {
     conflictPolicy.value = 'favorLeft'
@@ -149,6 +161,22 @@ onMounted(() => {
 
 function splitLines(value: string): string[] {
   return value === '' ? [] : value.split(/\r?\n/u)
+}
+
+function applyMergeTarget(): void {
+  if (mergeTarget.value === 'left') {
+    outputPath.value = leftPath.value
+
+    return
+  }
+
+  if (mergeTarget.value === 'right') {
+    outputPath.value = rightPath.value
+
+    return
+  }
+
+  outputPath.value = customOutputPath.value
 }
 
 function setSaveStatus(key: string, params: Record<string, string | number> = {}): void {
@@ -175,7 +203,12 @@ async function loadMerge(): Promise<void> {
     rightText.value = result.rightText
     centerText.value = result.centerText
     outputLines.value = splitLines(result.outputText)
-    outputPath.value = result.outputPath ?? outputPath.value
+    if (mergeTarget.value === 'other') {
+      outputPath.value = result.outputPath ?? outputPath.value
+      customOutputPath.value = outputPath.value
+    } else {
+      applyMergeTarget()
+    }
     conflicts.value = result.conflicts.map((conflict, index) => ({
       id: index,
       line: conflict.lineIndex + 1,
@@ -365,6 +398,25 @@ function lineClass(line: string, paneId: MergePaneId): string {
   return 'normal'
 }
 
+watch(mergeTarget, (_next, previous) => {
+  if (previous === 'other') {
+    customOutputPath.value = outputPath.value
+  }
+  applyMergeTarget()
+})
+
+watch([leftPath, rightPath], () => {
+  if (mergeTarget.value !== 'other') {
+    applyMergeTarget()
+  }
+})
+
+watch(outputPath, (value) => {
+  if (mergeTarget.value === 'other') {
+    customOutputPath.value = value
+  }
+})
+
 watch(
   [leftPath, rightPath, outputPath],
   ([left, right, output]) => {
@@ -442,7 +494,7 @@ watch(
       <div class="merge-toolbar">
         <div>
           <strong>{{ $t('ui.textMerge') }}</strong>
-          <span>{{ $t('ui.threeWayMergeWorkspace') }}</span>
+          <span>{{ $t('ui.fourWayMergeWorkspace') }}</span>
         </div>
         <span
           class="status-chip"
@@ -531,6 +583,15 @@ watch(
           >
             {{ $t('ui.acceptRightThenNext') }}
           </button>
+          <button
+            type="button"
+            class="toolbar-button"
+            data-testid="merge-accept-base-then-next"
+            :disabled="!currentConflict"
+            @click="acceptThenNext('base')"
+          >
+            {{ $t('ui.acceptBaseThenNext') }}
+          </button>
           <label class="sync-panes-toggle">
             <input
               v-model="syncPanes"
@@ -565,14 +626,48 @@ watch(
           type="text"
           :aria-label="$t('ui.rightPath')"
         />
-        <input
-          v-model="outputPath"
-          class="output-path-input"
-          data-testid="merge-output-path"
-          :title="outputPath"
-          type="text"
-          :aria-label="$t('ui.mergeOutputPath')"
-        />
+        <span
+          class="merge-to-chrome"
+          data-testid="merge-to-chrome"
+        >
+          <span>{{ $t('ui.mergeTo') }}</span>
+          <label class="merge-to-option">
+            <input
+              v-model="mergeTarget"
+              data-testid="merge-to-left"
+              type="radio"
+              value="left"
+            />
+            <span>{{ $t('ui.left') }}</span>
+          </label>
+          <label class="merge-to-option">
+            <input
+              v-model="mergeTarget"
+              data-testid="merge-to-right"
+              type="radio"
+              value="right"
+            />
+            <span>{{ $t('ui.right') }}</span>
+          </label>
+          <label class="merge-to-option">
+            <input
+              v-model="mergeTarget"
+              data-testid="merge-to-other"
+              type="radio"
+              value="other"
+            />
+            <span>{{ $t('ui.other') }}</span>
+          </label>
+          <input
+            v-model="outputPath"
+            class="output-path-input"
+            data-testid="merge-output-path"
+            :title="outputPath"
+            type="text"
+            :disabled="mergeTargetLocked"
+            :aria-label="$t('ui.mergeOutputPath')"
+          />
+        </span>
         <button
           type="button"
           class="toolbar-button"
@@ -606,11 +701,14 @@ watch(
       >
         {{ $t('ui.emptyCompareHint') }}
       </p>
-      <div class="merge-grid">
+      <div
+        class="merge-grid"
+        data-testid="merge-four-way-grid"
+      >
         <section
-          v-for="pane in panes"
+          v-for="pane in sourcePanes"
           :key="pane.id"
-          class="merge-pane"
+          class="merge-pane merge-pane-source"
           :data-testid="`merge-pane-${pane.id}`"
         >
           <header class="pane-header">
@@ -620,17 +718,7 @@ watch(
             </div>
             <small>{{ $t('status.lines', { count: pane.lines.length }) }}</small>
           </header>
-          <textarea
-            v-if="pane.id === 'output'"
-            :ref="(el) => setPaneBodyRef(pane.id, el as Element | null)"
-            v-model="outputText"
-            class="output-editor"
-            data-testid="merge-output-editor"
-            spellcheck="false"
-            @scroll="onPaneScroll(pane.id, $event)"
-          />
           <ol
-            v-else
             :ref="(el) => setPaneBodyRef(pane.id, el as Element | null)"
             class="merge-lines"
             @scroll="onPaneScroll(pane.id, $event)"
@@ -648,6 +736,26 @@ watch(
               <code>{{ line }}</code>
             </li>
           </ol>
+        </section>
+        <section
+          class="merge-pane merge-pane-output"
+          data-testid="merge-pane-output"
+        >
+          <header class="pane-header">
+            <div>
+              <h2>{{ outputPane.title }}</h2>
+              <span>{{ outputPane.subtitle }}</span>
+            </div>
+            <small>{{ $t('status.lines', { count: outputPane.lines.length }) }}</small>
+          </header>
+          <textarea
+            :ref="(el) => setPaneBodyRef('output', el as Element | null)"
+            v-model="outputText"
+            class="output-editor"
+            data-testid="merge-output-editor"
+            spellcheck="false"
+            @scroll="onPaneScroll('output', $event)"
+          />
         </section>
       </div>
 
@@ -831,7 +939,8 @@ watch(
 
 .merge-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-rows: minmax(0, 1fr) minmax(0, 1.15fr);
   gap: 10px;
   min-height: 0;
 }
@@ -845,6 +954,25 @@ watch(
   border: 1px solid var(--app-border);
   border-radius: 8px;
   background: var(--app-surface);
+}
+
+.merge-pane-output {
+  grid-column: 1 / -1;
+}
+
+.merge-to-chrome {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.merge-to-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--app-text-muted);
+  font-size: 12px;
 }
 
 .pane-header {
@@ -1017,6 +1145,11 @@ watch(
 @media (width <= 1100px) {
   .merge-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: none;
+  }
+
+  .merge-pane-output {
+    grid-column: 1 / -1;
   }
 
   .conflict-list li {
@@ -1037,6 +1170,10 @@ watch(
   .merge-grid,
   .conflict-list li {
     grid-template-columns: 1fr;
+  }
+
+  .merge-pane-output {
+    grid-column: auto;
   }
 
   .merge-pane {
