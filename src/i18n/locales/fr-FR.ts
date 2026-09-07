@@ -957,6 +957,9 @@ export const frFR: LanguagePack = {
     'ui.windowLength': 'Window length',
     'ui.accept': 'Accepter',
     'ui.syncNow': 'Synchroniser maintenant',
+    'ui.toOutput': 'Vers la sortie',
+    'ui.folderMergeRulesHint':
+      'Les copies automatiques vont vers la sortie ; les conflits s’ouvrent dans la fusion de texte.',
     'ui.sameOk': 'Identiques OK',
     'ui.plannedAction': 'Prévu',
     'ui.override': 'Remplacer',

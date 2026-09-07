@@ -251,8 +251,24 @@ describe('FolderSyncView', () => {
       wrapper.find('[data-testid="folder-sync-session-toolbar-collapse"]').attributes('disabled'),
     ).toBeUndefined()
 
-    await wrapper.find('[data-testid="folder-sync-session-toolbar-filters"]').trigger('click')
-    expect(wrapper.find('[data-testid="folder-sync-filters-panel"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="folder-sync-session-toolbar-accept"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="folder-sync-session-toolbar-cancel"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="folder-sync-session-toolbar-sync-now"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="folder-sync-session-toolbar-minor"]').exists()).toBe(true)
+
+    await wrapper.find('[data-testid="folder-sync-session-toolbar-accept"]').trigger('click')
+    expect(
+      wrapper.find('[data-testid="folder-sync-chrome-status"]').text().toLowerCase(),
+    ).toContain('accept')
+    expect(
+      wrapper.find('[data-testid="folder-sync-session-toolbar-sync-now"]').attributes('disabled'),
+    ).toBeUndefined()
+
+    await wrapper.find('[data-testid="folder-sync-session-toolbar-minor"]').trigger('click')
+    expect(wrapper.find('[data-testid="sync-row-copy-app"]').exists()).toBe(false)
+
+    await wrapper.find('[data-testid="folder-sync-session-toolbar-minor"]').trigger('click')
+    expect(wrapper.find('[data-testid="sync-row-copy-app"]').exists()).toBe(true)
 
     await wrapper.find('[data-testid="folder-sync-session-toolbar-select"]').trigger('click')
     expect(wrapper.find('[data-testid="folder-sync-select-panel"]').exists()).toBe(true)

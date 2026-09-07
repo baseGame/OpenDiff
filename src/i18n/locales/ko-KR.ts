@@ -934,6 +934,8 @@ export const koKR: LanguagePack = {
     'ui.windowLength': 'Window length',
     'ui.accept': '수락',
     'ui.syncNow': '지금 동기화',
+    'ui.toOutput': '출력으로',
+    'ui.folderMergeRulesHint': '자동 복사는 출력으로 가고, 충돌은 텍스트 병합에서 엽니다.',
     'ui.sameOk': '동일 OK',
     'ui.plannedAction': '예정',
     'ui.override': '재정의',

@@ -261,6 +261,11 @@ describe('FolderMergeView', () => {
       true,
     )
     expect(wrapper.find('[data-testid="folder-merge-session-toolbar-select"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="folder-merge-session-toolbar-same-ok"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="folder-merge-session-toolbar-merge"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="folder-merge-session-toolbar-to-output"]').exists()).toBe(
+      true,
+    )
 
     await wrapper.find('[data-testid="folder-merge-session-toolbar-select"]').trigger('click')
     expect(wrapper.find('[data-testid="folder-merge-select-panel"]').exists()).toBe(true)
@@ -271,6 +276,17 @@ describe('FolderMergeView', () => {
 
     await wrapper.find('[data-testid="folder-merge-session-toolbar-filters"]').trigger('click')
     expect(wrapper.find('[data-testid="folder-merge-filters-panel"]').exists()).toBe(true)
+
+    await wrapper.find('[data-testid="folder-merge-session-toolbar-rules"]').trigger('click')
+    expect(wrapper.find('[data-testid="folder-merge-rules-panel"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="folder-merge-rules-summary"]').text()).toContain('1')
+
+    await wrapper.find('[data-testid="folder-merge-session-toolbar-same"]').trigger('click')
+    expect(wrapper.find('[data-testid="folder-merge-filter-state"]').text()).toContain('Same')
+
+    await wrapper.find('[data-testid="folder-merge-session-toolbar-merge"]').trigger('click')
+    await flushPromises()
+    expect(executeFolderMergePlan).toHaveBeenCalled()
   })
 
   it('exports the folder merge report to clipboard and a sibling text file', async () => {

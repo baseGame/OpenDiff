@@ -914,6 +914,8 @@ export const zhTW: LanguagePack = {
     'ui.windowLength': '視窗長度',
     'ui.accept': '接受',
     'ui.syncNow': '立即同步',
+    'ui.toOutput': '到輸出',
+    'ui.folderMergeRulesHint': '可自動複製的項目寫入輸出；衝突在文字合併中處理。',
     'ui.sameOk': '相同可用',
     'ui.plannedAction': '計劃操作',
     'ui.override': '覆寫',

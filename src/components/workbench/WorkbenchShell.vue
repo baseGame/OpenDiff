@@ -56,9 +56,14 @@ function toolbarForTitle(title: string): LegacyToolbarItem[] {
       item('all', 'ui.all', '*'),
       item('same', 'ui.same', '='),
       item('minor', 'ui.minor', '~'),
+      item('same-ok', 'ui.sameOk', 'OK'),
       item('rules', 'ui.rules', 'R'),
+      item('merge', 'ui.merge', 'M'),
+      item('to-output', 'ui.toOutput', 'O'),
       item('expand', 'ui.expand', '+'),
       item('collapse', 'ui.collapse', '-'),
+      item('select', 'ui.select', 'V'),
+      item('files', 'ui.files', 'F'),
       item('refresh', 'ui.refresh', 'R'),
       item('swap', 'ui.swap', '<>'),
       item('stop', 'ui.stop', 'X'),
@@ -73,9 +78,13 @@ function toolbarForTitle(title: string): LegacyToolbarItem[] {
       item('minor', 'ui.minor', '~'),
       item('expand', 'ui.expand', '+'),
       item('collapse', 'ui.collapse', '-'),
+      item('select', 'ui.select', 'V'),
       item('refresh', 'ui.refresh', 'R'),
       item('stop', 'ui.stop', 'X'),
       item('peek', 'ui.peek', 'P'),
+      item('sync-now', 'ui.syncNow', '>'),
+      item('cancel', 'ui.cancel', 'X'),
+      item('accept', 'ui.accept', 'OK'),
     ]
   }
 

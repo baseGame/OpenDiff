@@ -960,6 +960,9 @@ export const deDE: LanguagePack = {
     'ui.windowLength': 'Window length',
     'ui.accept': 'Akzeptieren',
     'ui.syncNow': 'Jetzt synchronisieren',
+    'ui.toOutput': 'Zur Ausgabe',
+    'ui.folderMergeRulesHint':
+      'Automatische Kopien gehen in die Ausgabe; Konflikte öffnen die Textzusammenführung.',
     'ui.sameOk': 'Gleiche OK',
     'ui.plannedAction': 'Geplant',
     'ui.override': 'Überschreiben',
