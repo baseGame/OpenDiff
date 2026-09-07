@@ -694,9 +694,8 @@ export const zhTW: LanguagePack = {
     'ui.scriptingNotImplemented':
       '完整遺留指令碼語言尚未實作。已支援的命令會真正執行；已知缺口以 unsupported 回傳。',
     'ui.scriptingSupported':
-      '已支援：LOAD、FILTER、COMPARE、REPORT、FILE-REPORT、HEX-REPORT、TABLE-REPORT、PICTURE-REPORT、VERSION-REPORT、REGISTRY-REPORT、LOG、BEEP、OPTION、SELECT、COPY、COPYTO、DELETE、RENAME、TOUCH、SNAPSHOT、SYNC、TEXT-REPORT、FOLDER-REPORT。',
-    'ui.scriptingUnsupported':
-      '未支援：ATTRIB、COLLAPSE、CRITERIA、EXPAND、MEDIA-REPORT、MOVE、MOVETO。',
+      '已支援：LOAD、FILTER、COMPARE、REPORT、FILE-REPORT、HEX-REPORT、TABLE-REPORT、PICTURE-REPORT、VERSION-REPORT、REGISTRY-REPORT、MEDIA-REPORT、LOG、BEEP、OPTION、SELECT、COPY、COPYTO、MOVE、MOVETO、DELETE、RENAME、TOUCH、ATTRIB、EXPAND、COLLAPSE、SNAPSHOT、SYNC、TEXT-REPORT、FOLDER-REPORT。',
+    'ui.scriptingUnsupported': '未支援：CRITERIA。',
     'ui.scriptingUnsupportedCommands': '未支援命令',
     'ui.scriptingSupportedCommands': '已支援命令',
     'ui.secretsHint': '密碼只存在本機密鑰檔（Unix 權限 0600），不會寫入設定清單或日誌。',

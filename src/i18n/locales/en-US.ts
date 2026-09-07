@@ -710,9 +710,8 @@ export const enUS: LanguagePack = {
     'ui.scriptingNotImplemented':
       'Full legacy scripting is not implemented. Supported commands run; known gaps fail as unsupported.',
     'ui.scriptingSupported':
-      'Supported commands: LOAD, FILTER, COMPARE, REPORT, FILE-REPORT, HEX-REPORT, TABLE-REPORT, PICTURE-REPORT, VERSION-REPORT, REGISTRY-REPORT, LOG, BEEP, OPTION, SELECT, COPY, COPYTO, DELETE, RENAME, TOUCH, SNAPSHOT, SYNC, TEXT-REPORT, FOLDER-REPORT.',
-    'ui.scriptingUnsupported':
-      'Unsupported: ATTRIB, COLLAPSE, CRITERIA, EXPAND, MEDIA-REPORT, MOVE, MOVETO.',
+      'Supported commands: LOAD, FILTER, COMPARE, REPORT, FILE-REPORT, HEX-REPORT, TABLE-REPORT, PICTURE-REPORT, VERSION-REPORT, REGISTRY-REPORT, MEDIA-REPORT, LOG, BEEP, OPTION, SELECT, COPY, COPYTO, MOVE, MOVETO, DELETE, RENAME, TOUCH, ATTRIB, EXPAND, COLLAPSE, SNAPSHOT, SYNC, TEXT-REPORT, FOLDER-REPORT.',
+    'ui.scriptingUnsupported': 'Unsupported: CRITERIA.',
     'ui.scriptingUnsupportedCommands': 'Unsupported commands',
     'ui.scriptingSupportedCommands': 'Supported commands',
     'ui.secretsHint':

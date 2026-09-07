@@ -13,28 +13,26 @@ export const supportedScriptCommands = [
   'PICTURE-REPORT',
   'VERSION-REPORT',
   'REGISTRY-REPORT',
+  'MEDIA-REPORT',
   'LOG',
   'BEEP',
   'OPTION',
   'SELECT',
   'COPY',
   'COPYTO',
+  'MOVE',
+  'MOVETO',
   'DELETE',
   'RENAME',
   'TOUCH',
+  'ATTRIB',
+  'EXPAND',
+  'COLLAPSE',
   'SNAPSHOT',
   'SYNC',
 ] as const
 
-export const unsupportedScriptCommands = [
-  'ATTRIB',
-  'COLLAPSE',
-  'CRITERIA',
-  'EXPAND',
-  'MEDIA-REPORT',
-  'MOVE',
-  'MOVETO',
-] as const
+export const unsupportedScriptCommands = ['CRITERIA'] as const
 
 export type SupportedScriptCommand = (typeof supportedScriptCommands)[number]
 export type UnsupportedScriptCommand = (typeof unsupportedScriptCommands)[number]
@@ -50,4 +48,5 @@ export const compareReportExampleScript = [
   `text-report "\${output}"`,
   `hex-report "\${output}.hex.txt"`,
   `folder-report "\${output}.folder.txt"`,
+  `media-report "\${output}.media.txt"`,
 ].join('\n')

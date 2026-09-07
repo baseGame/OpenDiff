@@ -12,21 +12,21 @@ describe('scriptCommands', () => {
     expect(supportedScriptCommands).toContain('TABLE-REPORT')
     expect(supportedScriptCommands).toContain('FILE-REPORT')
     expect(supportedScriptCommands).toContain('REPORT')
+    expect(supportedScriptCommands).toContain('MEDIA-REPORT')
+    expect(supportedScriptCommands).toContain('ATTRIB')
+    expect(supportedScriptCommands).toContain('EXPAND')
+    expect(supportedScriptCommands).toContain('COLLAPSE')
+    expect(supportedScriptCommands).toContain('MOVE')
+    expect(supportedScriptCommands).toContain('MOVETO')
     expect(formatCommandList(supportedScriptCommands)).not.toMatch(/Beyond|BC5?|Scooter/i)
   })
 
   it('keeps an honest unsupported list for known legacy gaps', () => {
-    expect(unsupportedScriptCommands).toEqual([
-      'ATTRIB',
-      'COLLAPSE',
-      'CRITERIA',
-      'EXPAND',
-      'MEDIA-REPORT',
-      'MOVE',
-      'MOVETO',
-    ])
+    expect(unsupportedScriptCommands).toEqual(['CRITERIA'])
     expect(unsupportedScriptCommands).not.toContain('HEX-REPORT')
     expect(unsupportedScriptCommands).not.toContain('FILE-REPORT')
+    expect(unsupportedScriptCommands).not.toContain('MEDIA-REPORT')
+    expect(unsupportedScriptCommands).not.toContain('ATTRIB')
   })
 
   it('keeps supported and unsupported catalogs disjoint', () => {
