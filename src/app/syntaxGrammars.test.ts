@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { fileFormatsStorageKey, saveFileFormats, builtInFileFormats } from '@/app/fileFormats'
-import { grammarForPath } from './syntaxGrammars'
+import {
+  grammarForPath,
+  resolveSyntaxGrammar,
+  splitLineBySyntaxTokens,
+  tokenizeSyntaxLine,
+} from './syntaxGrammars'
 
 describe('syntaxGrammars', () => {
   beforeEach(() => {
@@ -40,5 +45,15 @@ describe('syntaxGrammars', () => {
     )
 
     expect(grammarForPath('app.ts').id).toBe('plain-text')
+  })
+
+  it('tokenizes keywords for an explicit language selection', () => {
+    const grammar = resolveSyntaxGrammar('source', 'notes.txt')
+    const tokens = tokenizeSyntaxLine('const value = 1', grammar)
+    const parts = splitLineBySyntaxTokens('const value = 1', tokens)
+
+    expect(grammar.id).toBe('source')
+    expect(tokens[0]?.kind).toBe('keyword')
+    expect(parts.some((part) => part.kind === 'keyword' && part.text === 'const')).toBe(true)
   })
 })

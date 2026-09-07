@@ -50,6 +50,7 @@ export type CommandPlacement = 'command-palette' | 'toolbar' | 'menu'
 export type CommandAction =
   | { type: 'navigate'; route: string; titleKey: string }
   | { type: 'toggle-theme' }
+  | { type: 'quit' }
   | { type: 'noop' }
   | {
       type: 'view-action'
@@ -424,11 +425,11 @@ export const commandRegistry: AppCommand[] = [
     id: 'session.exit',
     titleKey: 'ui.exit',
     keywords: ['exit', 'quit'],
-    enabled: false,
+    enabled: true,
     visibility: 'global',
     defaultShortcut: { keys: ['Alt', 'F4'], scope: 'global' },
     placements: ['command-palette', 'menu'],
-    action: { type: 'noop' },
+    action: { type: 'quit' },
   },
   {
     id: 'session.compare',

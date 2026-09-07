@@ -39,10 +39,12 @@ pub enum CliCommand {
     CompareFiles {
         left: String,
         right: String,
+        quiet: bool,
     },
     CompareFolders {
         left: String,
         right: String,
+        quiet: bool,
     },
     OpenSession {
         store_root: String,
@@ -53,10 +55,12 @@ pub enum CliCommand {
         left: String,
         right: String,
         route: String,
+        options: CliOpenOptions,
     },
     SyncPreview {
         left: String,
         right: String,
+        quiet: bool,
     },
     MergeText(CliTextMergeArgs),
     Script {
@@ -87,6 +91,19 @@ pub struct CliTextMergeArgs {
 pub enum CliTextMergeFavor {
     Left,
     Right,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct CliOpenOptions {
+    pub center: Option<String>,
+    pub output: Option<String>,
+    pub left_readonly: bool,
+    pub right_readonly: bool,
+    pub readonly: bool,
+    pub silent: bool,
+    pub favor: Option<CliTextMergeFavor>,
+    pub edit: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -157,6 +174,7 @@ pub struct CliOpenCompareResult {
     pub route: String,
     pub left: String,
     pub right: String,
+    pub options: CliOpenOptions,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -234,6 +252,47 @@ where
 
 pub fn cli_exit_code_value(exit_code: CliExitCode) -> i32 {
     exit_code as i32
+}
+
+pub fn cli_help_text() -> String {
+    let mut lines = vec![
+        "Usage: open-diff-cli <command> [args]".to_owned(),
+        "Commands:".to_owned(),
+        "  compare [--quiet] <left> <right>".to_owned(),
+        "  compare-folders [--quiet] <left> <right>".to_owned(),
+        "  shell-compare [--select-left] <path>".to_owned(),
+        "  git-difftool-config [--global|--local] [--write] <executable-path>".to_owned(),
+        "  git-mergetool-config [--global|--local] [--write] <executable-path>".to_owned(),
+        "  svn-diff <svn external diff args>".to_owned(),
+        "  svn-diff-config [--write] <executable-path> <wrapper-path>".to_owned(),
+        "  script <script-path>".to_owned(),
+        "  open-session <store-root> <name>".to_owned(),
+        "  open [options] <left> <right>".to_owned(),
+        "      --session <type>   folder-compare, folder-sync, folder-merge,".to_owned(),
+        "                         text-compare, text-merge, text-edit, text-patch,".to_owned(),
+        "                         table-compare, hex-compare, picture-compare,".to_owned(),
+        "                         registry-compare, media-compare, version-compare".to_owned(),
+        "      --left <path>      left side path (or positional)".to_owned(),
+        "      --right <path>     right side path (or positional)".to_owned(),
+        "      --center <path>    center/base path for merge sessions".to_owned(),
+        "      --output <path>    output path for merge sessions".to_owned(),
+        "      --readonly         mark both sides read-only".to_owned(),
+        "      --left-readonly    mark left side read-only".to_owned(),
+        "      --right-readonly   mark right side read-only".to_owned(),
+        "      --silent           suppress launch chatter when staging UI open".to_owned(),
+        "      --favor-left       prefer left on merge conflicts".to_owned(),
+        "      --favor-right      prefer right on merge conflicts".to_owned(),
+        "      --edit             open in an editable session when applicable".to_owned(),
+        "  sync-preview [--quiet] <left> <right>".to_owned(),
+        "  merge-text --automerge [--favor-left|--favor-right] <base> <left> <right> [output]"
+            .to_owned(),
+        "Switches accept --name, -name, or /name forms.".to_owned(),
+        "Exit codes:".to_owned(),
+    ];
+    for spec in cli_exit_code_contract() {
+        lines.push(format!("  {} {}", spec.value, spec.meaning));
+    }
+    lines.join("\n")
 }
 
 pub fn cli_exit_code_contract() -> [CliExitCodeSpec; 5] {
@@ -798,28 +857,54 @@ fn parse_git_tool_config_args(
 }
 
 fn parse_compare_files(args: Vec<String>) -> Result<CliInvocation, CliParseError> {
-    if args.len() != 2 {
+    let mut quiet = false;
+    let mut positionals = Vec::new();
+    for arg in args {
+        match normalized_switch(&arg).as_deref() {
+            Some("quiet") | Some("q") => quiet = true,
+            Some(unknown) => {
+                return Err(usage_error(format!("unknown compare switch: {unknown}")));
+            }
+            None => positionals.push(arg),
+        }
+    }
+    if positionals.len() != 2 {
         return Err(usage_error("compare requires LEFT and RIGHT paths"));
     }
 
     Ok(CliInvocation {
         command: CliCommand::CompareFiles {
-            left: args[0].clone(),
-            right: args[1].clone(),
+            left: positionals[0].clone(),
+            right: positionals[1].clone(),
+            quiet,
         },
         exit_code: CliExitCode::Success,
     })
 }
 
 fn parse_compare_folders(args: Vec<String>) -> Result<CliInvocation, CliParseError> {
-    if args.len() != 2 {
+    let mut quiet = false;
+    let mut positionals = Vec::new();
+    for arg in args {
+        match normalized_switch(&arg).as_deref() {
+            Some("quiet") | Some("q") => quiet = true,
+            Some(unknown) => {
+                return Err(usage_error(format!(
+                    "unknown compare-folders switch: {unknown}"
+                )));
+            }
+            None => positionals.push(arg),
+        }
+    }
+    if positionals.len() != 2 {
         return Err(usage_error("compare-folders requires LEFT and RIGHT paths"));
     }
 
     Ok(CliInvocation {
         command: CliCommand::CompareFolders {
-            left: args[0].clone(),
-            right: args[1].clone(),
+            left: positionals[0].clone(),
+            right: positionals[1].clone(),
+            quiet,
         },
         exit_code: CliExitCode::Success,
     })
@@ -829,6 +914,7 @@ fn parse_open_compare(args: Vec<String>) -> Result<CliInvocation, CliParseError>
     let mut session_type = None;
     let mut left = None;
     let mut right = None;
+    let mut options = CliOpenOptions::default();
     let mut positionals = Vec::new();
     let mut index = 0;
 
@@ -866,12 +952,50 @@ fn parse_open_compare(args: Vec<String>) -> Result<CliInvocation, CliParseError>
             Some(switch) if switch.starts_with("right=") => {
                 right = Some(switch[6..].to_owned());
             }
+            Some("center") | Some("base") => {
+                index += 1;
+                let value = args
+                    .get(index)
+                    .ok_or_else(|| usage_error("open --center requires a path"))?;
+                options.center = Some(value.clone());
+            }
+            Some(switch) if switch.starts_with("center=") || switch.starts_with("base=") => {
+                let value = switch.split_once('=').map(|(_, value)| value).unwrap_or("");
+                options.center = Some(value.to_owned());
+            }
+            Some("output") | Some("out") => {
+                index += 1;
+                let value = args
+                    .get(index)
+                    .ok_or_else(|| usage_error("open --output requires a path"))?;
+                options.output = Some(value.clone());
+            }
+            Some(switch) if switch.starts_with("output=") || switch.starts_with("out=") => {
+                let value = switch.split_once('=').map(|(_, value)| value).unwrap_or("");
+                options.output = Some(value.to_owned());
+            }
+            Some("readonly") | Some("ro") => options.readonly = true,
+            Some("left-readonly") | Some("leftreadonly") => options.left_readonly = true,
+            Some("right-readonly") | Some("rightreadonly") => options.right_readonly = true,
+            Some("silent") => options.silent = true,
+            Some("favor-left") | Some("favorleft") => {
+                options.favor = Some(CliTextMergeFavor::Left);
+            }
+            Some("favor-right") | Some("favorright") => {
+                options.favor = Some(CliTextMergeFavor::Right);
+            }
+            Some("edit") => options.edit = true,
             Some(unknown) => {
                 return Err(usage_error(format!("unknown open switch: {unknown}")));
             }
             None => positionals.push(arg.clone()),
         }
         index += 1;
+    }
+
+    if options.readonly {
+        options.left_readonly = true;
+        options.right_readonly = true;
     }
 
     if left.is_none() && right.is_none() {
@@ -892,7 +1016,8 @@ fn parse_open_compare(args: Vec<String>) -> Result<CliInvocation, CliParseError>
 
     let left = left.expect("left path");
     let right = right.expect("right path");
-    let (session_type, route) = resolve_open_session_type(session_type.as_deref(), &left, &right)?;
+    let (session_type, route) =
+        resolve_open_session_type(session_type.as_deref(), &left, &right, options.edit)?;
 
     Ok(CliInvocation {
         command: CliCommand::OpenCompare {
@@ -900,20 +1025,35 @@ fn parse_open_compare(args: Vec<String>) -> Result<CliInvocation, CliParseError>
             left,
             right,
             route: route.to_owned(),
+            options,
         },
         exit_code: CliExitCode::Success,
     })
 }
 
 fn parse_sync_preview(args: Vec<String>) -> Result<CliInvocation, CliParseError> {
-    if args.len() != 2 {
+    let mut quiet = false;
+    let mut positionals = Vec::new();
+    for arg in args {
+        match normalized_switch(&arg).as_deref() {
+            Some("quiet") | Some("q") => quiet = true,
+            Some(unknown) => {
+                return Err(usage_error(format!(
+                    "unknown sync-preview switch: {unknown}"
+                )));
+            }
+            None => positionals.push(arg),
+        }
+    }
+    if positionals.len() != 2 {
         return Err(usage_error("sync-preview requires LEFT and RIGHT paths"));
     }
 
     Ok(CliInvocation {
         command: CliCommand::SyncPreview {
-            left: args[0].clone(),
-            right: args[1].clone(),
+            left: positionals[0].clone(),
+            right: positionals[1].clone(),
+            quiet,
         },
         exit_code: CliExitCode::Success,
     })
@@ -923,10 +1063,15 @@ fn resolve_open_session_type(
     explicit: Option<&str>,
     left: &str,
     right: &str,
+    edit: bool,
 ) -> Result<(&'static str, &'static str), CliParseError> {
-    let key = explicit
-        .map(str::to_ascii_lowercase)
-        .unwrap_or_else(|| infer_open_session_type(left, right));
+    let key = explicit.map(str::to_ascii_lowercase).unwrap_or_else(|| {
+        if edit {
+            "text-edit".to_owned()
+        } else {
+            infer_open_session_type(left, right)
+        }
+    });
 
     match key.as_str() {
         "folder" | "folder-compare" | "fc" => Ok(("folder-compare", "/compare/folder")),
@@ -934,6 +1079,8 @@ fn resolve_open_session_type(
         "folder-merge" => Ok(("folder-merge", "/merge/folder")),
         "text" | "text-compare" | "tc" => Ok(("text-compare", "/compare/text")),
         "text-merge" | "merge" => Ok(("text-merge", "/merge/text")),
+        "text-edit" | "edit" => Ok(("text-edit", "/edit/text")),
+        "text-patch" | "patch" => Ok(("text-patch", "/patch/text")),
         "table" | "table-compare" => Ok(("table-compare", "/compare/table")),
         "hex" | "hex-compare" => Ok(("hex-compare", "/compare/hex")),
         "picture" | "picture-compare" | "image" => Ok(("picture-compare", "/compare/picture")),
@@ -959,6 +1106,7 @@ pub fn describe_open_compare(
     left: impl Into<String>,
     right: impl Into<String>,
     route: impl Into<String>,
+    options: CliOpenOptions,
 ) -> CliOpenCompareResult {
     CliOpenCompareResult {
         exit_code: CliExitCode::Success,
@@ -966,6 +1114,7 @@ pub fn describe_open_compare(
         route: route.into(),
         left: left.into(),
         right: right.into(),
+        options,
     }
 }
 
@@ -1064,9 +1213,27 @@ fn parse_merge_text(args: Vec<String>) -> Result<CliInvocation, CliParseError> {
 }
 
 fn normalized_switch(arg: &str) -> Option<String> {
-    arg.strip_prefix("--")
-        .or_else(|| arg.strip_prefix('/'))
-        .map(|value| value.to_ascii_lowercase())
+    if let Some(value) = arg.strip_prefix("--") {
+        return Some(value.to_ascii_lowercase());
+    }
+    if let Some(value) = arg.strip_prefix('/') {
+        // Windows-style /switch. Absolute Unix paths like /tmp/a stay positional.
+        if value.is_empty() || value.contains('/') || value.contains('\\') {
+            return None;
+        }
+        return Some(value.to_ascii_lowercase());
+    }
+    if let Some(value) = arg.strip_prefix('-') {
+        if value.is_empty() {
+            return None;
+        }
+        // Keep numeric positional values like -1 from becoming switches.
+        if value.chars().next().is_some_and(|ch| ch.is_ascii_digit()) {
+            return None;
+        }
+        return Some(value.to_ascii_lowercase());
+    }
+    None
 }
 
 fn git_config_scope_flag(scope: GitConfigScope) -> &'static str {
@@ -1149,6 +1316,7 @@ mod tests {
             CliCommand::CompareFiles {
                 left: "left.txt".to_owned(),
                 right: "right.txt".to_owned(),
+                quiet: false,
             }
         );
 
@@ -1185,6 +1353,7 @@ mod tests {
             CliCommand::CompareFolders {
                 left: "left".to_owned(),
                 right: "right".to_owned(),
+                quiet: false,
             }
         );
 
@@ -1216,6 +1385,7 @@ mod tests {
                 left: "/tmp/a".to_owned(),
                 right: "/tmp/b".to_owned(),
                 route: "/compare/folder".to_owned(),
+                options: CliOpenOptions::default(),
             }
         );
 
@@ -1235,6 +1405,7 @@ mod tests {
                 left: "left.txt".to_owned(),
                 right: "right.txt".to_owned(),
                 route: "/compare/text".to_owned(),
+                options: CliOpenOptions::default(),
             }
         );
 
@@ -1245,6 +1416,7 @@ mod tests {
             CliCommand::SyncPreview {
                 left: "/tmp/a".to_owned(),
                 right: "/tmp/b".to_owned(),
+                quiet: false,
             }
         );
 
@@ -1281,6 +1453,104 @@ mod tests {
                 automerge: false,
                 favor: None,
             })
+        );
+    }
+
+    #[test]
+    fn parses_open_session_flags_and_help_text() {
+        let help = cli_help_text();
+        assert!(help.contains("open [options]"));
+        assert!(help.contains("--center <path>"));
+        assert!(help.contains("--left-readonly"));
+        assert!(help.contains("Exit codes:"));
+        assert!(help.contains("0 success"));
+        assert!(help.contains("1 differences detected"));
+
+        let open = parse_cli_args([
+            "open-diff-cli",
+            "open",
+            "-session",
+            "text-merge",
+            "--left",
+            "L.txt",
+            "--right",
+            "R.txt",
+            "--center",
+            "B.txt",
+            "--output",
+            "O.txt",
+            "--readonly",
+            "--silent",
+            "--favor-left",
+        ])
+        .expect("flagged open should parse");
+        assert_eq!(
+            open.command,
+            CliCommand::OpenCompare {
+                session_type: "text-merge".to_owned(),
+                left: "L.txt".to_owned(),
+                right: "R.txt".to_owned(),
+                route: "/merge/text".to_owned(),
+                options: CliOpenOptions {
+                    center: Some("B.txt".to_owned()),
+                    output: Some("O.txt".to_owned()),
+                    left_readonly: true,
+                    right_readonly: true,
+                    readonly: true,
+                    silent: true,
+                    favor: Some(CliTextMergeFavor::Left),
+                    edit: false,
+                },
+            }
+        );
+
+        let edit = parse_cli_args(["open-diff-cli", "open", "--edit", "notes.txt", "notes.txt"])
+            .expect("edit open should parse");
+        assert_eq!(
+            edit.command,
+            CliCommand::OpenCompare {
+                session_type: "text-edit".to_owned(),
+                left: "notes.txt".to_owned(),
+                right: "notes.txt".to_owned(),
+                route: "/edit/text".to_owned(),
+                options: CliOpenOptions {
+                    edit: true,
+                    ..CliOpenOptions::default()
+                },
+            }
+        );
+
+        let quiet = parse_cli_args(["open-diff-cli", "compare", "--quiet", "a.txt", "b.txt"])
+            .expect("quiet compare should parse");
+        assert_eq!(
+            quiet.command,
+            CliCommand::CompareFiles {
+                left: "a.txt".to_owned(),
+                right: "b.txt".to_owned(),
+                quiet: true,
+            }
+        );
+
+        let slash = parse_cli_args([
+            "open-diff-cli",
+            "open",
+            "/session",
+            "hex",
+            "/left",
+            "a.bin",
+            "/right",
+            "b.bin",
+        ])
+        .expect("slash open should parse");
+        assert_eq!(
+            slash.command,
+            CliCommand::OpenCompare {
+                session_type: "hex-compare".to_owned(),
+                left: "a.bin".to_owned(),
+                right: "b.bin".to_owned(),
+                route: "/compare/hex".to_owned(),
+                options: CliOpenOptions::default(),
+            }
         );
     }
 

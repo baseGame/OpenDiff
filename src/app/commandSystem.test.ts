@@ -72,6 +72,14 @@ describe('commandSystem', () => {
     expect(context.toggleTheme).not.toHaveBeenCalled()
     expect(context.dispatchViewAction).toHaveBeenCalledWith('next-difference')
   })
+
+  it('invokes leaveApp for the session exit command', () => {
+    const context = createExecutionContext()
+    const executeCommand = createCommandExecutor(commandRegistry, context)
+
+    expect(executeCommand('session.exit')).toBe(true)
+    expect(context.leaveApp).toHaveBeenCalledTimes(1)
+  })
 })
 
 function createExecutionContext(): CommandExecutionContext {
@@ -86,5 +94,6 @@ function createExecutionContext(): CommandExecutionContext {
       })[key] ?? key,
     toggleTheme: vi.fn(),
     dispatchViewAction: vi.fn(),
+    leaveApp: vi.fn(),
   }
 }

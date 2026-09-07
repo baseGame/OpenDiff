@@ -135,7 +135,7 @@ describe('TextEditView', () => {
     )
     expect(
       wrapper.find('[data-testid="text-edit-toolbar-syntax"]').attributes('disabled'),
-    ).toBeDefined()
+    ).toBeUndefined()
 
     await wrapper.find('[data-testid="text-edit-path"]').setValue('D:/workspace/notes.txt')
     await wrapper.find('[data-testid="text-edit-open"]').trigger('click')
@@ -202,5 +202,25 @@ describe('TextEditView', () => {
     expect(
       wrapper.find('[data-testid="text-edit-toolbar-paste"]').attributes('disabled'),
     ).toBeUndefined()
+  })
+
+  it('opens the syntax menu and changes highlight language', async () => {
+    const wrapper = mountTextEditView()
+
+    await wrapper.find('[data-testid="text-edit-path"]').setValue('D:/workspace/app.ts')
+    await wrapper.find('[data-testid="text-edit-open"]').trigger('click')
+    await wrapper.vm.$nextTick()
+    await wrapper.find('[data-testid="text-edit-editor"]').setValue('const value = 1')
+    await wrapper.find('[data-testid="text-edit-toolbar-syntax"]').trigger('click')
+
+    expect(wrapper.find('[data-testid="text-edit-syntax-menu"]').exists()).toBe(true)
+
+    await wrapper.find('[data-testid="text-edit-syntax-language"]').setValue('source')
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('[data-testid="text-edit-syntax-grammar"]').text()).toContain('source')
+    expect(wrapper.find('[data-testid="text-edit-syntax-preview"]').html()).toContain(
+      'syntax-keyword',
+    )
   })
 })

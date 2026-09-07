@@ -407,6 +407,16 @@ function restoreFactoryDefaultsFromMenu(): void {
   })
 }
 
+async function closeMainWindow(): Promise<void> {
+  try {
+    const { getCurrentWindow } = await import('@tauri-apps/api/window')
+
+    await getCurrentWindow().close()
+  } catch {
+    window.close()
+  }
+}
+
 const executeRegisteredCommand = createCommandExecutor(commandRegistry, {
   navigate: (nextRoute) => {
     void router.push(nextRoute)
@@ -416,6 +426,9 @@ const executeRegisteredCommand = createCommandExecutor(commandRegistry, {
   },
   t,
   toggleTheme: settings.toggleTheme,
+  leaveApp: () => {
+    void closeMainWindow()
+  },
   dispatchViewAction: (name) => {
     lastViewAction.value = name
     viewActions.dispatch(name)

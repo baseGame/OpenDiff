@@ -114,7 +114,7 @@ describe('AppLayout command palette', () => {
     ).toBeDefined()
     expect(
       wrapper.find('[data-testid="menu-command-session.exit"]').attributes('disabled'),
-    ).toBeDefined()
+    ).toBeUndefined()
 
     await wrapper.find('[data-testid="menu-view"]').trigger('click')
     expect(

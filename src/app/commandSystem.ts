@@ -8,6 +8,7 @@ export interface CommandExecutionContext {
   t: (key: string) => string
   toggleTheme: () => void
   dispatchViewAction: (name: ViewActionName) => void
+  leaveApp: () => void
 }
 
 export function getCommandsForPlacement(
@@ -42,6 +43,12 @@ export function createCommandExecutor(
 
     if (command.action.type === 'toggle-theme') {
       context.toggleTheme()
+
+      return true
+    }
+
+    if (command.action.type === 'quit') {
+      context.leaveApp()
 
       return true
     }
