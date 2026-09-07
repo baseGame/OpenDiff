@@ -13,11 +13,23 @@ import WorkbenchInspector from '@/components/workbench/WorkbenchInspector.vue'
 import { localFileSrc } from '@/app/localFileSrc'
 import { prefersVideoElement } from '@/app/mediaPlayback'
 import { buildMediaCompareToolbar, pathPairTitle } from '@/app/sessionToolbars'
+import {
+  buildMediaRulesCatalog,
+  isMediaFieldImportant,
+  loadMediaCompareOptions,
+  resetMediaCompareOptions,
+  saveMediaCompareOptions,
+  toggleMediaFieldImportance,
+  type MediaCompareOptionsState,
+} from '@/app/mediaCompareOptions'
 import { useSessionLaunchStore } from '@/stores/sessionLaunch'
 import { useTabsStore } from '@/stores/tabs'
 import { useI18n } from '@/i18n'
 
 const mediaStatuses: MediaFieldStatus[] = ['added', 'removed', 'modified', 'unchanged']
+
+type MediaFieldFilter = 'all' | 'diffs' | 'same' | 'minor'
+
 const { t } = useI18n()
 const emptyMediaSide: MediaSideSummary = {
   name: '',
@@ -42,8 +54,11 @@ const rightMedia = ref<MediaSideSummary>({
 })
 const mediaFields = ref<MediaFieldRow[]>([])
 const mediaSummaryOverride = ref<Record<MediaFieldStatus, number> | null>(null)
+const fieldFilter = ref<MediaFieldFilter>('all')
 const loading = ref(false)
 const error = ref('')
+const showMediaRules = ref(false)
+const mediaOptions = ref<MediaCompareOptionsState>(loadMediaCompareOptions())
 const leftPlayer = ref<HTMLMediaElement | null>(null)
 const rightPlayer = ref<HTMLMediaElement | null>(null)
 const syncPlayback = ref(true)
@@ -124,18 +139,67 @@ async function runMediaCompare(): Promise<void> {
   }
 }
 
+function fieldIsImportant(field: string): boolean {
+  return isMediaFieldImportant(field, mediaOptions.value)
+}
+
+const visibleMediaFields = computed(() => {
+  if (fieldFilter.value === 'diffs') {
+    return mediaFields.value.filter(
+      (field) => field.status !== 'unchanged' && fieldIsImportant(field.field),
+    )
+  }
+
+  if (fieldFilter.value === 'same') {
+    return mediaFields.value.filter((field) => field.status === 'unchanged')
+  }
+
+  if (fieldFilter.value === 'minor') {
+    return mediaFields.value.filter(
+      (field) => field.status !== 'unchanged' && !fieldIsImportant(field.field),
+    )
+  }
+
+  return mediaFields.value
+})
+
+const mediaRulesCatalog = computed(() =>
+  buildMediaRulesCatalog(mediaFields.value.map((row) => row.field)),
+)
+
+const minorDifferenceCount = computed(
+  () =>
+    mediaFields.value.filter(
+      (field) => field.status !== 'unchanged' && !fieldIsImportant(field.field),
+    ).length,
+)
+
 const mediaSessionToolbar = computed(() =>
   buildMediaCompareToolbar({
     home: true,
-    all: false,
-    diffs: false,
-    same: false,
-    minor: false,
-    rules: false,
+    all: true,
+    diffs: true,
+    same: true,
+    minor: true,
+    rules: true,
     swap: Boolean(leftPath.value || rightPath.value),
     reload: Boolean(leftPath.value && rightPath.value),
   }),
 )
+
+function persistMediaOptions(): void {
+  saveMediaCompareOptions(mediaOptions.value)
+}
+
+function toggleFieldImportance(field: string): void {
+  mediaOptions.value = toggleMediaFieldImportance(field, mediaOptions.value)
+  persistMediaOptions()
+}
+
+function resetMediaRules(): void {
+  mediaOptions.value = resetMediaCompareOptions()
+  persistMediaOptions()
+}
 
 const leftMediaSrc = computed(() => (leftPath.value ? localFileSrc(leftPath.value) : ''))
 const rightMediaSrc = computed(() => (rightPath.value ? localFileSrc(rightPath.value) : ''))
@@ -246,6 +310,23 @@ function runMediaToolbarCommand(commandId: string): void {
   if (commandId === 'home') {
     tabs.openTab({ title: 'Home', titleKey: 'ui.home', route: '/', dirty: false })
     void router.push('/')
+
+    return
+  }
+
+  if (
+    commandId === 'all' ||
+    commandId === 'diffs' ||
+    commandId === 'same' ||
+    commandId === 'minor'
+  ) {
+    fieldFilter.value = commandId
+
+    return
+  }
+
+  if (commandId === 'rules') {
+    showMediaRules.value = !showMediaRules.value
 
     return
   }
@@ -442,6 +523,10 @@ function runMediaToolbarCommand(commandId: string): void {
           <strong :data-testid="`media-summary-${status}`">{{ mediaSummary[status] }}</strong>
           <span>{{ statusLabel(status) }}</span>
         </article>
+        <article class="media-summary-item status-minor">
+          <strong data-testid="media-summary-minor">{{ minorDifferenceCount }}</strong>
+          <span>{{ $t('ui.minor') }}</span>
+        </article>
       </section>
 
       <section class="media-side-grid">
@@ -518,19 +603,58 @@ function runMediaToolbarCommand(commandId: string): void {
             <span>{{ $t('ui.left') }}</span>
             <span>{{ $t('ui.right') }}</span>
             <span>{{ $t('ui.status') }}</span>
+            <span>{{ $t('ui.importance') }}</span>
           </div>
           <div
-            v-for="row in mediaFields"
+            v-for="row in visibleMediaFields"
             :key="row.field"
             class="media-field-row"
-            :class="`status-${row.status}`"
+            :class="[`status-${row.status}`, { 'media-field-minor': !fieldIsImportant(row.field) }]"
             :data-testid="`media-field-${row.field}`"
+            :data-important="fieldIsImportant(row.field) ? 'true' : 'false'"
           >
             <strong>{{ row.field }}</strong>
             <code>{{ valueText(row.left) }}</code>
             <code>{{ valueText(row.right) }}</code>
             <em>{{ statusLabel(row.status) }}</em>
+            <span>{{
+              fieldIsImportant(row.field) ? $t('ui.important') : $t('ui.unimportant')
+            }}</span>
           </div>
+        </div>
+      </section>
+
+      <section
+        v-if="showMediaRules"
+        class="media-rules-panel"
+        data-testid="media-rules-panel"
+      >
+        <header>
+          <strong>{{ $t('ui.importanceRules') }}</strong>
+          <span>{{ $t('ui.versionRulesHint') }}</span>
+          <button
+            type="button"
+            data-testid="media-rules-reset"
+            @click="resetMediaRules"
+          >
+            {{ $t('ui.reset') }}
+          </button>
+        </header>
+        <div class="media-rules-list">
+          <label
+            v-for="row in mediaRulesCatalog"
+            :key="`rule-${row.field}`"
+            class="media-rule-row"
+            :data-testid="`media-rule-${row.field}`"
+          >
+            <input
+              type="checkbox"
+              :checked="fieldIsImportant(row.field)"
+              @change="toggleFieldImportance(row.field)"
+            />
+            <span>{{ row.field }}</span>
+            <em>{{ row.group }}</em>
+          </label>
         </div>
       </section>
     </section>
@@ -697,10 +821,59 @@ h1 {
 
 .media-field-row {
   display: grid;
-  grid-template-columns: 140px minmax(180px, 1fr) minmax(180px, 1fr) 98px;
-  min-width: 640px;
+  grid-template-columns: 140px minmax(160px, 1fr) minmax(160px, 1fr) 98px 98px;
+  min-width: 760px;
   border-bottom: 1px solid var(--app-border);
   font-size: 12px;
+}
+
+.media-field-minor {
+  opacity: 0.78;
+}
+
+.media-rules-panel {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  background: var(--app-surface);
+}
+
+.media-rules-panel header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.media-rules-panel header button {
+  margin-left: auto;
+}
+
+.media-rules-panel header span {
+  color: var(--app-text-muted);
+  font-size: 12px;
+}
+
+.media-rules-list {
+  display: grid;
+  gap: 6px;
+  max-height: 220px;
+  overflow: auto;
+}
+
+.media-rule-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+}
+
+.media-rule-row em {
+  color: var(--app-text-muted);
+  font-style: normal;
 }
 
 .media-field-row:last-child {
@@ -761,6 +934,14 @@ h1 {
 .status-modified em,
 .status-modified.media-summary-item {
   color: var(--diff-modified-fg);
+}
+
+.status-minor.media-summary-item {
+  border-color: color-mix(in srgb, var(--bc-warning, #c9a227) 55%, var(--bc-border));
+}
+
+.status-minor.media-summary-item strong {
+  color: var(--bc-warning, #c9a227);
 }
 
 .status-unchanged em {

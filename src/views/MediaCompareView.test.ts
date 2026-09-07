@@ -47,11 +47,17 @@ vi.mock('@/api/diff', () => ({
         right: 'Aster',
         status: 'unchanged',
       },
+      {
+        field: 'Comment',
+        left: 'demo',
+        right: 'demo-b',
+        status: 'modified',
+      },
     ],
     summary: {
       added: 0,
       removed: 0,
-      modified: 1,
+      modified: 2,
       unchanged: 1,
     },
   }),
@@ -60,6 +66,7 @@ vi.mock('@/api/diff', () => ({
 describe('MediaCompareView', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
+    localStorage.clear()
     vi.mocked(compareMediaFiles).mockClear()
   })
 
@@ -77,7 +84,8 @@ describe('MediaCompareView', () => {
     })
     expect(wrapper.text()).toContain('fixture-left.mp3')
     expect(wrapper.text()).toContain('fixture-right.mp3')
-    expect(wrapper.find('[data-testid="media-summary-modified"]').text()).toContain('1')
+    expect(wrapper.find('[data-testid="media-summary-modified"]').text()).toContain('2')
+    expect(wrapper.find('[data-testid="media-summary-minor"]').text()).toContain('1')
     expect(wrapper.find('[data-testid="media-field-Title"]').text()).toContain('Left Song')
     expect(wrapper.find('[data-testid="media-field-Title"]').text()).toContain('Right Song')
   })
@@ -144,5 +152,67 @@ describe('MediaCompareView', () => {
     await wrapper.vm.$nextTick()
 
     expect(tabs.activeTab.title).toBe('fixture-left.mp3 <--> fixture-right.mp3')
+  })
+
+  it('enables filter and rules toolbar actions', () => {
+    const wrapper = mount(MediaCompareView)
+
+    expect(
+      wrapper.find('[data-testid="media-session-toolbar-all"]').attributes('disabled'),
+    ).toBeUndefined()
+    expect(
+      wrapper.find('[data-testid="media-session-toolbar-diffs"]').attributes('disabled'),
+    ).toBeUndefined()
+    expect(
+      wrapper.find('[data-testid="media-session-toolbar-same"]').attributes('disabled'),
+    ).toBeUndefined()
+    expect(
+      wrapper.find('[data-testid="media-session-toolbar-minor"]').attributes('disabled'),
+    ).toBeUndefined()
+    expect(
+      wrapper.find('[data-testid="media-session-toolbar-rules"]').attributes('disabled'),
+    ).toBeUndefined()
+  })
+
+  it('filters minor differences and toggles importance rules', async () => {
+    const wrapper = mount(MediaCompareView)
+
+    await wrapper.find('[data-testid="media-left-path"]').setValue('C:/music/fixture-left.mp3')
+    await wrapper.find('[data-testid="media-right-path"]').setValue('C:/music/fixture-right.mp3')
+    await wrapper.find('[data-testid="run-media-compare"]').trigger('click')
+    await wrapper.vm.$nextTick()
+
+    await wrapper.find('[data-testid="media-session-toolbar-minor"]').trigger('click')
+    expect(wrapper.find('[data-testid="media-field-Comment"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="media-field-Title"]').exists()).toBe(false)
+
+    await wrapper.find('[data-testid="media-session-toolbar-rules"]').trigger('click')
+    expect(wrapper.find('[data-testid="media-rules-panel"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="media-rule-Title"]').exists()).toBe(true)
+    await wrapper.find('[data-testid="media-rule-Comment"] input').setValue(true)
+    await wrapper.find('[data-testid="media-session-toolbar-diffs"]').trigger('click')
+    expect(wrapper.find('[data-testid="media-field-Comment"]').exists()).toBe(true)
+
+    await wrapper.find('[data-testid="media-rules-reset"]').trigger('click')
+    await wrapper.find('[data-testid="media-session-toolbar-minor"]').trigger('click')
+    expect(wrapper.find('[data-testid="media-field-Comment"]').exists()).toBe(true)
+  })
+
+  it('filters diffs and same tag rows from the toolbar', async () => {
+    const wrapper = mount(MediaCompareView)
+
+    await wrapper.find('[data-testid="media-left-path"]').setValue('C:/music/fixture-left.mp3')
+    await wrapper.find('[data-testid="media-right-path"]').setValue('C:/music/fixture-right.mp3')
+    await wrapper.find('[data-testid="run-media-compare"]').trigger('click')
+    await wrapper.vm.$nextTick()
+
+    await wrapper.find('[data-testid="media-session-toolbar-diffs"]').trigger('click')
+    expect(wrapper.find('[data-testid="media-field-Title"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="media-field-Comment"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="media-field-Artist"]').exists()).toBe(false)
+
+    await wrapper.find('[data-testid="media-session-toolbar-same"]').trigger('click')
+    expect(wrapper.find('[data-testid="media-field-Artist"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="media-field-Title"]').exists()).toBe(false)
   })
 })
