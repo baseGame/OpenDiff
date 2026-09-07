@@ -272,6 +272,7 @@ pub fn cli_help_text() -> String {
         "                         text-compare, text-merge, text-edit, text-patch,".to_owned(),
         "                         table-compare, hex-compare, picture-compare,".to_owned(),
         "                         registry-compare, media-compare, version-compare".to_owned(),
+        "      --fv <type>        alias for --session (accepts spaced names)".to_owned(),
         "      --left <path>      left side path (or positional)".to_owned(),
         "      --right <path>     right side path (or positional)".to_owned(),
         "      --center <path>    center/base path for merge sessions".to_owned(),
@@ -921,14 +922,18 @@ fn parse_open_compare(args: Vec<String>) -> Result<CliInvocation, CliParseError>
     while index < args.len() {
         let arg = &args[index];
         match normalized_switch(arg).as_deref() {
-            Some("session") | Some("type") => {
+            Some("session") | Some("type") | Some("fv") => {
                 index += 1;
                 let value = args
                     .get(index)
-                    .ok_or_else(|| usage_error("open --session requires a session type"))?;
+                    .ok_or_else(|| usage_error("open --session/--fv requires a session type"))?;
                 session_type = Some(value.clone());
             }
-            Some(switch) if switch.starts_with("session=") || switch.starts_with("type=") => {
+            Some(switch)
+                if switch.starts_with("session=")
+                    || switch.starts_with("type=")
+                    || switch.starts_with("fv=") =>
+            {
                 let value = switch.split_once('=').map(|(_, value)| value).unwrap_or("");
                 session_type = Some(value.to_owned());
             }
@@ -1065,7 +1070,7 @@ fn resolve_open_session_type(
     right: &str,
     edit: bool,
 ) -> Result<(&'static str, &'static str), CliParseError> {
-    let key = explicit.map(str::to_ascii_lowercase).unwrap_or_else(|| {
+    let key = explicit.map(normalize_session_type_key).unwrap_or_else(|| {
         if edit {
             "text-edit".to_owned()
         } else {
@@ -1089,6 +1094,34 @@ fn resolve_open_session_type(
         "version" | "version-compare" => Ok(("version-compare", "/compare/version")),
         other => Err(usage_error(format!("unknown session type: {other}"))),
     }
+}
+
+fn normalize_session_type_key(value: &str) -> String {
+    let mut trimmed = value.trim();
+    if trimmed.len() >= 2 {
+        let bytes = trimmed.as_bytes();
+        let first = bytes[0];
+        let last = bytes[trimmed.len() - 1];
+        let double_quoted = first == b'"' && last == b'"';
+        let single_quoted = first == 39 && last == 39;
+        if double_quoted || single_quoted {
+            trimmed = trimmed[1..trimmed.len() - 1].trim();
+        }
+    }
+    trimmed
+        .chars()
+        .map(|ch| {
+            if ch.is_ascii_whitespace() || ch == '_' {
+                '-'
+            } else {
+                ch.to_ascii_lowercase()
+            }
+        })
+        .collect::<String>()
+        .split('-')
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>()
+        .join("-")
 }
 
 fn infer_open_session_type(left: &str, right: &str) -> String {
@@ -1549,6 +1582,52 @@ mod tests {
                 left: "a.bin".to_owned(),
                 right: "b.bin".to_owned(),
                 route: "/compare/hex".to_owned(),
+                options: CliOpenOptions::default(),
+            }
+        );
+
+        assert!(help.contains("--fv <type>"));
+    }
+
+    #[test]
+    fn parses_open_fv_alias_with_spaced_session_names() {
+        let fv = parse_cli_args([
+            "open-diff-cli",
+            "open",
+            "/fv",
+            "Text Compare",
+            "left.txt",
+            "right.txt",
+        ])
+        .expect("fv open should parse");
+        assert_eq!(
+            fv.command,
+            CliCommand::OpenCompare {
+                session_type: "text-compare".to_owned(),
+                left: "left.txt".to_owned(),
+                right: "right.txt".to_owned(),
+                route: "/compare/text".to_owned(),
+                options: CliOpenOptions::default(),
+            }
+        );
+
+        let inline = parse_cli_args([
+            "open-diff-cli",
+            "open",
+            r#"/fv=Media Compare"#,
+            "--left",
+            "a.mp3",
+            "--right",
+            "b.mp3",
+        ])
+        .expect("inline fv open should parse");
+        assert_eq!(
+            inline.command,
+            CliCommand::OpenCompare {
+                session_type: "media-compare".to_owned(),
+                left: "a.mp3".to_owned(),
+                right: "b.mp3".to_owned(),
+                route: "/compare/media".to_owned(),
                 options: CliOpenOptions::default(),
             }
         );
