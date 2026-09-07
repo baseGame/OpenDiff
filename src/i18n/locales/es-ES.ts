@@ -279,6 +279,7 @@ export const esES: LanguagePack = {
     'ui.patch': 'Parche',
     'ui.picture': 'Imagen',
     'ui.pictureCompare': 'Comparar imágenes',
+    'ui.pictureReport': 'Informe de imagen',
     'ui.port': 'Puerto',
     'ui.preview': 'Avance',
     'ui.previewSync': 'Vista previa de sincronización',

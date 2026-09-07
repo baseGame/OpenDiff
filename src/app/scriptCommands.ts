@@ -30,9 +30,10 @@ export const supportedScriptCommands = [
   'COLLAPSE',
   'SNAPSHOT',
   'SYNC',
+  'CRITERIA',
 ] as const
 
-export const unsupportedScriptCommands = ['CRITERIA'] as const
+export const unsupportedScriptCommands = [] as const
 
 export type SupportedScriptCommand = (typeof supportedScriptCommands)[number]
 export type UnsupportedScriptCommand = (typeof unsupportedScriptCommands)[number]

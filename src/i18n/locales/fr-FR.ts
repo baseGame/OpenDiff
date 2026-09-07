@@ -279,6 +279,7 @@ export const frFR: LanguagePack = {
     'ui.patch': 'Correctif',
     'ui.picture': 'Image',
     'ui.pictureCompare': "Comparaison d'images",
+    'ui.pictureReport': 'Rapport image',
     'ui.port': 'Port',
     'ui.preview': 'Aperçu',
     'ui.previewSync': "Synchronisation de l'aperçu",

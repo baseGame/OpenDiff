@@ -214,6 +214,8 @@ describe('PictureCompareView', () => {
     await wrapper.vm.$nextTick()
 
     expect(wrapper.find('[data-testid="picture-metadata-panel"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="picture-report-panel"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="picture-report-stats"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="picture-metadata-dimensions"]').text()).toContain('2 x 1')
     expect(wrapper.find('[data-testid="picture-metadata-dimensions"]').exists()).toBe(true)
   })

@@ -327,6 +327,7 @@ export const jaJP: LanguagePack = {
     'ui.patchSummaryTitle': 'Patch Summary',
     'ui.picture': 'Picture',
     'ui.pictureCompare': 'Picture Compare',
+    'ui.pictureReport': 'ピクチャレポート',
     'ui.pictureCompareInspector': 'Picture compare inspector',
     'ui.policy': 'Policy',
     'ui.port': 'Port',

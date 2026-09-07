@@ -283,6 +283,7 @@ export const deDE: LanguagePack = {
     'ui.patch': 'Patch',
     'ui.picture': 'Bild',
     'ui.pictureCompare': 'Bildvergleich',
+    'ui.pictureReport': 'Bildbericht',
     'ui.port': 'Hafen',
     'ui.preview': 'Vorschau',
     'ui.previewSync': 'Vorschau-Synchronisierung',

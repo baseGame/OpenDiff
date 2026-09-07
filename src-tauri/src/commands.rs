@@ -5787,9 +5787,9 @@ mod tests {
     }
 
     #[test]
-    fn run_script_unsupported_command_fails_clearly() {
-        let error = run_script("ATTRIB readme.txt\n".to_owned(), None)
-            .expect_err("ATTRIB should stay unsupported");
+    fn run_script_unknown_command_fails_clearly() {
+        let error = run_script("NOPE left right\n".to_owned(), None)
+            .expect_err("unknown script command should fail");
 
         assert!(error
             .debug_message

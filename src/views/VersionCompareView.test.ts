@@ -135,8 +135,14 @@ describe('VersionCompareView', () => {
 
     await wrapper.find('[data-testid="version-toolbar-rules"]').trigger('click')
     expect(wrapper.find('[data-testid="version-rules-panel"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="version-rule-FileVersion"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="version-rule-LegalCopyright"]').exists()).toBe(true)
     await wrapper.find('[data-testid="version-rule-Comments"] input').setValue(true)
     await wrapper.find('[data-testid="version-toolbar-diffs"]').trigger('click')
+    expect(wrapper.find('[data-testid="version-field-Comments"]').exists()).toBe(true)
+
+    await wrapper.find('[data-testid="version-rules-reset"]').trigger('click')
+    await wrapper.find('[data-testid="version-toolbar-minor"]').trigger('click')
     expect(wrapper.find('[data-testid="version-field-Comments"]').exists()).toBe(true)
   })
 
@@ -182,3 +188,13 @@ describe('VersionCompareView', () => {
     expect(tabs.activeTab.title).toBe('fixture-left.exe <--> fixture-right.exe')
   })
 })
+
+  it('opens rules catalog before compare', async () => {
+    const wrapper = mount(VersionCompareView)
+
+    await wrapper.find('[data-testid="version-toolbar-rules"]').trigger('click')
+
+    expect(wrapper.find('[data-testid="version-rules-panel"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="version-rule-FileVersion"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="version-rule-Comments"]').exists()).toBe(true)
+  })
