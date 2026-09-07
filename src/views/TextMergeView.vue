@@ -17,13 +17,18 @@ interface MergePane {
 }
 
 interface MergeConflict {
+  id: number
   line: number
   title: string
   base: string
   left: string
   right: string
+  outputStart: number
+  outputSpan: number
   resolved: boolean
 }
+
+type ConflictPolicy = 'markConflict' | 'favorLeft' | 'favorRight'
 
 const { t } = useI18n()
 const sessionLaunch = useSessionLaunchStore()
@@ -40,6 +45,7 @@ const saveStatusParams = ref<Record<string, string | number>>({})
 const saving = ref(false)
 const loading = ref(false)
 const conflicts = ref<MergeConflict[]>([])
+const conflictPolicy = ref<ConflictPolicy>('markConflict')
 const panes = computed<MergePane[]>(() => [
   {
     id: 'left',
@@ -124,6 +130,7 @@ async function loadMerge(): Promise<void> {
       rightPath: rightPath.value,
       centerPath: centerPath.value || undefined,
       outputPath: outputPath.value || undefined,
+      conflictPolicy: conflictPolicy.value,
     })
 
     leftText.value = result.leftText
@@ -131,12 +138,15 @@ async function loadMerge(): Promise<void> {
     centerText.value = result.centerText
     outputLines.value = splitLines(result.outputText)
     outputPath.value = result.outputPath ?? outputPath.value
-    conflicts.value = result.conflicts.map((conflict) => ({
+    conflicts.value = result.conflicts.map((conflict, index) => ({
+      id: index,
       line: conflict.lineIndex + 1,
       title: conflict.title,
       base: conflict.base,
       left: conflict.left,
       right: conflict.right,
+      outputStart: conflict.lineIndex,
+      outputSpan: Math.max(1, conflict.outputSpan),
       resolved: false,
     }))
   } finally {
@@ -151,15 +161,30 @@ function acceptConflict(source: MergeSource): void {
     return
   }
 
-  const replacement = conflict[source]
-  const lineIndex = Math.max(0, conflict.line - 1)
+  const replacementLines = splitLines(conflict[source])
+  const start = Math.max(0, conflict.outputStart)
+  const span = Math.max(1, conflict.outputSpan)
   const nextLines = [...outputLines.value]
 
-  nextLines[lineIndex] = replacement
+  nextLines.splice(start, span, ...replacementLines)
   outputLines.value = nextLines
-  conflicts.value = conflicts.value.map((item) =>
-    item.line === conflict.line ? { ...item, resolved: true } : item,
-  )
+
+  const delta = replacementLines.length - span
+
+  conflicts.value = conflicts.value.map((item) => {
+    if (item.id === conflict.id) {
+      return { ...item, resolved: true }
+    }
+    if (item.resolved || item.outputStart <= start) {
+      return item
+    }
+
+    return {
+      ...item,
+      outputStart: item.outputStart + delta,
+      line: item.outputStart + delta + 1,
+    }
+  })
   setSaveStatus('status.outputHasUnsavedEdits')
 }
 
@@ -230,6 +255,17 @@ function lineClass(line: string, paneId: MergePaneId): string {
           data-testid="merge-conflict-markers-chip"
           >{{ $t('ui.outputHasConflictMarkers') }}</span
         >
+        <select
+          v-model="conflictPolicy"
+          class="output-path-input"
+          data-testid="merge-conflict-policy"
+          :aria-label="$t('ui.conflictPolicy')"
+        >
+          <option value="markConflict">{{ $t('merge.action.markConflict') }}</option>
+          <option value="favorLeft">{{ $t('ui.favorLeft') }}</option>
+          <option value="favorRight">{{ $t('ui.favorRight') }}</option>
+        </select>
+
         <input
           v-model="leftPath"
           class="output-path-input"
@@ -346,11 +382,11 @@ function lineClass(line: string, paneId: MergePaneId): string {
         >
           <li
             v-for="conflict in unresolvedConflicts"
-            :key="conflict.line"
+            :key="conflict.id"
           >
             <strong>{{ $t('ui.line') }} {{ conflict.line }}: {{ conflict.title }}</strong>
             <div class="conflict-source">
-              <span>{{ $t('ui.left') }}: {{ conflict.left }}</span>
+              <span class="conflict-text">{{ $t('ui.left') }}: {{ conflict.left }}</span>
               <button
                 type="button"
                 data-testid="accept-left-conflict"
@@ -360,7 +396,7 @@ function lineClass(line: string, paneId: MergePaneId): string {
               </button>
             </div>
             <div class="conflict-source">
-              <span>{{ $t('ui.base') }}: {{ conflict.base }}</span>
+              <span class="conflict-text">{{ $t('ui.base') }}: {{ conflict.base }}</span>
               <button
                 type="button"
                 data-testid="accept-base-conflict"
@@ -370,7 +406,7 @@ function lineClass(line: string, paneId: MergePaneId): string {
               </button>
             </div>
             <div class="conflict-source">
-              <span>{{ $t('ui.right') }}: {{ conflict.right }}</span>
+              <span class="conflict-text">{{ $t('ui.right') }}: {{ conflict.right }}</span>
               <button
                 type="button"
                 data-testid="accept-right-conflict"
@@ -646,6 +682,12 @@ function lineClass(line: string, paneId: MergePaneId): string {
   display: grid;
   gap: 6px;
   min-width: 0;
+}
+
+.conflict-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
 }
 
 .conflict-source button {

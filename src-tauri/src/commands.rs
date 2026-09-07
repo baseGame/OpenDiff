@@ -101,6 +101,7 @@ pub struct TextMergeConflictRow {
     pub base: String,
     pub left: String,
     pub right: String,
+    pub output_span: usize,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -1109,16 +1110,31 @@ pub fn merge_text_files(
         .sections
         .iter()
         .filter_map(|section| {
-            section
-                .conflict
-                .as_ref()
-                .map(|conflict| TextMergeConflictRow {
+            section.conflict.as_ref().map(|conflict| {
+                let end_line = section.line_index + section.output.len().saturating_sub(1);
+                let title = if section.output.len() <= 1 {
+                    format!("Line {}", section.line_index + 1)
+                } else {
+                    format!("Lines {}-{}", section.line_index + 1, end_line + 1)
+                };
+                TextMergeConflictRow {
                     line_index: section.line_index,
-                    title: format!("Line {}", section.line_index + 1),
-                    base: conflict.base.first().cloned().unwrap_or_default(),
-                    left: conflict.left.first().cloned().unwrap_or_default(),
-                    right: conflict.right.first().cloned().unwrap_or_default(),
-                })
+                    title,
+                    base: conflict.base.join(
+                        "
+",
+                    ),
+                    left: conflict.left.join(
+                        "
+",
+                    ),
+                    right: conflict.right.join(
+                        "
+",
+                    ),
+                    output_span: section.output.len(),
+                }
+            })
         })
         .collect();
 
@@ -5077,7 +5093,10 @@ mod tests {
         assert_eq!(response.conflicts.len(), 1);
         assert_eq!(response.conflicts[0].left, "left change");
         assert_eq!(response.conflicts[0].right, "right change");
-        assert_eq!(response.output_text, "one\ntwo\nthree");
+        assert!(response.output_text.contains("<<<<<<< Left"));
+        assert!(response.output_text.contains("left change"));
+        assert!(response.output_text.contains("right change"));
+        assert!(response.conflicts[0].output_span >= 4);
     }
 
     #[test]

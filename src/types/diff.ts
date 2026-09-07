@@ -453,6 +453,7 @@ export interface TextMergeConflictRow {
   base: string
   left: string
   right: string
+  outputSpan: number
 }
 
 export interface TextMergeRequest {
