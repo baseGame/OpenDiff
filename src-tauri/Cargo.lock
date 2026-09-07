@@ -3393,6 +3393,7 @@ dependencies = [
  "folder-core",
  "job-core",
  "logging-core",
+ "media-core",
  "report-core",
  "serde",
  "serde_json",

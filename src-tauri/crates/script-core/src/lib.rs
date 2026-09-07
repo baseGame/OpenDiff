@@ -29,15 +29,21 @@ pub enum ScriptCommandKind {
     PictureReport { output: String },
     VersionReport { output: String },
     RegistryReport { output: String },
+    MediaReport { output: String },
     Log { message: String },
     Beep,
     Option { key: String, value: String },
     Select { query: String },
     Copy { source: String, destination: String },
     CopyTo { destination: String },
+    Move { source: String, destination: String },
+    MoveTo { destination: String },
     Delete { path: String },
     Rename { from: String, to: String },
     Touch { path: String },
+    Attrib { path: String, readonly: bool },
+    Expand { path: Option<String> },
+    Collapse { path: Option<String> },
     Snapshot { output: String },
     Sync { strategy: Option<String> },
     Unsupported { name: String },
@@ -102,6 +108,10 @@ pub struct ScriptRuntimeState {
     pub options: Vec<ScriptOption>,
     pub selection: Option<String>,
     pub file_operations: Vec<String>,
+    /// True after EXPAND with no path (expand all folder prefixes).
+    pub folder_tree_expand_all: bool,
+    /// Explicit folder prefixes expanded via EXPAND path (ignored when expand_all).
+    pub expanded_paths: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -159,6 +169,7 @@ pub enum ScriptReportType {
     Picture,
     Version,
     Registry,
+    Media,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -595,6 +606,96 @@ where
                     .map_err(|reason| execution_error(command, reason))?;
                 state.file_operations.push(format!("SYNC {strategy}"));
             }
+            ScriptCommandKind::MediaReport { output } => {
+                run_media_report_command(
+                    command,
+                    &mut state,
+                    report_engine,
+                    output,
+                    &execution.variables,
+                )?;
+            }
+            ScriptCommandKind::Move {
+                source,
+                destination,
+            } => {
+                let source =
+                    expand_script_variables(source, &execution.variables).map_err(|error| {
+                        execution_error(
+                            command,
+                            format!("{} at line {}", error.message, error.line),
+                        )
+                    })?;
+                let destination = expand_script_variables(destination, &execution.variables)
+                    .map_err(|error| {
+                        execution_error(
+                            command,
+                            format!("{} at line {}", error.message, error.line),
+                        )
+                    })?;
+                move_path_entry(&source, &destination)
+                    .map_err(|reason| execution_error(command, reason))?;
+                state
+                    .file_operations
+                    .push(format!("MOVE {source} {destination}"));
+            }
+            ScriptCommandKind::MoveTo { destination } => {
+                let destination = expand_script_variables(destination, &execution.variables)
+                    .map_err(|error| {
+                        execution_error(
+                            command,
+                            format!("{} at line {}", error.message, error.line),
+                        )
+                    })?;
+                let source = state
+                    .selection
+                    .clone()
+                    .or_else(|| state.load_paths.first().cloned())
+                    .ok_or_else(|| {
+                        execution_error(command, "MOVETO requires SELECT or LOAD first")
+                    })?;
+                move_path_entry(&source, &destination)
+                    .map_err(|reason| execution_error(command, reason))?;
+                state
+                    .file_operations
+                    .push(format!("MOVETO {source} {destination}"));
+            }
+            ScriptCommandKind::Attrib { path, readonly } => {
+                let path =
+                    expand_script_variables(path, &execution.variables).map_err(|error| {
+                        execution_error(
+                            command,
+                            format!("{} at line {}", error.message, error.line),
+                        )
+                    })?;
+                folder_core::change_file_attributes(folder_core::ChangeAttributesRequest {
+                    path: path.clone(),
+                    readonly: Some(*readonly),
+                })
+                .map_err(|error| execution_error(command, format!("{error:?}")))?;
+                state.file_operations.push(format!(
+                    "ATTRIB {path} {}",
+                    if *readonly { "+R" } else { "-R" }
+                ));
+            }
+            ScriptCommandKind::Expand { path } => {
+                apply_expand_collapse(
+                    &mut state,
+                    true,
+                    path.as_deref(),
+                    &execution.variables,
+                    command,
+                )?;
+            }
+            ScriptCommandKind::Collapse { path } => {
+                apply_expand_collapse(
+                    &mut state,
+                    false,
+                    path.as_deref(),
+                    &execution.variables,
+                    command,
+                )?;
+            }
             ScriptCommandKind::Unsupported { name } => {
                 return Err(execution_error(command, format!("{name} is unsupported")));
             }
@@ -740,7 +841,9 @@ fn script_command_log_status(command: &ScriptCommandKind) -> LogStatus {
     match command {
         ScriptCommandKind::Log { .. }
         | ScriptCommandKind::Option { .. }
-        | ScriptCommandKind::Select { .. } => LogStatus::Info,
+        | ScriptCommandKind::Select { .. }
+        | ScriptCommandKind::Expand { .. }
+        | ScriptCommandKind::Collapse { .. } => LogStatus::Info,
         _ => LogStatus::Succeeded,
     }
 }
@@ -759,15 +862,21 @@ impl ScriptCommandKind {
             ScriptCommandKind::PictureReport { .. } => "PICTURE-REPORT",
             ScriptCommandKind::VersionReport { .. } => "VERSION-REPORT",
             ScriptCommandKind::RegistryReport { .. } => "REGISTRY-REPORT",
+            ScriptCommandKind::MediaReport { .. } => "MEDIA-REPORT",
             ScriptCommandKind::Log { .. } => "LOG",
             ScriptCommandKind::Beep => "BEEP",
             ScriptCommandKind::Option { .. } => "OPTION",
             ScriptCommandKind::Select { .. } => "SELECT",
             ScriptCommandKind::Copy { .. } => "COPY",
             ScriptCommandKind::CopyTo { .. } => "COPYTO",
+            ScriptCommandKind::Move { .. } => "MOVE",
+            ScriptCommandKind::MoveTo { .. } => "MOVETO",
             ScriptCommandKind::Delete { .. } => "DELETE",
             ScriptCommandKind::Rename { .. } => "RENAME",
             ScriptCommandKind::Touch { .. } => "TOUCH",
+            ScriptCommandKind::Attrib { .. } => "ATTRIB",
+            ScriptCommandKind::Expand { .. } => "EXPAND",
+            ScriptCommandKind::Collapse { .. } => "COLLAPSE",
             ScriptCommandKind::Snapshot { .. } => "SNAPSHOT",
             ScriptCommandKind::Sync { .. } => "SYNC",
             ScriptCommandKind::Unsupported { .. } => "UNSUPPORTED",
@@ -823,6 +932,7 @@ impl ScriptReportEngine for FilesystemScriptEngine {
             ScriptReportType::Picture => "PICTURE-REPORT",
             ScriptReportType::Version => "VERSION-REPORT",
             ScriptReportType::Registry => "REGISTRY-REPORT",
+            ScriptReportType::Media => "MEDIA-REPORT",
         };
         let content = format!(
             "{label}\ncompared: {}\ndifferent: {}\n",
@@ -1108,6 +1218,25 @@ fn parse_command(
         "SNAPSHOT" => {
             parse_single_output_command(line, args, |output| ScriptCommandKind::Snapshot { output })
         }
+        "MEDIA-REPORT" => parse_single_output_command(line, args, |output| {
+            ScriptCommandKind::MediaReport { output }
+        }),
+        "MOVE" => {
+            if args.len() != 2 {
+                return Err(parse_error(line, "MOVE requires source and destination"));
+            }
+
+            Ok(ScriptCommandKind::Move {
+                source: args[0].clone(),
+                destination: args[1].clone(),
+            })
+        }
+        "MOVETO" => parse_single_output_command(line, args, |destination| {
+            ScriptCommandKind::MoveTo { destination }
+        }),
+        "ATTRIB" => parse_attrib_command(line, args),
+        "EXPAND" => parse_expand_collapse_command(line, args, true),
+        "COLLAPSE" => parse_expand_collapse_command(line, args, false),
         "SYNC" => {
             if args.len() > 1 {
                 return Err(parse_error(line, "SYNC accepts at most one strategy"));
@@ -1147,15 +1276,21 @@ pub fn supported_script_commands() -> &'static [&'static str] {
         "PICTURE-REPORT",
         "VERSION-REPORT",
         "REGISTRY-REPORT",
+        "MEDIA-REPORT",
         "LOG",
         "BEEP",
         "OPTION",
         "SELECT",
         "COPY",
         "COPYTO",
+        "MOVE",
+        "MOVETO",
         "DELETE",
         "RENAME",
         "TOUCH",
+        "ATTRIB",
+        "EXPAND",
+        "COLLAPSE",
         "SNAPSHOT",
         "SYNC",
     ]
@@ -1163,15 +1298,7 @@ pub fn supported_script_commands() -> &'static [&'static str] {
 
 /// Known legacy commands that parse but fail at execution with an honest unsupported error.
 pub fn unsupported_script_commands() -> &'static [&'static str] {
-    &[
-        "ATTRIB",
-        "COLLAPSE",
-        "CRITERIA",
-        "EXPAND",
-        "MEDIA-REPORT",
-        "MOVE",
-        "MOVETO",
-    ]
+    &["CRITERIA"]
 }
 
 fn copy_path_recursive(source: &std::path::Path, target: &std::path::Path) -> Result<(), String> {
@@ -1199,6 +1326,202 @@ fn delete_path(path: &str) -> Result<(), String> {
         std::fs::remove_dir_all(path).map_err(|error| error.to_string())
     } else {
         std::fs::remove_file(path).map_err(|error| error.to_string())
+    }
+}
+
+fn run_media_report_command<R>(
+    command: &ScriptCommand,
+    state: &mut ScriptRuntimeState,
+    report_engine: &mut R,
+    output: &str,
+    variables: &ScriptVariables,
+) -> Result<(), ScriptExecutionError>
+where
+    R: ScriptReportEngine,
+{
+    let output = expand_script_variables(output, variables).map_err(|error| {
+        execution_error(
+            command,
+            format!("{} at line {}", error.message, error.line),
+        )
+    })?;
+
+    if state.load_paths.len() >= 2 {
+        let left = &state.load_paths[0];
+        let right = &state.load_paths[1];
+        let left_path = std::path::Path::new(left);
+        let right_path = std::path::Path::new(right);
+        if left_path.is_file() && right_path.is_file() {
+            if let Ok(summary) = compare_media_script_paths(left, right) {
+                state.last_compare = Some(summary.clone());
+                report_engine
+                    .write_report(ScriptReportRequest {
+                        report_type: ScriptReportType::Media,
+                        output,
+                        compare_summary: summary,
+                    })
+                    .map_err(|reason| execution_error(command, reason))?;
+                state.reports_written += 1;
+                return Ok(());
+            }
+        }
+    }
+
+    let Some(compare_summary) = state.last_compare.clone() else {
+        return Err(execution_error(
+            command,
+            "MEDIA-REPORT requires media LOAD paths or COMPARE first",
+        ));
+    };
+
+    report_engine
+        .write_report(ScriptReportRequest {
+            report_type: ScriptReportType::Media,
+            output,
+            compare_summary,
+        })
+        .map_err(|reason| execution_error(command, reason))?;
+    state.reports_written += 1;
+    Ok(())
+}
+
+fn compare_media_script_paths(
+    left: &str,
+    right: &str,
+) -> Result<ScriptCompareSummary, String> {
+    let left_bytes = std::fs::read(left).map_err(|error| error.to_string())?;
+    let right_bytes = std::fs::read(right).map_err(|error| error.to_string())?;
+    let left_name = std::path::Path::new(left)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or(left);
+    let right_name = std::path::Path::new(right)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or(right);
+    let left_doc = media_core::read_media_document(left_name, &left_bytes)
+        .map_err(|error| format!("{error:?}"))?;
+    let right_doc = media_core::read_media_document(right_name, &right_bytes)
+        .map_err(|error| format!("{error:?}"))?;
+    let diff = media_core::compare_media_documents(&left_doc, &right_doc);
+    let different = (diff.statistics.added + diff.statistics.removed + diff.statistics.modified)
+        as usize;
+    let compared = diff.fields.len();
+
+    Ok(ScriptCompareSummary {
+        compared,
+        different,
+    })
+}
+
+fn move_path_entry(source: &str, destination: &str) -> Result<(), String> {
+    folder_core::perform_file_operation(folder_core::FileOperationRequest::Move {
+        source_path: source.to_owned(),
+        target_path: destination.to_owned(),
+    })
+    .map(|_| ())
+    .map_err(|error| format!("{error:?}"))
+}
+
+fn apply_expand_collapse(
+    state: &mut ScriptRuntimeState,
+    expand: bool,
+    path: Option<&str>,
+    variables: &ScriptVariables,
+    command: &ScriptCommand,
+) -> Result<(), ScriptExecutionError> {
+    let label = if expand { "EXPAND" } else { "COLLAPSE" };
+    match path {
+        None => {
+            state.folder_tree_expand_all = expand;
+            state.expanded_paths.clear();
+            state.file_operations.push(label.to_owned());
+        }
+        Some(raw) => {
+            let path = expand_script_variables(raw, variables).map_err(|error| {
+                execution_error(
+                    command,
+                    format!("{} at line {}", error.message, error.line),
+                )
+            })?;
+            state.folder_tree_expand_all = false;
+            if expand {
+                if !state.expanded_paths.iter().any(|entry| entry == &path) {
+                    state.expanded_paths.push(path.clone());
+                }
+            } else {
+                state.expanded_paths.retain(|entry| entry != &path);
+            }
+            state
+                .file_operations
+                .push(format!("{label} {path}"));
+        }
+    }
+    Ok(())
+}
+
+fn parse_attrib_command(line: usize, args: &[String]) -> Result<ScriptCommandKind, ScriptParseError> {
+    if args.len() != 2 {
+        return Err(parse_error(
+            line,
+            "ATTRIB requires PATH and +R/-R (or readonly/writable)",
+        ));
+    }
+
+    let (path, flag) = if looks_like_attrib_flag(&args[0]) {
+        (args[1].clone(), args[0].as_str())
+    } else if looks_like_attrib_flag(&args[1]) {
+        (args[0].clone(), args[1].as_str())
+    } else {
+        return Err(parse_error(
+            line,
+            "ATTRIB flag must be +R, -R, readonly, or writable",
+        ));
+    };
+
+    let readonly = parse_attrib_readonly_flag(flag).ok_or_else(|| {
+        parse_error(
+            line,
+            "ATTRIB flag must be +R, -R, readonly, or writable",
+        )
+    })?;
+
+    Ok(ScriptCommandKind::Attrib { path, readonly })
+}
+
+fn looks_like_attrib_flag(value: &str) -> bool {
+    parse_attrib_readonly_flag(value).is_some()
+}
+
+fn parse_attrib_readonly_flag(value: &str) -> Option<bool> {
+    match value.trim().to_ascii_uppercase().as_str() {
+        "+R" | "R" | "+READONLY" | "READONLY" | "TRUE" | "1" => Some(true),
+        "-R" | "-READONLY" | "WRITABLE" | "FALSE" | "0" => Some(false),
+        _ => None,
+    }
+}
+
+fn parse_expand_collapse_command(
+    line: usize,
+    args: &[String],
+    expand: bool,
+) -> Result<ScriptCommandKind, ScriptParseError> {
+    if args.len() > 1 {
+        return Err(parse_error(
+            line,
+            if expand {
+                "EXPAND accepts at most one path"
+            } else {
+                "COLLAPSE accepts at most one path"
+            },
+        ));
+    }
+
+    let path = args.first().cloned();
+    if expand {
+        Ok(ScriptCommandKind::Expand { path })
+    } else {
+        Ok(ScriptCommandKind::Collapse { path })
     }
 }
 
@@ -1367,9 +1690,15 @@ mod tests {
         assert!(supported_script_commands().contains(&"HEX-REPORT"));
         assert!(supported_script_commands().contains(&"TABLE-REPORT"));
         assert!(supported_script_commands().contains(&"REPORT"));
-        assert!(unsupported_script_commands().contains(&"ATTRIB"));
+        assert!(supported_script_commands().contains(&"MEDIA-REPORT"));
+        assert!(supported_script_commands().contains(&"ATTRIB"));
+        assert!(supported_script_commands().contains(&"EXPAND"));
+        assert!(supported_script_commands().contains(&"COLLAPSE"));
+        assert!(supported_script_commands().contains(&"MOVE"));
+        assert!(supported_script_commands().contains(&"MOVETO"));
         assert!(unsupported_script_commands().contains(&"CRITERIA"));
-        assert!(unsupported_script_commands().contains(&"MEDIA-REPORT"));
+        assert!(!unsupported_script_commands().contains(&"MEDIA-REPORT"));
+        assert!(!unsupported_script_commands().contains(&"ATTRIB"));
         assert!(!unsupported_script_commands().contains(&"HEX-REPORT"));
         assert!(!unsupported_script_commands().contains(&"FILE-REPORT"));
     }
@@ -1442,7 +1771,7 @@ mod tests {
         }
 
         let script =
-            parse_script("LOAD left right\nMOVETO dest").expect("known missing command parses");
+            parse_script("LOAD left right\nCRITERIA rules").expect("known missing command parses");
         let error = execute_automation_script(
             &script,
             ScriptExecutionContext::default(),
@@ -1452,7 +1781,7 @@ mod tests {
         .expect_err("unsupported command should fail at runtime");
 
         assert_eq!(error.command, "UNSUPPORTED");
-        assert!(error.reason.contains("MOVETO"));
+        assert!(error.reason.contains("CRITERIA"));
         assert!(error.reason.contains("unsupported"));
     }
 
@@ -1579,6 +1908,8 @@ mod tests {
                 options: Vec::new(),
                 selection: None,
                 file_operations: Vec::new(),
+                folder_tree_expand_all: false,
+                expanded_paths: Vec::new(),
             }
         );
         assert_eq!(
@@ -2027,6 +2358,184 @@ mod tests {
         let content = std::fs::read_to_string(&report).expect("report should exist");
         assert!(content.contains("FOLDER-REPORT"));
         let _ = std::fs::remove_dir_all(root);
+    }
+
+
+    #[test]
+    fn parses_media_attrib_expand_collapse_and_move_commands() {
+        let script = parse_script(
+            r#"
+            MEDIA-REPORT "out/media.txt"
+            ATTRIB "file.txt" +R
+            ATTRIB -R "other.txt"
+            EXPAND "src"
+            COLLAPSE
+            MOVE "a.txt" "b.txt"
+            MOVETO "dest"
+            "#,
+        )
+        .expect("commands should parse");
+
+        assert!(script.commands.iter().any(|command| matches!(
+            command.kind,
+            ScriptCommandKind::MediaReport { .. }
+        )));
+        assert!(script.commands.iter().any(|command| matches!(
+            command.kind,
+            ScriptCommandKind::Attrib { readonly: true, .. }
+        )));
+        assert!(script.commands.iter().any(|command| matches!(
+            command.kind,
+            ScriptCommandKind::Attrib { readonly: false, .. }
+        )));
+        assert!(script.commands.iter().any(|command| matches!(
+            command.kind,
+            ScriptCommandKind::Expand {
+                path: Some(_)
+            }
+        )));
+        assert!(script.commands.iter().any(|command| matches!(
+            command.kind,
+            ScriptCommandKind::Collapse { path: None }
+        )));
+        assert!(script.commands.iter().any(|command| matches!(
+            command.kind,
+            ScriptCommandKind::Move { .. }
+        )));
+        assert!(script.commands.iter().any(|command| matches!(
+            command.kind,
+            ScriptCommandKind::MoveTo { .. }
+        )));
+    }
+
+    #[test]
+    fn executes_attrib_expand_collapse_move_and_media_report() {
+        let root = unique_temp_dir("script-media-attrib-move");
+        let left = root.join("left.txt");
+        let right = root.join("right.txt");
+        let movable = root.join("notes.txt");
+        let moved = root.join("archive").join("notes.txt");
+        let attrib_target = root.join("locked.txt");
+        let report = root.join("media-report.txt");
+        std::fs::write(&left, "alpha\n").expect("left");
+        std::fs::write(&right, "beta\n").expect("right");
+        std::fs::write(&movable, "move-me").expect("movable");
+        std::fs::write(&attrib_target, "lock-me").expect("attrib");
+
+        let script = format!(
+            "LOAD \"{left}\" \"{right}\"\nCOMPARE\nMEDIA-REPORT \"{report}\"\nATTRIB \"{attrib}\" +R\nEXPAND src\nCOLLAPSE\nSELECT \"{movable}\"\nMOVETO \"{moved}\"\n",
+            left = left.display(),
+            right = right.display(),
+            report = report.display(),
+            attrib = attrib_target.display(),
+            movable = movable.display(),
+            moved = moved.display(),
+        );
+
+        let result =
+            run_script_source(&script, ScriptExecutionContext::default()).expect("script runs");
+
+        assert_eq!(result.state.reports_written, 1);
+        let content = std::fs::read_to_string(&report).expect("report");
+        assert!(content.contains("MEDIA-REPORT"));
+        assert!(std::fs::metadata(&attrib_target)
+            .expect("meta")
+            .permissions()
+            .readonly());
+        assert!(!movable.exists());
+        assert_eq!(
+            std::fs::read_to_string(&moved).expect("moved file"),
+            "move-me"
+        );
+        assert!(!result.state.folder_tree_expand_all);
+        assert!(result
+            .state
+            .file_operations
+            .iter()
+            .any(|entry| entry == "EXPAND src"));
+        assert!(result
+            .state
+            .file_operations
+            .iter()
+            .any(|entry| entry == "COLLAPSE"));
+
+        let mut permissions = std::fs::metadata(&attrib_target)
+            .expect("meta")
+            .permissions();
+        permissions.set_readonly(false);
+        std::fs::set_permissions(&attrib_target, permissions).expect("clear readonly");
+
+        let move_result = run_script_source(
+            &format!(
+                "MOVE \"{}\" \"{}\"\nEXPAND\n",
+                moved.display(),
+                root.join("final.txt").display()
+            ),
+            ScriptExecutionContext::default(),
+        )
+        .expect("move runs");
+        assert!(move_result.state.folder_tree_expand_all);
+        assert_eq!(
+            std::fs::read_to_string(root.join("final.txt")).expect("final"),
+            "move-me"
+        );
+
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+
+    #[test]
+    fn media_report_compares_media_tags_when_load_paths_are_media_files() {
+        let root = unique_temp_dir("script-media-tags");
+        let left = root.join("left.mp3");
+        let right = root.join("right.mp3");
+        let report = root.join("out.txt");
+
+        std::fs::write(&left, id3_fixture("Alpha")).expect("left media");
+        std::fs::write(&right, id3_fixture("Beta")).expect("right media");
+
+        let result = run_script_source(
+            &format!(
+                "LOAD \"{}\" \"{}\"\nMEDIA-REPORT \"{}\"\n",
+                left.display(),
+                right.display(),
+                report.display()
+            ),
+            ScriptExecutionContext::default(),
+        )
+        .expect("media report runs");
+
+        assert_eq!(result.state.reports_written, 1);
+        assert_eq!(
+            result.state.last_compare,
+            Some(ScriptCompareSummary {
+                compared: 1,
+                different: 1,
+            })
+        );
+        let content = std::fs::read_to_string(&report).expect("report");
+        assert!(content.contains("MEDIA-REPORT"));
+        assert!(content.contains("different: 1"));
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    fn id3_fixture(title: &str) -> Vec<u8> {
+        let mut payload = vec![0];
+        payload.extend(title.as_bytes());
+        let mut frame = b"TIT2".to_vec();
+        frame.extend((payload.len() as u32).to_be_bytes());
+        frame.extend([0, 0]);
+        frame.extend(payload);
+        let mut bytes = b"ID3\x03\x00\x00".to_vec();
+        bytes.extend([
+            ((frame.len() >> 21) & 0x7f) as u8,
+            ((frame.len() >> 14) & 0x7f) as u8,
+            ((frame.len() >> 7) & 0x7f) as u8,
+            (frame.len() & 0x7f) as u8,
+        ]);
+        bytes.extend(frame);
+        bytes.extend(b"MPEG");
+        bytes
     }
 
     fn unique_temp_dir(label: &str) -> std::path::PathBuf {

@@ -693,9 +693,8 @@ export const zhCN: LanguagePack = {
     'ui.scriptingNotImplemented':
       '完整遗留脚本语言尚未实现。已支持的命令会真正执行；已知缺口以 unsupported 返回。',
     'ui.scriptingSupported':
-      '已支持：LOAD、FILTER、COMPARE、REPORT、FILE-REPORT、HEX-REPORT、TABLE-REPORT、PICTURE-REPORT、VERSION-REPORT、REGISTRY-REPORT、LOG、BEEP、OPTION、SELECT、COPY、COPYTO、DELETE、RENAME、TOUCH、SNAPSHOT、SYNC、TEXT-REPORT、FOLDER-REPORT。',
-    'ui.scriptingUnsupported':
-      '未支持：ATTRIB、COLLAPSE、CRITERIA、EXPAND、MEDIA-REPORT、MOVE、MOVETO。',
+      '已支持：LOAD、FILTER、COMPARE、REPORT、FILE-REPORT、HEX-REPORT、TABLE-REPORT、PICTURE-REPORT、VERSION-REPORT、REGISTRY-REPORT、MEDIA-REPORT、LOG、BEEP、OPTION、SELECT、COPY、COPYTO、MOVE、MOVETO、DELETE、RENAME、TOUCH、ATTRIB、EXPAND、COLLAPSE、SNAPSHOT、SYNC、TEXT-REPORT、FOLDER-REPORT。',
+    'ui.scriptingUnsupported': '未支持：CRITERIA。',
     'ui.scriptingUnsupportedCommands': '未支持命令',
     'ui.scriptingSupportedCommands': '已支持命令',
     'ui.secretsHint': '密码只保存在本地密钥文件（Unix 权限 0600），不会写入配置列表或日志。',
