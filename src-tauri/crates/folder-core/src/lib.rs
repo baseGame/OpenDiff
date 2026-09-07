@@ -1322,22 +1322,14 @@ mod tests {
         let _ = fs::remove_dir_all(root);
     }
 
+    #[cfg(unix)]
     #[test]
     fn skips_directory_symlinks_unless_follow_symlinks_enabled() {
         let root = unique_temp_dir("folder-symlink");
         let real = root.join("real");
         fs::create_dir_all(real.join("nested")).expect("directory should be created");
         fs::write(real.join("nested").join("a.txt"), b"a").expect("file should be written");
-        #[cfg(unix)]
-        {
-            std::os::unix::fs::symlink(&real, root.join("link"))
-                .expect("symlink should be created");
-        }
-        #[cfg(not(unix))]
-        {
-            let _ = fs::remove_dir_all(root);
-            return;
-        }
+        std::os::unix::fs::symlink(&real, root.join("link")).expect("symlink should be created");
 
         let skipped = scan_local_folder(&root, &CancellationToken::default()).expect("scan");
         let link = skipped
