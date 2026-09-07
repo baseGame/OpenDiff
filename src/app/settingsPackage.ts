@@ -30,7 +30,7 @@ export function isSettingsPackage(value: unknown): value is SettingsPackage {
     return false
   }
 
-  const candidate = value as Partial<SettingsPackage>
+  const candidate = value as Record<string, unknown>
 
   return (
     candidate.kind === settingsPackageKind &&

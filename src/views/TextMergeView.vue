@@ -393,7 +393,31 @@ watch(
       case 'copy-right':
         favorSide('right')
         break
-      default:
+      case 'about':
+      case 'check-for-updates':
+      case 'close-tab':
+      case 'copy':
+      case 'cut':
+      case 'delete':
+      case 'export-settings':
+      case 'filters':
+      case 'help-contents':
+      case 'help-support':
+      case 'import-settings':
+      case 'next-difference':
+      case 'paste':
+      case 'previous-difference':
+      case 'redo':
+      case 'restore-factory-defaults':
+      case 'rules':
+      case 'save-as':
+      case 'session-settings':
+      case 'show-all':
+      case 'show-differences':
+      case 'swap':
+      case 'undo':
+      case 'workspace-load':
+      case 'workspace-save':
         break
     }
   },

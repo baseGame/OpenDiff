@@ -142,7 +142,32 @@ watch(
       case 'swap':
         swapPicturePaths()
         break
-      default:
+      case 'about':
+      case 'check-for-updates':
+      case 'close-tab':
+      case 'copy':
+      case 'copy-left':
+      case 'copy-right':
+      case 'cut':
+      case 'delete':
+      case 'export':
+      case 'export-settings':
+      case 'filters':
+      case 'help-contents':
+      case 'help-support':
+      case 'import-settings':
+      case 'next-difference':
+      case 'paste':
+      case 'previous-difference':
+      case 'redo':
+      case 'restore-factory-defaults':
+      case 'save':
+      case 'save-as':
+      case 'show-all':
+      case 'show-differences':
+      case 'undo':
+      case 'workspace-load':
+      case 'workspace-save':
         break
     }
   },

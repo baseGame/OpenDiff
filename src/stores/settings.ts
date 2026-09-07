@@ -372,8 +372,15 @@ export const useSettingsStore = defineStore('settings', () => {
   }
 
   function importSettingsPackage(raw: string | SettingsPackage): boolean {
-    const packageValue =
-      typeof raw === 'string' ? parseSettingsPackage(raw) : isSettingsPackage(raw) ? raw : null
+    let packageValue: SettingsPackage | null
+
+    if (typeof raw === 'string') {
+      packageValue = parseSettingsPackage(raw)
+    } else if (isSettingsPackage(raw)) {
+      packageValue = raw
+    } else {
+      packageValue = null
+    }
 
     if (!packageValue) {
       return false

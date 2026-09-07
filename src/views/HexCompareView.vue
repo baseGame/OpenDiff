@@ -180,7 +180,26 @@ watch(
       case 'save':
         void runHexSave()
         break
-      default:
+      case 'about':
+      case 'check-for-updates':
+      case 'close-tab':
+      case 'copy':
+      case 'copy-left':
+      case 'copy-right':
+      case 'cut':
+      case 'delete':
+      case 'export':
+      case 'export-settings':
+      case 'help-contents':
+      case 'help-support':
+      case 'import-settings':
+      case 'paste':
+      case 'redo':
+      case 'restore-factory-defaults':
+      case 'save-as':
+      case 'undo':
+      case 'workspace-load':
+      case 'workspace-save':
         break
     }
   },

@@ -332,6 +332,7 @@ function closeAboutDialog(): void {
 
 function saveCurrentWorkspaceFromMenu(): void {
   const name = `Workspace ${new Date().toLocaleString()}`
+
   workspaces.saveWorkspace(name, tabs.workspaceSnapshot())
   statusBar.reportStatus({
     comparisonStatus: t('ui.saveWorkspaceAs'),
@@ -340,7 +341,7 @@ function saveCurrentWorkspaceFromMenu(): void {
 }
 
 function loadWorkspaceFromMenu(): void {
-  const latest = workspaces.workspaces[0]
+  const latest = workspaces.workspaces.at(0)
 
   if (!latest) {
     tabs.openTab({ title: t('ui.home'), titleKey: 'ui.home', route: '/', dirty: false })
@@ -354,7 +355,9 @@ function loadWorkspaceFromMenu(): void {
   }
 
   tabs.restoreWorkspaceTabs(latest.tabs)
+
   const active = tabs.activeTab
+
   void router.push(active.route)
   statusBar.reportStatus({
     comparisonStatus: latest.name,
@@ -380,12 +383,12 @@ async function exportSettingsFromMenu(): Promise<void> {
 }
 
 async function importSettingsFromMenu(): Promise<void> {
-  let raw = ''
+  let raw: string
 
   try {
     raw = await navigator.clipboard.readText()
   } catch {
-    raw = window.prompt(t('ui.importSettings'), '') ?? ''
+    raw = ''
   }
 
   const imported = settings.importSettingsPackage(raw.trim())
