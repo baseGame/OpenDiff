@@ -25,6 +25,12 @@ describe('commandRegistry', () => {
         'help.checkForUpdates',
         'edit.copyLeft',
         'edit.copyRight',
+        'edit.undo',
+        'edit.redo',
+        'edit.cut',
+        'edit.copy',
+        'edit.paste',
+        'edit.delete',
         'diff.previous',
         'diff.next',
         'view.showAll',
@@ -36,6 +42,8 @@ describe('commandRegistry', () => {
       false,
     )
     expect(commandRegistry.find((command) => command.id === 'help.about')?.enabled).toBe(true)
+    expect(commandRegistry.find((command) => command.id === 'edit.undo')?.enabled).toBe(true)
+    expect(commandRegistry.find((command) => command.id === 'edit.paste')?.enabled).toBe(true)
   })
 
   it('filters commands by title and keywords', () => {

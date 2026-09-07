@@ -139,6 +139,8 @@ const sessionSearch = ref('')
 const clipboardStatus = ref(t('ui.clipboardTextSourceNotLoaded'))
 const saveDialogOpen = ref(false)
 const sessionNameDraft = ref('')
+const editDialogOpen = ref(false)
+const editNameDraft = ref('')
 const filteredSavedSessions = computed(() =>
   filterSavedSessions(savedSessions.sessions, {
     query: sessionSearch.value,
@@ -500,6 +502,62 @@ function selectSavedSession(session: SessionDocument): void {
   selectedSessionId.value = session.id
 }
 
+const canEditSelected = computed(() => {
+  const session = selectedSavedSession.value
+
+  return Boolean(session && !session.metadata.locked)
+})
+
+const canRemoveSelected = computed(() => {
+  const session = selectedSavedSession.value
+
+  return Boolean(session && !session.metadata.locked)
+})
+
+function isTreeSessionSelected(sessionId: string): boolean {
+  return selectedSavedSession.value?.id === sessionId
+}
+
+function openEditSelectedDialog(): void {
+  const session = selectedSavedSession.value
+
+  if (!session || session.metadata.locked) {
+    return
+  }
+
+  editDialogOpen.value = true
+  editNameDraft.value = session.name
+}
+
+function confirmEditSelected(): void {
+  const session = selectedSavedSession.value
+  const name = editNameDraft.value.trim()
+
+  if (!session || !name) {
+    return
+  }
+
+  savedSessions.renameSession(session.id, name)
+  editDialogOpen.value = false
+  editNameDraft.value = ''
+}
+
+function cancelEditSelected(): void {
+  editDialogOpen.value = false
+  editNameDraft.value = ''
+}
+
+function removeSelectedFromTree(): void {
+  const session = selectedSavedSession.value
+
+  if (!session || session.metadata.locked) {
+    return
+  }
+
+  selectedSessionId.value = undefined
+  savedSessions.requestDeleteSession(session.id)
+}
+
 async function browseFoldersToCompare(): Promise<void> {
   const left = await pickNativePath({ directory: true })
 
@@ -548,15 +606,10 @@ function openSelectedPreview(): void {
 <template>
   <WorkbenchShell
     class="home-view"
+    compact
     :title="$t('ui.newSession')"
-    :subtitle="$t('ui.chooseAComparisonWorkspace')"
-    :eyebrow="$t('ui.workspace')"
     :inspector-label="$t('ui.workspaceInspector')"
   >
-    <template #title-actions>
-      <span class="home-title-count">{{ sessionCatalog.length }} {{ $t('ui.sessionTypes') }}</span>
-    </template>
-
     <section class="home-workspace bc-home-workspace">
       <aside
         class="bc-session-tree"
@@ -601,6 +654,7 @@ function openSelectedPreview(): void {
             :key="`tree-autosaved-${session.id}`"
             type="button"
             class="bc-tree-row saved"
+            :class="{ selected: isTreeSessionSelected(session.id) }"
             :data-testid="`home-tree-autosaved-${session.id}`"
             @click="selectSavedSession(session)"
             @dblclick="openSavedSession(session)"
@@ -623,6 +677,7 @@ function openSelectedPreview(): void {
             :key="`tree-today-${session.id}`"
             type="button"
             class="bc-tree-row saved"
+            :class="{ selected: isTreeSessionSelected(session.id) }"
             :data-testid="`home-tree-today-${session.id}`"
             @click="selectSavedSession(session)"
             @dblclick="openSavedSession(session)"
@@ -635,17 +690,18 @@ function openSelectedPreview(): void {
         <footer class="bc-tree-footer">
           <button
             type="button"
-            disabled
             data-testid="home-tree-add"
             :aria-label="$t('ui.add')"
+            @click="openSaveCurrentSessionDialog"
           >
             +
           </button>
           <button
             type="button"
-            disabled
             data-testid="home-tree-remove"
             :aria-label="$t('ui.remove')"
+            :disabled="!canRemoveSelected"
+            @click="removeSelectedFromTree"
           >
             −
           </button>
@@ -684,12 +740,40 @@ function openSelectedPreview(): void {
             </button>
             <button
               type="button"
-              disabled
               data-testid="home-edit-selected"
+              :disabled="!canEditSelected"
+              @click="openEditSelectedDialog"
             >
               {{ $t('ui.edit') }}
             </button>
           </div>
+          <section
+            v-if="editDialogOpen"
+            class="session-edit-panel"
+            data-testid="home-edit-panel"
+          >
+            <input
+              v-model="editNameDraft"
+              data-testid="home-edit-name-input"
+              type="text"
+              :placeholder="$t('ui.name')"
+              :aria-label="$t('ui.rename')"
+            />
+            <button
+              type="button"
+              data-testid="home-edit-confirm"
+              @click="confirmEditSelected"
+            >
+              {{ $t('ui.save') }}
+            </button>
+            <button
+              type="button"
+              data-testid="home-edit-cancel"
+              @click="cancelEditSelected"
+            >
+              {{ $t('ui.cancel') }}
+            </button>
+          </section>
         </section>
 
         <section
@@ -1159,6 +1243,7 @@ function openSelectedPreview(): void {
 
 .bc-home-main {
   display: grid;
+  align-content: start;
   grid-template-rows: auto minmax(0, 1fr) auto;
   min-width: 0;
   min-height: 0;
@@ -1236,6 +1321,10 @@ function openSelectedPreview(): void {
   min-width: 0;
 }
 
+.new-session-panel {
+  padding: 8px 12px 28px;
+}
+
 .new-session-panel h2,
 .recent-session-panel h2 {
   margin: 0;
@@ -1248,7 +1337,7 @@ function openSelectedPreview(): void {
   grid-template-columns: repeat(3, minmax(150px, 1fr));
   gap: 34px 76px;
   width: min(780px, calc(100% - 64px));
-  margin: 0 auto;
+  margin: 8px auto 12px;
 }
 
 .bc-home-instructions {
@@ -1630,5 +1719,41 @@ tr:hover .row-actions,
 
 .session-maturity[data-maturity='limited'] {
   background: color-mix(in srgb, #b45309 18%, transparent);
+}
+
+.bc-tree-row.selected {
+  background: #c7dcf6;
+}
+
+.session-edit-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 8px;
+  max-width: 520px;
+}
+
+.session-edit-panel input {
+  min-width: 0;
+  height: 38px;
+  padding: 0 10px;
+  border: 1px solid #c6ccd5;
+  border-radius: 3px;
+  background: #ffffff;
+  color: #111827;
+}
+
+.session-edit-panel button {
+  height: 38px;
+  padding: 0 14px;
+  border: 1px solid #c7cdd6;
+  border-radius: 3px;
+  background: #ffffff;
+  color: #111827;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.home-view :deep(.workbench-main) {
+  background: #ffffff;
 }
 </style>

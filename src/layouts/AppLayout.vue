@@ -44,6 +44,7 @@ import { useStatusBarStore } from '@/stores/statusBar'
 import { useSavedSessionsStore } from '@/stores/savedSessions'
 import { useSessionLaunchStore } from '@/stores/sessionLaunch'
 import { useTabsStore } from '@/stores/tabs'
+import { useViewActionsStore } from '@/stores/viewActions'
 import { openPathExternal, takeShellCompareLaunch } from '@/api/integration'
 import { APP_VERSION, DOCS_URL, RELEASES_URL, SUPPORT_URL } from '@/app/appMeta'
 import type { SessionType } from '@/types/session'
@@ -77,6 +78,7 @@ const settings = useSettingsStore()
 const policy = usePolicyStore()
 const statusBar = useStatusBarStore()
 const tabs = useTabsStore()
+const viewActions = useViewActionsStore()
 const sessionLaunch = useSessionLaunchStore()
 const savedSessions = useSavedSessionsStore()
 
@@ -212,7 +214,16 @@ const appMenus: AppMenuDefinition[] = [
   {
     id: 'edit',
     titleKey: 'ui.edit',
-    commandIds: ['edit.copyLeft', 'edit.copyRight'],
+    commandIds: [
+      'edit.undo',
+      'edit.redo',
+      'edit.cut',
+      'edit.copy',
+      'edit.paste',
+      'edit.delete',
+      'edit.copyLeft',
+      'edit.copyRight',
+    ],
   },
   {
     id: 'search',
@@ -302,6 +313,7 @@ const executeRegisteredCommand = createCommandExecutor(commandRegistry, {
   toggleTheme: settings.toggleTheme,
   dispatchViewAction: (name) => {
     lastViewAction.value = name
+    viewActions.dispatch(name)
     if (name === 'about') {
       aboutDialogOpen.value = true
       helpStatusMessage.value = ''

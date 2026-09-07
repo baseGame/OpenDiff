@@ -1,8 +1,11 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { readTextFile, saveTextFile } from '@/api/diff'
+import { useRouter } from 'vue-router'
 import { useI18n } from '@/i18n'
 import { useSessionLaunchStore } from '@/stores/sessionLaunch'
+import { useViewActionsStore } from '@/stores/viewActions'
+import { useTabsStore } from '@/stores/tabs'
 import type { FileStamp } from '@/types/diff'
 
 interface LoadedTextDocument {
@@ -16,6 +19,9 @@ interface LoadedTextDocument {
 const pathInput = ref('')
 const { t } = useI18n()
 const sessionLaunch = useSessionLaunchStore()
+const viewActions = useViewActionsStore()
+const tabs = useTabsStore()
+const router = useRouter()
 const document = ref<LoadedTextDocument | null>(null)
 const editorText = ref('')
 const savedText = ref('')
@@ -244,7 +250,18 @@ function deleteEdit(): void {
   updateEditorText('')
 }
 
+function goHome(): void {
+  tabs.openTab({ title: t('ui.home'), titleKey: 'ui.home', route: '/', dirty: false })
+  void router.push('/')
+}
+
 function runTextEditCommand(commandId: string): void {
+  if (commandId === 'home') {
+    goHome()
+
+    return
+  }
+
   if (commandId === 'undo') {
     undoEdit()
 
@@ -353,8 +370,29 @@ function setSaveStatus(key: string, params: Record<string, string | number> = {}
 }
 
 const saveStatus = computed(() => t(saveStatusKey.value, saveStatusParams.value))
+
+watch(
+  () => [viewActions.sequence, viewActions.name] as const,
+  ([, actionName]) => {
+    if (!actionName) {
+      return
+    }
+
+    if (
+      actionName === 'undo' ||
+      actionName === 'redo' ||
+      actionName === 'cut' ||
+      actionName === 'copy' ||
+      actionName === 'paste' ||
+      actionName === 'delete'
+    ) {
+      runTextEditCommand(actionName)
+    }
+  },
+)
+
 const textEditToolbarCommands = [
-  { id: 'home', glyph: 'H', labelKey: 'ui.home', enabled: false },
+  { id: 'home', glyph: 'H', labelKey: 'ui.home', enabled: true },
   { id: 'undo', glyph: 'U', labelKey: 'ui.undo', enabled: true },
   { id: 'redo', glyph: 'R', labelKey: 'ui.redo', enabled: true },
   { id: 'cut', glyph: 'X', labelKey: 'ui.cut', enabled: true },

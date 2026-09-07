@@ -10,6 +10,8 @@ const props = defineProps<{
   inspectorLabel?: string
   toolbarCommands?: SessionToolbarCommand[]
   toolbarTestIdPrefix?: string
+  /** Home-style frame: no titlebar/toolbar chrome; inspector stays offscreen for tests. */
+  compact?: boolean
 }>()
 const emit = defineEmits<{
   'toolbar-command': [id: string]
@@ -241,8 +243,15 @@ function onToolbarCommand(command: SessionToolbarCommand): void {
 </script>
 
 <template>
-  <section class="workbench-shell">
-    <header class="workbench-titlebar">
+  <section
+    class="workbench-shell"
+    :class="{ 'workbench-shell-compact': compact }"
+    :data-compact="compact ? 'true' : 'false'"
+  >
+    <header
+      v-if="!compact"
+      class="workbench-titlebar"
+    >
       <div class="workbench-titlecopy">
         <span
           v-if="eyebrow"
@@ -261,7 +270,10 @@ function onToolbarCommand(command: SessionToolbarCommand): void {
       </div>
     </header>
 
-    <div class="workbench-toolbar-stack">
+    <div
+      v-if="!compact"
+      class="workbench-toolbar-stack"
+    >
       <section
         v-if="toolbarItems.length > 0"
         class="bc-session-toolbar"
@@ -283,12 +295,16 @@ function onToolbarCommand(command: SessionToolbarCommand): void {
       <slot name="toolbar" />
     </div>
 
-    <div class="workbench-grid">
+    <div
+      class="workbench-grid"
+      :class="{ 'workbench-grid-compact': compact }"
+    >
       <main class="workbench-main">
         <slot />
       </main>
       <aside
         class="workbench-inspector"
+        :class="{ 'workbench-inspector-compact-host': compact }"
         :aria-label="resolvedInspectorLabel"
       >
         <slot name="inspector" />

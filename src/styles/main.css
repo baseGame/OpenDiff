@@ -134,6 +134,25 @@ select {
   background: #ffffff;
 }
 
+.workbench-shell-compact {
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.workbench-grid-compact {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.workbench-inspector-compact-host {
+  position: fixed;
+  top: auto;
+  left: -10000px;
+  display: block;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  border: 0;
+}
+
 .workbench-titlebar {
   display: none;
   grid-template-columns: minmax(0, 1fr) auto;
