@@ -1454,6 +1454,7 @@ h2 {
     min-height: 260px;
   }
 }
+
 .picture-blend-panel {
   display: grid;
   gap: 8px;
@@ -1473,8 +1474,8 @@ h2 {
 .picture-blend-panel label {
   display: grid;
   gap: 4px;
-  font-size: 12px;
   color: var(--app-text-muted);
+  font-size: 12px;
 }
 
 .picture-blend-overlay {

@@ -662,6 +662,7 @@ h1 {
   border-bottom: 1px solid var(--app-border);
   color: var(--app-text);
   font-size: 12px;
+  cursor: pointer;
 }
 
 .merge-plan-row:last-child {
@@ -751,6 +752,7 @@ h1 {
     text-align: left;
   }
 }
+
 .folder-merge-peek-panel {
   display: grid;
   gap: 10px;
@@ -762,8 +764,8 @@ h1 {
 
 .folder-merge-peek-panel header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
 }
 
@@ -786,9 +788,5 @@ h1 {
 .merge-plan-row.selected {
   outline: 1px solid var(--app-accent);
   background: color-mix(in srgb, var(--app-accent) 12%, transparent);
-}
-
-.merge-plan-row {
-  cursor: pointer;
 }
 </style>

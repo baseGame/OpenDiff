@@ -674,8 +674,8 @@ h1 {
 .version-rule-row {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
-  gap: 8px;
   align-items: center;
+  gap: 8px;
   font-size: 12px;
 }
 

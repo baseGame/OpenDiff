@@ -627,8 +627,8 @@ h1 {
 .sync-override-cell {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 6px;
   align-items: center;
+  gap: 6px;
   min-width: 0;
   padding: 4px 8px;
   border-right: 1px solid var(--app-border);
