@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { compareVersionFiles } from '@/api/diff'
+import { compareVersionFiles, saveTextFile } from '@/api/diff'
+import { buildVersionReportText, defaultVersionReportOutputPath } from '@/app/versionReport'
 import { useI18n } from '@/i18n'
 import type {
   VersionCompareResponse,
@@ -47,6 +48,7 @@ const fieldFilter = ref<VersionFieldFilter>('all')
 const activeFieldIndex = ref(0)
 const loading = ref(false)
 const error = ref('')
+const reportStatus = ref('')
 const showVersionRules = ref(false)
 const versionOptions = ref<VersionCompareOptionsState>(loadVersionCompareOptions())
 
@@ -242,6 +244,7 @@ function applyVersionResult(result: VersionCompareResponse): void {
   versionFields.value = result.fields
   versionSummaryOverride.value = result.summary
   activeFieldIndex.value = 0
+  reportStatus.value = ''
   syncVersionTabTitle()
 }
 
@@ -257,6 +260,44 @@ function toggleFieldImportance(field: string): void {
 function resetVersionRules(): void {
   versionOptions.value = resetVersionCompareOptions()
   persistVersionOptions()
+}
+
+async function exportVersionReport(): Promise<void> {
+  if (versionFields.value.length === 0) {
+    return
+  }
+
+  const payload = buildVersionReportText({
+    leftPath: leftPath.value,
+    rightPath: rightPath.value,
+    summary: versionSummary.value,
+    fields: versionFields.value.map((row) => ({
+      group: row.group,
+      field: row.field,
+      left: valueText(row.left),
+      right: valueText(row.right),
+      status: row.status,
+      important: fieldIsImportant(row.field),
+    })),
+  })
+  const outputPath = defaultVersionReportOutputPath(leftPath.value)
+
+  try {
+    await navigator.clipboard.writeText(payload)
+  } catch {
+    // Clipboard may be unavailable in headless tests; still try file export.
+  }
+
+  try {
+    await saveTextFile({
+      path: outputPath,
+      text: payload,
+      createBackup: false,
+    })
+    reportStatus.value = outputPath
+  } catch (event) {
+    error.value = String(event)
+  }
 }
 
 async function runVersionCompare(): Promise<void> {
@@ -402,6 +443,19 @@ async function runVersionCompare(): Promise<void> {
       <header>
         <strong>{{ $t('ui.versionFieldReport') }}</strong>
         <span>{{ $t('status.fieldCount', { count: versionFields.length }) }}</span>
+        <button
+          type="button"
+          data-testid="export-version-report"
+          :disabled="versionFields.length === 0"
+          @click="exportVersionReport"
+        >
+          {{ $t('ui.export') }}
+        </button>
+        <span
+          v-if="reportStatus"
+          data-testid="version-report-status"
+          >{{ reportStatus }}</span
+        >
       </header>
       <div
         class="version-report-table"
@@ -621,6 +675,10 @@ h1 {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+}
+
+.version-report-panel header button {
+  margin-left: auto;
 }
 
 .version-side dl {

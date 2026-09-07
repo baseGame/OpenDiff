@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { compareTable, readTextFile } from '@/api/diff'
+import { compareTable, readTextFile, saveTextFile } from '@/api/diff'
+import { buildTableReportText, defaultTableReportOutputPath } from '@/app/tableReport'
 import type {
   TableCompareChangedCell,
   TableCompareRequest,
@@ -95,6 +96,7 @@ const tableSearchQuery = ref('')
 const activeDifferenceIndex = ref(0)
 const loading = ref(false)
 const error = ref('')
+const reportStatus = ref('')
 const tableDifferenceCells = ref<TableCellLocation[]>([])
 
 function currentTableSessionOptions(): TableCompareSessionOptions {
@@ -185,6 +187,8 @@ watch(
       case 'cut':
       case 'delete':
       case 'export':
+        void exportTableReport()
+        break
       case 'export-settings':
       case 'filters':
       case 'help-contents':
@@ -539,6 +543,7 @@ async function runTableCompare(): Promise<void> {
     virtualGridColumns.value = columns
     comparedRows.value = rowsFromResult(result, columns)
     tableDifferenceCells.value = changedCellsFromResult(result.changedCells, columns)
+    reportStatus.value = ''
     activeDifferenceIndex.value = 0
     manualLeftColumn.value = result.leftColumns[0]?.name ?? ''
     manualRightColumn.value = result.rightColumns[0]?.name ?? ''
@@ -634,6 +639,44 @@ function syncTableTabTitle(): void {
   }
 
   tabs.setTabTitle('/compare/table', pathPairTitle(leftPath.value, rightPath.value))
+}
+
+async function exportTableReport(): Promise<void> {
+  if (comparedRows.value === null) {
+    return
+  }
+
+  const payload = buildTableReportText({
+    leftPath: leftPath.value,
+    rightPath: rightPath.value,
+    format: tableFormat.value,
+    keyColumns: keyColumnsInput.value,
+    ignoredColumns: [...ignoredColumnKeys.value],
+    rowCount: comparedRows.value.length,
+    differenceCount: tableDifferenceCells.value.length,
+    differences: tableDifferenceCells.value.map((cell) => ({
+      key: cell.key,
+      text: cell.text,
+    })),
+  })
+  const outputPath = defaultTableReportOutputPath(leftPath.value)
+
+  try {
+    await navigator.clipboard.writeText(payload)
+  } catch {
+    // Clipboard may be unavailable in headless tests; still try file export.
+  }
+
+  try {
+    await saveTextFile({
+      path: outputPath,
+      text: payload,
+      createBackup: false,
+    })
+    reportStatus.value = outputPath
+  } catch (event) {
+    error.value = String(event)
+  }
 }
 
 function goHomeFromTable(): void {
@@ -732,6 +775,21 @@ watch([leftPath, rightPath], () => {
         <div class="table-summary">
           <strong>{{ columnMappings.length }}</strong>
           <span>{{ $t('ui.columnMappings') }}</span>
+        </div>
+        <div class="table-summary table-report-actions">
+          <NButton
+            size="small"
+            data-testid="export-table-report"
+            :disabled="comparedRows === null"
+            @click="exportTableReport"
+          >
+            {{ $t('ui.export') }}
+          </NButton>
+          <span
+            v-if="reportStatus"
+            data-testid="table-report-status"
+            >{{ reportStatus }}</span
+          >
         </div>
         <div
           v-if="showSheetSelectors"
@@ -1167,6 +1225,12 @@ h2 {
   border-radius: 8px;
   background: var(--app-surface);
   text-align: right;
+}
+
+.table-report-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .table-summary strong {
