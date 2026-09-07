@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import WorkbenchShell from '@/components/workbench/WorkbenchShell.vue'
 import WorkbenchInspector from '@/components/workbench/WorkbenchInspector.vue'
+import RemotePathBrowser from '@/components/remote/RemotePathBrowser.vue'
 import { isTauriRuntime } from '@/app/desktopDrop'
 import {
   deleteLocalRemoteProfile,
@@ -67,6 +68,7 @@ const draft = ref<RemoteProfileDraft>(toDraft(emptyProfile()))
 const testStatusKey = ref(initialTestStatusKey())
 const testStatusParams = ref<Record<string, string | number>>({})
 const testing = ref(false)
+const showRemoteBrowser = ref(false)
 const persistenceMode = ref<'desktop' | 'local'>('local')
 
 const sortedProfiles = computed(() =>
@@ -92,6 +94,7 @@ const canTestProfile = computed(
     Boolean(draft.value.host.trim()) &&
     Boolean((draft.value.id || selectedProfileId.value).trim()),
 )
+const canBrowseProfile = computed(() => canTestProfile.value)
 const canSaveProfile = computed(
   () => policy.remoteProfiles && isImplementedRemoteProtocol(draft.value.protocol),
 )
@@ -263,6 +266,35 @@ async function testProfileConnection(): Promise<void> {
   } finally {
     testing.value = false
   }
+}
+
+async function browseProfilePath(): Promise<void> {
+  if (!canBrowseProfile.value) {
+    setTestStatus(testDisabledReasonKey.value || 'status.remoteBrowseRequiresDesktop')
+
+    return
+  }
+
+  if (!profiles.value.some((profile) => profile.id === draft.value.id) || draft.value.password) {
+    await saveProfile()
+  }
+
+  if (!(draft.value.id || selectedProfileId.value)) {
+    setTestStatus('status.remoteBrowseNeedsProfile')
+
+    return
+  }
+
+  showRemoteBrowser.value = true
+}
+
+function applyBrowsedRootPath(path: string): void {
+  draft.value.rootPath = path || '/'
+  showRemoteBrowser.value = false
+  setTestStatus('status.remoteBrowseReady', {
+    count: 0,
+    path: draft.value.rootPath,
+  })
 }
 
 function setTestStatus(key: string, params: Record<string, string | number> = {}): void {
@@ -570,6 +602,14 @@ function credentialKindLabel(kind: CredentialReferenceKind): string {
               </button>
               <button
                 type="button"
+                data-testid="browse-remote-profile"
+                :disabled="!canBrowseProfile || testing"
+                @click="browseProfilePath"
+              >
+                {{ $t('ui.browseRemote') }}
+              </button>
+              <button
+                type="button"
                 data-testid="delete-remote-profile"
                 :disabled="!selectedProfile"
                 @click="deleteProfile"
@@ -732,6 +772,15 @@ function credentialKindLabel(kind: CredentialReferenceKind): string {
         </section>
       </section>
     </section>
+
+    <RemotePathBrowser
+      v-if="showRemoteBrowser"
+      :profile-id="draft.id || selectedProfileId"
+      :profile-label="draft.name || draft.id || selectedProfileId"
+      :initial-path="draft.rootPath || '/'"
+      @select="applyBrowsedRootPath"
+      @cancel="showRemoteBrowser = false"
+    />
 
     <template #inspector>
       <WorkbenchInspector>

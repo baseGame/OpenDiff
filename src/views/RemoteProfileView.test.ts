@@ -5,6 +5,7 @@ import RemoteProfileView from './RemoteProfileView.vue'
 import type * as remoteApi from '@/api/remote'
 import {
   deleteRemoteProfile,
+  listRemotePath,
   listRemoteProfiles,
   saveRemoteProfile,
   testRemoteProfile,
@@ -19,6 +20,10 @@ vi.mock('@/api/remote', async (importOriginal) => {
     listRemoteProfiles: vi.fn().mockRejectedValue(new Error('no backend')),
     saveRemoteProfile: vi.fn().mockRejectedValue(new Error('no backend')),
     deleteRemoteProfile: vi.fn().mockRejectedValue(new Error('no backend')),
+    listRemotePath: vi.fn().mockResolvedValue([
+      { path: '/apps', kind: 'directory', size: 0 },
+      { path: '/readme.txt', kind: 'file', size: 12 },
+    ]),
     testRemoteProfile: vi
       .fn()
       .mockResolvedValue('SFTP connected to files.example.com:22 and listed 1 entries'),
@@ -33,6 +38,7 @@ describe('RemoteProfileView', () => {
     vi.mocked(saveRemoteProfile).mockClear()
     vi.mocked(deleteRemoteProfile).mockClear()
     vi.mocked(testRemoteProfile).mockClear()
+    vi.mocked(listRemotePath).mockClear()
     vi.mocked(listRemoteProfiles).mockRejectedValue(new Error('no backend'))
     vi.mocked(saveRemoteProfile).mockRejectedValue(new Error('no backend'))
     vi.mocked(deleteRemoteProfile).mockRejectedValue(new Error('no backend'))
@@ -156,6 +162,57 @@ describe('RemoteProfileView', () => {
     await flushPromises()
 
     expect(deleteRemoteProfile).toHaveBeenCalledWith('release-ftp')
+
+    Reflect.deleteProperty(window, '__TAURI_INTERNALS__')
+  })
+
+  it('browses a saved profile and applies the selected remote folder as root path', async () => {
+    Object.defineProperty(window, '__TAURI_INTERNALS__', {
+      configurable: true,
+      value: {},
+    })
+    vi.mocked(listRemoteProfiles).mockResolvedValue([
+      {
+        id: 'stage-sftp',
+        name: 'Stage SFTP',
+        protocol: 'sftp',
+        host: 'stage.example.com',
+        port: 22,
+        rootPath: '/',
+        implemented: true,
+        uri: 'sftp://profile/stage-sftp/',
+      },
+    ])
+    vi.mocked(listRemotePath).mockResolvedValue([
+      { path: '/apps', kind: 'directory', size: 0 },
+      { path: '/readme.txt', kind: 'file', size: 12 },
+    ])
+
+    const wrapper = mount(RemoteProfileView, {
+      global: { plugins: [createPinia()] },
+    })
+
+    await flushPromises()
+
+    expect(
+      wrapper.find('[data-testid="browse-remote-profile"]').attributes('disabled'),
+    ).toBeUndefined()
+
+    await wrapper.find('[data-testid="browse-remote-profile"]').trigger('click')
+    await flushPromises()
+
+    expect(listRemotePath).toHaveBeenCalledWith('stage-sftp', '/')
+    expect(wrapper.find('[data-testid="remote-path-browser"]').exists()).toBe(true)
+
+    await wrapper.find('[data-testid="remote-browse-entry-directory"]').trigger('click')
+    await flushPromises()
+    await wrapper.find('[data-testid="remote-browse-use-path"]').trigger('click')
+    await flushPromises()
+
+    expect(
+      (wrapper.find('[data-testid="remote-profile-root-input"]').element as HTMLInputElement).value,
+    ).toBe('/apps')
+    expect(wrapper.find('[data-testid="remote-path-browser"]').exists()).toBe(false)
 
     Reflect.deleteProperty(window, '__TAURI_INTERNALS__')
   })
