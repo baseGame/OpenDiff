@@ -761,6 +761,7 @@ export const frFR: LanguagePack = {
     'ui.compareByTimestamp': 'Comparer l’horodatage',
     'ui.compareBinaryContents': 'Comparer le contenu binaire',
     'ui.compareCrc': 'Comparer le CRC',
+    'ui.followSymlinks': 'Suivre les liens symboliques',
     'ui.folderCriteria': 'Critères de comparaison',
     'ui.windowsShell': 'Shell Windows',
     'ui.unixShell': 'Shell macOS / Linux',

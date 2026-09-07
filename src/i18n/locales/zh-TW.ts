@@ -729,6 +729,7 @@ export const zhTW: LanguagePack = {
     'ui.compareByTimestamp': '比較時間戳',
     'ui.compareBinaryContents': '比較二進位內容',
     'ui.compareCrc': '比較 CRC',
+    'ui.followSymlinks': '跟隨符號連結',
     'ui.folderCriteria': '比較條件',
     'ui.windowsShell': 'Windows 殼層延伸',
     'ui.unixShell': 'macOS / Linux 殼層整合',

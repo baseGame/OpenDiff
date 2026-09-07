@@ -143,6 +143,9 @@ pub struct ScriptFolderCriteria {
     /// When contents are compared, treat whitespace / case / EOL as unimportant.
     #[serde(default)]
     pub ignore_unimportant: bool,
+    /// Resolve nested symbolic links while scanning folder trees.
+    #[serde(default)]
+    pub follow_symlinks: bool,
 }
 
 impl Default for ScriptFolderCriteria {
@@ -156,6 +159,7 @@ impl Default for ScriptFolderCriteria {
             ignore_daylight_saving_hour_offset: false,
             ignored_timezone_hour_offsets: Vec::new(),
             ignore_unimportant: false,
+            follow_symlinks: false,
         }
     }
 }
@@ -171,6 +175,7 @@ impl ScriptFolderCriteria {
             timestamp_tolerance_ms: self.timestamp_tolerance_ms,
             ignore_daylight_saving_hour_offset: self.ignore_daylight_saving_hour_offset,
             ignored_timezone_hour_offsets: self.ignored_timezone_hour_offsets.clone(),
+            follow_symlinks: self.follow_symlinks,
         }
     }
 }
@@ -861,6 +866,7 @@ fn apply_criteria_command(
         ("compare-crc", criteria.compare_crc),
         ("ignore-unimportant", criteria.ignore_unimportant),
         ("ignore-dst", criteria.ignore_daylight_saving_hour_offset),
+        ("follow-symlinks", criteria.follow_symlinks),
     ] {
         state
             .options
@@ -907,7 +913,7 @@ fn apply_criteria_command(
 
 /// Map CRITERIA tokens onto folder Session Settings comparison flags.
 /// Supported: timestamp[:seconds], size, crc, binary, rules-based,
-/// ignore-unimportant, IgnoreDST / ignore-dst, timezone:<hours>.
+/// ignore-unimportant, IgnoreDST / ignore-dst, timezone:<hours>, follow-symlinks.
 /// Other legacy script tokens are acknowledged without changing compare results.
 pub fn parse_folder_criteria_tokens(
     tokens: &[String],
@@ -921,6 +927,7 @@ pub fn parse_folder_criteria_tokens(
         ignore_daylight_saving_hour_offset: false,
         ignored_timezone_hour_offsets: Vec::new(),
         ignore_unimportant: false,
+        follow_symlinks: false,
     };
     let mut acknowledged = Vec::new();
     let mut saw_content_method = false;
@@ -990,9 +997,12 @@ pub fn parse_folder_criteria_tokens(
             criteria.ignored_timezone_hour_offsets.push(hours);
             continue;
         }
+        if lower == "follow-symlinks" {
+            criteria.follow_symlinks = true;
+            continue;
+        }
         if lower.starts_with("attrib:")
             || lower == "version"
-            || lower == "follow-symlinks"
             || lower == "owner"
             || lower == "group"
             || lower == "permissions"
@@ -1294,11 +1304,19 @@ fn compare_script_paths(
 
     if left_path.is_dir() && right_path.is_dir() {
         let cancellation = job_core::CancellationToken::default();
-        let left_tree = folder_core::scan_local_folder(left, &cancellation)
-            .map_err(|error| format!("{error:?}"))?;
-        let right_tree = folder_core::scan_local_folder(right, &cancellation)
-            .map_err(|error| format!("{error:?}"))?;
-        let rows = folder_core::align_folder_trees(&left_tree, &right_tree);
+        let follow = criteria.map(|value| value.follow_symlinks).unwrap_or(false);
+        let scan_options = folder_core::FolderCompareOptions {
+            follow_symlinks: follow,
+            ..folder_core::FolderCompareOptions::default()
+        };
+        let left_tree =
+            folder_core::scan_local_folder_with_options(left, &cancellation, &scan_options)
+                .map_err(|error| format!("{error:?}"))?;
+        let right_tree =
+            folder_core::scan_local_folder_with_options(right, &cancellation, &scan_options)
+                .map_err(|error| format!("{error:?}"))?;
+        let rows =
+            folder_core::align_folder_trees_with_options(&left_tree, &right_tree, &scan_options);
         let filtered = if filters.is_empty() {
             rows
         } else {
@@ -2264,7 +2282,8 @@ mod tests {
         .expect("applied + ack tokens");
         assert!(criteria.compare_contents);
         assert!(criteria.ignore_unimportant);
-        assert_eq!(acknowledged, vec!["follow-symlinks".to_owned()]);
+        assert!(criteria.follow_symlinks);
+        assert!(acknowledged.is_empty());
 
         let (timed, _) = parse_folder_criteria_tokens(&[
             "timestamp:2".to_owned(),

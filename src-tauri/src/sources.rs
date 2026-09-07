@@ -52,11 +52,22 @@ pub fn load_compare_source(path: &str) -> Result<CompareSource, String> {
     Ok(CompareSource::Local(path_buf))
 }
 
-pub fn scan_compare_source(source: &CompareSource) -> Result<FolderScanNode, String> {
+pub fn scan_compare_source_with_options(
+    source: &CompareSource,
+    follow_symlinks: bool,
+) -> Result<FolderScanNode, String> {
     match source {
         CompareSource::Local(path) => {
-            folder_core::scan_local_folder(path, &job_core::CancellationToken::default())
-                .map_err(|error| format!("{error:?}"))
+            let options = folder_core::FolderCompareOptions {
+                follow_symlinks,
+                ..folder_core::FolderCompareOptions::default()
+            };
+            folder_core::scan_local_folder_with_options(
+                path,
+                &job_core::CancellationToken::default(),
+                &options,
+            )
+            .map_err(|error| format!("{error:?}"))
         }
         CompareSource::Archive(document) => Ok(folder_tree_from_archive(document)),
         CompareSource::Snapshot(snapshot) => Ok(folder_tree_from_snapshot(snapshot)),

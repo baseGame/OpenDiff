@@ -748,6 +748,7 @@ export const enUS: LanguagePack = {
     'ui.compareByTimestamp': 'Compare timestamp',
     'ui.compareBinaryContents': 'Compare binary contents',
     'ui.compareCrc': 'Compare CRC',
+    'ui.followSymlinks': 'Follow symbolic links',
     'ui.folderCriteria': 'Compare criteria',
     'ui.windowsShell': 'Windows shell',
     'ui.unixShell': 'macOS / Linux shell',

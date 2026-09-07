@@ -766,6 +766,7 @@ export const deDE: LanguagePack = {
     'ui.compareByTimestamp': 'Zeitstempel vergleichen',
     'ui.compareBinaryContents': 'Binärinhalt vergleichen',
     'ui.compareCrc': 'CRC vergleichen',
+    'ui.followSymlinks': 'Symbolische Verknüpfungen folgen',
     'ui.folderCriteria': 'Vergleichskriterien',
     'ui.windowsShell': 'Windows-Shell',
     'ui.unixShell': 'macOS- / Linux-Shell',

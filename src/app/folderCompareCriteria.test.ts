@@ -21,14 +21,16 @@ describe('folderCompareCriteria', () => {
       compareModifiedTime: true,
       compareContents: false,
       compareCrc: true,
+      followSymlinks: true,
     })
 
-    expect(localStorage.getItem(folderCompareCriteriaStorageKey)).toContain('compareCrc')
+    expect(localStorage.getItem(folderCompareCriteriaStorageKey)).toContain('followSymlinks')
     expect(loadFolderCompareCriteria()).toEqual({
       compareSize: false,
       compareModifiedTime: true,
       compareContents: false,
       compareCrc: true,
+      followSymlinks: true,
     })
   })
 })

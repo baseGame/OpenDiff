@@ -747,6 +747,7 @@ export const jaJP: LanguagePack = {
     'ui.compareByTimestamp': 'タイムスタンプを比較',
     'ui.compareBinaryContents': 'バイナリ内容を比較',
     'ui.compareCrc': 'CRC を比較',
+    'ui.followSymlinks': 'シンボリックリンクをたどる',
     'ui.folderCriteria': '比較条件',
     'ui.windowsShell': 'Windows シェル',
     'ui.unixShell': 'macOS / Linux シェル',

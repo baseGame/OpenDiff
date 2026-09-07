@@ -1979,6 +1979,14 @@ onUnmounted(() => {
             />
             <span>{{ $t('ui.compareCrc') }}</span>
           </label>
+          <label>
+            <input
+              v-model="folderCriteria.followSymlinks"
+              data-testid="folder-criteria-follow-symlinks"
+              type="checkbox"
+            />
+            <span>{{ $t('ui.followSymlinks') }}</span>
+          </label>
         </fieldset>
         <button
           type="button"

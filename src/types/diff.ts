@@ -163,6 +163,7 @@ export interface FolderCompareCriteria {
   compareModifiedTime: boolean
   compareContents: boolean
   compareCrc: boolean
+  followSymlinks?: boolean
 }
 
 export interface FolderNameFilters {
