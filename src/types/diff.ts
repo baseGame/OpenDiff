@@ -197,6 +197,8 @@ export interface FolderCompareRow {
   relativePath: string
   depth: number
   status: FolderCompareStatus
+  /** Timestamp-only difference — Folder Compare Minor filter. */
+  unimportant?: boolean
   left?: FolderCompareSideEntry
   right?: FolderCompareSideEntry
 }
