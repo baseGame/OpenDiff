@@ -274,6 +274,18 @@ describe('SettingsView', () => {
     expect(document.documentElement.dataset.showPathBars).toBe('0')
   })
 
+  it('toggles load last workspace from Startup options', async () => {
+    const wrapper = mountSettingsView()
+    const settings = useSettingsStore()
+
+    await wrapper.find('[data-testid="options-section-startup"]').trigger('click')
+    expect(wrapper.find('[data-testid="options-startup-card"]').isVisible()).toBe(true)
+    expect(settings.loadLastWorkspaceOnStartup).toBe(false)
+
+    await wrapper.find('[data-testid="load-last-workspace-on-startup"]').setValue(true)
+    expect(settings.loadLastWorkspaceOnStartup).toBe(true)
+  })
+
   it('exposes tree-style options for toolbars, open with, shell, and backup', async () => {
     const wrapper = mountSettingsView()
     const settings = useSettingsStore()

@@ -48,6 +48,7 @@ type OptionsSectionId =
   | 'appearance'
   | 'colors'
   | 'toolbars'
+  | 'startup'
   | 'textEditing'
   | 'openWith'
   | 'shell'
@@ -66,6 +67,7 @@ const optionsTree = [
       { id: 'appearance' as const, labelKey: 'ui.appearance' },
       { id: 'colors' as const, labelKey: 'ui.colors' },
       { id: 'toolbars' as const, labelKey: 'ui.toolbars' },
+      { id: 'startup' as const, labelKey: 'ui.startup' },
     ],
   },
   {
@@ -312,6 +314,16 @@ function onShowPathBarsChange(event: Event): void {
   }
 
   settings.setShowPathBars(target.checked)
+}
+
+function onLoadLastWorkspaceOnStartupChange(event: Event): void {
+  const target = event.target
+
+  if (!(target instanceof HTMLInputElement)) {
+    return
+  }
+
+  settings.setLoadLastWorkspaceOnStartup(target.checked)
 }
 
 function restoreFactoryDefaultsFromOptions(): void {
@@ -669,6 +681,24 @@ function parseShortcutText(value: string): string[] {
           <span>{{ $t('ui.largeToolbarButtons') }}</span>
         </label>
         <p class="options-hint">{{ $t('ui.toolbarsHint') }}</p>
+      </NCard>
+
+      <NCard
+        v-show="optionsSection === 'startup'"
+        :title="$t('ui.startup')"
+        size="small"
+        data-testid="options-startup-card"
+      >
+        <label class="tweak-row">
+          <input
+            data-testid="load-last-workspace-on-startup"
+            type="checkbox"
+            :checked="settings.loadLastWorkspaceOnStartup"
+            @change="onLoadLastWorkspaceOnStartupChange"
+          />
+          <span>{{ $t('ui.loadLastWorkspaceOnStartup') }}</span>
+        </label>
+        <p class="options-hint">{{ $t('ui.startupHint') }}</p>
       </NCard>
 
       <NCard

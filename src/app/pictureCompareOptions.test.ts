@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest'
 import {
   defaultPictureCompareOptions,
   loadPictureCompareOptions,
+  normalizePictureBlendMode,
   normalizeRgba,
+  pictureBlendModes,
   pictureIgnoreColors,
   savePictureCompareOptions,
 } from './pictureCompareOptions'
@@ -30,9 +32,16 @@ describe('pictureCompareOptions', () => {
       ignoreColorTo: null,
       blendEnabled: false,
       blendOpacity: 50,
+      blendMode: 'normal',
       showMeta: true,
       showMinor: false,
     })
+  })
+
+  it('normalizes blend mode ids and rejects unknown values', () => {
+    expect(normalizePictureBlendMode('difference')).toBe('difference')
+    expect(normalizePictureBlendMode('nope')).toBe('normal')
+    expect(pictureBlendModes).toContain('overlay')
   })
   it('normalizes RGBA channels and clamps out-of-range values', () => {
     expect(normalizeRgba([300, -1, 12.4, 40])).toEqual([255, 0, 12, 40])
@@ -51,6 +60,7 @@ describe('pictureCompareOptions', () => {
         ignoreColorTo: [0, 255, 0],
         blendEnabled: true,
         blendOpacity: 40,
+        blendMode: 'difference',
         showMeta: false,
         showMinor: true,
       },
@@ -64,6 +74,7 @@ describe('pictureCompareOptions', () => {
       ignoreColorTo: [0, 255, 0, 255],
       blendEnabled: true,
       blendOpacity: 40,
+      blendMode: 'difference',
       showMeta: false,
       showMinor: true,
     })

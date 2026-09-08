@@ -231,6 +231,16 @@ describe('useSettingsStore', () => {
     expect(localStorage.getItem('open-diff-show-path-bars')).toBe('0')
     expect(document.documentElement.dataset.showPathBars).toBe('0')
   })
+
+  it('persists load-last-workspace-on-startup default off', () => {
+    const store = useSettingsStore()
+
+    expect(store.loadLastWorkspaceOnStartup).toBe(false)
+    store.setLoadLastWorkspaceOnStartup(true)
+    expect(localStorage.getItem('open-diff-load-last-workspace-on-startup')).toBe('1')
+    store.restoreFactoryDefaults()
+    expect(store.loadLastWorkspaceOnStartup).toBe(false)
+  })
   it('exports, imports, and restores factory settings packages', () => {
     const store = useSettingsStore()
 
