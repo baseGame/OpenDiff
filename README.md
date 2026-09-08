@@ -284,4 +284,3 @@ of showing fake success. Download installers from GitHub Releases.
 ## License
 
 Open Diff is licensed under the [Apache License 2.0](LICENSE).
-
