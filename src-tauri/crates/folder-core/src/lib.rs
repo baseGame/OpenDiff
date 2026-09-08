@@ -954,6 +954,22 @@ fn encode_file_link(value: &str) -> String {
         .collect()
 }
 
+/// True when both sides share kind and size but modified times do not match under `options`.
+/// Used to classify timestamp-only folder differences as unimportant (Minor).
+pub fn is_timestamp_only_metadata_difference(
+    left: &FolderScanNode,
+    right: &FolderScanNode,
+    options: &FolderCompareOptions,
+) -> bool {
+    left.kind == right.kind
+        && left.metadata.size == right.metadata.size
+        && !modified_times_match(
+            left.metadata.modified_at_ms,
+            right.metadata.modified_at_ms,
+            options,
+        )
+}
+
 fn folder_metadata_matches(
     left: &FolderScanNode,
     right: &FolderScanNode,
@@ -1462,6 +1478,44 @@ mod tests {
             classify_folder_alignment(None, Some(&same_right)),
             FolderCompareStatus::RightOnly
         );
+    }
+
+    #[test]
+    fn detects_timestamp_only_metadata_differences_for_minor_filter() {
+        let left = FolderScanNode::new_file(
+            "same.txt",
+            "same.txt",
+            metadata_with_modified_at(VfsEntryKind::File, "same.txt", Some("txt"), 20, Some(1_000)),
+        );
+        let right_time = FolderScanNode::new_file(
+            "same.txt",
+            "same.txt",
+            metadata_with_modified_at(VfsEntryKind::File, "same.txt", Some("txt"), 20, Some(2_000)),
+        );
+        let right_size = FolderScanNode::new_file(
+            "same.txt",
+            "same.txt",
+            metadata_with_modified_at(VfsEntryKind::File, "same.txt", Some("txt"), 21, Some(2_000)),
+        );
+        let options = FolderCompareOptions {
+            compare_size: true,
+            compare_modified_time: true,
+            case_sensitive_names: true,
+            compare_contents: false,
+            compare_crc: false,
+            ..Default::default()
+        };
+
+        assert!(is_timestamp_only_metadata_difference(
+            &left,
+            &right_time,
+            &options
+        ));
+        assert!(!is_timestamp_only_metadata_difference(
+            &left,
+            &right_size,
+            &options
+        ));
     }
 
     #[test]

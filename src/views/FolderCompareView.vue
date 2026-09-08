@@ -106,6 +106,7 @@ interface FolderTreeRow {
   rightPath?: string
   status: FolderStatus
   kind: 'file' | 'directory'
+  unimportant?: boolean
   manualAlignment?: boolean
   alignedLeftRelativePath?: string
   alignedRightRelativePath?: string
@@ -160,6 +161,7 @@ const initialDisplayFilters = loadFolderDisplayFilters()
 const visibleStatuses = ref<Set<FolderStatus>>(new Set(initialDisplayFilters.statuses))
 const showSuppressedFilters = ref(initialDisplayFilters.showSuppressed)
 const filesOnlyFilter = ref(initialDisplayFilters.filesOnly)
+const minorOnly = ref(false)
 const showFolderRules = ref(true)
 const showFolderFilters = ref(true)
 const showFolderSelect = ref(false)
@@ -285,6 +287,7 @@ watch([leftRoot, rightRoot], () => {
 const summary = computed(() => ({
   total: rows.value.length,
   different: rows.value.filter((row) => row.status === 'Different').length,
+  minor: rows.value.filter((row) => row.unimportant === true).length,
   orphans: rows.value.filter((row) => row.status === 'Left only' || row.status === 'Right only')
     .length,
 }))
@@ -353,7 +356,8 @@ const visibleRows = computed(() =>
       (!row.parentId || expandedDirectoryIds.value.has(row.parentId)) &&
       !excludedRowIds.value.has(row.id) &&
       (visibleStatuses.value.has(row.status) || showSuppressedFilters.value) &&
-      (!filesOnlyFilter.value || row.kind === 'file'),
+      (!filesOnlyFilter.value || row.kind === 'file') &&
+      (!minorOnly.value || row.unimportant === true),
   ),
 )
 const virtualStartIndex = computed(() =>
@@ -441,6 +445,14 @@ function folderStatusLabel(status: FolderStatus): string {
   }
 
   return t(keys[status])
+}
+
+function folderRowStatusLabel(row: FolderTreeRow): string {
+  if (row.unimportant && row.status === 'Different') {
+    return t('ui.minor')
+  }
+
+  return folderStatusLabel(row.status)
 }
 
 function syncPreviewActionLabel(action: SyncPreviewAction): string {
@@ -678,13 +690,23 @@ function swapFolderRoots(): void {
 }
 
 function showAllFolderStatuses(): void {
+  minorOnly.value = false
   visibleStatuses.value = new Set(['Same', 'Different', 'Left only', 'Right only'])
   persistDisplayFilters()
 }
 
 function showSameFolderStatuses(): void {
+  minorOnly.value = false
   visibleStatuses.value = new Set(['Same'])
   persistDisplayFilters()
+}
+
+function showMinorFolderDifferences(): void {
+  minorOnly.value = !minorOnly.value
+  if (minorOnly.value) {
+    visibleStatuses.value = new Set(['Same', 'Different', 'Left only', 'Right only'])
+    persistDisplayFilters()
+  }
 }
 
 function toggleFilesOnlyFilter(): void {
@@ -710,7 +732,7 @@ const folderSessionToolbar = computed(() =>
     home: true,
     all: true,
     same: true,
-    minor: false,
+    minor: rows.value.length > 0,
     rules: true,
     copy: canCopyToRight.value,
     expand: true,
@@ -722,7 +744,21 @@ const folderSessionToolbar = computed(() =>
     stop: folderCompareLoading.value,
     filters: true,
     peek: true,
-  }),
+  }).map((item) => ({
+    ...item,
+    active:
+      (item.id === 'all' && !minorOnly.value && visibleStatuses.value.size === 4) ||
+      (item.id === 'same' &&
+        !minorOnly.value &&
+        visibleStatuses.value.size === 1 &&
+        visibleStatuses.value.has('Same')) ||
+      (item.id === 'minor' && minorOnly.value) ||
+      (item.id === 'rules' && showFolderRules.value) ||
+      (item.id === 'filters' && showFolderFilters.value) ||
+      (item.id === 'select' && showFolderSelect.value) ||
+      (item.id === 'files' && filesOnlyFilter.value) ||
+      (item.id === 'peek' && showPeekPanel.value),
+  })),
 )
 
 function runFolderToolbarCommand(commandId: string): void {
@@ -735,6 +771,9 @@ function runFolderToolbarCommand(commandId: string): void {
       break
     case 'same':
       showSameFolderStatuses()
+      break
+    case 'minor':
+      showMinorFolderDifferences()
       break
     case 'rules':
       showFolderRules.value = !showFolderRules.value
@@ -902,6 +941,7 @@ function applyFolderCompareResponse(response: FolderCompareResponse): void {
   lastAlignmentAction.value = undefined
   currentDifferenceIndex.value = -1
   lastDifferenceNavigation.value = undefined
+  minorOnly.value = false
   scrollTop.value = 0
 }
 
@@ -921,6 +961,7 @@ function folderCompareResponseRowToTreeRow(row: FolderCompareResponseRow): Folde
     rightPath: row.right?.path,
     status: row.status,
     kind: row.left?.kind ?? row.right?.kind ?? 'file',
+    unimportant: row.unimportant === true,
   }
 }
 
@@ -2455,6 +2496,10 @@ onUnmounted(() => {
           <strong>{{ summary.different }}</strong>
           <span>{{ $t('ui.different') }}</span>
         </div>
+        <div data-testid="folder-summary-minor">
+          <strong>{{ summary.minor }}</strong>
+          <span>{{ $t('ui.minor') }}</span>
+        </div>
         <div>
           <strong>{{ summary.orphans }}</strong>
           <span>{{ $t('ui.orphans') }}</span>
@@ -2813,8 +2858,10 @@ onUnmounted(() => {
                   selected: selectedRowId === row.id,
                   checked: isRowChecked(row.id),
                   suppressed: isSuppressed(row),
+                  'status-unimportant': row.unimportant === true,
                 },
               ]"
+              :data-unimportant="row.unimportant ? 'true' : undefined"
               :style="{ gridTemplateColumns }"
               :data-row-id="row.id"
               data-testid="folder-row"
@@ -2868,7 +2915,7 @@ onUnmounted(() => {
               >
                 {{ typeLabel(row) }}
               </span>
-              <strong>{{ folderStatusLabel(row.status) }}</strong>
+              <strong>{{ folderRowStatusLabel(row) }}</strong>
               <span
                 class="name-cell"
                 :style="{ paddingLeft: rowIndent(row) }"
@@ -2970,7 +3017,7 @@ onUnmounted(() => {
             <div>
               <dt>{{ $t('ui.status') }}</dt>
               <dd :data-tone="selectedRow?.status === 'Different' ? 'modified' : 'default'">
-                {{ selectedRow ? folderStatusLabel(selectedRow.status) : '--' }}
+                {{ selectedRow ? folderRowStatusLabel(selectedRow) : '--' }}
               </dd>
             </div>
             <div>
@@ -3514,6 +3561,12 @@ onUnmounted(() => {
 
 .status-different strong {
   color: var(--diff-modified-fg);
+}
+
+.status-unimportant strong {
+  color: var(--diff-modified-fg);
+  font-style: italic;
+  opacity: 0.85;
 }
 
 .status-left-only strong,

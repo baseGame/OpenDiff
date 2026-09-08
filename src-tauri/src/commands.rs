@@ -413,6 +413,9 @@ pub struct FolderCompareRow {
     pub relative_path: String,
     pub depth: usize,
     pub status: String,
+    /// Timestamp-only (or equivalent) difference — surfaces under Folder Compare Minor.
+    #[serde(default)]
+    pub unimportant: bool,
     pub left: Option<FolderCompareSideEntry>,
     pub right: Option<FolderCompareSideEntry>,
 }
@@ -2713,7 +2716,7 @@ fn folder_compare_row(
     right_root: &str,
     criteria: &FolderCompareCriteria,
 ) -> Result<FolderCompareRow, AppErrorPayload> {
-    let status = folder_row_status(
+    let (status, unimportant) = folder_row_classification(
         row,
         left_source,
         right_source,
@@ -2726,6 +2729,7 @@ fn folder_compare_row(
         relative_path: row.relative_path.clone(),
         depth: row.depth,
         status: folder_status_label(&status),
+        unimportant,
         left: row
             .left
             .as_ref()
@@ -2737,14 +2741,14 @@ fn folder_compare_row(
     })
 }
 
-fn folder_row_status(
+fn folder_row_classification(
     row: &FolderAlignmentRow,
     left_source: &crate::sources::CompareSource,
     right_source: &crate::sources::CompareSource,
     left_root: &str,
     right_root: &str,
     criteria: &FolderCompareCriteria,
-) -> Result<FolderCompareStatus, AppErrorPayload> {
+) -> Result<(FolderCompareStatus, bool), AppErrorPayload> {
     let options = criteria.to_options();
     let metadata_status = folder_core::classify_folder_alignment_with_options(
         row.left.as_ref(),
@@ -2752,12 +2756,35 @@ fn folder_row_status(
         &options,
     );
 
-    if metadata_status != FolderCompareStatus::Same || !row_is_file_pair(row) {
-        return Ok(metadata_status);
+    if matches!(
+        metadata_status,
+        FolderCompareStatus::LeftOnly
+            | FolderCompareStatus::RightOnly
+            | FolderCompareStatus::Unknown
+            | FolderCompareStatus::Error
+    ) {
+        return Ok((metadata_status, false));
+    }
+
+    let timestamp_only = matches!(
+        (&row.left, &row.right),
+        (Some(left), Some(right))
+            if folder_core::is_timestamp_only_metadata_difference(left, right, &options)
+    );
+
+    if metadata_status == FolderCompareStatus::Different && !timestamp_only {
+        return Ok((FolderCompareStatus::Different, false));
+    }
+
+    if !row_is_file_pair(row) {
+        return Ok((metadata_status, false));
     }
 
     if !criteria.compare_contents && !criteria.compare_crc {
-        return Ok(metadata_status);
+        let unimportant = metadata_status == FolderCompareStatus::Different
+            && timestamp_only
+            && options.compare_modified_time;
+        return Ok((metadata_status, unimportant));
     }
 
     let left_bytes = crate::sources::read_compare_file(left_source, &row.relative_path)
@@ -2765,28 +2792,43 @@ fn folder_row_status(
     let right_bytes = crate::sources::read_compare_file(right_source, &row.relative_path)
         .map_err(|error| compare_source_error(right_root, error))?;
 
+    let mut content_status = FolderCompareStatus::Same;
+
     if criteria.compare_crc {
-        let status = folder_core::classify_folder_alignment_with_crc32(
+        content_status = folder_core::classify_folder_alignment_with_crc32(
             row.left.as_ref(),
             row.right.as_ref(),
-            &options,
+            &folder_core::FolderCompareOptions {
+                compare_modified_time: false,
+                compare_size: false,
+                ..options.clone()
+            },
             Some(folder_core::calculate_crc32(&left_bytes)),
             Some(folder_core::calculate_crc32(&right_bytes)),
         );
-        if status != FolderCompareStatus::Same || !criteria.compare_contents {
-            return Ok(status);
+        if content_status != FolderCompareStatus::Same && !criteria.compare_contents {
+            return Ok((FolderCompareStatus::Different, false));
         }
     }
 
     if criteria.compare_contents {
-        return Ok(
+        content_status =
             folder_core::compare_binary_streams(&left_bytes[..], &right_bytes[..], 8192)
                 .map_err(|error| file_io_error(left_root, error))?
-                .status,
-        );
+                .status;
     }
 
-    Ok(metadata_status)
+    if content_status != FolderCompareStatus::Same {
+        return Ok((FolderCompareStatus::Different, false));
+    }
+
+    if metadata_status == FolderCompareStatus::Same {
+        return Ok((FolderCompareStatus::Same, false));
+    }
+
+    // Content matches; metadata differs only by timestamp under active mtime criteria.
+    let unimportant = timestamp_only && options.compare_modified_time;
+    Ok((FolderCompareStatus::Different, unimportant))
 }
 
 fn row_is_file_pair(row: &FolderAlignmentRow) -> bool {
@@ -4822,14 +4864,65 @@ mod tests {
         )
         .expect("tolerant timestamp compare");
 
-        assert!(strict
-            .rows
-            .iter()
-            .any(|row| row.relative_path == "note.txt" && row.status == "Different"));
+        assert!(strict.rows.iter().any(|row| {
+            row.relative_path == "note.txt" && row.status == "Different" && row.unimportant
+        }));
         assert!(tolerant
             .rows
             .iter()
-            .any(|row| row.relative_path == "note.txt" && row.status == "Same"));
+            .any(|row| row.relative_path == "note.txt"
+                && row.status == "Same"
+                && !row.unimportant));
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn compare_folder_paths_marks_content_diffs_as_important_even_with_mtime_skew() {
+        let root = unique_temp_dir("folder-minor-content");
+        let left = root.join("left");
+        let right = root.join("right");
+        fs::create_dir_all(&left).expect("left");
+        fs::create_dir_all(&right).expect("right");
+        let left_file = left.join("note.txt");
+        let right_file = right.join("note.txt");
+        fs::write(&left_file, b"same-size!").expect("left file");
+        fs::write(&right_file, b"different!").expect("right file");
+
+        let left_time = UNIX_EPOCH + Duration::from_millis(1_000_000);
+        let right_time = UNIX_EPOCH + Duration::from_millis(2_000_000);
+        File::options()
+            .write(true)
+            .open(&left_file)
+            .expect("open left")
+            .set_modified(left_time)
+            .expect("left mtime");
+        File::options()
+            .write(true)
+            .open(&right_file)
+            .expect("open right")
+            .set_modified(right_time)
+            .expect("right mtime");
+
+        let response = compare_folder_paths(
+            left.display().to_string(),
+            right.display().to_string(),
+            Some(FolderCompareCriteria {
+                compare_size: true,
+                compare_modified_time: true,
+                compare_contents: true,
+                compare_crc: false,
+                follow_symlinks: false,
+                timestamp_tolerance_ms: 0,
+                ignore_daylight_saving_hour_offset: false,
+            }),
+            None,
+        )
+        .expect("content+mtime compare");
+
+        assert!(response.rows.iter().any(|row| {
+            row.relative_path == "note.txt" && row.status == "Different" && !row.unimportant
+        }));
+        let _ = fs::remove_dir_all(root);
     }
 
     #[test]

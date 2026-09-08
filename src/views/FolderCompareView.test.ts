@@ -102,6 +102,26 @@ vi.mock('@/api/diff', () => ({
         right: { name: 'main.ts', kind: 'file', size: 14, path: 'D:/right/src/main.ts' },
       },
       {
+        relativePath: 'stamp.txt',
+        depth: 0,
+        status: 'Different',
+        unimportant: true,
+        left: {
+          name: 'stamp.txt',
+          kind: 'file',
+          size: 8,
+          modifiedAtMs: 1000,
+          path: 'D:/left/stamp.txt',
+        },
+        right: {
+          name: 'stamp.txt',
+          kind: 'file',
+          size: 8,
+          modifiedAtMs: 2000,
+          path: 'D:/right/stamp.txt',
+        },
+      },
+      {
         relativePath: 'README.md',
         depth: 0,
         status: 'Same',
@@ -121,7 +141,7 @@ vi.mock('@/api/diff', () => ({
         right: { name: 'extra-right.md', kind: 'file', size: 3, path: 'D:/right/extra-right.md' },
       },
     ],
-    summary: { total: 5, same: 2, different: 1, leftOnly: 1, rightOnly: 1 },
+    summary: { total: 6, same: 2, different: 2, leftOnly: 1, rightOnly: 1 },
   }),
   copyFolderCompareEntry: vi.fn().mockResolvedValue({
     direction: 'toRight',
@@ -288,6 +308,37 @@ describe('FolderCompareView', () => {
       wrapper.find('[data-testid="folder-session-toolbar-select"]').attributes('disabled'),
     ).toBeUndefined()
     expect(wrapper.html()).not.toContain('未实现')
+  })
+
+  it('filters to unimportant timestamp differences from the Minor toolbar', async () => {
+    const wrapper = mountFolderCompareView()
+
+    await runCompare(wrapper)
+
+    expect(
+      wrapper.find('[data-testid="folder-session-toolbar-minor"]').attributes('disabled'),
+    ).toBeUndefined()
+    expect(wrapper.find('[data-testid="folder-summary-minor"]').text()).toContain('1')
+
+    await wrapper.find('[data-testid="folder-session-toolbar-minor"]').trigger('click')
+    await flushPromises()
+
+    const visiblePaths = wrapper
+      .findAll('[data-testid="folder-row"]')
+      .map((row) => row.attributes('data-row-id'))
+
+    expect(visiblePaths).toEqual(['stamp-txt'])
+    expect(
+      wrapper.find('[data-testid="folder-session-toolbar-minor"]').attributes('data-active'),
+    ).toBe('true')
+    expect(wrapper.find('[data-unimportant="true"]').text()).toContain('Minor')
+
+    await wrapper.find('[data-testid="folder-session-toolbar-all"]').trigger('click')
+    await flushPromises()
+    expect(
+      wrapper.find('[data-testid="folder-session-toolbar-minor"]').attributes('data-active'),
+    ).not.toBe('true')
+    expect(wrapper.findAll('[data-testid="folder-row"]').length).toBeGreaterThan(1)
   })
 
   it('selects visible rows by status and name from the Select toolbar', async () => {
