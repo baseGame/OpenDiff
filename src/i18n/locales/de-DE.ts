@@ -119,6 +119,8 @@ export const deDE: LanguagePack = {
     'ui.conflictPolicy': 'Konfliktstrategie',
     'ui.connectionProfiles': 'Verbindungsprofile',
     'ui.context': 'Kontext',
+    'ui.contextLines': 'Context lines',
+    'ui.contextLinesHint': 'Show surrounding lines when viewing differences only.',
     'ui.conversionRule': 'Konvertierungsregel',
     'ui.copy': 'Kopie',
     'ui.copyLeft': 'Nach links kopieren',

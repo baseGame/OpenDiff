@@ -120,6 +120,8 @@ export const jaJP: LanguagePack = {
     'ui.conflictPolicy': '競合ポリシー',
     'ui.connectionProfiles': 'Connection profiles',
     'ui.context': 'Context',
+    'ui.contextLines': 'Context lines',
+    'ui.contextLinesHint': 'Show surrounding lines when viewing differences only.',
     'ui.conversionRule': 'Conversion Rule',
     'ui.copy': 'Copy',
     'ui.copyLeft': 'Copy Left',

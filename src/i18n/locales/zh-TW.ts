@@ -104,6 +104,8 @@ export const zhTW: LanguagePack = {
     'ui.conflictPolicy': '衝突策略',
     'ui.connectionProfiles': '連線設定檔',
     'ui.context': '內容行',
+    'ui.contextLines': '上下文行數',
+    'ui.contextLinesHint': '在僅顯示差異時展示周圍行。',
     'ui.conversionRule': '轉換規則',
     'ui.copy': '複製',
     'ui.copyLeft': '複製到左側',

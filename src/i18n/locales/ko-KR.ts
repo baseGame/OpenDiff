@@ -111,6 +111,8 @@ export const koKR: LanguagePack = {
     'ui.conflictPolicy': '충돌 정책',
     'ui.connectionProfiles': '연결 프로필',
     'ui.context': '문맥',
+    'ui.contextLines': 'Context lines',
+    'ui.contextLinesHint': 'Show surrounding lines when viewing differences only.',
     'ui.conversionRule': '변환 규칙',
     'ui.copy': '복사',
     'ui.copyLeft': '왼쪽으로 복사',

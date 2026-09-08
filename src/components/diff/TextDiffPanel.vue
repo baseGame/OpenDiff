@@ -423,9 +423,15 @@ const splitBySyntaxTokens = (
   return parts
 }
 
+const getDifferenceContextRowCount = (): number => differenceContextRows.value
+
+const getDisplayMode = (): DiffDisplayMode => displayMode.value
+
 defineExpose({
   setDisplayMode,
+  getDisplayMode,
   setDifferenceContextRowCount,
+  getDifferenceContextRowCount,
   jumpToNextDiff,
   jumpToPreviousDiff,
 })

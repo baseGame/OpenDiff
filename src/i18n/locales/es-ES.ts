@@ -115,6 +115,8 @@ export const esES: LanguagePack = {
     'ui.conflictPolicy': 'Política de conflictos',
     'ui.connectionProfiles': 'Perfiles de conexión',
     'ui.context': 'Contexto',
+    'ui.contextLines': 'Context lines',
+    'ui.contextLinesHint': 'Show surrounding lines when viewing differences only.',
     'ui.conversionRule': 'Regla de conversión',
     'ui.copy': 'Copiar',
     'ui.copyLeft': 'Copiar a la izquierda',

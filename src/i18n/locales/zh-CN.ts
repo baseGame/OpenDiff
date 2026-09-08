@@ -103,6 +103,8 @@ export const zhCN: LanguagePack = {
     'ui.conflictPolicy': '冲突策略',
     'ui.connectionProfiles': '连接配置',
     'ui.context': '上下文',
+    'ui.contextLines': '上下文行数',
+    'ui.contextLinesHint': '在仅显示差异时展示周围行。',
     'ui.conversionRule': '转换规则',
     'ui.copy': '复制',
     'ui.copyLeft': '复制到左侧',
