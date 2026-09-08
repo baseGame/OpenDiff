@@ -135,6 +135,8 @@ pub struct ScriptFolderCriteria {
     pub compare_contents: bool,
     pub compare_crc: bool,
     #[serde(default)]
+    pub compare_attributes: bool,
+    #[serde(default)]
     pub timestamp_tolerance_ms: u128,
     #[serde(default)]
     pub ignore_daylight_saving_hour_offset: bool,
@@ -155,6 +157,7 @@ impl Default for ScriptFolderCriteria {
             compare_modified_time: false,
             compare_contents: true,
             compare_crc: false,
+            compare_attributes: false,
             timestamp_tolerance_ms: 0,
             ignore_daylight_saving_hour_offset: false,
             ignored_timezone_hour_offsets: Vec::new(),
@@ -172,6 +175,7 @@ impl ScriptFolderCriteria {
             case_sensitive_names: true,
             compare_contents: self.compare_contents,
             compare_crc: self.compare_crc,
+            compare_attributes: self.compare_attributes,
             timestamp_tolerance_ms: self.timestamp_tolerance_ms,
             ignore_daylight_saving_hour_offset: self.ignore_daylight_saving_hour_offset,
             ignored_timezone_hour_offsets: self.ignored_timezone_hour_offsets.clone(),
@@ -863,6 +867,7 @@ fn apply_criteria_command(
         ("compare-timestamp", criteria.compare_modified_time),
         ("compare-contents", criteria.compare_contents),
         ("compare-crc", criteria.compare_crc),
+        ("compare-attributes", criteria.compare_attributes),
         ("ignore-unimportant", criteria.ignore_unimportant),
         ("ignore-dst", criteria.ignore_daylight_saving_hour_offset),
         ("follow-symlinks", criteria.follow_symlinks),
@@ -911,7 +916,7 @@ fn apply_criteria_command(
 }
 
 /// Map CRITERIA tokens onto folder Session Settings comparison flags.
-/// Supported: timestamp[:seconds], size, crc, binary, rules-based,
+/// Supported: timestamp[:seconds], size, crc, binary, rules-based, attributes/attrib,
 /// ignore-unimportant, IgnoreDST / ignore-dst, timezone:<hours>, follow-symlinks.
 /// Other legacy script tokens are acknowledged without changing compare results.
 pub fn parse_folder_criteria_tokens(
@@ -922,6 +927,7 @@ pub fn parse_folder_criteria_tokens(
         compare_modified_time: false,
         compare_contents: false,
         compare_crc: false,
+        compare_attributes: false,
         timestamp_tolerance_ms: 0,
         ignore_daylight_saving_hour_offset: false,
         ignored_timezone_hour_offsets: Vec::new(),
@@ -998,6 +1004,10 @@ pub fn parse_folder_criteria_tokens(
         }
         if lower == "follow-symlinks" {
             criteria.follow_symlinks = true;
+            continue;
+        }
+        if lower == "attributes" || lower == "attrib" {
+            criteria.compare_attributes = true;
             continue;
         }
         if lower.starts_with("attrib:")
@@ -2326,6 +2336,7 @@ mod tests {
                 compare_modified_time: true,
                 compare_contents: false,
                 compare_crc: false,
+                compare_attributes: false,
                 ..Default::default()
             })
         );
@@ -2341,6 +2352,7 @@ mod tests {
                 compare_modified_time: true,
                 compare_contents: false,
                 compare_crc: false,
+                compare_attributes: false,
                 ..Default::default()
             })
         );
@@ -2363,11 +2375,13 @@ mod tests {
             "rules-based".to_owned(),
             "ignore-unimportant".to_owned(),
             "follow-symlinks".to_owned(),
+            "attributes".to_owned(),
         ])
         .expect("applied + ack tokens");
         assert!(criteria.compare_contents);
         assert!(criteria.ignore_unimportant);
         assert!(criteria.follow_symlinks);
+        assert!(criteria.compare_attributes);
         assert!(acknowledged.is_empty());
 
         let (timed, _) = parse_folder_criteria_tokens(&[

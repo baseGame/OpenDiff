@@ -52,6 +52,9 @@ pub struct FolderCompareOptions {
     pub case_sensitive_names: bool,
     pub compare_contents: bool,
     pub compare_crc: bool,
+    /// Compare readonly (and related) file attributes when classifying rows.
+    #[serde(default)]
+    pub compare_attributes: bool,
     /// Allowed absolute difference when comparing modified times (milliseconds).
     #[serde(default)]
     pub timestamp_tolerance_ms: u128,
@@ -74,6 +77,7 @@ impl Default for FolderCompareOptions {
             case_sensitive_names: true,
             compare_contents: true,
             compare_crc: false,
+            compare_attributes: false,
             timestamp_tolerance_ms: 0,
             ignore_daylight_saving_hour_offset: false,
             ignored_timezone_hour_offsets: Vec::new(),
@@ -970,6 +974,44 @@ pub fn is_timestamp_only_metadata_difference(
         )
 }
 
+/// True when both sides share kind, size, and modified time (under `options`) but readonly differs.
+pub fn is_attribute_only_metadata_difference(
+    left: &FolderScanNode,
+    right: &FolderScanNode,
+    options: &FolderCompareOptions,
+) -> bool {
+    left.kind == right.kind
+        && left.metadata.size == right.metadata.size
+        && modified_times_match(
+            left.metadata.modified_at_ms,
+            right.metadata.modified_at_ms,
+            options,
+        )
+        && left.metadata.readonly != right.metadata.readonly
+}
+
+/// Timestamp and/or attribute mismatches that should surface under Folder Compare Minor.
+pub fn is_minor_metadata_difference(
+    left: &FolderScanNode,
+    right: &FolderScanNode,
+    options: &FolderCompareOptions,
+) -> bool {
+    if left.kind != right.kind || left.metadata.size != right.metadata.size {
+        return false;
+    }
+
+    let timestamp_differs = options.compare_modified_time
+        && !modified_times_match(
+            left.metadata.modified_at_ms,
+            right.metadata.modified_at_ms,
+            options,
+        );
+    let attribute_differs =
+        options.compare_attributes && left.metadata.readonly != right.metadata.readonly;
+
+    timestamp_differs || attribute_differs
+}
+
 fn folder_metadata_matches(
     left: &FolderScanNode,
     right: &FolderScanNode,
@@ -983,6 +1025,7 @@ fn folder_metadata_matches(
                 right.metadata.modified_at_ms,
                 options,
             ))
+        && (!options.compare_attributes || left.metadata.readonly == right.metadata.readonly)
 }
 
 fn modified_times_match(
@@ -1516,6 +1559,52 @@ mod tests {
             &right_size,
             &options
         ));
+    }
+
+    #[test]
+    fn detects_attribute_only_metadata_differences_for_minor_filter() {
+        let left = FolderScanNode::new_file(
+            "same.txt",
+            "same.txt",
+            metadata_with_modified_at(VfsEntryKind::File, "same.txt", Some("txt"), 20, Some(1_000)),
+        );
+        let mut right_attr = FolderScanNode::new_file(
+            "same.txt",
+            "same.txt",
+            metadata_with_modified_at(VfsEntryKind::File, "same.txt", Some("txt"), 20, Some(1_000)),
+        );
+        right_attr.metadata.readonly = true;
+        let right_size = FolderScanNode::new_file(
+            "same.txt",
+            "same.txt",
+            metadata_with_modified_at(VfsEntryKind::File, "same.txt", Some("txt"), 21, Some(1_000)),
+        );
+        let options = FolderCompareOptions {
+            compare_size: true,
+            compare_modified_time: false,
+            compare_attributes: true,
+            case_sensitive_names: true,
+            compare_contents: false,
+            compare_crc: false,
+            ..Default::default()
+        };
+
+        assert!(is_attribute_only_metadata_difference(
+            &left,
+            &right_attr,
+            &options
+        ));
+        assert!(is_minor_metadata_difference(&left, &right_attr, &options));
+        assert!(!is_attribute_only_metadata_difference(
+            &left,
+            &right_size,
+            &options
+        ));
+        assert!(!is_minor_metadata_difference(&left, &right_size, &options));
+        assert_eq!(
+            classify_folder_alignment_with_options(Some(&left), Some(&right_attr), &options),
+            FolderCompareStatus::Different
+        );
     }
 
     #[test]

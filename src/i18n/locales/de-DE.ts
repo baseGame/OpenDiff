@@ -775,6 +775,7 @@ export const deDE: LanguagePack = {
     'ui.compareByTimestamp': 'Zeitstempel vergleichen',
     'ui.compareBinaryContents': 'Binärinhalt vergleichen',
     'ui.compareCrc': 'CRC vergleichen',
+    'ui.compareAttributes': 'Attribute vergleichen',
     'ui.followSymlinks': 'Symbolische Verknüpfungen folgen',
     'ui.timestampToleranceSeconds': 'Timestamp tolerance (seconds)',
     'ui.ignoreDaylightSavingHourOffset': 'Ignore daylight saving time difference',

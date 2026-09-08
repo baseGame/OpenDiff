@@ -736,6 +736,7 @@ export const zhCN: LanguagePack = {
     'ui.compareByTimestamp': '比较时间戳',
     'ui.compareBinaryContents': '比较二进制内容',
     'ui.compareCrc': '比较 CRC',
+    'ui.compareAttributes': '比较属性',
     'ui.followSymlinks': '跟随符号链接',
     'ui.timestampToleranceSeconds': '时间戳容差（秒）',
     'ui.ignoreDaylightSavingHourOffset': '忽略夏令时一小时偏差',

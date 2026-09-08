@@ -770,6 +770,7 @@ export const frFR: LanguagePack = {
     'ui.compareByTimestamp': 'Comparer l’horodatage',
     'ui.compareBinaryContents': 'Comparer le contenu binaire',
     'ui.compareCrc': 'Comparer le CRC',
+    'ui.compareAttributes': 'Comparer les attributs',
     'ui.followSymlinks': 'Suivre les liens symboliques',
     'ui.timestampToleranceSeconds': 'Timestamp tolerance (seconds)',
     'ui.ignoreDaylightSavingHourOffset': 'Ignore daylight saving time difference',

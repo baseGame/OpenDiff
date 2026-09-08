@@ -770,6 +770,7 @@ export const esES: LanguagePack = {
     'ui.compareByTimestamp': 'Comparar marca de tiempo',
     'ui.compareBinaryContents': 'Comparar contenido binario',
     'ui.compareCrc': 'Comparar CRC',
+    'ui.compareAttributes': 'Comparar atributos',
     'ui.followSymlinks': 'Seguir enlaces simbólicos',
     'ui.timestampToleranceSeconds': 'Timestamp tolerance (seconds)',
     'ui.ignoreDaylightSavingHourOffset': 'Ignore daylight saving time difference',

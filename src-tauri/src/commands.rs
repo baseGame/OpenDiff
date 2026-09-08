@@ -342,6 +342,9 @@ pub struct FolderCompareCriteria {
     pub compare_modified_time: bool,
     pub compare_contents: bool,
     pub compare_crc: bool,
+    /// Compare readonly attributes; attribute-only diffs surface as Minor.
+    #[serde(default)]
+    pub compare_attributes: bool,
     #[serde(default)]
     pub follow_symlinks: bool,
     /// Allowed absolute modified-time skew in milliseconds.
@@ -359,6 +362,7 @@ impl Default for FolderCompareCriteria {
             compare_modified_time: false,
             compare_contents: true,
             compare_crc: false,
+            compare_attributes: false,
             follow_symlinks: false,
             timestamp_tolerance_ms: 0,
             ignore_daylight_saving_hour_offset: false,
@@ -374,6 +378,7 @@ impl FolderCompareCriteria {
             case_sensitive_names: true,
             compare_contents: self.compare_contents,
             compare_crc: self.compare_crc,
+            compare_attributes: self.compare_attributes,
             follow_symlinks: self.follow_symlinks,
             timestamp_tolerance_ms: self.timestamp_tolerance_ms,
             ignore_daylight_saving_hour_offset: self.ignore_daylight_saving_hour_offset,
@@ -413,7 +418,7 @@ pub struct FolderCompareRow {
     pub relative_path: String,
     pub depth: usize,
     pub status: String,
-    /// Timestamp-only (or equivalent) difference — surfaces under Folder Compare Minor.
+    /// Timestamp/attribute-only (or equivalent) difference — surfaces under Folder Compare Minor.
     #[serde(default)]
     pub unimportant: bool,
     pub left: Option<FolderCompareSideEntry>,
@@ -2766,13 +2771,13 @@ fn folder_row_classification(
         return Ok((metadata_status, false));
     }
 
-    let timestamp_only = matches!(
+    let minor_metadata = matches!(
         (&row.left, &row.right),
         (Some(left), Some(right))
-            if folder_core::is_timestamp_only_metadata_difference(left, right, &options)
+            if folder_core::is_minor_metadata_difference(left, right, &options)
     );
 
-    if metadata_status == FolderCompareStatus::Different && !timestamp_only {
+    if metadata_status == FolderCompareStatus::Different && !minor_metadata {
         return Ok((FolderCompareStatus::Different, false));
     }
 
@@ -2781,9 +2786,7 @@ fn folder_row_classification(
     }
 
     if !criteria.compare_contents && !criteria.compare_crc {
-        let unimportant = metadata_status == FolderCompareStatus::Different
-            && timestamp_only
-            && options.compare_modified_time;
+        let unimportant = metadata_status == FolderCompareStatus::Different && minor_metadata;
         return Ok((metadata_status, unimportant));
     }
 
@@ -2826,8 +2829,8 @@ fn folder_row_classification(
         return Ok((FolderCompareStatus::Same, false));
     }
 
-    // Content matches; metadata differs only by timestamp under active mtime criteria.
-    let unimportant = timestamp_only && options.compare_modified_time;
+    // Content matches; metadata differs only by timestamp/attributes under active criteria.
+    let unimportant = minor_metadata;
     Ok((FolderCompareStatus::Different, unimportant))
 }
 
@@ -4753,6 +4756,7 @@ mod tests {
                 compare_modified_time: false,
                 compare_contents: false,
                 compare_crc: false,
+                compare_attributes: false,
                 follow_symlinks: false,
                 timestamp_tolerance_ms: 0,
                 ignore_daylight_saving_hour_offset: false,
@@ -4768,6 +4772,7 @@ mod tests {
                 compare_modified_time: false,
                 compare_contents: true,
                 compare_crc: false,
+                compare_attributes: false,
                 follow_symlinks: false,
                 timestamp_tolerance_ms: 0,
                 ignore_daylight_saving_hour_offset: false,
@@ -4783,6 +4788,7 @@ mod tests {
                 compare_modified_time: false,
                 compare_contents: false,
                 compare_crc: true,
+                compare_attributes: false,
                 follow_symlinks: false,
                 timestamp_tolerance_ms: 0,
                 ignore_daylight_saving_hour_offset: false,
@@ -4841,6 +4847,7 @@ mod tests {
                 compare_modified_time: true,
                 compare_contents: false,
                 compare_crc: false,
+                compare_attributes: false,
                 follow_symlinks: false,
                 timestamp_tolerance_ms: 0,
                 ignore_daylight_saving_hour_offset: false,
@@ -4856,6 +4863,7 @@ mod tests {
                 compare_modified_time: true,
                 compare_contents: false,
                 compare_crc: false,
+                compare_attributes: false,
                 follow_symlinks: false,
                 timestamp_tolerance_ms: 2_000,
                 ignore_daylight_saving_hour_offset: false,
@@ -4911,6 +4919,7 @@ mod tests {
                 compare_modified_time: true,
                 compare_contents: true,
                 compare_crc: false,
+                compare_attributes: false,
                 follow_symlinks: false,
                 timestamp_tolerance_ms: 0,
                 ignore_daylight_saving_hour_offset: false,
@@ -4922,6 +4931,88 @@ mod tests {
         assert!(response.rows.iter().any(|row| {
             row.relative_path == "note.txt" && row.status == "Different" && !row.unimportant
         }));
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn compare_folder_paths_marks_attribute_only_diffs_as_minor() {
+        let root = unique_temp_dir("folder-minor-attrib");
+        let left = root.join("left");
+        let right = root.join("right");
+        fs::create_dir_all(&left).expect("left");
+        fs::create_dir_all(&right).expect("right");
+        let left_file = left.join("note.txt");
+        let right_file = right.join("note.txt");
+        fs::write(&left_file, b"same-bytes").expect("left file");
+        fs::write(&right_file, b"same-bytes").expect("right file");
+        let mut permissions = fs::metadata(&right_file)
+            .expect("right metadata")
+            .permissions();
+        permissions.set_readonly(true);
+        fs::set_permissions(&right_file, permissions).expect("set readonly");
+
+        let response = compare_folder_paths(
+            left.display().to_string(),
+            right.display().to_string(),
+            Some(FolderCompareCriteria {
+                compare_size: true,
+                compare_modified_time: false,
+                compare_contents: true,
+                compare_crc: false,
+                compare_attributes: true,
+                follow_symlinks: false,
+                timestamp_tolerance_ms: 0,
+                ignore_daylight_saving_hour_offset: false,
+            }),
+            None,
+        )
+        .expect("attribute compare");
+
+        assert!(response.rows.iter().any(|row| {
+            row.relative_path == "note.txt" && row.status == "Different" && row.unimportant
+        }));
+
+        let ignored = compare_folder_paths(
+            left.display().to_string(),
+            right.display().to_string(),
+            Some(FolderCompareCriteria {
+                compare_size: true,
+                compare_modified_time: false,
+                compare_contents: true,
+                compare_crc: false,
+                compare_attributes: false,
+                follow_symlinks: false,
+                timestamp_tolerance_ms: 0,
+                ignore_daylight_saving_hour_offset: false,
+            }),
+            None,
+        )
+        .expect("attributes off");
+
+        assert!(ignored.rows.iter().any(|row| {
+            row.relative_path == "note.txt" && row.status == "Same" && !row.unimportant
+        }));
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut permissions = fs::metadata(&right_file)
+                .expect("right metadata cleanup")
+                .permissions();
+            permissions.set_mode(0o644);
+            fs::set_permissions(&right_file, permissions).expect("clear readonly");
+        }
+        #[cfg(not(unix))]
+        {
+            let mut permissions = fs::metadata(&right_file)
+                .expect("right metadata cleanup")
+                .permissions();
+            #[allow(clippy::permissions_set_readonly_false)]
+            {
+                permissions.set_readonly(false);
+            }
+            fs::set_permissions(&right_file, permissions).expect("clear readonly");
+        }
         let _ = fs::remove_dir_all(root);
     }
 

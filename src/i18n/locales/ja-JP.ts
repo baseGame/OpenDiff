@@ -756,6 +756,7 @@ export const jaJP: LanguagePack = {
     'ui.compareByTimestamp': 'タイムスタンプを比較',
     'ui.compareBinaryContents': 'バイナリ内容を比較',
     'ui.compareCrc': 'CRC を比較',
+    'ui.compareAttributes': 'Compare attributes',
     'ui.followSymlinks': 'シンボリックリンクをたどる',
     'ui.timestampToleranceSeconds': 'Timestamp tolerance (seconds)',
     'ui.ignoreDaylightSavingHourOffset': 'Ignore daylight saving time difference',

@@ -2060,6 +2060,14 @@ onUnmounted(() => {
           </label>
           <label>
             <input
+              v-model="folderCriteria.compareAttributes"
+              data-testid="folder-criteria-attributes"
+              type="checkbox"
+            />
+            <span>{{ $t('ui.compareAttributes') }}</span>
+          </label>
+          <label>
+            <input
               v-model="folderCriteria.followSymlinks"
               data-testid="folder-criteria-follow-symlinks"
               type="checkbox"
