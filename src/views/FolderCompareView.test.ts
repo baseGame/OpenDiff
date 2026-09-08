@@ -375,6 +375,8 @@ describe('FolderCompareView', () => {
         compareContents: true,
         compareCrc: false,
         followSymlinks: false,
+        timestampToleranceMs: 0,
+        ignoreDaylightSavingHourOffset: false,
       },
       filters: {
         include: [],
@@ -803,5 +805,28 @@ describe('FolderCompareView', () => {
 
     expect(changeFolderEntryAttributes).toHaveBeenCalled()
     expect(vi.mocked(changeFolderEntryAttributes).mock.calls.length).toBeGreaterThanOrEqual(2)
+  })
+
+  it('persists timestamp tolerance and DST ignore from the Rules panel', async () => {
+    const wrapper = mountFolderCompareView()
+
+    expect(wrapper.find('[data-testid="folder-criteria"]').exists()).toBe(true)
+
+    const tolerance = wrapper.find('[data-testid="folder-criteria-timestamp-tolerance"]')
+
+    expect(tolerance.exists()).toBe(true)
+    await tolerance.setValue(2)
+    await wrapper.find('[data-testid="folder-criteria-ignore-dst"]').setValue(true)
+    await flushPromises()
+
+    const stored = JSON.parse(
+      localStorage.getItem('open-diff-folder-compare-criteria') ?? '{}',
+    ) as {
+      timestampToleranceMs?: number
+      ignoreDaylightSavingHourOffset?: boolean
+    }
+
+    expect(stored.timestampToleranceMs).toBe(2000)
+    expect(stored.ignoreDaylightSavingHourOffset).toBe(true)
   })
 })

@@ -107,6 +107,9 @@ pub struct ImageRect {
 pub struct PixelDiffOptions {
     pub rgb_tolerance: u8,
     pub compare_alpha: bool,
+    /// Allowed absolute difference when comparing alpha channels (0–255).
+    #[serde(default)]
+    pub alpha_tolerance: u8,
     pub ignored_replacements: Vec<ColorReplacementRule>,
 }
 
@@ -320,7 +323,8 @@ fn pixels_equal_with_options(left: &[u8], right: &[u8], options: &PixelDiffOptio
         .iter()
         .zip(&right[..3])
         .all(|(left, right)| left.abs_diff(*right) <= options.rgb_tolerance);
-    let alpha_equal = !options.compare_alpha || left[3] == right[3];
+    let alpha_equal =
+        !options.compare_alpha || left[3].abs_diff(right[3]) <= options.alpha_tolerance;
 
     rgb_equal && alpha_equal
 }
@@ -390,6 +394,7 @@ impl Default for PixelDiffOptions {
         Self {
             rgb_tolerance: 0,
             compare_alpha: true,
+            alpha_tolerance: 0,
             ignored_replacements: Vec::new(),
         }
     }
@@ -535,6 +540,7 @@ mod tests {
             PixelDiffOptions {
                 rgb_tolerance: 3,
                 compare_alpha: true,
+                alpha_tolerance: 0,
                 ignored_replacements: Vec::new(),
             },
         )
@@ -576,6 +582,7 @@ mod tests {
             PixelDiffOptions {
                 rgb_tolerance: 0,
                 compare_alpha: false,
+                alpha_tolerance: 0,
                 ignored_replacements: Vec::new(),
             },
         )
@@ -584,6 +591,42 @@ mod tests {
         assert_eq!(strict_diff.different_pixels, 1);
         assert_eq!(ignored_alpha_diff.different_pixels, 0);
         assert_eq!(ignored_alpha_diff.bounding_rect, None);
+    }
+
+    #[test]
+    fn honors_alpha_tolerance_when_comparing_alpha() {
+        let left = vec![100, 100, 100, 200];
+        let right = vec![100, 100, 100, 210];
+
+        let strict = scan_pixel_differences_with_options(
+            &left,
+            &right,
+            1,
+            1,
+            PixelDiffOptions {
+                rgb_tolerance: 0,
+                compare_alpha: true,
+                alpha_tolerance: 0,
+                ignored_replacements: Vec::new(),
+            },
+        )
+        .expect("scan should work");
+        assert_eq!(strict.different_pixels, 1);
+
+        let tolerant = scan_pixel_differences_with_options(
+            &left,
+            &right,
+            1,
+            1,
+            PixelDiffOptions {
+                rgb_tolerance: 0,
+                compare_alpha: true,
+                alpha_tolerance: 10,
+                ignored_replacements: Vec::new(),
+            },
+        )
+        .expect("scan should work");
+        assert_eq!(tolerant.different_pixels, 0);
     }
 
     #[test]
@@ -599,6 +642,7 @@ mod tests {
             PixelDiffOptions {
                 rgb_tolerance: 0,
                 compare_alpha: true,
+                alpha_tolerance: 0,
                 ignored_replacements: vec![ColorReplacementRule {
                     from: [255, 0, 0, 255],
                     to: [0, 255, 0, 255],
@@ -632,6 +676,7 @@ mod tests {
             PixelDiffOptions {
                 rgb_tolerance: 0,
                 compare_alpha: true,
+                alpha_tolerance: 0,
                 ignored_replacements: vec![ColorReplacementRule {
                     from: [255, 0, 0, 255],
                     to: [0, 255, 0, 255],

@@ -87,6 +87,7 @@ describe('PictureCompareView', () => {
       rightPath: 'C:/images/right-fixture.png',
       rgbTolerance: 0,
       compareAlpha: true,
+      alphaTolerance: 0,
     })
     expect(wrapper.find('[data-testid="left-picture-img"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('left-fixture.png')
@@ -118,6 +119,7 @@ describe('PictureCompareView', () => {
       rightPath: 'C:/drop/right.png',
       rgbTolerance: 0,
       compareAlpha: true,
+      alphaTolerance: 0,
     })
   })
 
@@ -299,8 +301,32 @@ describe('PictureCompareView', () => {
       rightPath: 'C:/images/right-fixture.png',
       rgbTolerance: 12,
       compareAlpha: false,
+      alphaTolerance: 0,
     })
     expect(wrapper.find('[data-testid="picture-inspector-tolerance"]').text()).toContain('12')
+  })
+
+  it('forwards alpha tolerance from the Tol panel into picture compare', async () => {
+    const wrapper = mount(PictureCompareView)
+
+    await wrapper.find('[data-testid="picture-left-path"]').setValue('C:/images/left-fixture.png')
+    await wrapper.find('[data-testid="picture-right-path"]').setValue('C:/images/right-fixture.png')
+    await wrapper.find('[data-testid="picture-session-toolbar-tol"]').trigger('click')
+    expect(wrapper.find('[data-testid="picture-tol-panel"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="picture-compare-alpha"]').exists()).toBe(true)
+
+    await wrapper.find('[data-testid="picture-alpha-tolerance"]').setValue(7)
+    await wrapper.find('[data-testid="run-picture-compare"]').trigger('click')
+    await wrapper.vm.$nextTick()
+
+    expect(comparePictureFiles).toHaveBeenCalledWith({
+      leftPath: 'C:/images/left-fixture.png',
+      rightPath: 'C:/images/right-fixture.png',
+      rgbTolerance: 0,
+      compareAlpha: true,
+      alphaTolerance: 7,
+    })
+    expect(wrapper.find('[data-testid="picture-inspector-alpha-tolerance"]').text()).toContain('7')
   })
 
   it('forwards ignore color replacement from the Range panel', async () => {
@@ -325,6 +351,7 @@ describe('PictureCompareView', () => {
       rightPath: 'C:/images/right-fixture.png',
       rgbTolerance: 0,
       compareAlpha: true,
+      alphaTolerance: 0,
       ignoreColorFrom: [255, 0, 0, 255],
       ignoreColorTo: [0, 255, 0, 255],
     })

@@ -344,6 +344,12 @@ pub struct FolderCompareCriteria {
     pub compare_crc: bool,
     #[serde(default)]
     pub follow_symlinks: bool,
+    /// Allowed absolute modified-time skew in milliseconds.
+    #[serde(default)]
+    pub timestamp_tolerance_ms: u128,
+    /// Treat a one-hour modified-time skew as equal (DST / clock skew).
+    #[serde(default)]
+    pub ignore_daylight_saving_hour_offset: bool,
 }
 
 impl Default for FolderCompareCriteria {
@@ -354,6 +360,8 @@ impl Default for FolderCompareCriteria {
             compare_contents: true,
             compare_crc: false,
             follow_symlinks: false,
+            timestamp_tolerance_ms: 0,
+            ignore_daylight_saving_hour_offset: false,
         }
     }
 }
@@ -367,6 +375,8 @@ impl FolderCompareCriteria {
             compare_contents: self.compare_contents,
             compare_crc: self.compare_crc,
             follow_symlinks: self.follow_symlinks,
+            timestamp_tolerance_ms: self.timestamp_tolerance_ms,
+            ignore_daylight_saving_hour_offset: self.ignore_daylight_saving_hour_offset,
             ..Default::default()
         }
     }
@@ -2376,6 +2386,7 @@ pub fn compare_picture_files(
     right_path: String,
     rgb_tolerance: Option<u8>,
     compare_alpha: Option<bool>,
+    alpha_tolerance: Option<u8>,
     ignore_color_from: Option<Vec<u8>>,
     ignore_color_to: Option<Vec<u8>>,
 ) -> Result<PictureCompareResponse, AppErrorPayload> {
@@ -2386,6 +2397,7 @@ pub fn compare_picture_files(
     let options = image_core::PixelDiffOptions {
         rgb_tolerance: rgb_tolerance.unwrap_or(0),
         compare_alpha: compare_alpha.unwrap_or(true),
+        alpha_tolerance: alpha_tolerance.unwrap_or(0),
         ignored_replacements: picture_ignore_replacements(ignore_color_from, ignore_color_to),
     };
     let diff = if left.metadata.width == right.metadata.width
@@ -4609,7 +4621,7 @@ mod tests {
     use super::*;
     use std::fs;
     use std::path::PathBuf;
-    use std::time::{SystemTime, UNIX_EPOCH};
+    use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
     #[test]
     fn read_text_file_returns_localizable_not_found_error() {
@@ -4700,6 +4712,8 @@ mod tests {
                 compare_contents: false,
                 compare_crc: false,
                 follow_symlinks: false,
+                timestamp_tolerance_ms: 0,
+                ignore_daylight_saving_hour_offset: false,
             }),
             None,
         )
@@ -4713,6 +4727,8 @@ mod tests {
                 compare_contents: true,
                 compare_crc: false,
                 follow_symlinks: false,
+                timestamp_tolerance_ms: 0,
+                ignore_daylight_saving_hour_offset: false,
             }),
             None,
         )
@@ -4726,6 +4742,8 @@ mod tests {
                 compare_contents: false,
                 compare_crc: true,
                 follow_symlinks: false,
+                timestamp_tolerance_ms: 0,
+                ignore_daylight_saving_hour_offset: false,
             }),
             None,
         )
@@ -4744,6 +4762,74 @@ mod tests {
             .iter()
             .any(|row| row.relative_path == "same-size.bin" && row.status == "Different"));
         let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn compare_folder_paths_honors_timestamp_tolerance_from_criteria() {
+        let root = unique_temp_dir("folder-timestamp-tolerance");
+        let left = root.join("left");
+        let right = root.join("right");
+        fs::create_dir_all(&left).expect("left");
+        fs::create_dir_all(&right).expect("right");
+        let left_file = left.join("note.txt");
+        let right_file = right.join("note.txt");
+        fs::write(&left_file, b"same").expect("left file");
+        fs::write(&right_file, b"same").expect("right file");
+
+        let left_time = UNIX_EPOCH + Duration::from_millis(1_000_000);
+        let right_time = UNIX_EPOCH + Duration::from_millis(1_001_500);
+        File::options()
+            .write(true)
+            .open(&left_file)
+            .expect("open left")
+            .set_modified(left_time)
+            .expect("left mtime");
+        File::options()
+            .write(true)
+            .open(&right_file)
+            .expect("open right")
+            .set_modified(right_time)
+            .expect("right mtime");
+
+        let strict = compare_folder_paths(
+            left.display().to_string(),
+            right.display().to_string(),
+            Some(FolderCompareCriteria {
+                compare_size: true,
+                compare_modified_time: true,
+                compare_contents: false,
+                compare_crc: false,
+                follow_symlinks: false,
+                timestamp_tolerance_ms: 0,
+                ignore_daylight_saving_hour_offset: false,
+            }),
+            None,
+        )
+        .expect("strict timestamp compare");
+        let tolerant = compare_folder_paths(
+            left.display().to_string(),
+            right.display().to_string(),
+            Some(FolderCompareCriteria {
+                compare_size: true,
+                compare_modified_time: true,
+                compare_contents: false,
+                compare_crc: false,
+                follow_symlinks: false,
+                timestamp_tolerance_ms: 2_000,
+                ignore_daylight_saving_hour_offset: false,
+            }),
+            None,
+        )
+        .expect("tolerant timestamp compare");
+
+        assert!(strict
+            .rows
+            .iter()
+            .any(|row| row.relative_path == "note.txt" && row.status == "Different"));
+        assert!(tolerant
+            .rows
+            .iter()
+            .any(|row| row.relative_path == "note.txt" && row.status == "Same"));
     }
 
     #[test]
@@ -5167,6 +5253,7 @@ mod tests {
         let response = compare_picture_files(
             left.display().to_string(),
             right.display().to_string(),
+            None,
             None,
             None,
             None,
@@ -5611,6 +5698,7 @@ mod tests {
             Some(true),
             None,
             None,
+            None,
         )
         .expect("strict compare should run");
         let tolerant = compare_picture_files(
@@ -5620,10 +5708,48 @@ mod tests {
             Some(true),
             None,
             None,
+            None,
         )
         .expect("tolerant compare should run");
 
         assert_eq!(strict.statistics.different_pixels, 1);
+        assert_eq!(tolerant.statistics.different_pixels, 0);
+    }
+
+    #[test]
+    fn compare_picture_files_forwards_alpha_tolerance() {
+        let root = unique_temp_dir("picture-alpha-tolerance-command");
+        fs::create_dir_all(&root).expect("fixture directory should be created");
+        let left = root.join("left.png");
+        let right = root.join("right.png");
+
+        fs::write(&left, fixture_png(&[[10, 20, 30, 200], [10, 20, 30, 200]]))
+            .expect("left fixture should be writable");
+        fs::write(&right, fixture_png(&[[10, 20, 30, 210], [10, 20, 30, 210]]))
+            .expect("right fixture should be writable");
+
+        let strict = compare_picture_files(
+            left.display().to_string(),
+            right.display().to_string(),
+            Some(0),
+            Some(true),
+            Some(0),
+            None,
+            None,
+        )
+        .expect("strict alpha compare should run");
+        let tolerant = compare_picture_files(
+            left.display().to_string(),
+            right.display().to_string(),
+            Some(0),
+            Some(true),
+            Some(10),
+            None,
+            None,
+        )
+        .expect("tolerant alpha compare should run");
+
+        assert_eq!(strict.statistics.different_pixels, 2);
         assert_eq!(tolerant.statistics.different_pixels, 0);
     }
 

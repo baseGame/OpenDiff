@@ -16,6 +16,7 @@ export type PictureBlendMode = (typeof pictureBlendModes)[number]
 export interface PictureCompareOptionsState {
   rgbTolerance: number
   compareAlpha: boolean
+  alphaTolerance: number
   ignoreColorFrom: number[] | null
   ignoreColorTo: number[] | null
   blendEnabled: boolean
@@ -37,6 +38,7 @@ export function defaultPictureCompareOptions(): PictureCompareOptionsState {
   return {
     rgbTolerance: 0,
     compareAlpha: true,
+    alphaTolerance: 0,
     ignoreColorFrom: null,
     ignoreColorTo: null,
     blendEnabled: false,
@@ -96,6 +98,7 @@ export function loadPictureCompareOptions(
     return {
       rgbTolerance: clampChannel(parsed.rgbTolerance, 0),
       compareAlpha: parsed.compareAlpha !== false,
+      alphaTolerance: clampChannel(parsed.alphaTolerance, 0),
       ignoreColorFrom: normalizeRgba(parsed.ignoreColorFrom),
       ignoreColorTo: normalizeRgba(parsed.ignoreColorTo),
       blendEnabled: parsed.blendEnabled === true,
@@ -118,6 +121,7 @@ export function savePictureCompareOptions(
     JSON.stringify({
       rgbTolerance: clampChannel(state.rgbTolerance, 0),
       compareAlpha: state.compareAlpha,
+      alphaTolerance: clampChannel(state.alphaTolerance, 0),
       ignoreColorFrom: normalizeRgba(state.ignoreColorFrom),
       ignoreColorTo: normalizeRgba(state.ignoreColorTo),
       blendEnabled: state.blendEnabled,
