@@ -425,6 +425,7 @@ describe('FolderCompareView', () => {
         compareModifiedTime: false,
         compareContents: true,
         compareCrc: false,
+        compareAttributes: false,
         followSymlinks: false,
         timestampToleranceMs: 0,
         ignoreDaylightSavingHourOffset: false,
@@ -879,5 +880,81 @@ describe('FolderCompareView', () => {
 
     expect(stored.timestampToleranceMs).toBe(2000)
     expect(stored.ignoreDaylightSavingHourOffset).toBe(true)
+  })
+
+  it('persists Compare attributes and filters attribute-only Minor rows', async () => {
+    vi.mocked(compareFolderPaths).mockResolvedValue({
+      leftRoot: 'D:/left',
+      rightRoot: 'D:/right',
+      rows: [
+        {
+          relativePath: 'readme.txt',
+          depth: 0,
+          status: 'Different',
+          unimportant: true,
+          left: {
+            name: 'readme.txt',
+            kind: 'file',
+            size: 12,
+            path: 'D:/left/readme.txt',
+          },
+          right: {
+            name: 'readme.txt',
+            kind: 'file',
+            size: 12,
+            path: 'D:/right/readme.txt',
+          },
+        },
+        {
+          relativePath: 'main.ts',
+          depth: 0,
+          status: 'Different',
+          unimportant: false,
+          left: {
+            name: 'main.ts',
+            kind: 'file',
+            size: 40,
+            path: 'D:/left/main.ts',
+          },
+          right: {
+            name: 'main.ts',
+            kind: 'file',
+            size: 41,
+            path: 'D:/right/main.ts',
+          },
+        },
+      ],
+      summary: {
+        total: 2,
+        same: 0,
+        different: 2,
+        leftOnly: 0,
+        rightOnly: 0,
+      },
+    })
+
+    const wrapper = mountFolderCompareView()
+
+    await wrapper.find('[data-testid="folder-criteria-attributes"]').setValue(true)
+    await flushPromises()
+
+    const stored = JSON.parse(
+      localStorage.getItem('open-diff-folder-compare-criteria') ?? '{}',
+    ) as { compareAttributes?: boolean }
+
+    expect(stored.compareAttributes).toBe(true)
+
+    await runCompare(wrapper)
+
+    const compareCall = vi.mocked(compareFolderPaths).mock.calls.at(-1)?.[0]
+
+    expect(compareCall?.criteria?.compareAttributes).toBe(true)
+    expect(wrapper.find('[data-testid="folder-summary-minor"]').text()).toContain('1')
+
+    await wrapper.find('[data-testid="folder-session-toolbar-minor"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.findAll('[data-testid="folder-row"]')).toHaveLength(1)
+    expect(wrapper.find('[data-unimportant="true"]').text()).toContain('Minor')
   })
 })

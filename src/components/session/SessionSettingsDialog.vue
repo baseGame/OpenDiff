@@ -34,6 +34,7 @@ const props = withDefaults(
       compareModifiedTime: false,
       compareContents: true,
       compareCrc: false,
+      compareAttributes: false,
       followSymlinks: false,
       timestampToleranceMs: 0,
       ignoreDaylightSavingHourOffset: false,
@@ -313,6 +314,14 @@ function applySettings(): void {
             data-testid="session-settings-compare-crc"
           />
           <span>{{ $t('ui.compareCrc') }}</span>
+        </label>
+        <label>
+          <input
+            v-model="draftFolder.compareAttributes"
+            type="checkbox"
+            data-testid="session-settings-compare-attributes"
+          />
+          <span>{{ $t('ui.compareAttributes') }}</span>
         </label>
         <label>
           <input

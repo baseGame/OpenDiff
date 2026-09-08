@@ -753,6 +753,7 @@ export const koKR: LanguagePack = {
     'ui.compareByTimestamp': '타임스탬프 비교',
     'ui.compareBinaryContents': '바이너리 내용 비교',
     'ui.compareCrc': 'CRC 비교',
+    'ui.compareAttributes': 'Compare attributes',
     'ui.followSymlinks': '심볼릭 링크 따라가기',
     'ui.timestampToleranceSeconds': 'Timestamp tolerance (seconds)',
     'ui.ignoreDaylightSavingHourOffset': 'Ignore daylight saving time difference',

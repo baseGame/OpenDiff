@@ -757,6 +757,7 @@ export const enUS: LanguagePack = {
     'ui.compareByTimestamp': 'Compare timestamp',
     'ui.compareBinaryContents': 'Compare binary contents',
     'ui.compareCrc': 'Compare CRC',
+    'ui.compareAttributes': 'Compare attributes',
     'ui.followSymlinks': 'Follow symbolic links',
     'ui.timestampToleranceSeconds': 'Timestamp tolerance (seconds)',
     'ui.ignoreDaylightSavingHourOffset': 'Ignore daylight saving time difference',

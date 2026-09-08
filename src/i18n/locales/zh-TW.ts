@@ -737,6 +737,7 @@ export const zhTW: LanguagePack = {
     'ui.compareByTimestamp': '比較時間戳',
     'ui.compareBinaryContents': '比較二進位內容',
     'ui.compareCrc': '比較 CRC',
+    'ui.compareAttributes': '比較屬性',
     'ui.followSymlinks': '跟隨符號連結',
     'ui.timestampToleranceSeconds': '時間戳容差（秒）',
     'ui.ignoreDaylightSavingHourOffset': '忽略日光節約時間一小時偏差',
