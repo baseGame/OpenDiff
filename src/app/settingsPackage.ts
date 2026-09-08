@@ -26,6 +26,7 @@ export interface SettingsPackage {
   createBackupOnSave: boolean
   showStatusBar?: boolean
   showPathBars?: boolean
+  loadLastWorkspaceOnStartup?: boolean
 }
 
 export function isSettingsPackage(value: unknown): value is SettingsPackage {

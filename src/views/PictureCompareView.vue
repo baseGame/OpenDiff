@@ -11,8 +11,10 @@ import StatusSummaryGrid from '@/components/workbench/StatusSummaryGrid.vue'
 import { buildPictureCompareToolbar, pathPairTitle } from '@/app/sessionToolbars'
 import {
   loadPictureCompareOptions,
+  pictureBlendModes,
   pictureIgnoreColors,
   savePictureCompareOptions,
+  type PictureBlendMode,
   type PictureCompareOptionsState,
 } from '@/app/pictureCompareOptions'
 import { useSessionLaunchStore } from '@/stores/sessionLaunch'
@@ -57,6 +59,7 @@ const showTolPanel = ref(false)
 const showRangePanel = ref(false)
 const blendEnabled = ref(initialPictureOptions.blendEnabled)
 const blendOpacity = ref(initialPictureOptions.blendOpacity)
+const blendMode = ref<PictureBlendMode>(initialPictureOptions.blendMode)
 const showMetaPanel = ref(initialPictureOptions.showMeta)
 const showMinor = ref(initialPictureOptions.showMinor)
 const showBlendPanel = ref(false)
@@ -107,6 +110,7 @@ function applyPictureSessionSettings(
   ignoreColorTo.value = payload.options.ignoreColorTo
   blendEnabled.value = payload.options.blendEnabled
   blendOpacity.value = payload.options.blendOpacity
+  blendMode.value = payload.options.blendMode
   showMetaPanel.value = payload.options.showMeta
   showMinor.value = payload.options.showMinor
   savePictureCompareOptions({
@@ -116,6 +120,7 @@ function applyPictureSessionSettings(
     ignoreColorTo: payload.options.ignoreColorTo,
     blendEnabled: payload.options.blendEnabled,
     blendOpacity: payload.options.blendOpacity,
+    blendMode: payload.options.blendMode,
     showMeta: payload.options.showMeta,
     showMinor: payload.options.showMinor,
   })
@@ -312,6 +317,7 @@ const pictureOptionsSnapshot = computed<PictureCompareOptionsState>(() => ({
   ignoreColorTo: ignoreColorTo.value,
   blendEnabled: blendEnabled.value,
   blendOpacity: Math.min(100, Math.max(0, Math.round(blendOpacity.value))),
+  blendMode: blendMode.value,
   showMeta: showMetaPanel.value,
   showMinor: showMinor.value,
 }))
@@ -326,7 +332,25 @@ const visibleMetadataRows = computed(() => {
 
 const blendOverlayStyle = computed(() => ({
   opacity: String(blendOpacity.value / 100),
+  mixBlendMode: blendMode.value,
 }))
+
+const blendModeOptions = pictureBlendModes.map((mode) => ({
+  value: mode,
+  labelKey: `ui.blendMode${mode[0].toUpperCase()}${mode.slice(1)}`,
+}))
+
+function onBlendModeChange(event: Event): void {
+  const target = event.target
+
+  if (!(target instanceof HTMLSelectElement)) {
+    return
+  }
+  blendMode.value = (pictureBlendModes as readonly string[]).includes(target.value)
+    ? (target.value as PictureBlendMode)
+    : 'normal'
+  persistPictureOptions()
+}
 
 const ignoreFromChannels = computed(() => ignoreColorFrom.value ?? [0, 0, 0, 255])
 const ignoreToChannels = computed(() => ignoreColorTo.value ?? [0, 0, 0, 255])
@@ -846,8 +870,27 @@ async function runPictureCompare(): Promise<void> {
       >
         <header>
           <strong>{{ $t('ui.blend') }}</strong>
-          <span>{{ $t('ui.blendOpacity') }}: {{ blendOpacity }}%</span>
+          <span
+            >{{ $t('ui.blendOpacity') }}: {{ blendOpacity }}% ·
+            {{ $t(`ui.blendMode${blendMode[0].toUpperCase()}${blendMode.slice(1)}`) }}</span
+          >
         </header>
+        <label>
+          <span>{{ $t('ui.blendMode') }}</span>
+          <select
+            data-testid="picture-blend-mode"
+            :value="blendMode"
+            @change="onBlendModeChange"
+          >
+            <option
+              v-for="option in blendModeOptions"
+              :key="option.value"
+              :value="option.value"
+            >
+              {{ $t(option.labelKey) }}
+            </option>
+          </select>
+        </label>
         <label>
           <span>{{ $t('ui.blendOpacity') }}</span>
           <input
@@ -1548,6 +1591,7 @@ h2 {
 
 .picture-image {
   position: relative;
+  isolation: isolate;
   width: min(78%, 420px);
   aspect-ratio: 4 / 3;
   overflow: hidden;

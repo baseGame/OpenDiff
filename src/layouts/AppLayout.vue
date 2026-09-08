@@ -99,6 +99,8 @@ onMounted(() => {
       const launch = await takeShellCompareLaunch()
 
       if (!launch) {
+        maybeRestoreLastWorkspaceOnStartup()
+
         return
       }
 
@@ -132,6 +134,7 @@ onMounted(() => {
       void router.push(launch.route)
     } catch {
       // ponytail: ignore missing shell launch outside Windows Explorer flow
+      maybeRestoreLastWorkspaceOnStartup()
     }
   })()
 
@@ -353,6 +356,27 @@ function saveCurrentWorkspaceFromMenu(): void {
   workspaces.saveWorkspace(name, tabs.workspaceSnapshot())
   statusBar.reportStatus({
     comparisonStatus: t('ui.saveWorkspaceAs'),
+    source: 'workspace',
+  })
+}
+
+function maybeRestoreLastWorkspaceOnStartup(): void {
+  if (!settings.loadLastWorkspaceOnStartup) {
+    return
+  }
+
+  const latest = workspaces.workspaces.at(0)
+
+  if (!latest) {
+    return
+  }
+
+  tabs.restoreWorkspaceTabs(latest.tabs)
+  const active = tabs.activeTab
+
+  void router.push(active.route)
+  statusBar.reportStatus({
+    comparisonStatus: latest.name,
     source: 'workspace',
   })
 }

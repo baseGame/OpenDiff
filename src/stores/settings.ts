@@ -70,6 +70,7 @@ const largeToolbarButtonsStorageKey = 'open-diff-large-toolbar-buttons'
 const createBackupOnSaveStorageKey = 'open-diff-create-backup-on-save'
 const showStatusBarStorageKey = 'open-diff-show-status-bar'
 const showPathBarsStorageKey = 'open-diff-show-path-bars'
+const loadLastWorkspaceOnStartupStorageKey = 'open-diff-load-last-workspace-on-startup'
 const fontFamilyIds = new Set<FontFamilyId>(['system', 'segoe', 'inter', 'noto', 'mono'])
 const shortcutScopes = new Set<ShortcutScope>(['global', 'text-compare'])
 const commandIds = new Set<string>(commandRegistry.map((command) => command.id))
@@ -101,6 +102,7 @@ export const useSettingsStore = defineStore('settings', () => {
   const createBackupOnSave = ref(loadCreateBackupOnSave())
   const showStatusBar = ref(loadShowStatusBar())
   const showPathBars = ref(loadShowPathBars())
+  const loadLastWorkspaceOnStartup = ref(loadLoadLastWorkspaceOnStartup())
 
   bindSystemThemeListener((prefersDark) => {
     systemPrefersDark.value = prefersDark
@@ -236,6 +238,14 @@ export const useSettingsStore = defineStore('settings', () => {
     (value) => {
       localStorage.setItem(showPathBarsStorageKey, value ? '1' : '0')
       document.documentElement.dataset.showPathBars = value ? '1' : '0'
+    },
+    { immediate: true, flush: 'sync' },
+  )
+
+  watch(
+    loadLastWorkspaceOnStartup,
+    (value) => {
+      localStorage.setItem(loadLastWorkspaceOnStartupStorageKey, value ? '1' : '0')
     },
     { immediate: true, flush: 'sync' },
   )
@@ -394,6 +404,10 @@ export const useSettingsStore = defineStore('settings', () => {
     showPathBars.value = value
   }
 
+  function setLoadLastWorkspaceOnStartup(value: boolean): void {
+    loadLastWorkspaceOnStartup.value = value
+  }
+
   function exportSettingsPackage(): SettingsPackage {
     return {
       kind: settingsPackageKind,
@@ -414,6 +428,7 @@ export const useSettingsStore = defineStore('settings', () => {
       createBackupOnSave: createBackupOnSave.value,
       showStatusBar: showStatusBar.value,
       showPathBars: showPathBars.value,
+      loadLastWorkspaceOnStartup: loadLastWorkspaceOnStartup.value,
     }
   }
 
@@ -452,6 +467,11 @@ export const useSettingsStore = defineStore('settings', () => {
     setShowPathBars(
       typeof packageValue.showPathBars === 'boolean' ? packageValue.showPathBars : true,
     )
+    setLoadLastWorkspaceOnStartup(
+      typeof packageValue.loadLastWorkspaceOnStartup === 'boolean'
+        ? packageValue.loadLastWorkspaceOnStartup
+        : false,
+    )
 
     return true
   }
@@ -473,6 +493,7 @@ export const useSettingsStore = defineStore('settings', () => {
     setCreateBackupOnSave(false)
     setShowStatusBar(true)
     setShowPathBars(true)
+    setLoadLastWorkspaceOnStartup(false)
   }
 
   return {
@@ -493,6 +514,7 @@ export const useSettingsStore = defineStore('settings', () => {
     createBackupOnSave,
     showStatusBar,
     showPathBars,
+    loadLastWorkspaceOnStartup,
     toggleTheme,
     setTheme,
     setLocale,
@@ -514,6 +536,7 @@ export const useSettingsStore = defineStore('settings', () => {
     setCreateBackupOnSave,
     setShowStatusBar,
     setShowPathBars,
+    setLoadLastWorkspaceOnStartup,
     exportSettingsPackage,
     importSettingsPackage,
     restoreFactoryDefaults,
@@ -730,6 +753,16 @@ function loadShowPathBars(): boolean {
 
   if (stored === null) {
     return true
+  }
+
+  return stored !== '0'
+}
+
+function loadLoadLastWorkspaceOnStartup(): boolean {
+  const stored = localStorage.getItem(loadLastWorkspaceOnStartupStorageKey)
+
+  if (stored === null) {
+    return false
   }
 
   return stored !== '0'

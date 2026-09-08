@@ -1,5 +1,18 @@
 export const pictureCompareOptionsStorageKey = 'open-diff-picture-compare-options'
 
+export const pictureBlendModes = [
+  'normal',
+  'difference',
+  'multiply',
+  'screen',
+  'overlay',
+  'exclusion',
+  'lighten',
+  'darken',
+] as const
+
+export type PictureBlendMode = (typeof pictureBlendModes)[number]
+
 export interface PictureCompareOptionsState {
   rgbTolerance: number
   compareAlpha: boolean
@@ -7,8 +20,17 @@ export interface PictureCompareOptionsState {
   ignoreColorTo: number[] | null
   blendEnabled: boolean
   blendOpacity: number
+  blendMode: PictureBlendMode
   showMeta: boolean
   showMinor: boolean
+}
+
+export function normalizePictureBlendMode(value: unknown): PictureBlendMode {
+  if (typeof value === 'string' && (pictureBlendModes as readonly string[]).includes(value)) {
+    return value as PictureBlendMode
+  }
+
+  return 'normal'
 }
 
 export function defaultPictureCompareOptions(): PictureCompareOptionsState {
@@ -19,6 +41,7 @@ export function defaultPictureCompareOptions(): PictureCompareOptionsState {
     ignoreColorTo: null,
     blendEnabled: false,
     blendOpacity: 50,
+    blendMode: 'normal',
     showMeta: true,
     showMinor: false,
   }
@@ -77,6 +100,7 @@ export function loadPictureCompareOptions(
       ignoreColorTo: normalizeRgba(parsed.ignoreColorTo),
       blendEnabled: parsed.blendEnabled === true,
       blendOpacity: clampPercent(parsed.blendOpacity, defaults.blendOpacity),
+      blendMode: normalizePictureBlendMode(parsed.blendMode),
       showMeta: parsed.showMeta !== false,
       showMinor: parsed.showMinor === true,
     }
@@ -98,6 +122,7 @@ export function savePictureCompareOptions(
       ignoreColorTo: normalizeRgba(state.ignoreColorTo),
       blendEnabled: state.blendEnabled,
       blendOpacity: clampPercent(state.blendOpacity, 50),
+      blendMode: normalizePictureBlendMode(state.blendMode),
       showMeta: state.showMeta,
       showMinor: state.showMinor,
     }),

@@ -363,6 +363,21 @@ describe('PictureCompareView', () => {
       wrapper.find('[data-testid="picture-session-toolbar-blend"]').attributes('data-active'),
     ).toBe('true')
 
+    const modeSelect = wrapper.find('[data-testid="picture-blend-mode"]')
+
+    expect(modeSelect.exists()).toBe(true)
+    await modeSelect.setValue('difference')
+    await modeSelect.trigger('change')
+    expect(wrapper.find('[data-testid="picture-blend-overlay"]').attributes('style')).toContain(
+      'mix-blend-mode: difference',
+    )
+    expect(
+      JSON.parse(localStorage.getItem('open-diff-picture-compare-options') ?? '{}'),
+    ).toMatchObject({
+      blendMode: 'difference',
+      blendEnabled: true,
+    })
+
     await wrapper.find('[data-testid="picture-session-toolbar-tol"]').trigger('click')
     expect(wrapper.find('[data-testid="picture-tol-panel"]').exists()).toBe(true)
     expect(
