@@ -203,14 +203,17 @@ describe('useSettingsStore', () => {
 
     expect(store.showSessionToolbars).toBe(true)
     expect(store.showToolbarLabels).toBe(true)
+    expect(store.largeToolbarButtons).toBe(true)
     expect(store.createBackupOnSave).toBe(true)
 
     store.setShowSessionToolbars(false)
     store.setShowToolbarLabels(false)
+    store.setLargeToolbarButtons(false)
     store.setCreateBackupOnSave(false)
 
     expect(localStorage.getItem('open-diff-show-session-toolbars')).toBe('0')
     expect(localStorage.getItem('open-diff-show-toolbar-labels')).toBe('0')
+    expect(localStorage.getItem('open-diff-large-toolbar-buttons')).toBe('0')
     expect(localStorage.getItem('open-diff-create-backup-on-save')).toBe('0')
   })
 

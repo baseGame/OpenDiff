@@ -255,14 +255,47 @@ select {
   white-space: nowrap;
 }
 
-.bc-toolbar-command:first-child,
-.bc-toolbar-command:nth-child(3) {
+.bc-toolbar-command-active {
   background: #c8e4ff;
   box-shadow: inset 0 0 0 1px #89bdea;
 }
 
 .bc-toolbar-command:hover:not(:disabled) {
   background: #dceeff;
+}
+
+.bc-toolbar-command-active:hover:not(:disabled) {
+  background: #b7dbf8;
+}
+
+.bc-session-toolbar-compact {
+  min-height: 44px;
+}
+
+.bc-session-toolbar-compact .bc-toolbar-command {
+  grid-template-rows: 22px auto;
+  min-width: 52px;
+  max-width: 96px;
+  height: 44px;
+  padding: 2px 6px 3px;
+  font-size: 11px;
+  line-height: 12px;
+}
+
+.bc-session-toolbar-compact .bc-toolbar-glyph {
+  min-width: 20px;
+  height: 20px;
+  font-size: 16px;
+}
+
+.bc-session-toolbar-glyphs-only .bc-toolbar-command {
+  min-width: 48px;
+  max-width: 64px;
+}
+
+.bc-session-toolbar-compact.bc-session-toolbar-glyphs-only .bc-toolbar-command {
+  min-width: 40px;
+  max-width: 48px;
 }
 
 .bc-toolbar-command:disabled {

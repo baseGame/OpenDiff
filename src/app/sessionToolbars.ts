@@ -5,6 +5,8 @@ export interface SessionToolbarCommand {
   glyph: string
   labelKey: string
   enabled: boolean
+  /** Pressed/toggle chrome for capture-like session toolbars. */
+  active?: boolean
 }
 
 export const folderCompareToolbarOrder = [

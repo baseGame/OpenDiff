@@ -284,6 +284,16 @@ function onShowToolbarLabelsChange(event: Event): void {
   settings.setShowToolbarLabels(target.checked)
 }
 
+function onLargeToolbarButtonsChange(event: Event): void {
+  const target = event.target
+
+  if (!(target instanceof HTMLInputElement)) {
+    return
+  }
+
+  settings.setLargeToolbarButtons(target.checked)
+}
+
 function onShowStatusBarChange(event: Event): void {
   const target = event.target
 
@@ -648,6 +658,15 @@ function parseShortcutText(value: string): string[] {
             @change="onShowToolbarLabelsChange"
           />
           <span>{{ $t('ui.showToolbarLabels') }}</span>
+        </label>
+        <label class="tweak-row">
+          <input
+            data-testid="large-toolbar-buttons"
+            type="checkbox"
+            :checked="settings.largeToolbarButtons"
+            @change="onLargeToolbarButtonsChange"
+          />
+          <span>{{ $t('ui.largeToolbarButtons') }}</span>
         </label>
         <p class="options-hint">{{ $t('ui.toolbarsHint') }}</p>
       </NCard>

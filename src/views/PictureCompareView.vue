@@ -286,7 +286,15 @@ const pictureSessionToolbar = computed(() =>
     swap: Boolean(leftPath.value || rightPath.value),
     reload: Boolean(leftPath.value && rightPath.value),
     meta: true,
-  }),
+  }).map((item) => ({
+    ...item,
+    active:
+      (item.id === 'tol' && showTolPanel.value) ||
+      (item.id === 'range' && showRangePanel.value) ||
+      (item.id === 'blend' && blendEnabled.value) ||
+      (item.id === 'minor' && showMinor.value) ||
+      (item.id === 'meta' && showMetaPanel.value),
+  })),
 )
 
 function clampByte(value: number, fallback = 0): number {

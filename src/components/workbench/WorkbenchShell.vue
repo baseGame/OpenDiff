@@ -25,11 +25,12 @@ const toolbarItems = computed(() => {
     return props.toolbarCommands
   }
 
-  return toolbarForTitle(props.title).map((item) => ({
+  return toolbarForTitle(props.title).map((item): SessionToolbarCommand => ({
     id: item.id,
     glyph: item.glyph,
     labelKey: item.labelKey,
     enabled: false,
+    active: false,
   }))
 })
 const showSessionToolbar = computed(
@@ -291,16 +292,23 @@ function onToolbarCommand(command: SessionToolbarCommand): void {
       <section
         v-if="showSessionToolbar"
         class="bc-session-toolbar"
-        :class="{ 'bc-session-toolbar-glyphs-only': !settings.showToolbarLabels }"
+        :class="{
+          'bc-session-toolbar-glyphs-only': !settings.showToolbarLabels,
+          'bc-session-toolbar-compact': !settings.largeToolbarButtons,
+        }"
         :data-testid="`${testIdPrefix}-bar`"
+        :data-large-buttons="settings.largeToolbarButtons ? 'true' : 'false'"
       >
         <button
           v-for="toolbarItem in toolbarItems"
           :key="toolbarItem.id"
           type="button"
           class="bc-toolbar-command"
+          :class="{ 'bc-toolbar-command-active': toolbarItem.active }"
           :disabled="!toolbarItem.enabled"
+          :aria-pressed="toolbarItem.active ? 'true' : 'false'"
           :data-testid="`${testIdPrefix}-${toolbarItem.id}`"
+          :data-active="toolbarItem.active ? 'true' : 'false'"
           :title="t(toolbarItem.labelKey)"
           @click="onToolbarCommand(toolbarItem)"
         >

@@ -134,6 +134,15 @@ describe('TextCompareView', () => {
     expect(
       wrapper.find('[data-testid="text-session-toolbar-rules"]').attributes('disabled'),
     ).toBeUndefined()
+    expect(wrapper.find('[data-testid="text-session-toolbar-all"]').attributes('data-active')).toBe(
+      'true',
+    )
+    expect(
+      wrapper.find('[data-testid="text-session-toolbar-rules"]').attributes('data-active'),
+    ).toBe('true')
+    expect(
+      wrapper.find('[data-testid="text-session-toolbar-bar"]').attributes('data-large-buttons'),
+    ).toBe('true')
     expect(wrapper.html()).not.toContain('未实现')
   })
 
@@ -143,23 +152,53 @@ describe('TextCompareView', () => {
     expect(
       wrapper.find('[data-testid="text-rules-panel"]').attributes('style') ?? '',
     ).not.toContain('display: none')
+    expect(
+      wrapper.find('[data-testid="text-session-toolbar-rules"]').attributes('data-active'),
+    ).toBe('true')
     await wrapper.find('[data-testid="text-session-toolbar-rules"]').trigger('click')
     expect(wrapper.find('[data-testid="text-rules-panel"]').attributes('style') ?? '').toContain(
       'display: none',
     )
+    expect(
+      wrapper.find('[data-testid="text-session-toolbar-rules"]').attributes('data-active'),
+    ).toBe('false')
     await wrapper.find('[data-testid="text-session-toolbar-rules"]').trigger('click')
     expect(
       wrapper.find('[data-testid="text-rules-panel"]').attributes('style') ?? '',
     ).not.toContain('display: none')
   })
 
-  it('toggles minor whitespace ignore from the session toolbar', async () => {
+  it('marks display-mode toolbar buttons as active when pressed', async () => {
     const wrapper = mountTextCompareView()
 
+    await wrapper.find('[data-testid="text-session-toolbar-diffs"]').trigger('click')
+    expect(
+      wrapper.find('[data-testid="text-session-toolbar-diffs"]').attributes('data-active'),
+    ).toBe('true')
+    expect(wrapper.find('[data-testid="text-session-toolbar-all"]').attributes('data-active')).toBe(
+      'false',
+    )
+
+    await wrapper.find('[data-testid="text-session-toolbar-context"]').trigger('click')
+    expect(
+      wrapper.find('[data-testid="text-session-toolbar-context"]').attributes('data-active'),
+    ).toBe('true')
+  })
+
+  it('toggles minor whitespace ignore from the session toolbar', async () => {
+    localStorage.clear()
+    const wrapper = mountTextCompareView()
+
+    expect(
+      wrapper.find('[data-testid="text-session-toolbar-minor"]').attributes('data-active'),
+    ).toBe('false')
     await wrapper.find('[data-testid="text-session-toolbar-minor"]').trigger('click')
     expect(
       (wrapper.find('[data-testid="ignore-whitespace"]').element as HTMLInputElement).checked,
     ).toBe(true)
+    expect(
+      wrapper.find('[data-testid="text-session-toolbar-minor"]').attributes('data-active'),
+    ).toBe('true')
   })
 
   it('swaps paths from the session toolbar', async () => {

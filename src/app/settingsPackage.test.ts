@@ -29,6 +29,7 @@ const sample: SettingsPackage = {
   wrapTextDefault: false,
   showSessionToolbars: true,
   showToolbarLabels: true,
+  largeToolbarButtons: true,
   createBackupOnSave: false,
   showStatusBar: true,
   showPathBars: true,

@@ -902,6 +902,7 @@ export const koKR: LanguagePack = {
     'ui.optionsGroupSystem': 'System',
     'ui.showSessionToolbars': 'Show session toolbars',
     'ui.showToolbarLabels': 'Show toolbar labels',
+    'ui.largeToolbarButtons': 'Large toolbar buttons',
     'ui.showStatusBar': 'Show status bar',
     'ui.showPathBars': 'Show path bars',
     'ui.appearanceChromeHint':

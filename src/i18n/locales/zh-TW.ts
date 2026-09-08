@@ -883,6 +883,7 @@ export const zhTW: LanguagePack = {
     'ui.optionsGroupSystem': '系統',
     'ui.showSessionToolbars': '顯示工作階段工具列',
     'ui.showToolbarLabels': '顯示工具列標籤',
+    'ui.largeToolbarButtons': '大型工具列按鈕',
     'ui.showStatusBar': '顯示狀態列',
     'ui.showPathBars': '顯示路徑列',
     'ui.appearanceChromeHint': '可隱藏狀態列與路徑列，不影響比較結果。',
