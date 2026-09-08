@@ -164,6 +164,10 @@ export interface FolderCompareCriteria {
   compareContents: boolean
   compareCrc: boolean
   followSymlinks?: boolean
+  /** Allowed absolute modified-time skew in milliseconds. */
+  timestampToleranceMs?: number
+  /** Treat a one-hour modified-time skew as equal (DST / clock skew). */
+  ignoreDaylightSavingHourOffset?: boolean
 }
 
 export interface FolderNameFilters {
@@ -353,6 +357,7 @@ export interface PictureCompareRequest {
   rightPath: string
   rgbTolerance?: number
   compareAlpha?: boolean
+  alphaTolerance?: number
   ignoreColorFrom?: number[]
   ignoreColorTo?: number[]
 }

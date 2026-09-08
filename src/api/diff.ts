@@ -178,6 +178,7 @@ export function comparePictureFiles(
     rightPath: request.rightPath,
     rgbTolerance: request.rgbTolerance,
     compareAlpha: request.compareAlpha,
+    alphaTolerance: request.alphaTolerance,
     ignoreColorFrom: request.ignoreColorFrom,
     ignoreColorTo: request.ignoreColorTo,
   })

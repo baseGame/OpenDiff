@@ -2025,6 +2025,31 @@ onUnmounted(() => {
             />
             <span>{{ $t('ui.followSymlinks') }}</span>
           </label>
+          <label class="folder-criteria-tolerance">
+            <span>{{ $t('ui.timestampToleranceSeconds') }}</span>
+            <input
+              :value="Math.round((folderCriteria.timestampToleranceMs ?? 0) / 1000)"
+              data-testid="folder-criteria-timestamp-tolerance"
+              type="number"
+              min="0"
+              max="86400"
+              step="1"
+              @input="
+                folderCriteria.timestampToleranceMs = Math.max(
+                  0,
+                  Math.round(Number(($event.target as HTMLInputElement).value) || 0) * 1000,
+                )
+              "
+            />
+          </label>
+          <label>
+            <input
+              v-model="folderCriteria.ignoreDaylightSavingHourOffset"
+              data-testid="folder-criteria-ignore-dst"
+              type="checkbox"
+            />
+            <span>{{ $t('ui.ignoreDaylightSavingHourOffset') }}</span>
+          </label>
         </fieldset>
         <button
           type="button"
