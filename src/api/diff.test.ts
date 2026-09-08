@@ -355,6 +355,7 @@ describe('diff api', () => {
       rightPath: 'C:/images/right.png',
       rgbTolerance: undefined,
       compareAlpha: undefined,
+      alphaTolerance: undefined,
       ignoreColorFrom: undefined,
       ignoreColorTo: undefined,
     })

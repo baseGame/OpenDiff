@@ -49,6 +49,7 @@ const error = ref('')
 const initialPictureOptions = loadPictureCompareOptions()
 const rgbTolerance = ref(initialPictureOptions.rgbTolerance)
 const compareAlpha = ref(initialPictureOptions.compareAlpha)
+const alphaTolerance = ref(initialPictureOptions.alphaTolerance)
 const ignoreColorFrom = ref<number[] | null>(initialPictureOptions.ignoreColorFrom)
 const ignoreColorTo = ref<number[] | null>(initialPictureOptions.ignoreColorTo)
 const showSessionSettings = ref(false)
@@ -103,6 +104,7 @@ function applyPictureSessionSettings(
 
   rgbTolerance.value = payload.options.rgbTolerance
   compareAlpha.value = payload.options.compareAlpha
+  alphaTolerance.value = payload.options.alphaTolerance
   ignoreColorFrom.value = payload.options.ignoreColorFrom
   ignoreColorTo.value = payload.options.ignoreColorTo
   blendEnabled.value = payload.options.blendEnabled
@@ -112,6 +114,7 @@ function applyPictureSessionSettings(
   savePictureCompareOptions({
     rgbTolerance: payload.options.rgbTolerance,
     compareAlpha: payload.options.compareAlpha,
+    alphaTolerance: payload.options.alphaTolerance,
     ignoreColorFrom: payload.options.ignoreColorFrom,
     ignoreColorTo: payload.options.ignoreColorTo,
     blendEnabled: payload.options.blendEnabled,
@@ -308,6 +311,7 @@ function clampByte(value: number, fallback = 0): number {
 const pictureOptionsSnapshot = computed<PictureCompareOptionsState>(() => ({
   rgbTolerance: clampByte(rgbTolerance.value),
   compareAlpha: compareAlpha.value,
+  alphaTolerance: clampByte(alphaTolerance.value),
   ignoreColorFrom: ignoreColorFrom.value,
   ignoreColorTo: ignoreColorTo.value,
   blendEnabled: blendEnabled.value,
@@ -500,6 +504,7 @@ async function runPictureCompare(): Promise<void> {
       rightPath: rightPath.value,
       rgbTolerance: pictureOptionsSnapshot.value.rgbTolerance,
       compareAlpha: pictureOptionsSnapshot.value.compareAlpha,
+      alphaTolerance: pictureOptionsSnapshot.value.alphaTolerance,
       ...pictureIgnoreColors(pictureOptionsSnapshot.value),
     })
 
@@ -603,6 +608,17 @@ async function runPictureCompare(): Promise<void> {
             data-testid="picture-compare-alpha"
           />
           <span>{{ $t('ui.compareAlpha') }}</span>
+        </label>
+        <label v-if="compareAlpha">
+          <span>{{ $t('ui.alphaTolerance') }}</span>
+          <input
+            v-model.number="alphaTolerance"
+            type="number"
+            min="0"
+            max="255"
+            step="1"
+            data-testid="picture-alpha-tolerance"
+          />
         </label>
       </section>
 
@@ -1070,6 +1086,8 @@ async function runPictureCompare(): Promise<void> {
               <dd data-testid="picture-inspector-alpha">
                 {{ compareAlpha ? $t('ui.on') : $t('ui.off') }}
               </dd>
+              <dt>{{ $t('ui.alphaTolerance') }}</dt>
+              <dd data-testid="picture-inspector-alpha-tolerance">{{ alphaTolerance }}</dd>
             </div>
             <div>
               <dt>{{ $t('ui.range') }}</dt>

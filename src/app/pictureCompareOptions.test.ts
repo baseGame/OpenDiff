@@ -25,6 +25,7 @@ describe('pictureCompareOptions', () => {
     expect(defaultPictureCompareOptions()).toEqual({
       rgbTolerance: 0,
       compareAlpha: true,
+      alphaTolerance: 0,
       ignoreColorFrom: null,
       ignoreColorTo: null,
       blendEnabled: false,
@@ -45,6 +46,7 @@ describe('pictureCompareOptions', () => {
       {
         rgbTolerance: 8,
         compareAlpha: false,
+        alphaTolerance: 4,
         ignoreColorFrom: [255, 0, 0, 255],
         ignoreColorTo: [0, 255, 0],
         blendEnabled: true,
@@ -57,6 +59,7 @@ describe('pictureCompareOptions', () => {
     expect(loadPictureCompareOptions(storage)).toEqual({
       rgbTolerance: 8,
       compareAlpha: false,
+      alphaTolerance: 4,
       ignoreColorFrom: [255, 0, 0, 255],
       ignoreColorTo: [0, 255, 0, 255],
       blendEnabled: true,

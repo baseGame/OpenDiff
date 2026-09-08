@@ -22,6 +22,8 @@ describe('folderCompareCriteria', () => {
       compareContents: false,
       compareCrc: true,
       followSymlinks: true,
+      timestampToleranceMs: 2000,
+      ignoreDaylightSavingHourOffset: true,
     })
 
     expect(localStorage.getItem(folderCompareCriteriaStorageKey)).toContain('followSymlinks')
@@ -31,6 +33,31 @@ describe('folderCompareCriteria', () => {
       compareContents: false,
       compareCrc: true,
       followSymlinks: true,
+      timestampToleranceMs: 2000,
+      ignoreDaylightSavingHourOffset: true,
+    })
+  })
+
+  it('defaults missing timestamp tolerance fields from older packages', () => {
+    localStorage.setItem(
+      folderCompareCriteriaStorageKey,
+      JSON.stringify({
+        compareSize: true,
+        compareModifiedTime: true,
+        compareContents: true,
+        compareCrc: false,
+        followSymlinks: false,
+      }),
+    )
+
+    expect(loadFolderCompareCriteria()).toEqual({
+      compareSize: true,
+      compareModifiedTime: true,
+      compareContents: true,
+      compareCrc: false,
+      followSymlinks: false,
+      timestampToleranceMs: 0,
+      ignoreDaylightSavingHourOffset: false,
     })
   })
 })

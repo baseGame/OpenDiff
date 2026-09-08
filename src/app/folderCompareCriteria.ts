@@ -2,6 +2,16 @@ import type { FolderCompareCriteria } from '@/types/diff'
 
 export const folderCompareCriteriaStorageKey = 'open-diff-folder-compare-criteria'
 
+function clampNonNegativeInt(value: unknown, fallback = 0): number {
+  const numeric = typeof value === 'number' ? value : Number(value)
+
+  if (!Number.isFinite(numeric)) {
+    return fallback
+  }
+
+  return Math.max(0, Math.round(numeric))
+}
+
 export function defaultFolderCompareCriteria(): FolderCompareCriteria {
   return {
     compareSize: true,
@@ -9,6 +19,8 @@ export function defaultFolderCompareCriteria(): FolderCompareCriteria {
     compareContents: true,
     compareCrc: false,
     followSymlinks: false,
+    timestampToleranceMs: 0,
+    ignoreDaylightSavingHourOffset: false,
   }
 }
 
@@ -30,6 +42,8 @@ export function loadFolderCompareCriteria(
       compareContents: parsed.compareContents !== false,
       compareCrc: Boolean(parsed.compareCrc),
       followSymlinks: Boolean(parsed.followSymlinks),
+      timestampToleranceMs: clampNonNegativeInt(parsed.timestampToleranceMs, 0),
+      ignoreDaylightSavingHourOffset: Boolean(parsed.ignoreDaylightSavingHourOffset),
     }
   } catch {
     return defaultFolderCompareCriteria()
@@ -48,6 +62,8 @@ export function saveFolderCompareCriteria(
       compareContents: state.compareContents,
       compareCrc: state.compareCrc,
       followSymlinks: Boolean(state.followSymlinks),
+      timestampToleranceMs: clampNonNegativeInt(state.timestampToleranceMs, 0),
+      ignoreDaylightSavingHourOffset: Boolean(state.ignoreDaylightSavingHourOffset),
     }),
   )
 }

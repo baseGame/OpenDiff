@@ -35,6 +35,8 @@ const props = withDefaults(
       compareContents: true,
       compareCrc: false,
       followSymlinks: false,
+      timestampToleranceMs: 0,
+      ignoreDaylightSavingHourOffset: false,
     }),
     folderFilters: () => ({
       include: [],
@@ -320,6 +322,31 @@ function applySettings(): void {
           />
           <span>{{ $t('ui.followSymlinks') }}</span>
         </label>
+        <label class="stack">
+          <span>{{ $t('ui.timestampToleranceSeconds') }}</span>
+          <input
+            :value="Math.round((draftFolder.timestampToleranceMs ?? 0) / 1000)"
+            type="number"
+            min="0"
+            max="86400"
+            step="1"
+            data-testid="session-settings-timestamp-tolerance"
+            @input="
+              draftFolder.timestampToleranceMs = Math.max(
+                0,
+                Math.round(Number(($event.target as HTMLInputElement).value) || 0) * 1000,
+              )
+            "
+          />
+        </label>
+        <label>
+          <input
+            v-model="draftFolder.ignoreDaylightSavingHourOffset"
+            type="checkbox"
+            data-testid="session-settings-ignore-dst"
+          />
+          <span>{{ $t('ui.ignoreDaylightSavingHourOffset') }}</span>
+        </label>
       </div>
 
       <div
@@ -493,6 +520,19 @@ function applySettings(): void {
             data-testid="session-settings-picture-alpha"
           />
           <span>{{ $t('ui.compareAlpha') }}</span>
+        </label>
+        <label
+          v-if="draftPicture.compareAlpha"
+          class="stack"
+        >
+          <span>{{ $t('ui.alphaTolerance') }}</span>
+          <input
+            v-model.number="draftPicture.alphaTolerance"
+            type="number"
+            min="0"
+            max="255"
+            data-testid="session-settings-picture-alpha-tolerance"
+          />
         </label>
       </div>
 
