@@ -49,6 +49,8 @@ const ignoreCase = ref(initialTextSessionOptions.ignoreCase)
 const ignoreLineEndings = ref(initialTextSessionOptions.ignoreLineEndings)
 const ignoreRegexInput = ref(initialTextSessionOptions.ignoreRegexes.join(', '))
 const showTextRules = ref(true)
+const showContextPanel = ref(false)
+const contextLineCount = ref(2)
 const showSessionSettings = ref(false)
 const viewActions = useViewActionsStore()
 const folderSettingsPlaceholder = defaultFolderCompareCriteria()
@@ -156,16 +158,16 @@ watch(
         showTextRules.value = !showTextRules.value
         break
       case 'filters':
-        textDiffPanelRef.value?.setDisplayMode('differences')
+        leaveTextContextMode('differences')
         break
       case 'export':
         void exportCurrentReport('html')
         break
       case 'show-all':
-        textDiffPanelRef.value?.setDisplayMode('all')
+        leaveTextContextMode('all')
         break
       case 'show-differences':
-        textDiffPanelRef.value?.setDisplayMode('differences')
+        leaveTextContextMode('differences')
         break
       case 'previous-difference':
         goToPreviousDiff()
@@ -868,7 +870,9 @@ function closeHtmlPreviewWhenUnavailable(): void {
 
 const textDiffPanelRef = ref<{
   setDisplayMode: (mode: 'all' | 'differences' | 'same') => void
+  getDisplayMode: () => 'all' | 'differences' | 'same'
   setDifferenceContextRowCount: (value: number) => void
+  getDifferenceContextRowCount: () => number
 } | null>(null)
 const textDisplayMode = ref<'all' | 'differences' | 'same' | 'context'>('all')
 
@@ -920,10 +924,44 @@ function toggleTextMinorRules(): void {
   }
 }
 
+function leaveTextContextMode(mode?: 'all' | 'differences' | 'same'): void {
+  showContextPanel.value = false
+  if (mode) {
+    textDisplayMode.value = mode
+    textDiffPanelRef.value?.setDisplayMode(mode)
+  }
+}
+
 function showTextContextMode(): void {
+  if (showContextPanel.value) {
+    leaveTextContextMode('all')
+
+    return
+  }
+
+  showContextPanel.value = true
   textDisplayMode.value = 'context'
   textDiffPanelRef.value?.setDisplayMode('differences')
-  textDiffPanelRef.value?.setDifferenceContextRowCount(2)
+  textDiffPanelRef.value?.setDifferenceContextRowCount(contextLineCount.value)
+}
+
+function onContextLineCountInput(event: Event): void {
+  const target = event.target
+
+  if (!(target instanceof HTMLInputElement)) {
+    return
+  }
+
+  const parsed = Number.parseInt(target.value, 10)
+
+  if (Number.isNaN(parsed)) {
+    return
+  }
+
+  contextLineCount.value = Math.min(99, Math.max(0, parsed))
+  if (showContextPanel.value) {
+    textDiffPanelRef.value?.setDifferenceContextRowCount(contextLineCount.value)
+  }
 }
 
 function runTextToolbarCommand(commandId: string): void {
@@ -932,16 +970,13 @@ function runTextToolbarCommand(commandId: string): void {
       goHomeFromText()
       break
     case 'all':
-      textDisplayMode.value = 'all'
-      textDiffPanelRef.value?.setDisplayMode('all')
+      leaveTextContextMode('all')
       break
     case 'diffs':
-      textDisplayMode.value = 'differences'
-      textDiffPanelRef.value?.setDisplayMode('differences')
+      leaveTextContextMode('differences')
       break
     case 'same':
-      textDisplayMode.value = 'same'
-      textDiffPanelRef.value?.setDisplayMode('same')
+      leaveTextContextMode('same')
       break
     case 'context':
       showTextContextMode()
@@ -1196,6 +1231,28 @@ function toggleSourceEditors(): void {
             :placeholder="$t('ui.regex')"
           />
         </fieldset>
+        <section
+          v-if="showContextPanel"
+          class="text-context-panel"
+          data-testid="text-context-panel"
+        >
+          <header>
+            <strong>{{ $t('ui.context') }}</strong>
+            <span>{{ $t('ui.contextLinesHint') }}</span>
+          </header>
+          <label class="text-context-lines">
+            <span>{{ $t('ui.contextLines') }}</span>
+            <input
+              data-testid="text-context-lines"
+              type="number"
+              min="0"
+              max="99"
+              step="1"
+              :value="contextLineCount"
+              @input="onContextLineCountInput"
+            />
+          </label>
+        </section>
         <button
           type="button"
           data-testid="open-text-session-settings"
@@ -1576,6 +1633,45 @@ function toggleSourceEditors(): void {
 .text-rules-panel legend {
   padding: 0 4px;
   font-size: 12px;
+}
+
+.text-context-panel {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--od-border, #d0d7de);
+  border-radius: 6px;
+}
+
+.text-context-panel header {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+}
+
+.text-context-panel header span {
+  color: var(--app-text-muted);
+}
+
+.text-context-lines {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.text-context-lines input {
+  width: 64px;
+  height: 24px;
+  padding: 0 6px;
+  border: 1px solid var(--app-border);
+  border-radius: 4px;
+  background: var(--app-canvas);
+  color: var(--app-text);
 }
 
 .algorithm-select {

@@ -116,6 +116,8 @@ export const frFR: LanguagePack = {
     'ui.conflictPolicy': 'Politique de conflit',
     'ui.connectionProfiles': 'Profils de connexion',
     'ui.context': 'Contexte',
+    'ui.contextLines': 'Context lines',
+    'ui.contextLinesHint': 'Show surrounding lines when viewing differences only.',
     'ui.conversionRule': 'Règle de conversion',
     'ui.copy': 'Copie',
     'ui.copyLeft': 'Copier à gauche',

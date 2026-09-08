@@ -59,7 +59,35 @@ async function runCompare(wrapper: ReturnType<typeof mount>): Promise<void> {
 describe('HexCompareView', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
-    vi.mocked(compareHexFiles).mockClear()
+    vi.mocked(compareHexFiles).mockReset()
+    vi.mocked(compareHexFiles).mockResolvedValue({
+      left: {
+        path: 'C:/bin/left.bin',
+        totalLen: 4,
+        cells: [
+          { offset: 0, byte: 65, hex: '41', ascii: 'A', different: false },
+          { offset: 1, byte: 66, hex: '42', ascii: 'B', different: true },
+          { offset: 2, byte: 67, hex: '43', ascii: 'C', different: false },
+          { offset: 3, byte: 68, hex: '44', ascii: 'D', different: false },
+        ],
+      },
+      right: {
+        path: 'C:/bin/right.bin',
+        totalLen: 4,
+        cells: [
+          { offset: 0, byte: 65, hex: '41', ascii: 'A', different: false },
+          { offset: 1, byte: 88, hex: '58', ascii: 'X', different: true },
+          { offset: 2, byte: 67, hex: '43', ascii: 'C', different: false },
+          { offset: 3, byte: 68, hex: '44', ascii: 'D', different: false },
+        ],
+      },
+      diffRanges: [{ offset: 1, leftBytes: [66], rightBytes: [88] }],
+      summary: {
+        leftBytes: 4,
+        rightBytes: 4,
+        differentRanges: 1,
+      },
+    })
     vi.mocked(findHexInFile).mockClear()
     vi.mocked(saveHexEdits).mockClear()
     vi.mocked(saveTextFile).mockClear()
@@ -257,9 +285,33 @@ describe('HexCompareView', () => {
   })
 
   it('pages and jumps through chunked offsets', async () => {
+    vi.mocked(compareHexFiles).mockResolvedValue({
+      left: {
+        path: 'C:/bin/left.bin',
+        totalLen: 2048,
+        cells: [{ offset: 0, byte: 65, hex: '41', ascii: 'A', different: false }],
+      },
+      right: {
+        path: 'C:/bin/right.bin',
+        totalLen: 2048,
+        cells: [{ offset: 0, byte: 65, hex: '41', ascii: 'A', different: false }],
+      },
+      diffRanges: [],
+      summary: {
+        leftBytes: 2048,
+        rightBytes: 2048,
+        differentRanges: 0,
+      },
+    })
+
     const wrapper = mount(HexCompareView)
 
     await runCompare(wrapper)
+    expect(wrapper.find('[data-testid="hex-window-range"]').text()).toContain('00000000')
+    expect(
+      (wrapper.find('[data-testid="hex-next-page"]').element as HTMLButtonElement).disabled,
+    ).toBe(false)
+
     await wrapper.find('[data-testid="hex-next-page"]').trigger('click')
     await wrapper.vm.$nextTick()
 
@@ -269,11 +321,49 @@ describe('HexCompareView', () => {
 
     await wrapper.find('[data-testid="hex-jump-offset"]').setValue('512')
     await wrapper.find('[data-testid="hex-jump"]').trigger('click')
-    await wrapper.vm.$nextTick()
+    await flushPromises()
 
     expect(compareHexFiles).toHaveBeenLastCalledWith(
       expect.objectContaining({ offset: 512, length: 256 }),
     )
+  })
+
+  it('clamps windowed browse at EOF and disables next/last there', async () => {
+    vi.mocked(compareHexFiles).mockResolvedValue({
+      left: {
+        path: 'C:/bin/left.bin',
+        totalLen: 300,
+        cells: [{ offset: 0, byte: 65, hex: '41', ascii: 'A', different: false }],
+      },
+      right: {
+        path: 'C:/bin/right.bin',
+        totalLen: 300,
+        cells: [{ offset: 0, byte: 65, hex: '41', ascii: 'A', different: false }],
+      },
+      diffRanges: [],
+      summary: {
+        leftBytes: 300,
+        rightBytes: 300,
+        differentRanges: 0,
+      },
+    })
+
+    const wrapper = mount(HexCompareView)
+
+    await runCompare(wrapper)
+    await wrapper.find('[data-testid="hex-next-page"]').trigger('click')
+    await flushPromises()
+
+    expect(compareHexFiles).toHaveBeenLastCalledWith(
+      expect.objectContaining({ offset: 44, length: 256 }),
+    )
+    expect(
+      (wrapper.find('[data-testid="hex-next-page"]').element as HTMLButtonElement).disabled,
+    ).toBe(true)
+    expect(
+      (wrapper.find('[data-testid="hex-last-page"]').element as HTMLButtonElement).disabled,
+    ).toBe(true)
+    expect(wrapper.find('[data-testid="hex-window-range"]').text()).toMatch(/0000002C/i)
   })
 
   it('finds bytes and saves queued edits', async () => {

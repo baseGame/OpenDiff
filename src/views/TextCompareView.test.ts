@@ -168,6 +168,43 @@ describe('TextCompareView', () => {
     ).not.toContain('display: none')
   })
 
+  it('opens context chrome and adjusts surrounding lines from the session toolbar', async () => {
+    const wrapper = mountTextCompareView()
+
+    expect(wrapper.find('[data-testid="text-context-panel"]').exists()).toBe(false)
+
+    await wrapper.find('[data-testid="text-session-toolbar-context"]').trigger('click')
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.find('[data-testid="text-context-panel"]').exists()).toBe(true)
+    expect(
+      (wrapper.find('[data-testid="text-context-lines"]').element as HTMLInputElement).value,
+    ).toBe('2')
+
+    await wrapper.find('[data-testid="text-context-lines"]').setValue('5')
+    await wrapper.find('[data-testid="text-context-lines"]').trigger('input')
+    await wrapper.vm.$nextTick()
+
+    expect(
+      (wrapper.find('[data-testid="text-context-lines"]').element as HTMLInputElement).value,
+    ).toBe('5')
+
+    await wrapper.find('[data-testid="text-session-toolbar-context"]').trigger('click')
+    await wrapper.vm.$nextTick()
+    expect(wrapper.find('[data-testid="text-context-panel"]').exists()).toBe(false)
+
+    await wrapper.find('[data-testid="text-session-toolbar-context"]').trigger('click')
+    await wrapper.vm.$nextTick()
+    expect(wrapper.find('[data-testid="text-context-panel"]').exists()).toBe(true)
+    expect(
+      (wrapper.find('[data-testid="text-context-lines"]').element as HTMLInputElement).value,
+    ).toBe('5')
+
+    await wrapper.find('[data-testid="text-session-toolbar-all"]').trigger('click')
+    await wrapper.vm.$nextTick()
+    expect(wrapper.find('[data-testid="text-context-panel"]').exists()).toBe(false)
+  })
+
   it('marks display-mode toolbar buttons as active when pressed', async () => {
     const wrapper = mountTextCompareView()
 

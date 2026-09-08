@@ -123,6 +123,28 @@ const visiblePairedHexRows = computed(() => {
 const loadedBytesLabel = computed(
   () => `${String(leftTotalLen.value)} / ${String(rightTotalLen.value)}`,
 )
+const hexFileTotal = computed(() => Math.max(leftTotalLen.value, rightTotalLen.value))
+const hexWindowEndExclusive = computed(() => {
+  if (hexFileTotal.value <= 0) {
+    return hexOffset.value + Math.max(0, hexLength.value)
+  }
+
+  return Math.min(hexFileTotal.value, hexOffset.value + Math.max(0, hexLength.value))
+})
+const canPagePrevious = computed(() => hexOffset.value > 0)
+const canPageNext = computed(
+  () =>
+    hexFileTotal.value > 0 && hexOffset.value + Math.max(0, hexLength.value) < hexFileTotal.value,
+)
+const hexWindowRangeLabel = computed(() => {
+  if (hexFileTotal.value <= 0) {
+    return formatOffset(hexOffset.value)
+  }
+
+  const endInclusive = Math.max(hexOffset.value, hexWindowEndExclusive.value - 1)
+
+  return `${formatOffset(hexOffset.value)}–${formatOffset(endInclusive)} / ${formatOffset(hexFileTotal.value)}`
+})
 
 function currentHexSessionOptions(): HexCompareSessionOptions {
   return {
@@ -428,24 +450,44 @@ async function runHexCompare(options?: { preserveNavigationRanges?: boolean }): 
 }
 
 function goToPreviousHexPage(): void {
-  hexOffset.value = Math.max(0, hexOffset.value - hexLength.value)
+  if (!canPagePrevious.value) {
+    return
+  }
+
+  hexOffset.value = Math.max(0, hexOffset.value - Math.max(1, hexLength.value))
+  jumpOffsetInput.value = hexOffsetInputValue(hexOffset.value)
   void runHexCompare()
 }
 
 function goToNextHexPage(): void {
-  hexOffset.value += hexLength.value
+  if (!canPageNext.value) {
+    return
+  }
+
+  const step = Math.max(1, hexLength.value)
+  const last = Math.max(0, hexFileTotal.value - step)
+
+  hexOffset.value = Math.min(hexOffset.value + step, last)
+  jumpOffsetInput.value = hexOffsetInputValue(hexOffset.value)
   void runHexCompare()
 }
 
 function goToFirstHexPage(): void {
+  if (!canPagePrevious.value) {
+    return
+  }
+
   hexOffset.value = 0
   jumpOffsetInput.value = hexOffsetInputValue(0)
   void runHexCompare()
 }
 
 function goToLastHexPage(): void {
-  const total = Math.max(leftTotalLen.value, rightTotalLen.value)
-  const last = Math.max(0, total - hexLength.value)
+  if (!canPageNext.value) {
+    return
+  }
+
+  const last = Math.max(0, hexFileTotal.value - Math.max(1, hexLength.value))
 
   hexOffset.value = last
   jumpOffsetInput.value = hexOffsetInputValue(last)
@@ -757,10 +799,15 @@ async function runHexSave(): Promise<void> {
         >
           {{ $t('ui.goTo') }}
         </button>
+        <strong
+          class="hex-window-range"
+          data-testid="hex-window-range"
+          >{{ hexWindowRangeLabel }}</strong
+        >
         <button
           type="button"
           data-testid="hex-first-page"
-          :disabled="loading || hexOffset <= 0"
+          :disabled="loading || !canPagePrevious"
           @click="goToFirstHexPage"
         >
           {{ $t('ui.firstPage') }}
@@ -768,7 +815,7 @@ async function runHexSave(): Promise<void> {
         <button
           type="button"
           data-testid="hex-previous-page"
-          :disabled="loading || hexOffset <= 0"
+          :disabled="loading || !canPagePrevious"
           @click="goToPreviousHexPage"
         >
           {{ $t('ui.previous') }}
@@ -776,7 +823,7 @@ async function runHexSave(): Promise<void> {
         <button
           type="button"
           data-testid="hex-next-page"
-          :disabled="loading"
+          :disabled="loading || !canPageNext"
           @click="goToNextHexPage"
         >
           {{ $t('ui.next') }}
@@ -784,7 +831,7 @@ async function runHexSave(): Promise<void> {
         <button
           type="button"
           data-testid="hex-last-page"
-          :disabled="loading"
+          :disabled="loading || !canPageNext"
           @click="goToLastHexPage"
         >
           {{ $t('ui.lastPage') }}
